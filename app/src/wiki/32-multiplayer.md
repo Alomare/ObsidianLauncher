@@ -22,7 +22,7 @@ Obsidian changes which public lobbies you can find, so a vanilla player never en
 
 So with the switch on, your lobby shows up for players who run session mods, and you no longer see vanilla lobbies. Turn it off when you want normal matchmaking back.
 
-The lobby filters in the multiplayer terminal say **(Obsidian only)** while you are in the Obsidian pool, so an empty list doesn't look like a broken one.
+The lobby filters in the multiplayer terminal say **(Obsidian Only)** while you are in the Obsidian pool, so an empty list doesn't look like a broken one.
 
 ## When session mods run
 
