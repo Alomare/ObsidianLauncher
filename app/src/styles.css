@@ -708,7 +708,9 @@ button.thumb:hover { border-color: var(--gold); }
 .modal.profiles .btn.small.icon { width: 2rem; padding: 0; }
 .modal.profiles .btn.small.icon svg { width: 1rem; height: 1rem; }
 .modal.profiles .profile-text .sub { white-space: normal; overflow: visible; }
-.modal.profiles .profile-text .sub + .sub { margin-top: 0.05rem; }
+.consent-ico { display: inline-flex; margin-left: 0.5rem; vertical-align: -0.15rem; color: var(--mu); opacity: 0.4; }
+.consent-ico svg { width: 0.95rem; height: 0.95rem; }
+.consent-ico.on { color: var(--goldtx); opacity: 1; }
 
 /* A profile with a color shows it on the left edge of the row */
 .modal.profiles .profile[style] { border-left-color: var(--rc); }
