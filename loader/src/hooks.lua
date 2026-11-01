@@ -31,7 +31,7 @@ local function install(h)
 		return B.unpack(results, 1, results.n)
 	end
 	target[h.method] = function(...)
-		if (state and state.off) or (gated and not session.cleared()) then return original(...) end
+		if (state and state.off) or (gated and not session.allows(state)) then return original(...) end
 		local outer_ran, outer_results = ran, results
 		ran, results = false, nil
 		local r = pack(core.call(state, site, fn, once, ...))

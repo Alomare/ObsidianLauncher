@@ -51,7 +51,7 @@ Calls `fn` each time the key bound to `id` goes down. The key comes from the app
 
 ### obsidian.session.cleared()
 
-`true` while this player's session mods may run. Client mods rarely need it.
+`true` while the calling mod may run: the session is cleared, and for a mod marked `every_player`, every other player runs it too ([Mods every player needs](wiki:session-mods#every-player)). Client mods rarely need it.
 
 ### obsidian.session.guard(t, free)
 
@@ -71,7 +71,7 @@ The same for every mission, for as long as your mod runs, and the mission's load
 
 ### obsidian.on_session(fn)
 
-Calls `fn(on)` whenever the loader switches this mod on or off, so the mod can undo what other players would see.
+Calls `fn(on)` whenever the loader switches this mod on or off, so the mod can undo what other players would see. A mod marked `every_player` also hears when a player who doesn't run it comes or goes.
 
 ## Text and logs
 

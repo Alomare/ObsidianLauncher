@@ -136,7 +136,7 @@ function M.tick()
 			down = ok and down and true or false
 			if down and not b.down then
 				local gated = b.state.mod.scope ~= "client"
-				if not b.state.off and not (gated and session and not session.cleared()) then
+				if not b.state.off and not (gated and session and not session.allows(b.state)) then
 					M.core.call(b.state, "keybind " .. b.id, b.fn)
 				end
 			end

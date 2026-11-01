@@ -166,6 +166,7 @@ fn import_against(src: &Path, game: &GameInstall, lib: &Library, known: &[KnownB
         description: None,
         authors: Vec::new(),
         scope,
+        every_player: false,
         entry: entry_file,
         resources,
         options: Vec::new(),

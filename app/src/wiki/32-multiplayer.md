@@ -18,6 +18,7 @@ Obsidian changes which public lobbies you can find, so a vanilla player never en
 |---|---|
 | No session mods, switch off | Everyone. This is normal play. |
 | Session mods deployed, or switch on | Only other Obsidian players with session mods or the switch on |
+| A mod every player needs deployed | Only players who run that same mod, at the same version |
 
 So with the switch on, your lobby shows up for players who run session mods, and you no longer see vanilla lobbies. Turn it off when you want normal matchmaking back.
 
@@ -44,6 +45,12 @@ A few examples, from the point of view of player A with session mods:
 | B on, C off and on a different set | Off: everyone has to agree |
 
 The check runs again whenever someone joins, leaves or changes setup. Mods switch on and off live, and a session mod can undo what it changed when that happens.
+
+## Mods every player needs
+
+Some mods only work when everyone has them, such as one that lets more players into a lobby. The author marks those, and they follow a stricter rule: such a mod runs only when every other player runs it too, at the same version and with the same option values. The multiplayer switch doesn't count for them. When a player who doesn't have it is in your lobby, that one mod switches off and the game tells you. Your other session mods follow the usual rules.
+
+These mods also get a matchmaking pool of their own, so you only find players who run the same ones.
 
 > [!TIP]
 > Option values marked as personal by the author, such as a camera distance, don't count when Obsidian compares sets. A friend can pick a different camera distance and still match you.

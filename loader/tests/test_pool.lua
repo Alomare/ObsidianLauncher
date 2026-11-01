@@ -19,6 +19,14 @@ test("session_uses_the_open_tag", function()
 	E.eq(game_hash(), "3bd83d77c8aeaaaaaaaaaaaa")
 end)
 
+test("mods_every_player_needs_get_their_own_pool", function()
+	for _, consent in ipairs({ false, true }) do
+		E.new()
+		require("obsidian/loader/pool").apply(E.deploy({ has_session = true, hashes = { open = "aaaaaaaaaaaa", every = "bbbbbbbbbbbb" } }), consent)
+		E.eq(game_hash(), "3bd83d77c8aebbbbbbbbbbbb", "consent " .. tostring(consent))
+	end
+end)
+
 test("consent_alone_joins_the_open_pool", function()
 	local e = E.new({ deploy = E.deploy({ has_session = false }), settings = "consent\t1\n" })
 	e:boot()

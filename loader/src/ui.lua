@@ -111,7 +111,7 @@ end
 -- A session mod's output stops with its hooks, and a mod that was switched off stops altogether.
 local function allowed(state)
 	if state and state.off then return false end
-	return state == nil or state.mod.scope == "client" or M.session.cleared()
+	return state == nil or state.mod.scope == "client" or M.session.allows(state)
 end
 
 local function state_of()

@@ -173,7 +173,7 @@ local function run_frame_callbacks()
 		local stop = false
 		if state and state.off then
 			stop = true
-		elseif not (gated and not session.cleared()) then
+		elseif not (gated and not session.allows(state)) then
 			local ok, result = M.call(state, "on_frame", cb.fn)
 			stop = ok and result == true
 		end

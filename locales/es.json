@@ -12,5 +12,6 @@
   "mod_failed": "Obsidian: %s falló y queda desactivado hasta que reinicies el juego.",
   "session_not_cleared": "Obsidian: otros jugadores de esta partida usan mods distintos, y algunos de los tuyos cambian archivos del juego que no se pueden pausar. Considera salir de esta partida.",
   "uploads_blocked": "Obsidian: los resultados de la Guerra Galáctica y de las clasificaciones no se envían mientras haya mods de sesión desplegados.",
-  "progress_forfeited": "Obsidian: esta misión tiene mods, así que no sumará a tu progreso."
+  "progress_forfeited": "Obsidian: esta misión tiene mods, así que no sumará a tu progreso.",
+  "every_player_off": "Obsidian: %s está desactivado, porque no todos los jugadores de aquí lo usan."
 }

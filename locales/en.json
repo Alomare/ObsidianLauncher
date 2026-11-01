@@ -386,5 +386,6 @@
   "mod_failed": "Obsidian: %s failed and is off until the game restarts.",
   "session_not_cleared": "Obsidian: other players here run different mods, and some of yours change game files that can't be paused. Consider leaving this game.",
   "uploads_blocked": "Obsidian: Galactic War and leaderboard results aren't sent while session mods are deployed.",
-  "progress_forfeited": "Obsidian: this mission is modded, so it won't add to your progress."
+  "progress_forfeited": "Obsidian: this mission is modded, so it won't add to your progress.",
+  "every_player_off": "Obsidian: %s is off, because not every player here runs it."
 }

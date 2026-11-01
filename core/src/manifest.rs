@@ -194,6 +194,10 @@ pub struct Manifest {
     pub authors: Vec<String>,
     #[serde(default)]
     pub scope: Scope,
+    /// Runs only while every other player in the lobby runs it too, at the same version and with
+    /// the same shared option values. Players who allow other players' mods don't count.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub every_player: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub entry: Option<PathBuf>,
     /// More Lua scripts beside `entry`, which the mod loads with `obsidian.module`.
@@ -257,6 +261,9 @@ impl Manifest {
         }
         if !self.name.contains_key("en") {
             return Err(bad("name.en", "an English name is required"));
+        }
+        if self.every_player && self.scope == Scope::Client {
+            return Err(bad("every_player", "a client mod reaches no other player, so use session or library"));
         }
         if let Some(entry) = &self.entry {
             check_path(mod_dir, entry, "entry")?;
@@ -417,6 +424,21 @@ mod tests {
     fn two_payloads_are_rejected() {
         let both = EXAMPLE.replace(r#""source": "res/perk_settings.lua""#, r#""source": "res/perk_settings.lua", "data": "res/bar.texture""#);
         assert_eq!(field_of(load_manifest(mod_with(&both).path())), "resources[0]");
+    }
+
+    #[test]
+    fn every_player_needs_a_mod_that_reaches_other_players() {
+        assert!(!load_manifest(mod_with(EXAMPLE).path()).unwrap().every_player);
+        let client = EXAMPLE.replace(r#""scope": "client","#, r#""scope": "client", "every_player": true,"#);
+        assert_eq!(field_of(load_manifest(mod_with(&client).path())), "every_player");
+        for scope in ["session", "library"] {
+            let ok = EXAMPLE.replace(r#""scope": "client","#, &format!(r#""scope": "{scope}", "every_player": true,"#));
+            let d = mod_with(&ok);
+            let m = load_manifest(d.path()).unwrap();
+            assert!(m.every_player, "{scope}");
+            write_manifest(d.path(), &m).unwrap();
+            assert_eq!(load_manifest(d.path()).unwrap(), m, "it survives a round trip");
+        }
     }
 
     #[test]

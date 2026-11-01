@@ -79,7 +79,7 @@ local function gated(state)
 end
 
 local function allowed(state)
-	return not gated(state) or M.session.cleared()
+	return not gated(state) or M.session.allows(state)
 end
 
 -- Text for a label that may be a function, so a mod can show live values.
@@ -1244,7 +1244,7 @@ function M.frame()
 	end
 	if M.is_open then
 		local frame = M.stack[#M.stack]
-		if gated(frame.state) and not M.session.cleared() then
+		if gated(frame.state) and not M.session.allows(frame.state) then
 			M.close()
 		else
 			draw_menu()

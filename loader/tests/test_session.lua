@@ -269,4 +269,101 @@ test("publishing_member_data_is_logged_once_per_lobby", function()
 	E.eq(E.count(e:log(), "session: published member data"), 1)
 end)
 
+
+local BIG = "1111111111111111"
+
+local EVERY_MODS = {
+	["obsidian/mods/big/main"] = "CALLS = ''; obsidian.on_session(function(on) rawset(_G, 'CALLS', CALLS .. tostring(on) .. ',') end); obsidian.hook('Target', 'size', function() return 16 end)",
+	["obsidian/mods/s/main"] = "obsidian.hook('Target', 'run', function(original, self, x) return 'session ' .. x end)",
+}
+
+-- "big" is a mod every player has to run; "s" is an ordinary session mod.
+local function every_engine(data, extra)
+	rawset(_G, "Target", { size = function() return 4 end, run = function(self, x) return "vanilla " .. x end })
+	local lobby = { my_id = "me", members = { "me", "p2" }, data = data, extra = extra or {} }
+	local e = engine(lobby, { every = { big = BIG }, mods = { E.mod("big", { scope = "session" }), E.mod("s", { scope = "session" }) } }, EVERY_MODS)
+	return e, lobby
+end
+
+local function cleared_for(e, id)
+	local core = e:core()
+	core.current = core.mods_by_id[id]
+	local on = rawget(_G, "obsidian").session.cleared()
+	core.current = nil
+	return on
+end
+
+test("a_mod_every_player_needs_stays_off_beside_a_player_who_only_agrees", function()
+	local e, lobby = every_engine({ p2 = "1;" .. OTHER .. ";1" })
+	e:frames(31)
+	E.eq(cleared(), true, "the session is cleared by p2's consent")
+	E.eq(rawget(_G, "Target"):run(1), "session 1", "so the ordinary session mod runs")
+	E.eq(rawget(_G, "Target"):size(), 4, "but p2 doesn't run big")
+	E.eq(cleared_for(e, "big"), false)
+	E.eq(cleared_for(e, "s"), true)
+	E.has(e:log(), "session: big off, a player here doesn't run it")
+	lobby.extra.p2 = { obsidian_every = "other:2222222222222222,big:" .. BIG }
+	e:frames(31)
+	E.eq(rawget(_G, "Target"):size(), 16, "p2 runs it now")
+	E.eq(cleared_for(e, "big"), true)
+	E.has(e:log(), "session: every player here runs big")
+end)
+
+test("a_mod_every_player_needs_wants_the_same_version_and_options", function()
+	local e = every_engine({ p2 = "1;" .. OTHER .. ";1" }, { p2 = { obsidian_every = "big:2222222222222222" } })
+	e:frames(31)
+	E.eq(rawget(_G, "Target"):size(), 4)
+end)
+
+test("a_mod_every_player_needs_runs_alone", function()
+	rawset(_G, "Target", { size = function() return 4 end })
+	engine({ my_id = "me", members = { "me" }, data = {} }, { every = { big = BIG }, mods = { E.mod("big", { scope = "session" }) } },
+		{ ["obsidian/mods/big/main"] = "obsidian.hook('Target', 'size', function() return 16 end)" })
+	E.eq(rawget(_G, "Target"):size(), 16)
+end)
+
+test("a_mod_every_player_needs_is_published", function()
+	local e, lobby = every_engine({ p2 = "1;" .. OWN .. ";0" }, { p2 = { obsidian_every = "big:" .. BIG } })
+	e:frames(31)
+	E.eq(lobby.published.obsidian_every, "big:" .. BIG)
+	E.eq(rawget(_G, "Target"):size(), 16, "the same set, with big in it")
+end)
+
+test("without_such_mods_an_empty_list_is_published", function()
+	local lobby = { my_id = "me", members = { "me" }, data = {} }
+	local e = engine(lobby)
+	e:frames(31)
+	E.eq(lobby.published.obsidian_every, "")
+end)
+
+test("on_session_tells_a_mod_every_player_needs_about_its_own_switch", function()
+	local e, lobby = every_engine({ p2 = "1;" .. OTHER .. ";1" })
+	e:frames(31)
+	lobby.extra.p2 = { obsidian_every = "big:" .. BIG }
+	e:frames(31)
+	lobby.extra.p2 = {}
+	e:frames(31)
+	E.eq(rawget(_G, "CALLS"), "false,true,false,")
+end)
+
+test("a_player_told_when_such_a_mod_switches_off", function()
+	local e = every_engine({ p2 = "1;" .. OTHER .. ";1" })
+	e:frames(91)
+	local n = 0
+	for _, x in ipairs(e:core().notices_shown) do
+		if x.key == "every_player_off" then n = n + 1; E.eq(x.args[1], "big") end
+	end
+	E.eq(n, 1, "once, not every check")
+end)
+
+test("a_library_guard_refuses_while_such_a_mod_is_off", function()
+	local e = every_engine({ p2 = "1;" .. OTHER .. ";1" })
+	e:frames(31)
+	local core = e:core()
+	core.current = core.mods_by_id.big
+	local view = rawget(_G, "obsidian").session.guard({ grow = function() return "grown" end }, {})
+	core.current = nil
+	E.eq(select(2, view.grow()), "not_cleared")
+end)
+
 return T

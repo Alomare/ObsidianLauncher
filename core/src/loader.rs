@@ -12,7 +12,7 @@ use crate::library::{Library, Profile};
 use crate::lua::{check_bytecode, unwrap_resource, wrap_resource};
 use crate::luajit::compile_all;
 use crate::manifest::{Scope, load_manifest};
-use crate::modset::{SessionMod, modset_hash, open_pool_tag};
+use crate::modset::{SessionMod, every_hash, every_pool_tag, modset_hash, open_pool_tag};
 use crate::options::{effective_values, value_text};
 use crate::settings::Settings;
 use crate::{ObsidianError, Result};
@@ -224,6 +224,7 @@ fn start_order(mods: &[ComposedMod]) -> Vec<&ComposedMod> {
 /// with an entry, in the order they start.
 pub fn deploy_table(comp: &Composition, texts: Value) -> Result<Value> {
     let mut session = Vec::new();
+    let mut every = Map::new();
     let mut mods = Vec::new();
     let (mut has_session, mut has_static_session) = (false, false);
     let libraries = session_libraries(&comp.mods);
@@ -238,11 +239,15 @@ pub fn deploy_table(comp: &Composition, texts: Value) -> Result<Value> {
         if scope == Scope::Session {
             has_session = true;
             has_static_session |= c.resources > 0;
-            session.push(SessionMod {
+            let sm = SessionMod {
                 id: m.id.clone(),
                 version: m.version.clone(),
                 options: specs.iter().map(|s| (s.id.clone(), c.values[&s.id].clone(), s.client)).collect(),
-            });
+            };
+            if m.every_player {
+                every.insert(m.id.clone(), Value::String(every_hash(&sm)));
+            }
+            session.push(sm);
         }
         if m.entry.is_none() {
             continue;
@@ -280,12 +285,17 @@ pub fn deploy_table(comp: &Composition, texts: Value) -> Result<Value> {
         }));
     }
     let modset = modset_hash(&session);
+    let mut hashes = json!({ "open": open_pool_tag() });
+    if !every.is_empty() {
+        hashes["every"] = json!(every_pool_tag(every.iter().map(|(id, h)| (id.as_str(), h.as_str().unwrap_or_default()))));
+    }
     let (font_files, font_paths) = deployed_fonts(comp);
     Ok(json!({
         "version": 1,
         "revision": REVISION,
         "modset": modset,
-        "hashes": { "open": open_pool_tag() },
+        "hashes": hashes,
+        "every": every,
         "has_session": has_session,
         "has_static_session": has_static_session,
         "font_files": font_files,
@@ -508,6 +518,33 @@ mod tests {
         let entries = ids.iter().map(|id| ProfileEntry { id: (*id).into(), enabled: true, folder: None }).collect();
         let profile = Profile { mods: entries, ..Default::default() };
         deploy_table(&compose(lib, &profile).unwrap(), json!({})).unwrap()
+    }
+
+    #[test]
+    fn a_mod_every_player_needs_gets_its_hash_and_a_pool_of_its_own() {
+        let t = spaced_tempdir();
+        let lib = Library::open(&t.path().join("data")).unwrap();
+        add(t.path(), &lib, "plain", "session");
+        let d = t.path().join("stage-big");
+        put(&d, "obsidian.json", br#"{"obsidian":1,"id":"big","version":"1.0.0","name":{"en":"big"},"scope":"library","every_player":true,"entry":"main.lua"}"#);
+        put(&d, "main.lua", b"return true
+");
+        lib.install(&d).unwrap();
+        add_requiring(t.path(), &lib, "user", "session", "big");
+
+        let plain = table_of(&lib, &["plain"]);
+        assert_eq!(plain["every"], json!({}));
+        assert!(plain["hashes"].get("every").is_none(), "the open pool");
+
+        let alone = table_of(&lib, &["big"]);
+        assert_eq!(alone["every"], json!({}), "a library no session mod needs runs as a client mod");
+
+        let table = table_of(&lib, &["plain", "big", "user"]);
+        let hash = table["every"]["big"].as_str().unwrap();
+        assert_eq!(hash.len(), 16);
+        assert_eq!(table["every"].as_object().unwrap().len(), 1);
+        assert_eq!(table["hashes"]["every"], every_pool_tag([("big", hash)]));
+        assert_eq!(table["hashes"]["open"], open_pool_tag(), "kept for players who only allow other players' mods");
     }
 
     fn scope_in<'a>(table: &'a Value, id: &str) -> &'a str {

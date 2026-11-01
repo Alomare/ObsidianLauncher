@@ -9,10 +9,14 @@ local M = {}
 -- Returns the tag that was applied, or nil for the vanilla pool. Players who run session content
 -- or allow other players' session mods share one pool, so a consenting player's lobby shows up for
 -- players with session mods, and players with session mods only find other Obsidian players.
+-- Players who run mods every player needs get a pool of their own, shared only with players who
+-- run the same ones.
 function M.apply(deploy, consent_on)
 	local hashes = deploy.hashes or {}
 	local tag, pool
-	if deploy.has_session or consent_on then
+	if hashes.every then
+		tag, pool = hashes.every, "every"
+	elseif deploy.has_session or consent_on then
 		tag, pool = hashes.open, "open"
 	else
 		log.line("pool: vanilla")

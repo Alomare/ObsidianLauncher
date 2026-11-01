@@ -82,6 +82,21 @@ return {
 
 Your own code keeps the real table, so it can still undo what it changed after the lobby stops being cleared.
 
+## Mods every player needs {#every-player}
+
+The multiplayer switch tells your mod that another player agrees to it, not that they run it. That's enough for most mods, since the host's game decides what happens. A mod that only works when every game in the lobby has it, such as one that changes how many players fit in a lobby, can ask for more:
+
+```json
+"scope": "session",
+"every_player": true
+```
+
+Such a mod runs only when every other player runs it too, at the same version and with the same shared option values. Players who only agree don't count. Obsidian switches it off, and back on, like any session mod, and tells the player why. Its players also get a matchmaking pool of their own, so they only find each other.
+
+`obsidian.session.cleared()` answers for the mod that asks, and `obsidian.on_session` calls the mod when its own switch changes.
+
+The check runs once a player is in the lobby. Invites can still cross pools, so leave the game as it was until every player is confirmed: for a bigger lobby, keep the usual limit until `obsidian.session.cleared()` is true, and go back to it when `on_session` says `false`.
+
 ## Options in session mods
 
 Every option value counts when Obsidian compares players' sets, unless you mark it `"scope": "client"`. Mark the options that only change what this player sees ([Options and keys](wiki:options-and-keys#personal-options-in-session-mods)).

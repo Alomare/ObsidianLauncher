@@ -1,17 +1,19 @@
 -- When a session is cleared for session mods (spec 6.2), and the lobby handshake (spec 6.3, layer 2).
--- Every Obsidian player publishes lobby member data "obsidian" = "1;<mod-set hash>;<consent 0|1>".
+-- Every Obsidian player publishes lobby member data "obsidian" = "1;<mod-set hash>;<consent 0|1>",
+-- and "obsidian_every" = "<id>:<hash>,..." for the mods every player has to run.
 local B = require("obsidian/loader/builtins")
 local log = require("obsidian/loader/log")
 
 local EVERY = 30
 local FORFEIT_KEY = "obsidian_forfeit"
+local EVERY_KEY = "obsidian_every"
 
 -- What a mission can add to a player's save.
 local PROGRESS = { "player_xp", "research_samples", "item_unlocks", "new_unlocks", "item_upgrades", "boss_influence", "lifetime_stats", "trophy_unlock_progress", "seen_enemies" }
 local HELD = {}
 for _, key in B.ipairs(PROGRESS) do HELD[key] = true end
 
-local M = { state = true, members = {}, listeners = {}, published = nil, published_lobby = nil, warned = nil, forfeited = false, kept = nil, restoring = false, holders = {}, peer_holds = false, tip_shown = false }
+local M = { state = true, missing = {}, members = {}, listeners = {}, published = nil, published_lobby = nil, warned = nil, forfeited = false, kept = nil, restoring = false, holders = {}, peer_holds = false, tip_shown = false }
 
 function M.setup(core)
 	M.core = core
@@ -48,11 +50,41 @@ local function holding()
 	return false
 end
 
-local function set_cleared(on)
-	if on == M.state then return end
-	M.state = on
-	log.line("session: " .. (on and "cleared" or "not cleared"))
-	for _, l in B.ipairs(M.listeners) do M.core.call(l.state, "on_session", l.fn, on) end
+-- Whether a mod's gated code may run: a cleared session, and for a mod every player has to run,
+-- every other player running it.
+function M.allows(state)
+	return M.state and not (state and M.missing[state.id])
+end
+
+-- The mods every player has to run, as "<id>:<hash>", sorted.
+local function every_pairs()
+	local out = {}
+	for id, hash in B.pairs(M.core.deploy.every or {}) do B.insert(out, B.tostring(id) .. ":" .. B.tostring(hash)) end
+	B.sort(out)
+	return out
+end
+
+-- missing: the mods every player has to run that some other player doesn't.
+local function set_cleared(on, missing)
+	missing = missing or M.missing
+	if on ~= M.state then log.line("session: " .. (on and "cleared" or "not cleared")) end
+	for id in B.pairs(missing) do
+		if not M.missing[id] then
+			log.line("session: " .. id .. " off, a player here doesn't run it")
+			M.core.notice("every_player_off", id)
+		end
+	end
+	for id in B.pairs(M.missing) do
+		if not missing[id] then log.line("session: every player here runs " .. id) end
+	end
+	M.state, M.missing = on, missing
+	for _, l in B.ipairs(M.listeners) do
+		local now = M.allows(l.state)
+		if now ~= l.on then
+			l.on = now
+			M.core.call(l.state, "on_session", l.fn, now)
+		end
+	end
 end
 
 function M.evaluate()
@@ -61,7 +93,7 @@ function M.evaluate()
 	local l = lobby()
 	if not l then
 		M.members, M.peer_holds = {}, false
-		set_cleared(true)
+		set_cleared(true, {})
 		return
 	end
 	local value = "1;" .. B.tostring(deploy.modset) .. ";" .. (own_consent and "1" or "0")
@@ -69,6 +101,12 @@ function M.evaluate()
 		l:set_member_data("obsidian", value)
 		log.line("session: published member data " .. value)
 		M.published, M.published_lobby = value, l
+	end
+	local own_every = every_pairs()
+	local every = B.concat(own_every, ",")
+	if M.published_every ~= every or M.every_lobby ~= l then
+		l:set_member_data(EVERY_KEY, every)
+		M.published_every, M.every_lobby = every, l
 	end
 	local forfeit = (M.forfeited or holding()) and "1" or "0"
 	if M.published_forfeit ~= forfeit or M.forfeit_lobby ~= l then
@@ -78,7 +116,7 @@ function M.evaluate()
 	local me, list, signature, peer_holds = l.my_id, {}, {}, false
 	-- My session mods run when every other player runs the same set or allows other players' mods.
 	-- My own consent is about their mods in my game, so it plays no part here.
-	local allowed = true
+	local allowed, missing = true, {}
 	for _, peer in B.ipairs(l:members() or {}) do
 		if peer ~= me then
 			local d = M.parse(l:member_data(peer, "obsidian"))
@@ -87,11 +125,22 @@ function M.evaluate()
 			if not (d and (d.modset == deploy.modset or d.consent)) then allowed = false end
 			-- What one player's mod does to a mission, it does to everyone in it.
 			if l:member_data(peer, FORFEIT_KEY) == "1" then peer_holds = true end
+			-- Agreeing to other players' mods isn't enough here: they have to run the same one.
+			if #own_every > 0 then
+				local theirs = {}
+				local data = d and l:member_data(peer, EVERY_KEY)
+				if B.type(data) == "string" then
+					for pair in B.gmatch(data, "[^,]+") do theirs[pair] = true end
+				end
+				for _, pair in B.ipairs(own_every) do
+					if not theirs[pair] then missing[B.match(pair, "^(.*):")] = true end
+				end
+			end
 		end
 	end
 	M.members, M.peer_holds = list, peer_holds
 	local on = allowed
-	set_cleared(on)
+	set_cleared(on, missing)
 	-- Data overrides and legacy mods can't be switched off live, so everyone running Obsidian gets told.
 	if not on and deploy.has_static_session then
 		B.sort(signature)
@@ -123,7 +172,8 @@ function M.cleared()
 end
 
 function M.on_session(fn)
-	B.insert(M.listeners, { state = M.core.current, fn = fn })
+	local state = M.core.current
+	B.insert(M.listeners, { state = state, fn = fn, on = M.allows(state) })
 end
 
 local function copy(value)
@@ -206,7 +256,7 @@ function M.guard(t, free)
 			if not wrapped[v] then
 				wrapped[v] = function(...)
 					if state.mod.scope == "client" then return false, "needs_session" end
-					if not M.state then return false, "not_cleared" end
+					if not M.allows(state) then return false, "not_cleared" end
 					return v(...)
 				end
 			end
@@ -219,7 +269,8 @@ end
 function M.api()
 	return {
 		guard = M.guard,
-		cleared = M.cleared,
+		-- For the calling mod, so a mod every player has to run hears when one doesn't.
+		cleared = function() return M.allows(M.core.current) end,
 		forfeit_progress = M.forfeit_progress,
 		hold_progress = M.hold_progress,
 		members = function()
