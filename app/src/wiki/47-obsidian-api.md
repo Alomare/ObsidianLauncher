@@ -128,7 +128,7 @@ end)
 | `api.game` | The current state, the local player, `is_host()`, and safe writes |
 | `api.catalog` | Weapons, stratagems, perks, enemies and groups by name: the base game, plus the DLC the player owns. `usable(name)` checks that, `unowned_path(path)` checks a weapon's path, and `unlocked(name)` says whether the player has unlocked an item by playing. Also `backpacks`, `crates`, `pickups`, `vehicles`, `by_subtype(name)` and `max_upgrade(path)` |
 | `api.player` | `heal`, `heal_by(amount)`, `set_health(n)`, `respawn`, `teleport`, `set_cosmetic`, `set_outline(r, g, b)`, `clear_status(name)`, `immune(name, on)`, `knockdown`, `drop_carried`, and more |
-| `api.gear` | `refill`, `give_weapon(slot, path, upgrade)`, `give_backpack(path, upgrade)`, `give_perk`, `remove_perk`, `refresh` |
+| `api.gear` | `refill`, `give_weapon(slot, path, upgrade)`, `give_backpack(path, upgrade)`, `give_perk`, `remove_perk`, `refresh`, `weapons_of(owner)`, `tune(unit, component, changes)` |
 | `api.stratagems` | `reset_cooldowns`, `refill_uses`, `give`, `drop`, `call(name, pos, delay)`, `edit(name, field, value)` |
 | `api.enemies` | `spawn`, `spawn_group`, `spawn_entity(path, pos)`, `kill_all`, `kill(unit)`, `list`, `info(unit)`, `nearest(pos)`, `apply_status(unit, template)`, `stun_near(radius)`, `near(radius, pos)`, `damage(unit, power, statuses)`, `set_hitpoints(unit, n)`, `despawn(unit)`, `load_faction(name)`, `set_pressure(t)`, `waves()`, `force_wave(name, pos)`, `carried()`, the enemies on the map with corpses and the spawn queue, and `room()`, how many more fit under `MAX_SAFE` |
 | `api.mission` | `finish_objectives`, `objectives()`, `mutator(name)`, `win`, `abort`, `practice` |
@@ -168,6 +168,16 @@ These effects stay on across respawns. Most give back what was there before, so 
 `give_backpack` takes only paths from `api.catalog.backpacks()`, because the game reads settings other paths don't have, where nothing can catch the error. The old pack drops to the ground, as the old weapon does.
 
 `give_perk` changes perks the way the game's console does. Laser sight answers `"alone_only"` with other players in the lobby, because their games would run it with no setup.
+
+### One weapon's stats
+
+`api.data` edits change a weapon's type for everyone on that machine. `api.gear.weapons_of(owner)` lists the weapons a player holds, as `{ unit, component, slot, info }`, and `api.gear.tune(unit, component, changes)` changes one of them alone. `changes` holds a factor for a number (`firerate = 1.2`) and `true` or `false` for an attribute (`armorpiercing = true`). Each call replaces the last, and `{}` takes it all off. It reaches only the weapons this machine owns, so each player's game tunes their own.
+
+```lua
+for _, w in ipairs(api.gear.weapons_of()) do
+  api.gear.tune(w.unit, w.component, { firerate = 1.2 })
+end
+```
 
 ## Stratagems {#stratagems}
 

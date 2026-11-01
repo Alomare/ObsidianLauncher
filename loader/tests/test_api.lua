@@ -2266,6 +2266,47 @@ test("what_frozen_enemies_are_sent_keeps_its_values_after_the_game_reuses_the_ta
 	E.eq(entity_aux.queue_command_master, real, "the game's function is back once they move again")
 end)
 
+test("tuning_a_weapon_leaves_others_of_its_type_alone_and_comes_off_again", function()
+	local api, game = start()
+	local shared = { firerate = 600, power = 100, reload_duration = 2, magazine_capacity = 30, attributes = { armorpiercing = false } }
+	local function weapon() return { state = { weapon_info = shared, round_delay = 0.1, reload_duration = 2, magazine_capacity = 30, turn_speed_aim = 1 } } end
+	local mine, theirs, slave = weapon(), weapon(), weapon()
+	local remade = 0
+	local component = { set_protected = function(_, state, key, value) state[key] = value end, remake_raycast = function() remade = remade + 1 end }
+	local unit, other = "gun", "their gun"
+	local aux = rawget(_G, "EntityAux")
+	local real = { get_component = aux.get_component }
+	aux.get_component = function(name) return name == "firearm" and component or real.get_component(name) end
+	local st = api.game.state()
+	local em = st.entity_manager
+	local has, masters, slaves = em.has_entities, em.get_master_entities, em.get_slave_entities
+	em.has_entities = function(self, name) return name == "firearm" or has(self, name) end
+	em.get_master_entities = function(self, name) if name == "firearm" then return { [unit] = mine, [other] = theirs } end return masters(self, name) end
+	em.get_slave_entities = function(self, name) if name == "firearm" then return { [unit] = slave } end return slaves(self, name) end
+
+	E.eq(api.gear.tune(unit, "firearm", { firerate = 2, magazine_capacity = 1.5, armorpiercing = true, turn_speed_aim = 1.2 }), true)
+	E.eq(mine.state.weapon_info.firerate, 1200)
+	E.eq(mine.state.round_delay, 0.05)
+	E.eq(mine.state.magazine_capacity, 45)
+	E.eq(mine.state.turn_speed_aim, 1.2, "a field only the state holds")
+	E.eq(mine.state.weapon_info.attributes.armorpiercing, true)
+	E.eq(slave.state.weapon_info.firerate, 1200, "the copy the shots read")
+	E.eq(remade, 1, "the hit test takes the new settings")
+	E.eq(shared.firerate, 600, "the type's settings are untouched")
+	E.eq(shared.attributes.armorpiercing, false)
+	E.eq(theirs.state.weapon_info, shared, "another player's weapon is untouched")
+	E.eq(mine.state.tuned_base, shared)
+	api.gear.tune(unit, "firearm", { power = 1.5 })
+	E.eq(mine.state.weapon_info.firerate, 600, "each call replaces the last")
+	E.eq(mine.state.weapon_info.power, 150)
+	E.eq(mine.state.round_delay, 0.1)
+	E.eq(mine.state.turn_speed_aim, 1, "back to the game's default")
+	E.eq(select(2, api.gear.tune("nope", "firearm", {})), "unknown")
+	E.eq(select(2, api.gear.tune(unit, "firearm", 3)), "bad_type")
+	aux.get_component = real.get_component
+	em.has_entities, em.get_master_entities, em.get_slave_entities = has, masters, slaves
+end)
+
 test("a_screen_of_the_game_shows_a_mods_words_only_while_it_runs", function()
 	local api = start()
 	local lm = rawget(_G, "LocalizationManager")
