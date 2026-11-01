@@ -33,6 +33,25 @@ local function modded(core)
 	return false
 end
 
+-- Proving Grounds is ranked, so a modded game doesn't open it. The galaxy map opens it through
+-- show_state, the region screen first through a camera move that ends in a fade to black, and a
+-- trial picked earlier waits in the save, where the ship and the campaign screen read it.
+local PG_STATE = "provinggrounds_selection"
+
+local function refuse_proving_grounds(core)
+	local lm = B.rawget(B.G, "LocalizationManager")
+	local ok, name = B.pcall(function() return lm:string("menu_provinggrounds") end)
+	core.notice("proving_grounds_blocked", ok and B.type(name) == "string" and name or "Proving Grounds")
+	log.limited("proving grounds", "proving grounds: closed, the game is modded")
+end
+
+local function forget_trial(core)
+	local save = B.rawget(B.G, "SaveManager")
+	if not modded(core) or B.type(save) ~= "table" or not save:get("selected_trial") then return end
+	save:set("selected_trial", nil)
+	log.line("proving grounds: dropped the saved trial")
+end
+
 local function empty(t)
 	local keys = {}
 	for k in B.pairs(t) do keys[#keys + 1] = k end
@@ -68,6 +87,19 @@ function M.setup(core, hooks)
 	end)
 	hooks.loader_hook("StateMenu", "on_enter", function(original, self, ...)
 		core.session.end_forfeit()
+		forget_trial(core)
+		return original(self, ...)
+	end)
+	hooks.loader_hook("MenuScreenCampaign", "on_enter", function(original, self, ...)
+		forget_trial(core)
+		return original(self, ...)
+	end)
+	hooks.loader_hook("MenuScreenCampaign", "show_state", function(original, self, name, ...)
+		if name == PG_STATE and modded(core) then return refuse_proving_grounds(core) end
+		return original(self, name, ...)
+	end)
+	hooks.loader_hook("MenuScreenCampaignRegion", "enter_pg_menu_selection", function(original, self, ...)
+		if modded(core) then return refuse_proving_grounds(core) end
 		return original(self, ...)
 	end)
 	for _, name in B.ipairs(METHODS) do

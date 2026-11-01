@@ -316,4 +316,59 @@ test("a_vanilla_setup_leaves_the_save_alone", function()
 	E.eq(#save.common.mission_stats_to_upload, 1)
 end)
 
+
+-- The galaxy map's screens, defined when the game requires the campaign menu.
+local function load_campaign_menu(e, trial)
+	local seen, stored = {}, { selected_trial = trial }
+	rawset(_G, "SaveManager", { get = function(_, k) return stored[k] end, set = function(_, k, v) stored[k] = v end })
+	rawset(_G, "LocalizationManager", { string = function(_, k) return k == "menu_provinggrounds" and "PROVING GROUNDS" or k end })
+	rawset(_G, "MenuScreenCampaign", {
+		on_enter = function(self) seen[#seen + 1] = "enter:" .. tostring(stored.selected_trial ~= nil) end,
+		show_state = function(self, name) seen[#seen + 1] = name end,
+	})
+	rawset(_G, "MenuScreenCampaignRegion", { enter_pg_menu_selection = function() seen[#seen + 1] = "camera" end })
+	e.opts.modules["lua/menu/menu_screen_campaign"] = true
+	rawget(_G, "require")("lua/menu/menu_screen_campaign")
+	return seen, stored
+end
+
+test("proving_grounds_stays_closed_with_session_content", function()
+	local e = engine(true)
+	local seen = load_campaign_menu(e)
+	local campaign, region = rawget(_G, "MenuScreenCampaign"), rawget(_G, "MenuScreenCampaignRegion")
+	region.enter_pg_menu_selection(region)
+	campaign:show_state("provinggrounds_selection")
+	campaign:show_state("planet")
+	E.eq(table.concat(seen, ","), "planet", "only the other screen opened")
+	e:frames(1)
+	local shown = e:core().notices_shown
+	E.eq(shown[#shown].key, "proving_grounds_blocked")
+	E.eq(shown[#shown].args[1], "PROVING GROUNDS", "the game's own name for it")
+end)
+
+test("proving_grounds_opens_without_session_content", function()
+	local e = engine(false)
+	local seen = load_campaign_menu(e)
+	local campaign, region = rawget(_G, "MenuScreenCampaign"), rawget(_G, "MenuScreenCampaignRegion")
+	region.enter_pg_menu_selection(region)
+	campaign:show_state("provinggrounds_selection")
+	E.eq(table.concat(seen, ","), "camera,provinggrounds_selection")
+end)
+
+test("a_saved_trial_is_dropped_with_session_content", function()
+	local e = engine(true)
+	local seen, stored = load_campaign_menu(e, { index = 2 })
+	rawget(_G, "MenuScreenCampaign"):on_enter()
+	E.eq(stored.selected_trial, nil)
+	E.eq(seen[1], "enter:false", "before the screen reads it")
+	E.has(e:log(), "proving grounds: dropped the saved trial")
+end)
+
+test("a_saved_trial_stays_without_session_content", function()
+	local e = engine(false)
+	local seen, stored = load_campaign_menu(e, { index = 2 })
+	rawget(_G, "MenuScreenCampaign"):on_enter()
+	E.eq(stored.selected_trial.index, 2)
+end)
+
 return T

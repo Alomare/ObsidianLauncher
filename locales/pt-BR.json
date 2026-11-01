@@ -387,5 +387,6 @@
   "session_not_cleared": "Obsidian: outros jogadores aqui usam mods diferentes, e alguns dos seus mudam arquivos do jogo que não podem ser pausados. Considere sair desta partida.",
   "uploads_blocked": "Obsidian: resultados da Guerra Galáctica e dos placares não são enviados enquanto houver mods de sessão instalados.",
   "progress_forfeited": "Obsidian: esta missão tem mods, então não vai contar para o seu progresso.",
-  "every_player_off": "Obsidian: %s está desligado, porque nem todos os jogadores aqui o usam."
+  "every_player_off": "Obsidian: %s está desligado, porque nem todos os jogadores aqui o usam.",
+  "proving_grounds_blocked": "Obsidian: %s é ranqueado, então fica fechado enquanto houver mods de sessão em jogo."
 }
