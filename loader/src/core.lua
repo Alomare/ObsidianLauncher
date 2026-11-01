@@ -74,13 +74,31 @@ end
 
 -- Notices are queued anywhere and shown from the frame hook, where the game UI exists.
 local NOTICE_SECONDS = 10
+
+-- The game's own hint box, on the ship and in a mission. One key per text, because it leaves out a
+-- text it already has: a notice raised again doesn't queue up. The override shows it with hints off.
+local function show_hint(n)
+	local boot, settings = B.rawget(B.G, "Boot"), B.rawget(B.G, "HintSettings")
+	local machine = B.type(boot) == "table" and boot.state_machine
+	if not machine or B.type(settings) ~= "table" then return false end
+	local box = machine:get_current_state().hint_manager
+	if not box then return false end
+	local key = "obsidian_notice/" .. n.key .. "/" .. B.concat(n.args, "/")
+	settings[key] = settings[key] or { audio = "ui_select", duration = NOTICE_SECONDS, icon = "icon_hint", text = key }
+	game_text.replace(M, hooks, key, n.key, n.args)
+	box:add_hint(key, true, nil, nil, NOTICE_SECONDS)
+	return true
+end
+
 local function show_notices()
 	while #M.notices > 0 do
 		local n = B.remove(M.notices, 1)
 		B.insert(M.notices_shown, n)
 		local text = M.text(n.key, B.unpack(n.args))
 		log.line("notice: " .. n.key .. ": " .. text)
-		menu.toast(text, NOTICE_SECONDS)
+		local ok, shown = B.pcall(show_hint, n)
+		if not ok then log.limited("hint box", "hint box failed: " .. B.tostring(shown)) end
+		if not (ok and shown) then menu.toast(text, NOTICE_SECONDS) end
 	end
 end
 

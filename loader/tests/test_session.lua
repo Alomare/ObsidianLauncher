@@ -166,6 +166,69 @@ test("a_peers_forfeit_doesnt_hold_the_ship", function()
 	E.eq(e.loaded["obsidian/loader/session"].forfeited, false, "their mission is over, and the Armory is in use")
 end)
 
+-- The ship and a mission have the game's hint box. The main menu doesn't.
+local function with_hint_box(e)
+	local hints = {}
+	rawset(_G, "HintSettings", {})
+	rawset(_G, "LocalizationManager", { string = function(_, key) return "game:" .. key end })
+	local box = { add_hint = function(_, key, override, params, color, seconds) hints[#hints + 1] = { key = key, override = override, seconds = seconds } end }
+	rawget(_G, "Boot").state_machine = { get_current_state = function() return { hint_manager = box } end, get_current_state_name = function() return "menu" end }
+	local toasts, menu = {}, e.loaded["obsidian/loader/menu"]
+	menu.toast = function(text) toasts[#toasts + 1] = text end
+	return hints, toasts
+end
+
+local NOTICE_TEXTS = { texts = { en = { every_player_off = "Obsidian: %s is off." } } }
+
+test("a_notice_shows_in_the_games_hint_box", function()
+	local e = engine(nil, NOTICE_TEXTS)
+	local hints, toasts = with_hint_box(e)
+	e:core().notice("every_player_off", "Big")
+	e:frames(1)
+	E.eq(#hints, 1)
+	E.eq(#toasts, 0, "no toast as well")
+	E.eq(hints[1].override, true, "shown with the game's hints turned off")
+	local entry = rawget(_G, "HintSettings")[hints[1].key]
+	E.eq(entry.icon, "icon_hint")
+	E.eq(entry.audio, "ui_select")
+	E.eq(rawget(_G, "LocalizationManager"):string(entry.text), "Obsidian: Big is off.")
+	E.eq(rawget(_G, "LocalizationManager"):string("other"), "game:other", "other texts")
+end)
+
+-- The hint box leaves out a text it already has, so a repeat can't queue up, but another mod's can.
+test("only_the_same_notice_shares_a_hint", function()
+	local e = engine(nil, NOTICE_TEXTS)
+	local hints = with_hint_box(e)
+	e:core().notice("every_player_off", "Big")
+	e:core().notice("every_player_off", "Big")
+	e:core().notice("every_player_off", "Small")
+	e:frames(1)
+	E.eq(hints[1].key, hints[2].key)
+	E.eq(hints[1].key == hints[3].key, false)
+	local settings, lm = rawget(_G, "HintSettings"), rawget(_G, "LocalizationManager")
+	E.eq(lm:string(settings[hints[1].key].text), "Obsidian: Big is off.")
+	E.eq(lm:string(settings[hints[3].key].text), "Obsidian: Small is off.")
+end)
+
+test("a_notice_is_a_toast_where_there_is_no_hint_box", function()
+	local e = engine(nil, NOTICE_TEXTS)
+	local hints, toasts = with_hint_box(e)
+	rawget(_G, "Boot").state_machine.get_current_state = function() return {} end
+	e:core().notice("every_player_off", "Big")
+	e:frames(1)
+	E.eq(#hints, 0)
+	E.eq(toasts[1], "Obsidian: Big is off.")
+end)
+
+test("a_hint_box_that_fails_falls_back_to_a_toast", function()
+	local e = engine(nil, NOTICE_TEXTS)
+	local _, toasts = with_hint_box(e)
+	rawget(_G, "Boot").state_machine.get_current_state = function() return { hint_manager = { add_hint = function() error("no") end } } end
+	e:core().notice("every_player_off", "Big")
+	e:frames(1)
+	E.eq(toasts[1], "Obsidian: Big is off.")
+end)
+
 test("own_member_data_is_published", function()
 	local lobby = { my_id = "me", members = { "me" }, data = {} }
 	local e = engine(lobby)
