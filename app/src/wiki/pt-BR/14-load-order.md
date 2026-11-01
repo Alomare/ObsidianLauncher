@@ -31,7 +31,7 @@ Pastas agrupam mods na lista. Elas não mudam nada no jogo: a ordem de carregame
 
 ### Pastas travadas {#locked-folders}
 
-O cadeado à direita da pasta trava a pasta. Uma pasta travada mantém o nome, a cor, o lugar e os mods que tem: nada entra nem sai até você destravar.
+O cadeado antes do nome da pasta trava a pasta. Uma pasta travada mantém o nome, a cor, o lugar e os mods que tem: nada entra nem sai até você destravar.
 
 ## Marcar vários mods {#checking-several-mods}
 

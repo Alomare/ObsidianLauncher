@@ -31,7 +31,7 @@ Folders group mods in the list. They change nothing in the game: the load order 
 
 ### Locked folders
 
-The padlock at the right of a folder locks it. A locked folder keeps the name, color, place and mods it has: nothing moves in or out until you unlock it.
+The padlock before a folder's name locks it. A locked folder keeps the name, color, place and mods it has: nothing moves in or out until you unlock it.
 
 ## Checking several mods
 

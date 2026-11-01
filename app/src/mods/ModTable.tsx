@@ -338,14 +338,16 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
                 <span className="fr-chev"><ChevronIcon /></span>
                 <span />
                 {inFolder.length ? <UpdateCheck label={t("app.mods.checkOne", f.name)} spinning={inFolder.every((id) => checking.includes(id))} off={checkingNow} onCheck={() => onCheckUpdates(inFolder, f.name)} /> : <span />}
-                <span className="fr-name">{f.name}</span>
-                <span className="fr-end">
-                  {!ids.length && <span className="fr-count">{t("app.folder.empty")}</span>}
+                <span className="fr-title">
                   <button className={f.locked ? "bare fr-lock on" : "bare fr-lock"} aria-pressed={f.locked} aria-label={t(f.locked ? "app.menu.unlock" : "app.menu.lock")}
                     data-tip-title={t(f.locked ? "app.folder.locked" : "app.menu.lock")} data-tip={t(f.locked ? "app.folder.lockedHint" : "app.folder.lockHint")}
                     {...stop} onClick={() => onLock(f.id, !f.locked)}>
                     {f.locked ? <LockIcon /> : <UnlockIcon />}
                   </button>
+                  <span className="fr-name">{f.name}</span>
+                </span>
+                <span className="fr-end">
+                  {!ids.length && <span className="fr-count">{t("app.folder.empty")}</span>}
                 </span>
               </div>
             );
