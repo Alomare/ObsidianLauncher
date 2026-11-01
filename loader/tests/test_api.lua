@@ -517,6 +517,13 @@ test("enemies_spawn_at_a_position_given", function()
 	E.eq(game.spawned_at.y, 6)
 	E.eq(api.enemies.spawn("bug_scout", 3, V(7, 8, 0)), true, "or a vector")
 	E.eq(game.spawned_at.x, 7)
+	-- The game's type() names its vectors.
+	local real_type = type
+	rawset(_G, "type", function(v) if real_type(v) == "table" and v.x and v.y and v.z then return "vector3" end return real_type(v) end)
+	local ok = api.enemies.spawn("bug_scout", 3, V(9, 8, 0))
+	rawset(_G, "type", real_type)
+	E.eq(ok, true, "a vector the game's type() calls vector3")
+	E.eq(game.spawned_at.x, 9)
 	E.eq(select(2, api.enemies.spawn("bug_scout", 3, "sideways")), "bad_type")
 end)
 
