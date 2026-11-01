@@ -21,7 +21,7 @@
   "app.action.deployedVanilla": "Nenhum mod está ligado, então o jogo está original.",
   "app.action.deploying": "Aplicando…",
   "app.action.play": "Jogar",
-  "app.action.playHint": "Aplica antes, se houver mudanças pendentes, e inicia o jogo pela Steam.",
+  "app.action.playHint": "Inicia o jogo pela Steam, com os mods que você aplicou por último.",
   "app.action.purge": "Limpar",
   "app.action.purgeHint": "Remove tudo o que o Obsidian gravou no jogo",
   "app.action.purged": "Limpo. O jogo está original.",

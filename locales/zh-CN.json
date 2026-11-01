@@ -21,7 +21,7 @@
   "app.action.deployedVanilla": "没有启用的模组，游戏保持原版。",
   "app.action.deploying": "正在部署…",
   "app.action.play": "开始游戏",
-  "app.action.playHint": "有待部署的更改时先部署，然后通过 Steam 启动游戏。",
+  "app.action.playHint": "通过 Steam 启动游戏，使用你上次部署的模组。",
   "app.action.purge": "清除",
   "app.action.purgeHint": "移除 Obsidian 写入游戏的所有内容",
   "app.action.purged": "已清除。游戏恢复为原版。",

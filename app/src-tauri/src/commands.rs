@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use obsidian_core::images;
-use obsidian_core::deploy::{ChangesWaiting, DeployOptions, changes_waiting, deploy as core_deploy, purge as core_purge};
+use obsidian_core::deploy::{DeployOptions, deploy as core_deploy, purge as core_purge};
 use obsidian_core::game::{GameInstall, ensure_closed};
 use obsidian_core::import::import_path;
 use obsidian_core::library::{InstallOutcome, Library, Profile};
@@ -492,16 +492,10 @@ fn game_of(ctx: &Ctx) -> CmdResult<GameInstall> {
     Ok(find(&AppSettings::load(&ctx.data)).ok_or_else(|| ObsidianError::GameNotFound(String::new()))?)
 }
 
-/// Deploys when changes are waiting, then calls `launch`. A failed deploy launches nothing.
-pub fn play_with(data: &Path, game: Option<&GameInstall>, launch: impl FnOnce() -> CmdResult<()>) -> CmdResult<()> {
-    let game = game.ok_or_else(|| ObsidianError::GameNotFound(String::new()))?;
+/// Calls `launch`. The game runs what was last deployed, even with changes waiting.
+pub fn play_with(game: Option<&GameInstall>, launch: impl FnOnce() -> CmdResult<()>) -> CmdResult<()> {
+    game.ok_or_else(|| ObsidianError::GameNotFound(String::new()))?;
     ensure_closed()?;
-    let lib = Library::open(data)?;
-    let mut p = Profile::load(data)?;
-    p.sync(&lib)?;
-    if changes_waiting(&lib, &p, data, Some(&game.contents()))? == ChangesWaiting::Waiting {
-        core_deploy(game, data, &DeployOptions::default())?;
-    }
     launch()
 }
 
@@ -547,7 +541,7 @@ pub async fn play(ctx: State<'_, Ctx>, app: tauri::AppHandle) -> CmdResult<Snaps
     use tauri_plugin_opener::OpenerExt;
     let _turn = ctx.turn();
     let game = find(&AppSettings::load(&ctx.data));
-    play_with(&ctx.data, game.as_ref(), || {
+    play_with(game.as_ref(), || {
         app.opener().open_url(STEAM_LAUNCH, None::<&str>).map_err(|e| CmdError { code: "Launch".into(), message: e.to_string() })
     })?;
     fresh(&ctx)
@@ -620,7 +614,7 @@ mod tests {
     }
 
     #[test]
-    fn play_does_not_launch_after_a_failed_deploy() {
+    fn play_launches_without_deploying() {
         let t = tempfile::tempdir().unwrap();
         let data = t.path().join("data");
         let game = fake_game(t.path());
@@ -630,17 +624,15 @@ mod tests {
             Ok(())
         };
 
-        // Nothing on and nothing deployed: no deploy needed, so Play launches.
-        play_with(&data, Some(&game), launch).unwrap();
-        assert!(launched.replace(false));
-
-        // A mod switched on needs a deploy, which fails on this fake game (no known build).
+        // A mod switched on leaves changes waiting. A deploy would fail on this fake game (no known build).
         mod_folder(&t.path().join("m"), "1.0.0");
         import_all(&data, Some(&game), &[t.path().join("m")]);
         with_profile(&data, |p| p.set_enabled("a.drop", true)).unwrap();
-        let e = play_with(&data, Some(&game), launch).unwrap_err();
-        assert!(!launched.get(), "nothing launches after a failed deploy");
-        assert_ne!(e.code, "", "{e:?}");
-        assert_eq!(play_with(&data, None, launch).unwrap_err().code, "GameNotFound");
+        play_with(Some(&game), launch).unwrap();
+        assert!(launched.replace(false));
+        assert!(!obsidian_core::deploy::has_deployed(&data), "the changes stay waiting");
+
+        assert_eq!(play_with(None, launch).unwrap_err().code, "GameNotFound");
+        assert!(!launched.get());
     }
 }

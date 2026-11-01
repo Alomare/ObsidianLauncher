@@ -16,7 +16,7 @@ Cada aplicação segue estes passos:
 4. Compila o Lua de cada mod, e do loader, em código que o jogo consegue rodar.
 5. Grava um patch por bundle do jogo e a lista de mods aplicados para o loader.
 
-**Jogar** aplica antes quando há mudanças esperando e depois abre o jogo.
+**Jogar** abre o jogo com os mods que você aplicou por último. Ele não aplica nada, então as mudanças esperando ficam fora do jogo até você usar **Aplicar**.
 
 ## Limpar {#purge}
 

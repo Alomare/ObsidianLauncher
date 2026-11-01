@@ -16,7 +16,7 @@ Each deploy runs these steps:
 4. Compile the Lua of every mod, and the loader, into code the game can run.
 5. Write one patch per game bundle, and the list of deployed mods for the loader.
 
-**Play** deploys first when changes are waiting, then starts the game.
+**Play** starts the game with the mods you last deployed. It doesn't deploy, so changes that are waiting stay out of the game until you press **Deploy**.
 
 ## Purge
 

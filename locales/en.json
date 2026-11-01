@@ -21,7 +21,7 @@
   "app.action.deployedVanilla": "No mods are on, so the game is vanilla.",
   "app.action.deploying": "Deploying…",
   "app.action.play": "Play",
-  "app.action.playHint": "Deploys first when changes are waiting, then starts the game through Steam.",
+  "app.action.playHint": "Starts the game through Steam, with the mods you last deployed.",
   "app.action.purge": "Purge",
   "app.action.purgeHint": "Remove everything Obsidian wrote into the game",
   "app.action.purged": "Purged. The game is vanilla.",
