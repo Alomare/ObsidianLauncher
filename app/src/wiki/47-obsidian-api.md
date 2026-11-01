@@ -135,9 +135,9 @@ end)
 | `api.vehicles` | `current()`, `driving()`, `repair()`, `refill()` |
 | `api.combat` | `scale{ players, enemies }` |
 | `api.events` | `on(name, fn)`, `off(name, fn)` |
-| `api.ui` | `hint(text, seconds)`, `ping(pos)`, `open(name, opts)`, `close()`, `menus()` |
+| `api.ui` | `hint(text, seconds)`, `ping(pos)`, `open(name, opts)`, `close()`, `menus()`, `with_texts(texts, fn, ...)` |
 | `api.lobby` | `players()`, `share(name, value)`, `shared(name)` |
-| `api.world` | `cursor`, `ahead`, `to_screen(pos)`, `explode`, `camera`, `shading(name, kind, value)`, `flash(seconds)` |
+| `api.world` | `cursor`, `ahead`, `to_screen(pos)`, `prop(unit, pos, opts)`, `explode`, `camera`, `shading(name, kind, value)`, `flash(seconds)` |
 | `api.audio` | `bus(name, db)`, `play(event, pos)`, `stinger(name)` |
 | `api.progress` | `set_samples`, `unlock_items`, `upgrade_all`, `loadout()`, `set_loadout(t)`, `upgrades()`, `set_upgrade(name, value)`, `upgrade_limit(name)` |
 | `api.console` | `run(line)`, `commands()` |
@@ -273,6 +273,18 @@ for peer, text in pairs(api.lobby.shared("score")) do total = total + tonumber(t
 
 `api.world.to_screen(pos)` answers where a point of the level is on the screen, in pixels from the bottom left, and whether it's in view, for drawing over the world with a kit.
 
+## Props {#props}
+
+`api.world.prop(unit, pos, opts)` puts a unit of the game in the level on this machine only. Nothing goes over the network and no game system knows about it, so it does nothing but be seen, with whatever glow and highlight the unit has. `opts.scale` sets its size, 1 as made. It answers a prop with `move(pos)`, `scale(size)`, `alive()` and `remove()`, or `nil` and a reason.
+
+```lua
+local sample = api.world.prop("gameobjects_spec/gameobject_bug_research_object", pos, { scale = 2 })
+sample:move(new_pos)
+sample:remove()
+```
+
+The unit has to be in a package the level has loaded: the game stops for one it can't find. A mission's research samples, `gameobjects/flare_01` and the enemies of a loaded faction are safe.
+
 ## Sound {#sound}
 
 Sound is local too.
@@ -308,6 +320,12 @@ Both write the real save, on the ship, with its menus closed, and answer `"close
 `api.ui.hint(text, seconds)` shows the game's own hint box, even with hints turned off. `text` is your words, or a hint name such as `"hint_alarm"`. Your words go through [`obsidian.notify`](wiki:loader-api#obsidian-notify-text-seconds), so it can answer `false, "queue_full"`. `api.ui.ping(pos)` puts this player's mark on the map at a position, and `api.ui.ping(nil)` takes it away. Every player sees it.
 
 `api.ui.open(name, opts)` opens a menu of the ship by name, as a terminal does, and `api.ui.close()` closes the top one. `api.ui.menus()` lists the names. `opts.seed` gives Loadout and the briefing a mission, and `opts.pad` opens it for a pad other than the main player's.
+
+`api.ui.with_texts(texts, fn, ...)` runs `fn` with some of the game's text keys showing your words: `texts` is `{ key = words }`. It only lasts while `fn` runs, so you can wrap one of the game's screens and reuse it as your own, while every other text stays the game's.
+
+```lua
+api.ui.with_texts({ menu_campaign = "SURVIVORS" }, original, self, ...)
+```
 
 `api.lobby.players()` lists `peer`, `name`, `ping` in milliseconds, `host` and `me`. It only reads. A teammate has a name during a mission.
 

@@ -2250,4 +2250,54 @@ test("one_table_edit_can_be_told_apart_and_undone", function()
 	E.eq(api.edits.revert_table(t, "a"), false, "nothing left to undo")
 end)
 
+test("a_screen_of_the_game_shows_a_mods_words_only_while_it_runs", function()
+	local api = start()
+	local lm = rawget(_G, "LocalizationManager")
+	local real = lm.string
+	local seen = api.ui.with_texts({ menu_campaign = "SURVIVORS" }, function(extra)
+		return lm:string("menu_campaign") .. "|" .. lm:string("weapon_rifle") .. "|" .. extra
+	end, "x")
+	E.eq(seen, "SURVIVORS|Rifle|x", "the mod's word, the game's others, and fn's arguments")
+	E.eq(lm.string, real, "the game's function is back")
+	E.eq(lm:string("menu_campaign"), "LOC:menu_campaign")
+	local ok, err = pcall(api.ui.with_texts, { a = "b" }, function() error("boom", 0) end)
+	E.eq(ok, false)
+	E.eq(err, "boom", "an error comes through")
+	E.eq(lm.string, real, "and the function is back after it too")
+end)
+
+test("a_prop_is_a_unit_on_this_machine_that_moves_grows_and_goes", function()
+	local api = start()
+	local units, destroyed = {}, 0
+	rawset(_G, "World", {
+		spawn_unit = function(world, name, pos)
+			if name == "missing" then error("unit not found") end
+			local u = { world = world, name = name, pos = pos }
+			units[#units + 1] = u
+			return u
+		end,
+		destroy_unit = function(_, u) u.alive = false destroyed = destroyed + 1 end,
+	})
+	local unit = rawget(_G, "Unit")
+	unit.teleport_local_position = function(u, _, pos) u.pos = pos end
+	unit.set_local_scale = function(u, _, v) u.scale = v.x end
+	local p = api.world.prop("gameobjects_spec/gameobject_bug_research_object", { x = 1, y = 2 }, { scale = 1.5 })
+	E.eq(units[1].world, "world", "in the mission's world")
+	E.eq(units[1].pos.z, 0)
+	E.eq(units[1].scale, 1.5)
+	E.eq(p:move({ x = 4, y = 5, z = 1 }), true)
+	E.eq(units[1].pos.x, 4)
+	E.eq(p:scale(2), true)
+	E.eq(units[1].scale, 2)
+	p:remove()
+	E.eq(destroyed, 1)
+	E.eq(p:alive(), false)
+	E.eq(p:move({ x = 0, y = 0 }), false, "a removed prop does nothing")
+	p:remove()
+	E.eq(destroyed, 1, "removed once")
+	E.eq(select(2, api.world.prop("missing", { x = 0, y = 0 })), "unknown")
+	E.eq(select(2, api.world.prop("x", "here")), "bad_type")
+	E.eq(select(2, api.world.prop(nil, { x = 0, y = 0 })), "bad_type")
+end)
+
 return T
