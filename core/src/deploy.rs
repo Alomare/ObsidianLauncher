@@ -194,6 +194,15 @@ pub fn load_state(data_dir: &Path) -> Result<Option<DeployState>> {
     }
 }
 
+/// Whether a purge has anything to remove. A state that can't be read counts, as purge is what deals with it.
+pub fn has_deployed(data_dir: &Path) -> bool {
+    match load_state(data_dir) {
+        Ok(Some(s)) => s.incomplete || !s.files.is_empty(),
+        Ok(None) => false,
+        Err(_) => true,
+    }
+}
+
 /// One hash of what a deploy of `comp` writes: every planned resource and, when the loader goes
 /// in, the loader's inputs. Live option values and keys reach the game through `settings.txt`, so
 /// they are not part of it.
@@ -527,7 +536,9 @@ mod tests {
     fn deploy_writes_one_patch_per_bundle_and_purge_restores() {
         let w = world();
         let before = snapshot(&w.game.contents());
+        assert!(!has_deployed(&w.data));
         let r = deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert!(has_deployed(&w.data));
         assert_eq!(r.patches.len(), 3, "two mod patches and the loader");
         let p = bundle::read_file(&patch(&w, "00000000000000aa.patch_0")).unwrap();
         assert_eq!(p.props, [9u8; 256]);
@@ -537,6 +548,7 @@ mod tests {
         purge(&w.game, &w.data).unwrap();
         assert_eq!(snapshot(&w.game.contents()), before);
         assert!(status(&w.game, &w.data, w.opts.known_builds).unwrap().deployed.is_none());
+        assert!(!has_deployed(&w.data));
     }
 
     fn settings_text(w: &World) -> String {

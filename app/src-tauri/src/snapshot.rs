@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use obsidian_core::compose::plan;
-use obsidian_core::deploy::{ChangesWaiting, UncleanEnd, changes_waiting_for, crash_culprit, unclean_end};
+use obsidian_core::deploy::{ChangesWaiting, UncleanEnd, changes_waiting_for, crash_culprit, has_deployed, unclean_end};
 use obsidian_core::game::{GameInstall, find_game, is_running};
 use obsidian_core::gate::{KNOWN_BUILDS, check_build};
 use obsidian_core::hash::{display_name, display_text};
@@ -137,6 +137,8 @@ pub struct Snapshot {
     pub consent: bool,
     pub conflicts: Vec<ConflictRow>,
     pub changes: ChangesWaiting,
+    /// Whether a purge has anything to remove.
+    pub deployed: bool,
     pub game: GameState,
     pub game_dir: Option<PathBuf>,
     pub crash_culprit: Option<String>,
@@ -336,6 +338,7 @@ pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Re
         consent: profile.consent,
         conflicts,
         changes: changes_waiting_for(&comp, &profile, data, game_install.as_ref().map(|g| g.contents()).as_deref()).unwrap_or(ChangesWaiting::Waiting),
+        deployed: has_deployed(data),
         game,
         game_dir: game_install.map(|g| tidy(&g.root)),
         crash_culprit,

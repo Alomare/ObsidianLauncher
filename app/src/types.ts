@@ -25,7 +25,7 @@ export type GameState = "supported" | "unknown" | "running" | "notFound";
 export type ProfileRow = { name: string; on: number; consent: boolean; image: ImageRef | null; color: string | null };
 export type Snapshot = {
   mods: ModRow[]; folders: Folder[]; profile: string; profiles: string[]; profileRows: ProfileRow[]; consent: boolean; conflicts: ConflictRow[];
-  changes: ChangesWaiting; game: GameState; gameDir: string | null; crashCulprit: string | null; broken: { folder: string; reason: string }[]; damagedProfiles: string[]; uncleanEnd: { stamp: number; last: string } | null;
+  changes: ChangesWaiting; deployed: boolean; game: GameState; gameDir: string | null; crashCulprit: string | null; broken: { folder: string; reason: string }[]; damagedProfiles: string[]; uncleanEnd: { stamp: number; last: string } | null;
   portable: boolean; version: string;
 };
 

@@ -72,7 +72,7 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
           </label>
         )}
         <div className="actions">
-          <button className="btn icon" onClick={onPurge} disabled={locked} data-tip-title={t("app.action.purge")} data-tip={why ?? t("app.action.purgeHint")} aria-label={t("app.action.purge")}>
+          <button className={snap?.deployed ? "btn icon danger" : "btn icon"} onClick={onPurge} disabled={locked} data-tip-title={t("app.action.purge")} data-tip={why ?? t("app.action.purgeHint")} aria-label={t("app.action.purge")}>
             <PurgeIcon />
           </button>
           <button className={waiting ? "btn icon go" : "btn icon"} onClick={onDeploy} disabled={locked} data-tip-title={t("app.action.deploy")}

@@ -89,7 +89,7 @@ export default function App() {
       )}
       {askPurge && (
         <Confirm title={t("app.purge.title")} text={t("app.purge.text")} confirm={t("app.action.purge")}
-          onCancel={() => setAskPurge(false)} onConfirm={() => { setAskPurge(false); startWave("red"); purge(); }} />
+          onCancel={() => setAskPurge(false)} onConfirm={() => { setAskPurge(false); startWave(snap?.deployed ? "red" : "grey"); purge(); }} />
       )}
       {askUpdate && (
         <Confirm title={t("app.update.title", update.version ?? "")} text={t("app.update.text")} confirm={t("app.update.install")}
