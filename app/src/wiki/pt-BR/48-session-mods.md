@@ -82,6 +82,21 @@ return {
 
 O seu próprio código continua com a tabela real, então ainda consegue desfazer as mudanças depois que o lobby deixa de estar liberado.
 
+## Mods que todos os jogadores precisam ter {#every-player}
+
+O interruptor de multijogador diz ao seu mod que outro jogador concorda com ele, não que o roda. Isso basta para a maioria dos mods, já que o jogo do host decide o que acontece. Um mod que só funciona quando todos os jogos do lobby o têm, como um que muda quantos jogadores cabem no lobby, pode pedir mais:
+
+```json
+"scope": "session",
+"every_player": true
+```
+
+Um mod assim só roda quando todos os outros jogadores também o rodam, na mesma versão e com os mesmos valores de opção compartilhados. Quem só concorda não conta. O Obsidian liga e desliga o mod como qualquer mod de sessão e diz ao jogador o motivo. Os jogadores dele também têm um grupo de matchmaking próprio, então só encontram uns aos outros.
+
+`obsidian.session.cleared()` responde pelo mod que pergunta, e `obsidian.on_session` chama o mod quando o interruptor dele muda.
+
+A verificação roda quando o jogador já está no lobby. Convites ainda podem cruzar grupos, então deixe o jogo como estava até todos os jogadores estarem confirmados: num lobby maior, mantenha o limite normal até `obsidian.session.cleared()` ser `true`, e volte a ele quando `on_session` disser `false`.
+
 ## Opções em mods de sessão {#options-in-session-mods}
 
 Todo valor de opção conta quando o Obsidian compara os conjuntos dos jogadores, a não ser que você marque a opção com `"scope": "client"`. Marque as opções que só mudam o que este jogador vê ([Opções e teclas](wiki:options-and-keys#personal-options-in-session-mods)).

@@ -18,6 +18,7 @@ O Obsidian muda quais lobbies públicos você encontra, para que um jogador sem 
 |---|---|
 | Sem mods de sessão, interruptor desligado | Todo mundo. É o jogo normal. |
 | Mods de sessão aplicados, ou interruptor ligado | Só outros jogadores do Obsidian com mods de sessão ou com o interruptor ligado |
+| Um mod que todos os jogadores precisam ter aplicado | Só jogadores que rodam esse mesmo mod, na mesma versão |
 
 Ou seja: com o interruptor ligado, o seu lobby aparece para quem roda mods de sessão, e você deixa de ver os lobbies sem mods. Desligue quando quiser o matchmaking normal de volta.
 
@@ -47,6 +48,15 @@ A verificação roda de novo sempre que alguém entra, sai ou muda a configuraç
 
 > [!TIP]
 > Valores de opção que o autor marcou como pessoais, como a distância da câmera, não contam quando o Obsidian compara conjuntos. Um amigo pode escolher outra distância de câmera e ainda bater com o seu.
+
+## Mods que todos os jogadores precisam ter {#mods-every-player-needs}
+
+Alguns mods só funcionam quando todo mundo os tem, como um que deixa mais jogadores entrarem no lobby. O autor marca esses mods, e eles seguem uma regra mais rígida: o mod só roda quando todos os outros jogadores também o rodam, na mesma versão e com os mesmos valores de opção. O interruptor de multijogador não conta para eles. Quando alguém sem o mod está no seu lobby, só esse mod desliga, e o jogo avisa. Os seus outros mods de sessão seguem as regras de sempre.
+
+Esses mods também têm um grupo de matchmaking próprio, então você só encontra jogadores que rodam os mesmos.
+
+> [!TIP]
+> Valores de opção que o autor marca como pessoais, como a distância da câmera, não contam quando o Obsidian compara os conjuntos. Um amigo pode escolher outra distância de câmera e ainda combinar com você.
 
 ## Mods que não desligam na hora {#mods-that-can-t-switch-off-live}
 

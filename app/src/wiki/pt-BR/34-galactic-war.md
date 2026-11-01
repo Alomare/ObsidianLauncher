@@ -12,5 +12,9 @@ Enquanto houver conteúdo de sessão aplicado, o loader impede o jogo de enviar 
 
 Mods de cliente não mudam isso. Só com mods de cliente, as suas missões contam normalmente.
 
+## Proving Grounds continua fechado {#proving-grounds-stays-closed}
+
+Proving Grounds é ranqueado, com placares e capas para os melhores tempos. Enquanto houver conteúdo de sessão aplicado, o Obsidian não abre esse modo: escolhê-lo no mapa da galáxia mostra uma mensagem, e um desafio escolhido antes é descartado, então a nave também não o inicia. O mesmo vale para quem deixa entrar mods de outros jogadores, enquanto alguém no lobby usa um conjunto diferente.
+
 > [!NOTE]
 > O bloqueio vale enquanto houver conteúdo de sessão aplicado, mesmo numa missão em que os seus mods de sessão estejam desligados. Use Limpar, ou aplique sem mods de sessão, para voltar a participar da guerra.

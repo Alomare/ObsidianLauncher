@@ -51,7 +51,7 @@ end)
 
 ### obsidian.session.cleared() {#obsidian-session-cleared}
 
-该玩家的会话模组可以运行时为 `true`。客户端模组很少需要它。
+发出询问的模组可以运行时为 `true`：会话已获许可，并且对于标记了 `every_player` 的模组，其他每位玩家也在运行它（[每位玩家都需要的模组](wiki:session-mods#every-player)）。客户端模组很少需要它。
 
 ### obsidian.session.guard(t, free) {#obsidian-session-guard}
 
@@ -71,7 +71,7 @@ end)
 
 ### obsidian.on_session(fn) {#obsidian-on-session-fn}
 
-每当加载器开启或关闭本模组时调用 `fn(on)`，让模组可以撤销其他玩家会看到的更改。
+每当加载器开启或关闭本模组时调用 `fn(on)`，让模组可以撤销其他玩家会看到的更改。标记了 `every_player` 的模组还会在没有运行它的玩家加入或离开时收到通知。
 
 ## 文本和日志 {#text-and-logs}
 

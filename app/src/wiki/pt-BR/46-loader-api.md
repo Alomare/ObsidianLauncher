@@ -51,7 +51,7 @@ Chama `fn` toda vez que a tecla ligada a `id` desce. A tecla vem do app, ou do p
 
 ### obsidian.session.cleared() {#obsidian-session-cleared}
 
-`true` enquanto os mods de sessão deste jogador podem rodar. Mods de cliente quase nunca precisam.
+`true` enquanto o mod que pergunta pode rodar: a sessão está liberada e, para um mod marcado com `every_player`, todos os outros jogadores também o rodam ([Mods que todos os jogadores precisam ter](wiki:session-mods#every-player)). Mods de cliente quase nunca precisam.
 
 ### obsidian.session.guard(t, free) {#obsidian-session-guard}
 
@@ -71,7 +71,7 @@ O mesmo para todas as missões, enquanto o seu mod estiver rodando, e a tela de 
 
 ### obsidian.on_session(fn) {#obsidian-on-session-fn}
 
-Chama `fn(on)` sempre que o loader liga ou desliga este mod, para que o mod possa desfazer o que outros jogadores veriam.
+Chama `fn(on)` sempre que o loader liga ou desliga este mod, para que o mod possa desfazer o que outros jogadores veriam. Um mod marcado com `every_player` também fica sabendo quando chega ou sai um jogador que não o roda.
 
 ## Texto e logs {#text-and-logs}
 
