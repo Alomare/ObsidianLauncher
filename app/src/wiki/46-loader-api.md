@@ -65,6 +65,12 @@ A list of the other players in the lobby. Each entry has `peer`, `obsidian` (whe
 
 The mission under way adds nothing to the save, and the player is told: no XP, samples, unlocks, stats or achievements, for anyone in the mission. It's for a mod that changes how a mission plays out. It ends with the mission, so the Armory still works on the ship.
 
+`obsidian.session.forfeit_progress({ quiet = true })` does the same without telling the player, for a mod that will tell them itself.
+
+### obsidian.session.release_progress(key)
+
+After a forfeit, lets one value reach the save after all, such as `"player_xp"` for a mod that pays only XP, and only once it's earned. War reports stay blocked either way.
+
 ### obsidian.session.hold_progress()
 
 The same for every mission, for as long as your mod runs, and the mission's loading screen says so in place of its tip. Call it once, when your mod starts.

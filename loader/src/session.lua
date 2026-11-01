@@ -197,13 +197,22 @@ end
 
 -- The mission under way adds nothing to the save, until it's over. For a mod that changes how a mission
 -- plays out: what it earns would stay in the save, and a later clean mission would upload the total.
-function M.forfeit_progress()
+function M.forfeit_progress(opts)
 	if M.forfeited then return end
 	M.forfeited = true
 	local ok, err = B.pcall(keep)
 	if not ok then log.limited("session keep", "session: could not keep the save's values: " .. B.tostring(err)) end
 	log.line("session: this mission adds nothing to the save")
-	if not M.tip_shown then M.core.notice("progress_forfeited") end
+	if not M.tip_shown and not (B.type(opts) == "table" and opts.quiet) then M.core.notice("progress_forfeited") end
+end
+
+-- Lets one of the values a forfeit holds back reach the save after all, for a mod that pays only part of
+-- a mission's progress and only once it's earned.
+function M.release_progress(key)
+	if not (M.forfeited and HELD[key]) then return false end
+	M.released = M.released or {}
+	M.released[key] = true
+	return true
 end
 
 -- Every mission adds nothing to the save, for as long as the calling mod runs.
@@ -217,7 +226,7 @@ function M.mission_held()
 end
 
 function M.holds(key)
-	return M.forfeited and not M.restoring and HELD[key] == true
+	return M.forfeited and not M.restoring and HELD[key] == true and not (M.released and M.released[key])
 end
 
 function M.restore_progress()
@@ -225,7 +234,9 @@ function M.restore_progress()
 	if not kept then return end
 	M.restoring = true
 	local ok, err = B.pcall(function()
-		for _, key in B.ipairs(PROGRESS) do kept.save:user_set(key, copy(kept.values[key]), kept.user) end
+		for _, key in B.ipairs(PROGRESS) do
+			if not (M.released and M.released[key]) then kept.save:user_set(key, copy(kept.values[key]), kept.user) end
+		end
 	end)
 	M.restoring = false
 	if not ok then log.limited("session restore", "session: could not restore the save's values: " .. B.tostring(err)) end
@@ -235,7 +246,7 @@ function M.end_forfeit()
 	M.tip_shown = false
 	if not M.forfeited then return end
 	M.restore_progress()
-	M.forfeited, M.kept = false, nil
+	M.forfeited, M.kept, M.released = false, nil, nil
 end
 
 -- A view of a mod's table for other mods to call. Every function not named in `free` answers
@@ -273,6 +284,7 @@ function M.api()
 		-- For the calling mod, so a mod every player has to run hears when one doesn't.
 		cleared = function() return M.allows(M.core.current) end,
 		forfeit_progress = M.forfeit_progress,
+		release_progress = M.release_progress,
 		hold_progress = M.hold_progress,
 		members = function()
 			local copy = {}

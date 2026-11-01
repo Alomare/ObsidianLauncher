@@ -37,6 +37,7 @@ obsidian.session.forfeit_progress function
 obsidian.session.guard function
 obsidian.session.hold_progress function
 obsidian.session.members function
+obsidian.session.release_progress function
 obsidian.settings table
 obsidian.settings.get function
 obsidian.storage table
