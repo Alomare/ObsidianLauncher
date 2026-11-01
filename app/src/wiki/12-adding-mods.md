@@ -18,7 +18,7 @@ A mod made for Obsidian has an `obsidian.json` file at the top of the folder or 
 
 Most HD1 mods shared today replace whole game bundles, with files named like `9e13b2414b41b842`. Obsidian imports those as well. It compares each bundle in the mod with the one in your game and keeps only the resources the mod really changes, so two older mods that touch different things can now run together.
 
-Older mods are imported with the **session** scope, because Obsidian can't tell what they change in a shared game ([Scopes](wiki:scopes)). They also can't be switched off in the middle of a mission.
+Older mods are imported with the **session** scope, because Obsidian can't tell what they change in a shared game ([Scopes](wiki:scopes)). An older mod that changes only sound banks comes in as a **client** mod, since sound changes only what you hear. They also can't be switched off in the middle of a mission.
 
 A patch for another mod doesn't bring that mod with it. Import both and put the patch lower in the list. Check which version the patch was built for: the files the two share come from the patch, so a patch for an older version takes them back to that version.
 

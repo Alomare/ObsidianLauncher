@@ -8,7 +8,7 @@ use crate::game::GameInstall;
 use crate::gate::{KNOWN_BUILDS, KnownBuild, check_build};
 use crate::hash::{format_name, format_type, hash_name};
 use crate::library::{InstallOutcome, Library};
-use crate::manifest::{self, Manifest, Payload, ResourceSpec, Scope, write_manifest};
+use crate::manifest::{self, Manifest, Payload, ResourceSpec, Scope, VariantSpec, write_manifest};
 use crate::{ObsidianError, Result};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -70,31 +70,67 @@ fn import_against(src: &Path, game: &GameInstall, lib: &Library, known: &[KnownB
         if !vanilla_path.is_file() {
             return Err(ObsidianError::UnknownBundle(name));
         }
-        let vanilla: BTreeMap<(u64, u64), Entry> =
-            bundle::read_file(&vanilla_path)?.entries.into_iter().map(|e| ((e.type_hash, e.name_hash), e)).collect();
+        let vanilla_bundle = bundle::read_file(&vanilla_path)?;
+        let vanilla_spans = stream_spans(&vanilla_bundle);
+        let vanilla: BTreeMap<(u64, u64), Entry> = vanilla_bundle.entries.into_iter().map(|e| ((e.type_hash, e.name_hash), e)).collect();
         let modded = bundle::read_file(path)?;
+        let spans = stream_spans(&modded);
+        // A mod that left out the bundle's .stream plays the game's own, at the places its bundle says.
+        let own_stream = beside(path, "stream");
+        let game_stream = beside(&vanilla_path, "stream");
+        let mut stream = Streams::open(if own_stream.is_file() { &own_stream } else { &game_stream });
+        let mut vanilla_stream = Streams::open(&game_stream);
         let keys: Vec<(u64, u64)> = modded.entries.iter().map(|e| (e.type_hash, e.name_hash)).collect();
         removed_ignored += vanilla.keys().filter(|k| !keys.contains(k)).count();
         for e in modded.entries {
-            match vanilla.get(&(e.type_hash, e.name_hash)) {
-                Some(v) if *v == e => continue,
+            let key = (e.type_hash, e.name_hash);
+            let entry = format!("{}-{}", hex16(e.type_hash), hex16(e.name_hash));
+            let missing = || ObsidianError::LegacyStreamMissing { bundle: name.clone(), entry: entry.clone() };
+            match vanilla.get(&key) {
+                // The same entry can still carry other streamed bytes, when the mod brings its own .stream.
+                Some(v) if *v == e && !(own_stream.is_file() && spans.get(&key).is_some_and(|s| s.iter().any(|&(_, n)| n > 0))) => continue,
+                Some(v) if *v == e => {
+                    let ours = stream.spans(&spans[&key]).ok_or_else(missing)?;
+                    if vanilla_spans.get(&key).and_then(|s| vanilla_stream.spans(s)).is_some_and(|theirs| theirs == ours) {
+                        continue;
+                    }
+                    changed += 1;
+                }
                 Some(_) => changed += 1,
                 None => added += 1,
             }
-            let entry = format!("{}-{}", hex16(e.type_hash), hex16(e.name_hash));
-            let v = match e.variants.as_slice() {
-                [v] if v.lang == 0 && v.stream_size == 0 => v,
-                _ => return Err(ObsidianError::UnsupportedLegacyEntry { bundle: name.clone(), entry }),
-            };
-            if name == crate::loader::BUNDLE && (e.type_hash, e.name_hash) == entry_key {
+            if name == crate::loader::BUNDLE && key == entry_key {
                 // Obsidian Loader takes the place of this resource, so the mod's version runs as the entry.
-                std::fs::write(staged.path().join("entry.bin"), &v.data)?;
+                std::fs::write(staged.path().join("entry.bin"), e.variants.first().map(|v| v.data.clone()).unwrap_or_default())?;
                 entry_file = Some(PathBuf::from("entry.bin"));
                 continue;
             }
-            let rel = PathBuf::from("res").join(&name).join(format!("{entry}.bin"));
-            std::fs::create_dir_all(staged.path().join(rel.parent().unwrap()))?;
-            std::fs::write(staged.path().join(&rel), &v.data)?;
+            let dir = PathBuf::from("res").join(&name);
+            std::fs::create_dir_all(staged.path().join(&dir))?;
+            let payload = match e.variants.as_slice() {
+                [v] if v.lang == 0 && v.stream_size == 0 => {
+                    let rel = dir.join(format!("{entry}.bin"));
+                    std::fs::write(staged.path().join(&rel), &v.data)?;
+                    Payload::Data(rel)
+                }
+                variants => {
+                    let bytes = stream.spans(&spans[&key]).ok_or_else(missing)?;
+                    let mut specs = Vec::new();
+                    for (v, streamed) in variants.iter().zip(bytes) {
+                        let data = dir.join(format!("{entry}.{:x}.bin", v.lang));
+                        std::fs::write(staged.path().join(&data), &v.data)?;
+                        let stream = if streamed.is_empty() {
+                            None
+                        } else {
+                            let rel = dir.join(format!("{entry}.{:x}.stream", v.lang));
+                            std::fs::write(staged.path().join(&rel), &streamed)?;
+                            Some(rel)
+                        };
+                        specs.push(VariantSpec { lang: v.lang, data, stream });
+                    }
+                    Payload::Variants(specs)
+                }
+            };
             resources.push(ResourceSpec {
                 type_text: format_type(e.type_hash),
                 name_text: format_name(e.name_hash),
@@ -102,7 +138,7 @@ fn import_against(src: &Path, game: &GameInstall, lib: &Library, known: &[KnownB
                 name_hash: e.name_hash,
                 bundle: Some(name.clone()),
                 flags: e.flags,
-                payload: Payload::Data(rel),
+                payload,
                 when: BTreeMap::new(),
             });
         }
@@ -119,6 +155,9 @@ fn import_against(src: &Path, game: &GameInstall, lib: &Library, known: &[KnownB
         Some(n) => (n.id(), n.version, n.name),
         None => (legacy_id(&stem), semver::Version::new(0, 0, 0), stem),
     };
+    // Audio changes only what this player hears, so a mod of sound banks alone plays in any lobby.
+    let audio = hash_name("timpani_bank");
+    let scope = if entry_file.is_none() && resources.iter().all(|r| r.type_hash == audio) { Scope::Client } else { Scope::Session };
     let m = Manifest {
         obsidian: 1,
         id,
@@ -126,7 +165,7 @@ fn import_against(src: &Path, game: &GameInstall, lib: &Library, known: &[KnownB
         name: [("en".to_string(), name)].into(),
         description: None,
         authors: Vec::new(),
-        scope: Scope::Session,
+        scope,
         entry: entry_file,
         resources,
         options: Vec::new(),
@@ -185,6 +224,56 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// Where each entry's variants sit in the bundle's `.stream`: (offset, bytes) per variant. The parts
+/// follow one another in the order of the entries and their variants, with nothing between them.
+fn stream_spans(b: &bundle::Bundle) -> std::collections::HashMap<(u64, u64), Vec<(u64, u32)>> {
+    let mut at = 0u64;
+    let mut out = std::collections::HashMap::new();
+    for e in &b.entries {
+        let spans = e.variants.iter().map(|v| {
+            let span = (at, v.stream_size);
+            at += v.stream_size as u64;
+            span
+        });
+        out.insert((e.type_hash, e.name_hash), spans.collect());
+    }
+    out
+}
+
+/// A `.stream` file, which may not exist, read a span at a time.
+struct Streams(Option<std::fs::File>);
+
+impl Streams {
+    fn open(path: &Path) -> Streams {
+        Streams(std::fs::File::open(path).ok())
+    }
+
+    /// The bytes of each span (empty for a span of none), or None when the file lacks one.
+    fn spans(&mut self, spans: &[(u64, u32)]) -> Option<Vec<Vec<u8>>> {
+        use std::io::{Read, Seek, SeekFrom};
+        spans
+            .iter()
+            .map(|&(at, n)| {
+                if n == 0 {
+                    return Some(Vec::new());
+                }
+                let f = self.0.as_mut()?;
+                f.seek(SeekFrom::Start(at)).ok()?;
+                let mut buf = vec![0; n as usize];
+                f.read_exact(&mut buf).ok()?;
+                Some(buf)
+            })
+            .collect()
+    }
+}
+
+/// `path` with `.<suffix>` added.
+fn beside(path: &Path, suffix: &str) -> PathBuf {
+    let mut name = path.as_os_str().to_os_string();
+    name.push(format!(".{suffix}"));
+    PathBuf::from(name)
 }
 
 fn is_bundle_name(n: &str) -> bool {
@@ -458,5 +547,65 @@ mod tests {
         let f = fixture(standard());
         std::fs::rename(f.mod_dir.join("contents/00000000000000aa"), f.mod_dir.join("contents/00000000000000bb")).unwrap();
         assert!(matches!(import_path(&f.mod_dir, &f.game, &f.lib), Err(ObsidianError::UnknownBundle(_))));
+    }
+
+    /// A bank (name 5) in two languages, its streamed bytes `en`+`fr` after those of bank 4 (`zz`).
+    fn banks(en: &[u8], fr: &[u8]) -> (Vec<Entry>, Vec<u8>) {
+        let bank = hash_name("timpani_bank");
+        let v = |lang, data: &[u8], n: usize| Variant { lang, data: data.to_vec(), stream_size: n as u32 };
+        let entries = vec![
+            Entry { type_hash: bank, name_hash: 4, flags: 0, variants: vec![v(0, b"t4", 2)] },
+            Entry { type_hash: bank, name_hash: 5, flags: 0, variants: vec![v(0, b"t5", en.len()), v(0x100, b"t5fr", fr.len())] },
+        ];
+        (entries, [b"zz", en, fr].concat())
+    }
+
+    /// The game's `..aa` holds the banks with `old` audio and its `.stream`; the mod's bundle holds `entries`.
+    fn audio_fixture(entries: Vec<Entry>, mod_stream: Option<&[u8]>) -> Fixture {
+        let f = fixture(entries);
+        let (vanilla, stream) = banks(b"old", b"vieux");
+        bundle::write_file(&f.game.contents().join("00000000000000aa"), &Bundle { props: [9; 256], entries: vanilla }).unwrap();
+        std::fs::write(f.game.contents().join("00000000000000aa.stream"), stream).unwrap();
+        if let Some(s) = mod_stream {
+            std::fs::write(f.mod_dir.join("contents/00000000000000aa.stream"), s).unwrap();
+        }
+        f
+    }
+
+    #[test]
+    fn a_legacy_audio_mod_comes_in_with_its_languages_and_streams_as_a_client_mod() {
+        let (entries, stream) = banks(b"NEW", b"neuf!");
+        let f = audio_fixture(entries, Some(&stream));
+        let r = import_path(&f.mod_dir, &f.game, &f.lib).unwrap();
+        assert_eq!((r.changed, r.added), (1, 0), "bank 4 is the same in the table and in the stream");
+        let m = &f.lib.list().unwrap()[0];
+        assert_eq!(m.scope, Scope::Client);
+        let Payload::Variants(v) = &m.resources[0].payload else { panic!("{:?}", m.resources[0].payload) };
+        let dir = f.lib.mod_dir(&r.id);
+        let read = |p: &Path| std::fs::read(dir.join(p)).unwrap();
+        assert_eq!(v.iter().map(|v| v.lang).collect::<Vec<_>>(), [0, 0x100]);
+        assert_eq!((read(&v[0].data), read(v[0].stream.as_ref().unwrap())), (b"t5".to_vec(), b"NEW".to_vec()));
+        assert_eq!(read(v[1].stream.as_ref().unwrap()), b"neuf!");
+    }
+
+    #[test]
+    fn a_mod_that_changes_only_streamed_audio_is_still_a_change() {
+        // Same table and sizes as the game, other bytes in the mod's own .stream.
+        let (entries, _) = banks(b"old", b"vieux");
+        let f = audio_fixture(entries, Some(b"zzOLDVIEUX"));
+        assert_eq!(import_path(&f.mod_dir, &f.game, &f.lib).unwrap().changed, 1);
+    }
+
+    #[test]
+    fn a_mod_without_its_own_stream_reads_the_games() {
+        // A changed table that still plays the game's own streamed audio.
+        let (mut entries, _) = banks(b"xyz", b"vieux");
+        entries[1].variants[0].data = b"T5".to_vec();
+        let f = audio_fixture(entries, None);
+        let r = import_path(&f.mod_dir, &f.game, &f.lib).unwrap();
+        let Payload::Variants(v) = &f.lib.list().unwrap()[0].resources[0].payload.clone() else { panic!() };
+        assert_eq!(std::fs::read(f.lib.mod_dir(&r.id).join(v[0].stream.as_ref().unwrap())).unwrap(), b"old");
+        std::fs::remove_file(f.game.contents().join("00000000000000aa.stream")).unwrap();
+        assert!(matches!(import_path(&f.mod_dir, &f.game, &f.lib), Err(ObsidianError::LegacyStreamMissing { .. })));
     }
 }

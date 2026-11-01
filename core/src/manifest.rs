@@ -49,12 +49,36 @@ pub enum Payload {
     Source(PathBuf),
     Bytecode(PathBuf),
     Data(PathBuf),
+    /// Raw payloads per language, each with the part the game reads from the bundle's `.stream`: audio
+    /// banks and videos keep most of their bytes there.
+    Variants(Vec<VariantSpec>),
+}
+
+/// One language of a resource: `lang` is the engine's language flag (0 for every language without its
+/// own variant, 0x100 French, 0x4000 German...).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct VariantSpec {
+    #[serde(default)]
+    pub lang: u32,
+    pub data: PathBuf,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stream: Option<PathBuf>,
 }
 
 impl Payload {
+    /// The main file: the payload, or the first variant's data.
     pub fn path(&self) -> &Path {
         match self {
             Payload::Source(p) | Payload::Bytecode(p) | Payload::Data(p) => p,
+            Payload::Variants(v) => &v[0].data,
+        }
+    }
+
+    /// Every file the payload reads.
+    pub fn paths(&self) -> Vec<&Path> {
+        match self {
+            Payload::Variants(v) => v.iter().flat_map(|v| std::iter::once(v.data.as_path()).chain(v.stream.as_deref())).collect(),
+            _ => vec![self.path()],
         }
     }
 }
@@ -94,6 +118,11 @@ struct RawResource {
     bytecode: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     data: Option<PathBuf>,
+    /// With `data`: the part of the resource that goes into the patch's `.stream`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    stream: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    variants: Vec<VariantSpec>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     when: BTreeMap<String, Value>,
 }
@@ -105,11 +134,22 @@ fn is_zero(v: &u32) -> bool {
 impl TryFrom<RawResource> for ResourceSpec {
     type Error = String;
     fn try_from(r: RawResource) -> std::result::Result<Self, String> {
-        let payload = match (r.source, r.bytecode, r.data) {
-            (Some(p), None, None) => Payload::Source(p),
-            (None, Some(p), None) => Payload::Bytecode(p),
-            (None, None, Some(p)) => Payload::Data(p),
-            _ => return Err("needs exactly one of source, bytecode or data".into()),
+        let payload = match (r.source, r.bytecode, r.data, r.variants.is_empty()) {
+            (Some(p), None, None, true) if r.stream.is_none() => Payload::Source(p),
+            (None, Some(p), None, true) if r.stream.is_none() => Payload::Bytecode(p),
+            (None, None, Some(p), true) => match r.stream {
+                None => Payload::Data(p),
+                stream => Payload::Variants(vec![VariantSpec { lang: 0, data: p, stream }]),
+            },
+            (None, None, None, false) if r.stream.is_none() => {
+                let mut langs: Vec<u32> = r.variants.iter().map(|v| v.lang).collect();
+                langs.sort_unstable();
+                if langs.windows(2).any(|w| w[0] == w[1]) {
+                    return Err("two variants have the same lang".into());
+                }
+                Payload::Variants(r.variants)
+            }
+            _ => return Err("needs exactly one of source, bytecode, data or variants (stream goes only with data)".into()),
         };
         Ok(ResourceSpec {
             type_hash: parse_ref(&r.type_).map_err(|e| e.to_string())?,
@@ -126,13 +166,19 @@ impl TryFrom<RawResource> for ResourceSpec {
 
 impl From<ResourceSpec> for RawResource {
     fn from(s: ResourceSpec) -> Self {
-        let (mut source, mut bytecode, mut data) = (None, None, None);
+        let (mut source, mut bytecode, mut data, mut stream, mut variants) = (None, None, None, None, Vec::new());
         match s.payload {
             Payload::Source(p) => source = Some(p),
             Payload::Bytecode(p) => bytecode = Some(p),
             Payload::Data(p) => data = Some(p),
+            // One variant for every language is written the short way, as an author would.
+            Payload::Variants(v) if v.len() == 1 && v[0].lang == 0 => {
+                let v = v.into_iter().next().unwrap();
+                (data, stream) = (Some(v.data), v.stream);
+            }
+            Payload::Variants(v) => variants = v,
         }
-        RawResource { type_: s.type_text, name: s.name_text, bundle: s.bundle, flags: s.flags, source, bytecode, data, when: s.when }
+        RawResource { type_: s.type_text, name: s.name_text, bundle: s.bundle, flags: s.flags, source, bytecode, data, stream, variants, when: s.when }
     }
 }
 
@@ -237,7 +283,9 @@ impl Manifest {
             if r.bundle.as_deref().is_some_and(|b| !is_hex16(b)) {
                 return Err(bad(field, "bundle must be 16 lowercase hex digits"));
             }
-            check_path(mod_dir, r.data_path(), &field)?;
+            for p in r.payload.paths() {
+                check_path(mod_dir, p, &field)?;
+            }
             for (id, value) in &r.when {
                 let spec = options.iter().find(|o| o.id == *id).ok_or_else(|| bad(&field, format!("when names {id}, which is not an option")))?;
                 crate::options::validate(spec, value).map_err(|_| bad(&field, format!("when: {value} is not a value of {id}")))?;
@@ -409,5 +457,48 @@ mod tests {
         let again = load_manifest(d.path()).unwrap();
         assert_eq!(again.extra.get("homepage").and_then(Value::as_str), Some("https://example.org"));
         assert_eq!(again, m);
+    }
+
+    const BANK: &str = r##"{ "type": "timpani_bank", "name": "#e709d0c5697fb286", "bundle": "0e2ec9da60a0f53a", "##;
+
+    fn audio_mod(resource: &str) -> tempfile::TempDir {
+        let d = mod_with(&EXAMPLE.replace(r#"{ "type": "lua", "name": "lua/settings/perk_settings", "source": "res/perk_settings.lua" },"#, &format!("{resource},")));
+        for f in ["res/bank.bin", "res/bank.stream", "res/bank.fr.bin", "res/bank.fr.stream"] {
+            put(d.path(), f, b"x");
+        }
+        d
+    }
+
+    #[test]
+    fn a_bank_with_a_stream_or_language_variants_parses_and_round_trips() {
+        let d = audio_mod(&format!(r#"{BANK} "data": "res/bank.bin", "stream": "res/bank.stream" }}"#));
+        let m = load_manifest(d.path()).unwrap();
+        let want = vec![VariantSpec { lang: 0, data: "res/bank.bin".into(), stream: Some("res/bank.stream".into()) }];
+        assert_eq!(m.resources[0].payload, Payload::Variants(want));
+        write_manifest(d.path(), &m).unwrap();
+        let text = std::fs::read_to_string(d.path().join(FILE)).unwrap();
+        assert!(text.contains(r#""stream": "res/bank.stream""#) && !text.contains("variants"), "one variant is written the short way");
+
+        let d = audio_mod(&format!(
+            r#"{BANK} "variants": [ {{ "data": "res/bank.bin", "stream": "res/bank.stream" }}, {{ "lang": 256, "data": "res/bank.fr.bin", "stream": "res/bank.fr.stream" }} ] }}"#
+        ));
+        let m = load_manifest(d.path()).unwrap();
+        let Payload::Variants(v) = &m.resources[0].payload else { panic!() };
+        assert_eq!(v.iter().map(|v| v.lang).collect::<Vec<_>>(), [0, 256]);
+        assert_eq!(m.resources[0].payload.paths().len(), 4);
+        write_manifest(d.path(), &m).unwrap();
+        assert_eq!(load_manifest(d.path()).unwrap(), m);
+    }
+
+    #[test]
+    fn variants_are_checked() {
+        let twice = format!(r#"{BANK} "variants": [ {{ "data": "res/bank.bin" }}, {{ "lang": 0, "data": "res/bank.fr.bin" }} ] }}"#);
+        assert_eq!(field_of(load_manifest(audio_mod(&twice).path())), "resources[0]");
+        let both = format!(r#"{BANK} "data": "res/bank.bin", "variants": [ {{ "data": "res/bank.bin" }} ] }}"#);
+        assert_eq!(field_of(load_manifest(audio_mod(&both).path())), "resources[0]");
+        let lua_stream = format!(r#"{BANK} "source": "res/bank.bin", "stream": "res/bank.stream" }}"#);
+        assert_eq!(field_of(load_manifest(audio_mod(&lua_stream).path())), "resources[0]");
+        let gone = format!(r#"{BANK} "data": "res/bank.bin", "stream": "res/missing.stream" }}"#);
+        assert_eq!(field_of(load_manifest(audio_mod(&gone).path())), "resources[0]");
     }
 }

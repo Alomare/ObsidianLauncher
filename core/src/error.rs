@@ -26,8 +26,8 @@ pub enum ObsidianError {
     UnknownBundle(String),
     #[error("the game files don't match a build Obsidian knows ({}), so it can't tell what this mod changes. If you copied a mod into the game folder by hand, verify the game files in Steam and import it again", .0.mismatches.join(", "))]
     GameFilesChanged(crate::gate::GateReport),
-    #[error("bundle {bundle}, entry {entry}: resources with several languages or streamed data cannot be imported yet")]
-    UnsupportedLegacyEntry { bundle: String, entry: String },
+    #[error("bundle {bundle}, entry {entry}: its streamed data is in neither the mod's nor the game's .stream file")]
+    LegacyStreamMissing { bundle: String, entry: String },
     #[error("mod {0} is in the profile but not in the library")]
     ModMissing(String),
     #[error("{mod_id} needs {requires}, which is not switched on")]

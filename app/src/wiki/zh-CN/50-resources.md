@@ -33,6 +33,39 @@ summary: 按名称修改游戏脚本和其他资源，无需分发整个资源�
 
 导入时转换的旧式模组使用这种形式。从零制作这类文件需要 HD1 目前还没有的工具。
 
+## 声音库和视频 {#streamed-resources}
+
+声音库（`timpani_bank`）和视频（`bik`）的大部分字节保存在资源包的 `.stream` 文件中。把这部分写在 `stream` 中，与 `data` 并列：
+
+```json
+{ "type": "timpani_bank", "name": "#e709d0c5697fb286", "bundle": "0e2ec9da60a0f53a",
+  "data": "res/menu.timpani_bank", "stream": "res/menu.stream" }
+```
+
+游戏中有多种语言版本的资源，在 `variants` 中逐一列出，用 `lang` 填写游戏的语言标志。没有 `lang` 的版本为 0，供所有没有专属版本的语言使用：
+
+```json
+{ "type": "timpani_bank", "name": "#f0b3f997d587fb77", "bundle": "f0b3f997d587fb77",
+  "variants": [
+    { "data": "res/voices.timpani_bank", "stream": "res/voices.stream" },
+    { "lang": 256, "data": "res/voices.fr.timpani_bank", "stream": "res/voices.fr.stream" }
+  ] }
+```
+
+| 语言 | `lang` |
+|---|---|
+| 所有没有专属版本的语言 | 0 |
+| 日语 | 1 |
+| 法语 | 256 |
+| 西班牙语（拉丁美洲） | 512 |
+| 西班牙语（西班牙） | 1024 |
+| 葡萄牙语（巴西） | 2048 |
+| 俄语 | 4096 |
+| 意大利语 | 8192 |
+| 德语 | 16384 |
+
+部署时，Obsidian 把这些流式部分写入补丁旁的 `.stream` 文件（`<bundle>.patch_0.stream`），顺序与补丁中的排列一致，和游戏自己的布局相同。声音只改变你听到的内容，所以声音库模组可以是[客户端模组](wiki:scopes)。
+
 ## 字段 {#fields}
 
 | 字段 | 说明 |
@@ -42,12 +75,12 @@ summary: 按名称修改游戏脚本和其他资源，无需分发整个资源�
 | `source` | 要编译的 Lua 源代码 |
 | `bytecode` | 已编译的 LuaJIT 2.0 字节码 |
 | `data` | 任何其他类型的原始资源 |
+| `stream` | 与 `data` 一起使用：游戏从 `.stream` 文件读取的那部分资源 |
+| `variants` | 代替 `data`：每种语言一项，各含 `lang`、`data` 和可选的 `stream` |
 | `bundle` | 资源所属的资源包，16 位十六进制数。只有游戏中尚不存在的资源才需要 |
 | `flags` | 资源包为每个资源保存的一个值；除非转换器设置了它，否则省略 |
 | `when` | 只有这些选项取得对应值时才使用该资源（[选项和按键](wiki:options-and-keys#options-that-pick-files)） |
 
 ## 限制 {#limits}
-
-大型纹理、声音和视频把数据保存在单独的 `.stream` 文件中。Obsidian 目前拒绝这类资源。
 
 被替换的资源是静态的：无法在游戏中途关闭。在会话模组中，资源用于游戏启动时读取的数据，行为则用挂钩实现。

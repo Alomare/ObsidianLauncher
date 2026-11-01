@@ -25,18 +25,48 @@ pub struct Planned {
     /// SHA-256 of the data the game gets.
     pub digest: [u8; 32],
     pub owner: String,
+    /// A resource with language variants or streamed data, one piece per language; `data` is then
+    /// empty. Without pieces the resource is `data` alone, for every language, with nothing streamed.
+    pub pieces: Vec<Piece>,
+}
+
+/// One language of a resource: the bytes in the patch and the bytes in the patch's `.stream`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Piece {
+    pub lang: u32,
+    pub data: Vec<u8>,
+    pub stream: Vec<u8>,
 }
 
 impl Planned {
     pub fn new(type_hash: u64, name_hash: u64, flags: u32, data: Vec<u8>, owner: String) -> Planned {
         let digest = sha256(&data);
-        Planned { type_hash, name_hash, flags, data, digest, owner }
+        Planned { type_hash, name_hash, flags, data, digest, owner, pieces: Vec::new() }
+    }
+
+    pub fn with_pieces(type_hash: u64, name_hash: u64, flags: u32, pieces: Vec<Piece>, owner: String) -> Planned {
+        let digest = pieces_digest(&pieces);
+        Planned { type_hash, name_hash, flags, data: Vec::new(), digest, owner, pieces }
     }
 }
 
 fn sha256(data: &[u8]) -> [u8; 32] {
     use sha2::{Digest, Sha256};
     Sha256::digest(data).into()
+}
+
+/// The digest of a resource in pieces: each piece's language and both lengths, then its bytes.
+fn pieces_digest(pieces: &[Piece]) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+    let mut h = Sha256::new();
+    for p in pieces {
+        h.update(p.lang.to_le_bytes());
+        h.update((p.data.len() as u64).to_le_bytes());
+        h.update((p.stream.len() as u64).to_le_bytes());
+        h.update(&p.data);
+        h.update(&p.stream);
+    }
+    h.finalize().into()
 }
 
 /// When a file last changed and its size.
@@ -208,7 +238,7 @@ fn compose_with(lib: &Library, profile: &Profile, with_data: bool) -> Result<Com
             let game_data = || -> Result<Vec<u8>> {
                 let bytes = std::fs::read(&path)?;
                 Ok(match &r.payload {
-                    Payload::Data(_) => bytes,
+                    Payload::Data(_) | Payload::Variants(_) => bytes,
                     Payload::Bytecode(_) => {
                         check_bytecode(&bytes)?;
                         wrap_resource(&bytes)
@@ -219,27 +249,51 @@ fn compose_with(lib: &Library, profile: &Profile, with_data: bool) -> Result<Com
                     }
                 })
             };
-            let planned = if with_data {
-                Planned::new(r.type_hash, r.name_hash, r.flags, game_data()?, m.id.clone())
-            } else {
-                let stamp = match stamps.get(&path) {
-                    Some(s) => *s,
-                    None => {
-                        let meta = std::fs::metadata(&path)?;
-                        (meta.modified()?, meta.len())
+            let game_pieces = |variants: &[crate::manifest::VariantSpec]| -> Result<Vec<Piece>> {
+                variants
+                    .iter()
+                    .map(|v| {
+                        let stream = match &v.stream {
+                            Some(s) => std::fs::read(dir.join(s))?,
+                            None => Vec::new(),
+                        };
+                        Ok(Piece { lang: v.lang, data: std::fs::read(dir.join(&v.data))?, stream })
+                    })
+                    .collect()
+            };
+            let planned = match (&r.payload, with_data) {
+                (Payload::Variants(v), true) => Planned::with_pieces(r.type_hash, r.name_hash, r.flags, game_pieces(v)?, m.id.clone()),
+                (_, true) => Planned::new(r.type_hash, r.name_hash, r.flags, game_data()?, m.id.clone()),
+                (payload, false) => {
+                    // A resource in pieces is stamped by its newest file and their total size.
+                    let mut stamp: Option<Stamp> = None;
+                    for p in payload.paths() {
+                        let p = dir.join(p);
+                        let s = match stamps.get(&p) {
+                            Some(s) => *s,
+                            None => {
+                                let meta = std::fs::metadata(&p)?;
+                                (meta.modified()?, meta.len())
+                            }
+                        };
+                        stamp = Some(stamp.map_or(s, |(t, n)| (t.max(s.0), n + s.1)));
                     }
-                };
-                let cached = digests().lock().unwrap().get(&path).filter(|(s, _)| *s == stamp).map(|(_, d)| *d);
-                let digest = match cached {
-                    Some(d) => d,
-                    None => {
-                        let d = sha256(&game_data()?);
-                        digests().lock().unwrap().insert(path.clone(), (stamp, d));
-                        worked_out = true;
-                        d
-                    }
-                };
-                Planned { type_hash: r.type_hash, name_hash: r.name_hash, flags: r.flags, data: Vec::new(), digest, owner: m.id.clone() }
+                    let stamp = stamp.expect("a payload names at least one file");
+                    let cached = digests().lock().unwrap().get(&path).filter(|(s, _)| *s == stamp).map(|(_, d)| *d);
+                    let digest = match cached {
+                        Some(d) => d,
+                        None => {
+                            let d = match payload {
+                                Payload::Variants(v) => pieces_digest(&game_pieces(v)?),
+                                _ => sha256(&game_data()?),
+                            };
+                            digests().lock().unwrap().insert(path.clone(), (stamp, d));
+                            worked_out = true;
+                            d
+                        }
+                    };
+                    Planned { type_hash: r.type_hash, name_hash: r.name_hash, flags: r.flags, data: Vec::new(), digest, owner: m.id.clone(), pieces: Vec::new() }
+                }
             };
             let key = (bundle, r.type_hash, r.name_hash);
             let earlier = match slots.remove(&key) {

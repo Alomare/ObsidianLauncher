@@ -290,15 +290,18 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
 
     let mut temps = Vec::new();
     for (bundle, base, target) in &plan {
-        let mut b = Bundle { props: bundle::read_props(base)?, entries: Vec::new() };
-        for p in &comp.bundles[*bundle] {
-            let v = Variant { lang: 0, data: p.data.clone(), stream_size: 0 };
-            b.entries.push(Entry { type_hash: p.type_hash, name_hash: p.name_hash, flags: p.flags, variants: vec![v] });
-        }
-        b.sort_entries();
+        let (b, stream) = patch_of(bundle::read_props(base)?, &comp.bundles[*bundle]);
         let tmp = target.with_extension(format!("{}.{TMP}", target.extension().unwrap().to_string_lossy()));
         temps.push((tmp.clone(), target.clone()));
-        if let Err(e) = bundle::write_file(&tmp, &b) {
+        let mut written = bundle::write_file(&tmp, &b);
+        if written.is_ok() && !stream.is_empty() {
+            // The engine reads a patch's streamed bytes from `<patch>.stream`, as it does for a bundle.
+            let target = beside(target, "stream");
+            let tmp = beside(&target, TMP);
+            temps.push((tmp.clone(), target));
+            written = std::fs::write(&tmp, &stream).map_err(Into::into);
+        }
+        if let Err(e) = written {
             remove_all(temps.iter().map(|(t, _)| t));
             return Err(e);
         }
@@ -355,6 +358,33 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
     settings::write(&settings::game_side_dir(&game.saves_dir), &settings)?;
     let foreign_paths = foreign.into_iter().filter(|(b, _, _)| comp.bundles.contains_key(b)).map(|(_, _, p)| p).collect();
     Ok(DeployReport { patches: state.files.into_iter().map(|f| f.path).collect(), conflicts: comp.conflicts, foreign: foreign_paths, backup })
+}
+
+/// One bundle's patch, and the bytes of its `.stream` (empty when nothing is streamed). A bundle's
+/// `.stream` holds each variant's streamed part in the order of the entries and their variants, with
+/// nothing between them, so the patch is sorted first and its stream follows that order.
+fn patch_of(props: [u8; 256], planned: &[crate::compose::Planned]) -> (Bundle, Vec<u8>) {
+    let mut b = Bundle { props, entries: Vec::new() };
+    let mut streams = std::collections::HashMap::new();
+    for p in planned {
+        let variants = if p.pieces.is_empty() {
+            vec![Variant { lang: 0, data: p.data.clone(), stream_size: 0 }]
+        } else {
+            let mut pieces: Vec<_> = p.pieces.iter().collect();
+            pieces.sort_by_key(|x| x.lang);
+            streams.insert((p.type_hash, p.name_hash), pieces.iter().map(|x| x.stream.as_slice()).collect::<Vec<_>>());
+            pieces.iter().map(|x| Variant { lang: x.lang, data: x.data.clone(), stream_size: x.stream.len() as u32 }).collect()
+        };
+        b.entries.push(Entry { type_hash: p.type_hash, name_hash: p.name_hash, flags: p.flags, variants });
+    }
+    b.sort_entries();
+    let mut stream = Vec::new();
+    for e in &b.entries {
+        for part in streams.get(&(e.type_hash, e.name_hash)).into_iter().flatten() {
+            stream.extend_from_slice(part);
+        }
+    }
+    (b, stream)
 }
 
 /// Removes the patches the last deploy recorded. Never consults the build gate. A file that can't go
@@ -864,5 +894,61 @@ mod tests {
         let r = purge(&w.game, &w.data).unwrap();
         assert_eq!(r.kept_changed, vec![patch(&w, "00000000000000aa.patch_0")]);
         assert!(patch(&w, "00000000000000aa.patch_0").exists());
+    }
+
+    fn piece(lang: u32, data: &[u8], stream: &[u8]) -> crate::compose::Piece {
+        crate::compose::Piece { lang, data: data.to_vec(), stream: stream.to_vec() }
+    }
+
+    #[test]
+    fn a_patch_stream_follows_its_entries_and_their_languages() {
+        use crate::compose::Planned;
+        // Given out of order: the patch sorts entries by (type, name) and variants by language, and the
+        // stream follows that order, as a game bundle's does.
+        let planned = vec![
+            Planned::with_pieces(5, 2, 0, vec![piece(0x100, b"b-fr", b"FR"), piece(0, b"b", b"BBB")], "m".into()),
+            Planned::new(5, 1, 0, b"plain".to_vec(), "m".into()),
+            Planned::with_pieces(4, 9, 0, vec![piece(0, b"a", b"A")], "m".into()),
+        ];
+        let (b, stream) = patch_of([0; 256], &planned);
+        let order: Vec<_> = b.entries.iter().map(|e| (e.type_hash, e.name_hash)).collect();
+        assert_eq!(order, [(4, 9), (5, 1), (5, 2)]);
+        assert_eq!(stream, b"ABBBFR");
+        let langs: Vec<_> = b.entries[2].variants.iter().map(|v| (v.lang, v.stream_size)).collect();
+        assert_eq!(langs, [(0, 3), (0x100, 2)]);
+        assert_eq!(b.entries[1].variants, vec![Variant { lang: 0, data: b"plain".to_vec(), stream_size: 0 }]);
+        assert!(patch_of([0; 256], &planned[1..2]).1.is_empty(), "no stream without streamed bytes");
+    }
+
+    #[test]
+    fn a_streamed_bank_deploys_with_its_stream_file_and_purge_takes_both() {
+        let w = world();
+        let before = snapshot(&w.game.contents());
+        let d = w._t.path().join("stage-audio");
+        let json = r##"{"obsidian":1,"id":"mod-audio","version":"1.0.0","name":{"en":"audio"},"scope":"client",
+            "resources":[{"type":"timpani_bank","name":"#00000000000000f1","bundle":"00000000000000aa",
+              "variants":[{"data":"en.bin","stream":"en.stream"},{"lang":256,"data":"fr.bin","stream":"fr.stream"}]}]}"##;
+        put(&d, "obsidian.json", json.as_bytes());
+        for (f, b) in [("en.bin", "E"), ("en.stream", "en-stream"), ("fr.bin", "F"), ("fr.stream", "fr-stream")] {
+            put(&d, f, b.as_bytes());
+        }
+        let lib = Library::open(&w.data).unwrap();
+        lib.install(&d).unwrap();
+        let mut p = Profile::load(&w.data).unwrap();
+        p.sync(&lib).unwrap();
+        p.set_enabled("mod-audio", true).unwrap();
+        p.save(&w.data).unwrap();
+
+        let r = deploy(&w.game, &w.data, &w.opts).unwrap();
+        let stream = patch(&w, "00000000000000aa.patch_0.stream");
+        assert!(r.patches.contains(&stream));
+        assert_eq!(std::fs::read(&stream).unwrap(), b"en-streamfr-stream");
+        let b = bundle::read_file(&patch(&w, "00000000000000aa.patch_0")).unwrap();
+        let bank = b.entries.iter().find(|e| e.name_hash == 0xf1).unwrap();
+        assert_eq!(bank.variants.iter().map(|v| (v.lang, v.stream_size)).collect::<Vec<_>>(), [(0, 9), (256, 9)]);
+        assert!(!patch(&w, "00000000000000bb.patch_0.stream").exists(), "a bundle with nothing streamed gets no stream file");
+        assert_eq!(waiting(&w), ChangesWaiting::UpToDate, "plan (digests from stamps) agrees with what deploy wrote");
+        purge(&w.game, &w.data).unwrap();
+        assert_eq!(snapshot(&w.game.contents()), before);
     }
 }
