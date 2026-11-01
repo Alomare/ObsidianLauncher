@@ -221,18 +221,15 @@ button.link:hover { filter: brightness(1.2); }
 @keyframes sb-travel { to { transform: translateX(230%); } }
 @keyframes sb-pulse { from { opacity: 0.45; } to { opacity: 1; } }
 :root[data-motion="off"] .sb-wave { display: none; }
-/* The same glow across the whole bar on top, in the color of the button that started it. Both bands are off the
-   bar when a pass ends, so the wave can stop there or run again. */
-.nav-wave { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+/* One glow across the bar on top, in the color of the button that started it. NavBar sets left and right so it
+   runs from the end of Play to the end of the first tabs, and the mask fades it out before it gets there. */
+.nav-wave { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; -webkit-mask-image: linear-gradient(90deg, transparent, #000 55%); mask-image: linear-gradient(90deg, transparent, #000 55%); }
 .nav-wave.red { --wave: var(--danger-hi); }
 .nav-wave.green { --wave: var(--go); }
 .nav-wave.grey { --wave: var(--mu); }
 .nav-wave.yellow { --wave: var(--gold); }
-.nav-wave::before, .nav-wave::after { content: ""; position: absolute; top: 0; bottom: 0; right: 0; width: 45%; transform: translateX(100%); background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--wave) 60%, transparent) 50%, transparent); }
-.nav-wave::before { animation: wave-first 1.22s linear infinite, sb-pulse 0.3s ease-in-out infinite alternate; }
-.nav-wave::after { animation: wave-pass 1.22s linear infinite, sb-pulse 0.3s ease-in-out 0.15s infinite alternate; }
-@keyframes wave-first { 70%, 100% { transform: translateX(-230%); } }
-@keyframes wave-pass { 0%, 30% { transform: translateX(100%); } 100% { transform: translateX(-230%); } }
+.nav-wave::before { content: ""; position: absolute; top: 0; bottom: 0; right: 0; width: 45%; transform: translateX(100%); background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--wave) 60%, transparent) 50%, transparent); animation: wave-pass 0.43s linear forwards; }
+@keyframes wave-pass { to { transform: translateX(-230%); } }
 :root[data-motion="off"] .nav-wave { display: none; }
 @keyframes pulse { 50% { opacity: 0.25; transform: rotate(225deg); } }
 .btn.icon.go { animation: glow 2.4s ease-in-out infinite; }

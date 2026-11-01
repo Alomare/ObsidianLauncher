@@ -1,7 +1,7 @@
 // The navigation bar: the tabs (Home, Mods, Wiki), then the "prepare to play" area: the multiplayer consent of the active
 // profile, Purge, Deploy and Play, and the Settings tab at the far end (spec section 3). Deploy turns green while changes wait.
-// When one of the three starts, a wave in its color crosses the bar, and it stays while the work lasts.
-import type { ComponentType } from "react";
+// When one of the three starts, one glow in its color crosses from Play toward the tabs, and fades out before them.
+import { type ComponentType, useLayoutEffect, useRef } from "react";
 import { run } from "./api";
 import { BookIcon, CogIcon, DeployIcon, HomeIcon, ModsIcon, PlayIcon, PurgeIcon, WarnIcon } from "./Icons";
 import { t } from "./i18n";
@@ -35,10 +35,21 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
   const waiting = snap?.changes === "Waiting";
   // HD1 gets no more updates, so only a missing game or an unknown build needs a word here.
   const warn = snap && (missing || snap.game === "unknown") ? t(`app.game.${snap.game}`) : null;
+  // The glow runs from the end of Play to the end of the first tabs, so it never reaches them.
+  const waveRef = useRef<HTMLSpanElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const w = waveRef.current, tabs = tabsRef.current, end = endRef.current;
+    if (!w || !tabs || !end) return;
+    const nav = w.parentElement!.getBoundingClientRect();
+    w.style.left = `${tabs.getBoundingClientRect().right - nav.left}px`;
+    w.style.right = `${nav.right - end.getBoundingClientRect().right}px`;
+  }, [wave]);
   return (
     <nav className="nav">
-      {wave && <span key={wave.n} className={`nav-wave ${wave.tone}`} aria-hidden="true" onAnimationIteration={(e) => e.animationName === "wave-pass" && !busy && onWaveEnd()} />}
-      <div className="tabs" role="tablist">
+      {wave && <span key={wave.n} ref={waveRef} className={`nav-wave ${wave.tone}`} aria-hidden="true" onAnimationEnd={onWaveEnd} />}
+      <div className="tabs" role="tablist" ref={tabsRef}>
         {TABS.map(([id, Icon]) => (
           <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? "tab cur" : "tab"} onClick={() => onTab(id)}>
             <Icon />
@@ -46,7 +57,7 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
           </button>
         ))}
       </div>
-      <div className="nav-end">
+      <div className="nav-end" ref={endRef}>
         {warn && (
           <span className="nav-warn" data-tip-title={warn} data-tip={t(`app.settings.build.${snap!.game}`)}>
             <WarnIcon />
