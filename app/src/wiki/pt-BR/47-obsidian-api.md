@@ -293,7 +293,7 @@ Os dois escrevem no save real, na nave, com os menus fechados, e respondem `"clo
 
 ## Mensagens {#messages}
 
-`api.ui.hint(text, seconds)` mostra a caixa de dicas do próprio jogo, mesmo com as dicas desligadas. `text` são as suas palavras ou o nome de uma dica, como `"hint_alarm"`. `api.ui.ping(pos)` coloca a marca deste jogador no mapa em uma posição, e `api.ui.ping(nil)` tira. Todos os jogadores veem.
+`api.ui.hint(text, seconds)` mostra a caixa de dicas do próprio jogo, mesmo com as dicas desligadas. `text` são as suas palavras ou o nome de uma dica, como `"hint_alarm"`. As suas palavras passam por [`obsidian.notify`](wiki:loader-api#obsidian-notify-text-seconds), então pode responder `false, "queue_full"`. `api.ui.ping(pos)` coloca a marca deste jogador no mapa em uma posição, e `api.ui.ping(nil)` tira. Todos os jogadores veem.
 
 `api.ui.open(name, opts)` abre um menu da nave pelo nome, como um terminal faz, e `api.ui.close()` fecha o de cima. `api.ui.menus()` lista os nomes. `opts.seed` dá uma missão ao Loadout e ao briefing, e `opts.pad` abre para um controle que não seja o do jogador principal.
 

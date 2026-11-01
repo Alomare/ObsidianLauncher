@@ -141,7 +141,7 @@ Calls `fn(draw, width, height)` every frame, to put something on screen outside 
 
 Shows a short message at the top left of the screen, or beside the in-game menu while it's open.
 
-### obsidian.notify(text, seconds)
+### obsidian.notify(text, seconds) {#obsidian-notify-text-seconds}
 
 Shows your words in the game's own hint box, with its icon and sound, even with the game's hints turned off. `seconds` is 7 if you leave it out. Where the game has no hint box, such as the main menu, it shows as a toast instead.
 

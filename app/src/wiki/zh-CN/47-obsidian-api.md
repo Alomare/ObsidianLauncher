@@ -293,7 +293,7 @@ api.progress.set_upgrade("weapon_railgun", 3)
 
 ## 消息 {#messages}
 
-`api.ui.hint(text, seconds)` 显示游戏自己的提示框，即使提示已关闭。`text` 是你的文字，或提示名称，例如 `"hint_alarm"`。`api.ui.ping(pos)` 在地图上的某个位置放下本玩家的标记，`api.ui.ping(nil)` 将其移除。所有玩家都能看到。
+`api.ui.hint(text, seconds)` 显示游戏自己的提示框，即使提示已关闭。`text` 是你的文字，或提示名称，例如 `"hint_alarm"`。你的文字会通过 [`obsidian.notify`](wiki:loader-api#obsidian-notify-text-seconds) 显示，因此可能返回 `false, "queue_full"`。`api.ui.ping(pos)` 在地图上的某个位置放下本玩家的标记，`api.ui.ping(nil)` 将其移除。所有玩家都能看到。
 
 `api.ui.open(name, opts)` 按名称打开飞船上的菜单，效果与终端相同；`api.ui.close()` 关闭最上层的菜单。`api.ui.menus()` 列出所有名称。`opts.seed` 为配装和简报界面指定任务，`opts.pad` 为主玩家以外的手柄打开菜单。
 

@@ -498,7 +498,7 @@ function G.start(ids, opts)
 			local text = "text of " .. hint.text
 			-- As LocalizationManager.string_format goes through its pairs.
 			if params then text = string.gsub(text, params[1], params[2]) end
-			game.hint = { text = text, seconds = seconds or hint.duration }
+			game.hint = { name = name, text = text, seconds = seconds or hint.duration }
 		end },
 		generated_level = { shading_environment_setting = "dusk", environment_name = "desert", enemy = "bugs", width = 8, height = 8, map_size = { x = 10, y = 10 }, get_closest_position_on_level = function() return rawget(_G, "Vector3")(0, 0, 0) end },
 		set_extra_lives = function(_, _, n) game.lives = n end,

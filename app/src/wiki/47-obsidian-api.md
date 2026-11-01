@@ -293,7 +293,7 @@ Both write the real save, on the ship, with its menus closed, and answer `"close
 
 ## Messages {#messages}
 
-`api.ui.hint(text, seconds)` shows the game's own hint box, even with hints turned off. `text` is your words, or a hint name such as `"hint_alarm"`. `api.ui.ping(pos)` puts this player's mark on the map at a position, and `api.ui.ping(nil)` takes it away. Every player sees it.
+`api.ui.hint(text, seconds)` shows the game's own hint box, even with hints turned off. `text` is your words, or a hint name such as `"hint_alarm"`. Your words go through [`obsidian.notify`](wiki:loader-api#obsidian-notify-text-seconds), so it can answer `false, "queue_full"`. `api.ui.ping(pos)` puts this player's mark on the map at a position, and `api.ui.ping(nil)` takes it away. Every player sees it.
 
 `api.ui.open(name, opts)` opens a menu of the ship by name, as a terminal does, and `api.ui.close()` closes the top one. `api.ui.menus()` lists the names. `opts.seed` gives Loadout and the briefing a mission, and `opts.pad` opens it for a pad other than the main player's.
 

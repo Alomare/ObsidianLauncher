@@ -1455,10 +1455,31 @@ test("a_mutator_the_study_left_out_is_refused", function()
 end)
 
 test("a_hint_shows_the_mods_words_through_the_games_own_formatter", function()
-	local api, game = start({ hints = false })
+	local api, game, e = start({ hints = false })
+	e:frames(1)
 	E.eq(api.ui.hint("Hold the line: 100%", 3), true)
-	E.eq(game.hint.text, "Hold the line: 100%", "with hints turned off, and a % doesn't break the swap")
+	local hint = rawget(_G, "HintSettings")[game.hint.name]
+	E.eq(rawget(_G, "LocalizationManager"):string(hint.text), "Hold the line: 100%", "with hints turned off, and a % stays as written")
 	E.eq(game.hint.seconds, 3)
+end)
+
+test("a_hint_goes_through_the_loaders_limit_on_what_a_mod_has_waiting", function()
+	local api, game = start()
+	game.state.hint_manager.queued_hints = {}
+	local add = game.state.hint_manager.add_hint
+	game.state.hint_manager.add_hint = function(self, name, ...)
+		self.queued_hints[#self.queued_hints + 1] = { text = name }
+		return add(self, name, ...)
+	end
+	for i = 1, 3 do E.eq(api.ui.hint("line " .. i), true) end
+	E.eq(select(2, api.ui.hint("line 4")), "queue_full")
+end)
+
+test("on_an_older_loader_a_hint_uses_the_games_formatter", function()
+	local api, game, e = start({ hints = false })
+	e:core().capabilities.notify = nil
+	E.eq(api.ui.hint("Hold the line: 100%", 3), true)
+	E.eq(game.hint.text, "Hold the line: 100%", "and a % doesn't break the swap")
 end)
 
 test("a_menu_opens_by_name_for_the_main_player", function()
