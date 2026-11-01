@@ -60,6 +60,18 @@ pub enum ObsidianError {
     UnknownOption { mod_id: String, option: String },
     #[error("mod {mod_id}: every resource needs a bundle in this version")]
     BundleRequired { mod_id: String },
+    #[error("a sound bank can't be read: {0}")]
+    BadBank(String),
+    #[error("mod {mod_id} changes sound bank {bank}, and this game doesn't have it")]
+    RecipeBank { mod_id: String, bank: String },
+    #[error("mod {mod_id} changes sound bank {bank} in language {lang:#x}, and the bank doesn't have that language")]
+    RecipeLanguage { mod_id: String, bank: String, lang: u32 },
+    #[error("mod {mod_id} changes clip {clip} of sound bank {bank}, and the bank doesn't have it in language {lang:#x}")]
+    RecipeClip { mod_id: String, bank: String, clip: String, lang: u32 },
+    #[error("mod {mod_id}: {file} can't go in a sound bank: {why}")]
+    RecipeFile { mod_id: String, file: String, why: String },
+    #[error("the patch for bundle {0} would pass 4 GB, which a bundle can't hold. Turn off some of the mods that change it")]
+    PatchTooLarge(String),
     #[error("game build not recognised: {}", .0.mismatches.join(", "))]
     UnsupportedBuild(crate::gate::GateReport),
     #[error("bundle {bundle}: patch_{missing} is missing below another tool's patches, so the game would skip them")]

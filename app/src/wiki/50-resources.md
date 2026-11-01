@@ -66,6 +66,27 @@ A resource the game has in several languages lists each one under `variants`, wi
 
 At deploy, Obsidian writes the streamed parts into a `.stream` file beside the patch (`<bundle>.patch_0.stream`), in the order the patch lists them, as the game lays out its own. Sound changes only what you hear, so a mod of sound banks can be a [client mod](wiki:scopes).
 
+## Single clips of a sound bank {#sound-bank-clips}
+
+A whole bank can pass a gigabyte across its languages. A mod that changes a few sounds can ship only those clips under `clips`, and Obsidian rebuilds the bank from the installed game at deploy:
+
+```json
+{ "type": "timpani_bank", "name": "#e0f28740d6c19769",
+  "clips": [
+    { "clip": "#1111111111111111", "data": "res/rock.clip", "stream": "res/rock.stream" },
+    { "clip": "#1111111111111111", "lang": 256, "data": "res/rock.fr.clip", "stream": "res/rock.fr.stream" },
+    { "clip": "#2222222222222222", "data": "res/short.clip" }
+  ] }
+```
+
+- `clip` is the clip's id, `#` plus 16 hex digits. `lang` is the language flag from the table above, 0 if you leave it out.
+- `data` is what goes in the bank: the clip's 68-byte header and the first part of its audio. `stream` is the rest, if any.
+- A resource with `clips` has no `bundle`: Obsidian puts the bank in every bundle that holds it. Clips and languages you don't list stay as the game has them.
+- Two rows can use the same file. Mods can change different clips of one bank, and when two change the same clip, the later one in the load order wins. Over a mod that replaces the whole bank, clips apply to that mod's bank.
+- Deploy refuses a clip or language the bank doesn't have, and a file whose header doesn't match its size.
+
+A game update counts as changes waiting, and a new deploy rebuilds the bank. The deployed patch is still as big as the whole bank: `clips` shrinks the download, not the space on disk.
+
 ## Fields
 
 | Field | What it is |
@@ -77,7 +98,8 @@ At deploy, Obsidian writes the streamed parts into a `.stream` file beside the p
 | `data` | A raw resource of any other type |
 | `stream` | With `data`: the part of the resource the game reads from the `.stream` file |
 | `variants` | Instead of `data`: one entry per language, each with `lang`, `data` and an optional `stream` |
-| `bundle` | The bundle the resource goes in, 16 hex digits. Only needed for a resource the game doesn't have yet |
+| `clips` | Instead of `data`: the clips of a sound bank to change, each with `clip`, `lang`, `data` and an optional `stream` |
+| `bundle` | The bundle the resource goes in, 16 hex digits. Needed for every resource except one with `clips` |
 | `flags` | A value bundles keep beside each resource; leave it out unless a converter set it |
 | `when` | Options that must have these values for the resource to be used ([Options and keys](wiki:options-and-keys#options-that-pick-files)) |
 

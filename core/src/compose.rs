@@ -28,6 +28,37 @@ pub struct Planned {
     /// A resource with language variants or streamed data, one piece per language; `data` is then
     /// empty. Without pieces the resource is `data` alone, for every language, with nothing streamed.
     pub pieces: Vec<Piece>,
+    /// A bank rebuilt from the game at deploy; `data` and `pieces` are then empty until `rebuilt`.
+    pub recipe: Option<Recipe>,
+}
+
+/// One clip a mod puts in a bank.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClipFile {
+    pub owner: String,
+    pub data: PathBuf,
+    pub stream: Option<PathBuf>,
+    pub digest: [u8; 32],
+}
+
+/// What goes on top of a bank: the clips of the mods that change it, by (language, clip).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Recipe {
+    pub clips: BTreeMap<(u32, u64), ClipFile>,
+    /// A whole-bank mod below the clips. Without one, they go on the game's bank.
+    base: Option<Base>,
+    /// (loser, winner) for each clip two mods give different bytes.
+    lost: Vec<(String, String)>,
+    /// The first bundle that holds the bank, which reports its conflicts and has its digest.
+    first: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct Base {
+    owner: String,
+    digest: [u8; 32],
+    /// Empty in a composition from `plan`.
+    pieces: Vec<Piece>,
 }
 
 /// One language of a resource: the bytes in the patch and the bytes in the patch's `.stream`.
@@ -41,12 +72,12 @@ pub struct Piece {
 impl Planned {
     pub fn new(type_hash: u64, name_hash: u64, flags: u32, data: Vec<u8>, owner: String) -> Planned {
         let digest = sha256(&data);
-        Planned { type_hash, name_hash, flags, data, digest, owner, pieces: Vec::new() }
+        Planned { type_hash, name_hash, flags, data, digest, owner, pieces: Vec::new(), recipe: None }
     }
 
     pub fn with_pieces(type_hash: u64, name_hash: u64, flags: u32, pieces: Vec<Piece>, owner: String) -> Planned {
         let digest = pieces_digest(&pieces);
-        Planned { type_hash, name_hash, flags, data: Vec::new(), digest, owner, pieces }
+        Planned { type_hash, name_hash, flags, data: Vec::new(), digest, owner, pieces, recipe: None }
     }
 }
 
@@ -175,18 +206,219 @@ pub struct Composition {
     pub bundles: BTreeMap<String, Vec<Planned>>,
     pub conflicts: Vec<Conflict>,
     pub mods: Vec<ComposedMod>,
+    /// A plan's sound bank clips with no bank to go in, by mod. A deploy says why, and until then
+    /// there's always one waiting.
+    pub unplaced: Vec<String>,
 }
 
-/// Everything the game would get, with the data, for a deploy.
+/// Everything the game would get, with the data, for a deploy. `contents` is the game's folder of
+/// bundles, which a mod's sound bank clips need.
+pub fn compose_for(lib: &Library, profile: &Profile, contents: Option<&Path>) -> Result<Composition> {
+    compose_with(lib, profile, true, contents)
+}
+
+/// `compose_for` with no game.
 pub fn compose(lib: &Library, profile: &Profile) -> Result<Composition> {
-    compose_with(lib, profile, true)
+    compose_for(lib, profile, None)
 }
 
 /// `compose` without the data: the conflicts and a digest per resource, enough to tell whether a
 /// deploy is waiting. Unchanged files are not read again, which keeps the window quick with a
-/// large library.
+/// large library. Sound bank clips are left out when the game or the bank can't be found: the deploy
+/// is what says so.
+pub fn plan_for(lib: &Library, profile: &Profile, contents: Option<&Path>) -> Result<Composition> {
+    compose_with(lib, profile, false, contents)
+}
+
+/// `plan_for` with no game.
 pub fn plan(lib: &Library, profile: &Profile) -> Result<Composition> {
-    compose_with(lib, profile, false)
+    plan_for(lib, profile, None)
+}
+
+/// A digest of a file, kept while the file is unchanged.
+fn file_digest(path: &Path, stamps: &std::collections::HashMap<PathBuf, Stamp>, worked_out: &mut bool) -> Result<[u8; 32]> {
+    let stamp = match stamps.get(path) {
+        Some(s) => *s,
+        None => {
+            let meta = std::fs::metadata(path)?;
+            (meta.modified()?, meta.len())
+        }
+    };
+    if let Some((_, d)) = digests().lock().unwrap().get(path).filter(|(s, _)| *s == stamp) {
+        return Ok(*d);
+    }
+    let d = sha256(&std::fs::read(path)?);
+    digests().lock().unwrap().insert(path.to_path_buf(), (stamp, d));
+    *worked_out = true;
+    Ok(d)
+}
+
+fn file_stamp(path: &Path) -> Option<Stamp> {
+    let meta = std::fs::metadata(path).ok()?;
+    Some((meta.modified().ok()?, meta.len()))
+}
+
+fn stream_of(bundle: &Path) -> PathBuf {
+    let mut name = bundle.as_os_str().to_owned();
+    name.push(".stream");
+    PathBuf::from(name)
+}
+
+/// Which bundles hold which resources, by (type, name).
+type Holders = std::collections::HashMap<(u64, u64), Vec<String>>;
+/// The last answer for a game folder, and the state of its bundles then.
+type HoldersCache = std::sync::Mutex<std::collections::HashMap<PathBuf, (Vec<(String, Stamp)>, std::sync::Arc<Holders>)>>;
+
+/// The bundles of a game that hold each resource, from the start of each file. The game's own bundles
+/// only: its name has no `.patch_N` or `.stream`.
+fn holders(contents: &Path) -> std::sync::Arc<Holders> {
+    static CACHE: std::sync::OnceLock<HoldersCache> = std::sync::OnceLock::new();
+    let mut state: Vec<(String, Stamp)> = std::fs::read_dir(contents)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().into_owned();
+            let hex = name.len() == 16 && name.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b));
+            if !hex {
+                return None;
+            }
+            let meta = e.metadata().ok()?;
+            Some((name, (meta.modified().ok()?, meta.len())))
+        })
+        .collect();
+    state.sort();
+    let cache = CACHE.get_or_init(Default::default);
+    if let Some((was, found)) = cache.lock().unwrap().get(contents) {
+        if *was == state {
+            return found.clone();
+        }
+    }
+    let mut found = Holders::new();
+    for (name, _) in &state {
+        for resource in crate::bundle::read_index(&contents.join(name)).unwrap_or_default() {
+            found.entry(resource).or_default().push(name.clone());
+        }
+    }
+    let found = std::sync::Arc::new(found);
+    cache.lock().unwrap().insert(contents.to_path_buf(), (state, found.clone()));
+    found
+}
+
+/// The bytes of one resource as the game has it, one language at a time, with its flags.
+fn game_resource(contents: &Path, bundle: &str, type_hash: u64, name_hash: u64, mut each: impl FnMut(Piece) -> Result<()>) -> Result<u32> {
+    use std::io::{Read, Seek, SeekFrom};
+    let path = contents.join(bundle);
+    let mut reader = crate::bundle::Reader::open(&path)?;
+    let heads = reader.heads()?;
+    let entry = heads.iter().find(|e| (e.type_hash, e.name_hash) == (type_hash, name_hash)).ok_or(ObsidianError::TruncatedBundle)?;
+    let mut stream_file = None;
+    for v in &entry.variants {
+        let data = reader.read(v.at, v.size as usize)?;
+        let mut stream = vec![0u8; v.stream_size as usize];
+        if v.stream_size > 0 {
+            if stream_file.is_none() {
+                stream_file = Some(std::fs::File::open(stream_of(&path))?);
+            }
+            let f = stream_file.as_mut().unwrap();
+            f.seek(SeekFrom::Start(v.stream_at))?;
+            f.read_exact(&mut stream)?;
+        }
+        each(Piece { lang: v.lang, data, stream })?;
+    }
+    Ok(entry.flags)
+}
+
+/// A digest of a bank as the game has it, kept while its bundle and stream are unchanged: a bank can pass
+/// a gigabyte, and this runs after every click.
+fn game_digest(data_dir: &Path, contents: &Path, bundle: &str, type_hash: u64, name_hash: u64, worked_out: &mut bool) -> Result<[u8; 32]> {
+    use sha2::{Digest, Sha256};
+    let path = contents.join(bundle);
+    let (time, len) = file_stamp(&path).ok_or(ObsidianError::TruncatedBundle)?;
+    let stamp = match file_stamp(&stream_of(&path)) {
+        Some((t, n)) => (time.max(t), len + n),
+        None => (time, len),
+    };
+    let key = data_dir.join("game-banks").join(format!("{bundle}.{name_hash:016x}"));
+    if let Some((_, d)) = digests().lock().unwrap().get(&key).filter(|(s, _)| *s == stamp) {
+        return Ok(*d);
+    }
+    let mut h = Sha256::new();
+    game_resource(contents, bundle, type_hash, name_hash, |p| {
+        h.update(p.lang.to_le_bytes());
+        h.update((p.data.len() as u64).to_le_bytes());
+        h.update((p.stream.len() as u64).to_le_bytes());
+        h.update(&p.data);
+        h.update(&p.stream);
+        Ok(())
+    })?;
+    let d: [u8; 32] = h.finalize().into();
+    digests().lock().unwrap().insert(key, (stamp, d));
+    *worked_out = true;
+    Ok(d)
+}
+
+fn recipe_digest(base: &[u8; 32], recipe: &Recipe) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+    let mut h = Sha256::new();
+    h.update(base);
+    for ((lang, clip), file) in &recipe.clips {
+        h.update(lang.to_le_bytes());
+        h.update(clip.to_le_bytes());
+        h.update(file.digest);
+    }
+    h.finalize().into()
+}
+
+/// The bank a recipe makes, for one bundle: the base with its clips, every other language as it was.
+/// Reads it from the game here, so a deploy holds only the bundle it's writing.
+pub fn rebuilt(contents: &Path, bundle: &str, planned: Planned) -> Result<Planned> {
+    let Some(recipe) = &planned.recipe else { return Ok(planned) };
+    let bank = format!("#{:016x}", planned.name_hash);
+    let mut flags = planned.flags;
+    let pieces_in = match &recipe.base {
+        Some(base) => base.pieces.clone(),
+        None => {
+            let mut pieces = Vec::new();
+            flags = game_resource(contents, bundle, planned.type_hash, planned.name_hash, |p| {
+                pieces.push(p);
+                Ok(())
+            })?;
+            pieces
+        }
+    };
+    let mut pieces = Vec::with_capacity(pieces_in.len());
+    if let Some(((lang, _), file)) = recipe.clips.iter().find(|((l, _), _)| !pieces_in.iter().any(|p| p.lang == *l)) {
+        return Err(ObsidianError::RecipeLanguage { mod_id: file.owner.clone(), bank, lang: *lang });
+    }
+    for piece in pieces_in {
+        let mine: Vec<_> = recipe.clips.iter().filter(|((l, _), _)| *l == piece.lang).collect();
+        if mine.is_empty() {
+            pieces.push(piece);
+            continue;
+        }
+        let rows = crate::bank::rows_of(&piece.data)?;
+        let mut files = Vec::with_capacity(mine.len());
+        for ((lang, clip), file) in &mine {
+            if !rows.iter().any(|r| r.clip == *clip) {
+                return Err(ObsidianError::RecipeClip { mod_id: file.owner.clone(), bank, clip: format!("#{clip:016x}"), lang: *lang });
+            }
+            let data = std::fs::read(&file.data)?;
+            let name = || file.data.file_name().unwrap_or_default().to_string_lossy().into_owned();
+            crate::bank::check_clip(&data).map_err(|why| ObsidianError::RecipeFile { mod_id: file.owner.clone(), file: name(), why })?;
+            let stream = match &file.stream {
+                Some(s) => std::fs::read(s)?,
+                None => Vec::new(),
+            };
+            files.push((*clip, data, stream));
+        }
+        let new = files.iter().map(|(clip, d, s)| (*clip, (d.as_slice(), s.as_slice()))).collect();
+        let (data, stream) = crate::bank::rebuild(&piece.data, &piece.stream, &new)?;
+        pieces.push(Piece { lang: piece.lang, data, stream });
+    }
+    let mut out = Planned::with_pieces(planned.type_hash, planned.name_hash, flags, pieces, planned.owner);
+    out.digest = planned.digest;
+    Ok(out)
 }
 
 /// When each file under a folder last changed and how big the file is, from the folder listings: on Windows
@@ -211,12 +443,13 @@ fn file_stamps(dir: &Path) -> std::collections::HashMap<PathBuf, Stamp> {
 /// The resource that wins one (bundle, type, name), and the earlier owners it replaced with the digests of their data.
 type Slot = (Planned, Vec<(String, [u8; 32])>);
 
-fn compose_with(lib: &Library, profile: &Profile, with_data: bool) -> Result<Composition> {
+fn compose_with(lib: &Library, profile: &Profile, with_data: bool, contents: Option<&Path>) -> Result<Composition> {
     let mut slots: BTreeMap<(String, u64, u64), Slot> = BTreeMap::new();
     let mut mods = Vec::new();
+    let mut unplaced = Vec::new();
     let reserved = (hash_name("lua"), hash_name(crate::loader::ENTRY));
     let mut worked_out = false;
-    if !with_data {
+    if !with_data || contents.is_some() {
         load_digests(lib.data_dir());
     }
     for entry in profile.mods.iter().filter(|m| m.enabled) {
@@ -233,12 +466,72 @@ fn compose_with(lib: &Library, profile: &Profile, with_data: bool) -> Result<Com
         let chosen: Vec<_> = m.resources.iter().filter(|r| when_matches(&r.when, &values)).collect();
         let stamps = if with_data { Default::default() } else { file_stamps(&dir) };
         for r in &chosen {
+            if let Payload::Clips(list) = &r.payload {
+                let Some(contents) = contents else {
+                    if with_data {
+                        return Err(ObsidianError::GameNotFound(String::new()));
+                    }
+                    unplaced.push(m.id.clone());
+                    continue;
+                };
+                let found = holders(contents);
+                let Some(bundles) = found.get(&(r.type_hash, r.name_hash)) else {
+                    if with_data {
+                        return Err(ObsidianError::RecipeBank { mod_id: m.id.clone(), bank: format!("#{:016x}", r.name_hash) });
+                    }
+                    unplaced.push(m.id.clone());
+                    continue;
+                };
+                let mut clips = Vec::with_capacity(list.len());
+                for c in list {
+                    use sha2::{Digest, Sha256};
+                    let data = dir.join(&c.data);
+                    let stream = c.stream.as_ref().map(|s| dir.join(s));
+                    let mut h = Sha256::new();
+                    h.update(file_digest(&data, &stamps, &mut worked_out)?);
+                    if let Some(s) = &stream {
+                        h.update(file_digest(s, &stamps, &mut worked_out)?);
+                    }
+                    clips.push(((c.lang, c.id()), ClipFile { owner: m.id.clone(), data, stream, digest: h.finalize().into() }));
+                }
+                for bundle in bundles {
+                    let key = (bundle.clone(), r.type_hash, r.name_hash);
+                    let (mut planned, earlier) = match slots.remove(&key) {
+                        Some((old, earlier)) if old.recipe.is_some() => (old, earlier),
+                        Some((old, earlier)) => {
+                            let pieces = if !old.pieces.is_empty() {
+                                old.pieces
+                            } else {
+                                vec![Piece { lang: 0, data: old.data, stream: Vec::new() }]
+                            };
+                            let base = Base { owner: old.owner, digest: old.digest, pieces: if with_data { pieces } else { Vec::new() } };
+                            let recipe = Recipe { base: Some(base), first: bundles[0].clone(), ..Default::default() };
+                            (Planned { flags: old.flags, data: Vec::new(), pieces: Vec::new(), recipe: Some(recipe), ..Planned::new(r.type_hash, r.name_hash, 0, Vec::new(), m.id.clone()) }, earlier)
+                        }
+                        None => {
+                            let recipe = Recipe { first: bundles[0].clone(), ..Default::default() };
+                            (Planned { recipe: Some(recipe), ..Planned::new(r.type_hash, r.name_hash, 0, Vec::new(), m.id.clone()) }, Vec::new())
+                        }
+                    };
+                    planned.owner = m.id.clone();
+                    let recipe = planned.recipe.as_mut().unwrap();
+                    for (place, file) in &clips {
+                        if let Some(old) = recipe.clips.insert(*place, file.clone()) {
+                            if old.digest != file.digest && old.owner != file.owner {
+                                recipe.lost.push((old.owner, file.owner.clone()));
+                            }
+                        }
+                    }
+                    slots.insert(key, (planned, earlier));
+                }
+                continue;
+            }
             let bundle = r.bundle.clone().ok_or_else(|| ObsidianError::BundleRequired { mod_id: m.id.clone() })?;
             let path = dir.join(r.data_path());
             let game_data = || -> Result<Vec<u8>> {
                 let bytes = std::fs::read(&path)?;
                 Ok(match &r.payload {
-                    Payload::Data(_) | Payload::Variants(_) => bytes,
+                    Payload::Data(_) | Payload::Variants(_) | Payload::Clips(_) => bytes,
                     Payload::Bytecode(_) => {
                         check_bytecode(&bytes)?;
                         wrap_resource(&bytes)
@@ -292,13 +585,24 @@ fn compose_with(lib: &Library, profile: &Profile, with_data: bool) -> Result<Com
                             d
                         }
                     };
-                    Planned { type_hash: r.type_hash, name_hash: r.name_hash, flags: r.flags, data: Vec::new(), digest, owner: m.id.clone(), pieces: Vec::new() }
+                    Planned { type_hash: r.type_hash, name_hash: r.name_hash, flags: r.flags, data: Vec::new(), digest, owner: m.id.clone(), pieces: Vec::new(), recipe: None }
                 }
             };
             let key = (bundle, r.type_hash, r.name_hash);
             let earlier = match slots.remove(&key) {
                 Some((old, mut earlier)) => {
-                    earlier.push((old.owner, old.digest));
+                    match &old.recipe {
+                        // A whole bank replaces the clips below it, and whatever they went on.
+                        Some(recipe) => {
+                            earlier.extend(recipe.base.iter().map(|b| (b.owner.clone(), b.digest)));
+                            for file in recipe.clips.values() {
+                                if !earlier.iter().any(|(owner, _)| *owner == file.owner) {
+                                    earlier.push((file.owner.clone(), [0; 32]));
+                                }
+                            }
+                        }
+                        None => earlier.push((old.owner, old.digest)),
+                    }
                     earlier
                 }
                 None => Vec::new(),
@@ -316,17 +620,41 @@ fn compose_with(lib: &Library, profile: &Profile, with_data: bool) -> Result<Com
             }
         }
     }
-    if worked_out {
-        save_digests(lib.data_dir());
-    }
-    let mut out = Composition { mods, ..Default::default() };
-    for ((bundle, type_hash, name_hash), (planned, earlier)) in slots {
+    let mut out = Composition { mods, unplaced, ..Default::default() };
+    for ((bundle, type_hash, name_hash), (mut planned, earlier)) in slots {
+        if let Some(recipe) = &planned.recipe {
+            let base = match &recipe.base {
+                Some(b) => Ok(b.digest),
+                None => game_digest(lib.data_dir(), contents.expect("a recipe has a game"), &recipe.first, type_hash, name_hash, &mut worked_out),
+            };
+            let base = match base {
+                Ok(d) => d,
+                Err(e) if with_data => return Err(e),
+                Err(_) => [0; 32],
+            };
+            planned.digest = recipe_digest(&base, recipe);
+            // A bank in several bundles is one conflict.
+            if recipe.first == bundle {
+                let mut winners: Vec<&String> = recipe.lost.iter().map(|(_, w)| w).collect();
+                winners.sort();
+                winners.dedup();
+                for winner in winners {
+                    let mut losers: Vec<String> = recipe.lost.iter().filter(|(_, w)| w == winner).map(|(l, _)| l.clone()).collect();
+                    losers.sort();
+                    losers.dedup();
+                    out.conflicts.push(Conflict { bundle: bundle.clone(), type_hash, name_hash, winner: winner.clone(), losers });
+                }
+            }
+        }
         // A mod carrying the same data as the winner loses nothing.
         let losers: Vec<String> = earlier.into_iter().filter(|(_, digest)| *digest != planned.digest).map(|(owner, _)| owner).collect();
         if !losers.is_empty() {
             out.conflicts.push(Conflict { bundle: bundle.clone(), type_hash, name_hash, winner: planned.owner.clone(), losers });
         }
         out.bundles.entry(bundle).or_default().push(planned);
+    }
+    if worked_out {
+        save_digests(lib.data_dir());
     }
     Ok(out)
 }

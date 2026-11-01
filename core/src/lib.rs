@@ -1,6 +1,7 @@
 //! obsidian-core: everything Obsidian does to game files.
 
 pub mod backup;
+pub mod bank;
 pub mod bundle;
 pub mod compose;
 pub mod deploy;

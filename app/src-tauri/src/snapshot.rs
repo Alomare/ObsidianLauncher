@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use obsidian_core::compose::plan;
+use obsidian_core::compose::plan_for;
 use obsidian_core::deploy::{ChangesWaiting, UncleanEnd, changes_waiting_for, crash_culprit, has_deployed, unclean_end};
 use obsidian_core::game::{GameInstall, find_game, is_running};
 use obsidian_core::gate::{KNOWN_BUILDS, check_build};
@@ -246,7 +246,8 @@ pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Re
         profile.save(data)?;
     }
     let manifests: BTreeMap<String, Manifest> = lib.list()?.into_iter().map(|m| (m.id.clone(), m)).collect();
-    let comp = plan(&lib, &profile)?;
+    let game_install = find(settings);
+    let comp = plan_for(&lib, &profile, game_install.as_ref().map(|g| g.contents()).as_deref())?;
 
     let conflicts: Vec<ConflictRow> = comp
         .conflicts
@@ -310,7 +311,6 @@ pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Re
         });
     }
 
-    let game_install = find(settings);
     let game = match &game_install {
         None => GameState::NotFound,
         Some(_) if is_running() => GameState::Running,

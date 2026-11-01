@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::backup::backup_game_saves;
 use crate::bundle::{self, Bundle, Entry, Variant};
-use crate::compose::{Composition, Conflict, compose};
+use crate::compose::{Composition, Conflict};
 use crate::game::GameInstall;
 use crate::gate::{GateReport, KNOWN_BUILDS, KnownBuild, check_build, sha256_file};
 use crate::library::{Library, Profile};
@@ -228,7 +228,7 @@ pub fn fingerprint(comp: &Composition, profile: &Profile, loader_dir: &Path) -> 
 pub fn changes_waiting(lib: &Library, profile: &Profile, data_dir: &Path, contents: Option<&Path>) -> Result<ChangesWaiting> {
     let mut profile = profile.clone();
     profile.sync(lib)?;
-    let comp = compose(lib, &profile)?;
+    let comp = crate::compose::plan_for(lib, &profile, contents)?;
     changes_waiting_for(&comp, &profile, data_dir, contents)
 }
 
@@ -239,6 +239,9 @@ pub fn changes_waiting_for(comp: &Composition, profile: &Profile, data_dir: &Pat
     let (comp, profile) = (comp, profile);
     let state = load_state(data_dir)?;
     let deployed_nothing = state.as_ref().is_none_or(|s| s.files.is_empty());
+    if !comp.unplaced.is_empty() {
+        return Ok(ChangesWaiting::Waiting);
+    }
     if comp.bundles.is_empty() && !loader::needed(comp, profile) {
         return Ok(if deployed_nothing { ChangesWaiting::Vanilla } else { ChangesWaiting::Waiting });
     }
@@ -260,7 +263,7 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
     let lib = Library::open(data_dir)?;
     let mut profile = Profile::load(data_dir)?;
     profile.sync(&lib)?;
-    let mut comp = compose(&lib, &profile)?;
+    let mut comp = crate::compose::compose_for(&lib, &profile, Some(&contents))?;
     let loader_dir = match &opts.loader_dir {
         Some(d) => d.clone(),
         None => loader::find_loader_dir()?,
@@ -299,7 +302,20 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
 
     let mut temps = Vec::new();
     for (bundle, base, target) in &plan {
-        let (b, stream) = patch_of(bundle::read_props(base)?, &comp.bundles[*bundle]);
+        // Sound banks are rebuilt here, one bundle at a time, as a big one can pass a gigabyte.
+        let built = comp.bundles[*bundle]
+            .iter()
+            .cloned()
+            .map(|p| crate::compose::rebuilt(&contents, bundle, p))
+            .collect::<Result<Vec<_>>>()
+            .and_then(|planned| Ok(patch_of(bundle::read_props(base)?, planned)));
+        let (b, stream) = match built {
+            Ok(built) => built,
+            Err(e) => {
+                remove_all(temps.iter().map(|(t, _)| t));
+                return Err(e);
+            }
+        };
         let tmp = target.with_extension(format!("{}.{TMP}", target.extension().unwrap().to_string_lossy()));
         temps.push((tmp.clone(), target.clone()));
         let mut written = bundle::write_file(&tmp, &b);
@@ -372,17 +388,22 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
 /// One bundle's patch, and the bytes of its `.stream` (empty when nothing is streamed). A bundle's
 /// `.stream` holds each variant's streamed part in the order of the entries and their variants, with
 /// nothing between them, so the patch is sorted first and its stream follows that order.
-fn patch_of(props: [u8; 256], planned: &[crate::compose::Planned]) -> (Bundle, Vec<u8>) {
+fn patch_of(props: [u8; 256], planned: Vec<crate::compose::Planned>) -> (Bundle, Vec<u8>) {
     let mut b = Bundle { props, entries: Vec::new() };
     let mut streams = std::collections::HashMap::new();
-    for p in planned {
+    for mut p in planned {
         let variants = if p.pieces.is_empty() {
-            vec![Variant { lang: 0, data: p.data.clone(), stream_size: 0 }]
+            vec![Variant { lang: 0, data: p.data, stream_size: 0 }]
         } else {
-            let mut pieces: Vec<_> = p.pieces.iter().collect();
-            pieces.sort_by_key(|x| x.lang);
-            streams.insert((p.type_hash, p.name_hash), pieces.iter().map(|x| x.stream.as_slice()).collect::<Vec<_>>());
-            pieces.iter().map(|x| Variant { lang: x.lang, data: x.data.clone(), stream_size: x.stream.len() as u32 }).collect()
+            p.pieces.sort_by_key(|x| x.lang);
+            let mut parts = Vec::with_capacity(p.pieces.len());
+            let mut variants = Vec::with_capacity(p.pieces.len());
+            for x in p.pieces {
+                variants.push(Variant { lang: x.lang, stream_size: x.stream.len() as u32, data: x.data });
+                parts.push(x.stream);
+            }
+            streams.insert((p.type_hash, p.name_hash), parts);
+            variants
         };
         b.entries.push(Entry { type_hash: p.type_hash, name_hash: p.name_hash, flags: p.flags, variants });
     }
@@ -922,14 +943,14 @@ mod tests {
             Planned::new(5, 1, 0, b"plain".to_vec(), "m".into()),
             Planned::with_pieces(4, 9, 0, vec![piece(0, b"a", b"A")], "m".into()),
         ];
-        let (b, stream) = patch_of([0; 256], &planned);
+        let (b, stream) = patch_of([0; 256], planned.clone());
         let order: Vec<_> = b.entries.iter().map(|e| (e.type_hash, e.name_hash)).collect();
         assert_eq!(order, [(4, 9), (5, 1), (5, 2)]);
         assert_eq!(stream, b"ABBBFR");
         let langs: Vec<_> = b.entries[2].variants.iter().map(|v| (v.lang, v.stream_size)).collect();
         assert_eq!(langs, [(0, 3), (0x100, 2)]);
         assert_eq!(b.entries[1].variants, vec![Variant { lang: 0, data: b"plain".to_vec(), stream_size: 0 }]);
-        assert!(patch_of([0; 256], &planned[1..2]).1.is_empty(), "no stream without streamed bytes");
+        assert!(patch_of([0; 256], planned[1..2].to_vec()).1.is_empty(), "no stream without streamed bytes");
     }
 
     #[test]
@@ -962,5 +983,202 @@ mod tests {
         assert_eq!(waiting(&w), ChangesWaiting::UpToDate, "plan (digests from stamps) agrees with what deploy wrote");
         purge(&w.game, &w.data).unwrap();
         assert_eq!(snapshot(&w.game.contents()), before);
+    }
+
+    // Sound bank recipes: a game with a bank in two languages, whose French sits past another resource's
+    // streamed bytes, and a one-language bank in two bundles.
+    const BANK: u64 = 0xf2;
+    const SHARED: u64 = 0xf3;
+
+    fn timpani() -> u64 {
+        crate::hash::hash_name("timpani_bank")
+    }
+
+    fn bank_game(w: &World) {
+        use crate::bank::tests::make;
+        let (en, en_s) = make(&[(9, b"en-nine", b"EN9"), (2, b"en-two", b""), (5, b"en-five", b"EN5")]);
+        let (fr, fr_s) = make(&[(9, b"fr-nine", b"FR9"), (2, b"fr-two", b""), (5, b"fr-five", b"FR5")]);
+        let (sh, sh_s) = make(&[(7, b"shared", b"SHS")]);
+        let v = |lang, data: &[u8], s: &[u8]| Variant { lang, data: data.to_vec(), stream_size: s.len() as u32 };
+        let before = Entry { type_hash: 1, name_hash: 0xe0, flags: 0, variants: vec![Variant { lang: 0, data: b"other".to_vec(), stream_size: 4 }] };
+        let bank = Entry { type_hash: timpani(), name_hash: BANK, flags: 3, variants: vec![v(0, &en, &en_s), v(256, &fr, &fr_s)] };
+        let shared = |extra: Vec<Entry>| {
+            let mut entries = extra;
+            entries.push(Entry { type_hash: timpani(), name_hash: SHARED, flags: 0, variants: vec![v(0, &sh, &sh_s)] });
+            Bundle { props: [9; 256], entries }
+        };
+        let c = w.game.contents();
+        bundle::write_file(&c.join("00000000000000cc"), &Bundle { props: [9; 256], entries: vec![before, bank] }).unwrap();
+        std::fs::write(c.join("00000000000000cc.stream"), [b"GAP!".as_slice(), &en_s, &fr_s].concat()).unwrap();
+        bundle::write_file(&c.join("00000000000000dd"), &shared(Vec::new())).unwrap();
+        std::fs::write(c.join("00000000000000dd.stream"), &sh_s).unwrap();
+        bundle::write_file(&c.join("00000000000000ee"), &shared(Vec::new())).unwrap();
+        std::fs::write(c.join("00000000000000ee.stream"), &sh_s).unwrap();
+    }
+
+    /// Installs a mod and switches it on, last in the load order. `resources` is the manifest's list.
+    fn add(w: &World, id: &str, resources: &str, files: &[(&str, &[u8])]) {
+        let d = w._t.path().join(format!("stage-{id}"));
+        let json = format!(r##"{{"obsidian":1,"id":"{id}","version":"1.0.0","name":{{"en":"{id}"}},"scope":"client","resources":[{resources}]}}"##);
+        put(&d, "obsidian.json", json.as_bytes());
+        for (f, b) in files {
+            put(&d, f, b);
+        }
+        let lib = Library::open(&w.data).unwrap();
+        lib.install(&d).unwrap();
+        let mut p = Profile::load(&w.data).unwrap();
+        p.sync(&lib).unwrap();
+        p.set_enabled(id, true).unwrap();
+        p.save(&w.data).unwrap();
+    }
+
+    fn clips_of(id: u64, name: u64, lang: u32, stream: bool) -> String {
+        let s = if stream { r#","stream":"c.stream""# } else { "" };
+        format!(r##"{{"type":"timpani_bank","name":"#{name:016x}","clips":[{{"clip":"#{id:016x}","lang":{lang},"data":"c.bin"{s}}}]}}"##)
+    }
+
+    /// One language of a bank in a deployed patch, with its part of the patch's stream.
+    fn deployed(w: &World, bundle_name: &str, name: u64, lang: u32) -> (Vec<u8>, Vec<u8>, u32) {
+        let p = bundle::read_file(&patch(w, &format!("{bundle_name}.patch_0"))).unwrap();
+        let stream = std::fs::read(patch(w, &format!("{bundle_name}.patch_0.stream"))).unwrap_or_default();
+        let mut at = 0;
+        for e in &p.entries {
+            for v in &e.variants {
+                if (e.name_hash, v.lang) == (name, lang) {
+                    return (v.data.clone(), stream[at..at + v.stream_size as usize].to_vec(), e.flags);
+                }
+                at += v.stream_size as usize;
+            }
+        }
+        panic!("no {name:x} in {lang:x}");
+    }
+
+    fn audio_of(raw: &[u8], id: u64) -> Vec<u8> {
+        let r = crate::bank::rows_of(raw).unwrap().into_iter().find(|r| r.clip == id).unwrap();
+        raw[r.off + crate::bank::CLIP_HEADER..r.off + r.size].to_vec()
+    }
+
+    #[test]
+    fn a_recipe_rebuilds_the_bank_from_the_game_and_leaves_the_rest() {
+        use crate::bank::tests::clip;
+        let w = world();
+        bank_game(&w);
+        add(&w, "rock", &clips_of(5, BANK, 256, true), &[("c.bin", &clip(b"new-five")), ("c.stream", b"NEW5")]);
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        let (fr, fr_s, flags) = deployed(&w, "00000000000000cc", BANK, 256);
+        assert_eq!(audio_of(&fr, 5), b"new-five");
+        assert_eq!(audio_of(&fr, 9), b"fr-nine", "the bank's other clips stay");
+        assert_eq!(fr_s, b"FR9NEW5", "the stream has the clips' order");
+        assert_eq!(flags, 3, "the game's flags");
+        let (en, en_s, _) = deployed(&w, "00000000000000cc", BANK, 0);
+        let (en_game, en_game_s) = crate::bank::tests::make(&[(9, b"en-nine", b"EN9"), (2, b"en-two", b""), (5, b"en-five", b"EN5")]);
+        assert_eq!((en, en_s), (en_game, en_game_s), "a language the mod doesn't change goes in as the game has it");
+        assert_eq!(waiting(&w), ChangesWaiting::UpToDate, "plan and deploy agree");
+        let before = deployed(&w, "00000000000000cc", BANK, 256);
+        purge(&w.game, &w.data).unwrap();
+        assert!(!patch(&w, "00000000000000cc.patch_0").exists());
+        assert!(!patch(&w, "00000000000000cc.patch_0.stream").exists());
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert_eq!(deployed(&w, "00000000000000cc", BANK, 256), before, "it reads the game, not its own last patch");
+    }
+
+    #[test]
+    fn a_recipe_goes_in_every_bundle_that_holds_the_bank() {
+        use crate::bank::tests::clip;
+        let w = world();
+        bank_game(&w);
+        add(&w, "s", &clips_of(7, SHARED, 0, false), &[("c.bin", &clip(b"new"))]);
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        for b in ["00000000000000dd", "00000000000000ee"] {
+            let (raw, stream, _) = deployed(&w, b, SHARED, 0);
+            assert_eq!((audio_of(&raw, 7), stream), (b"new".to_vec(), Vec::new()), "{b}");
+        }
+    }
+
+    #[test]
+    fn mods_on_one_bank_merge_by_clip_and_the_later_wins_a_clip() {
+        use crate::bank::tests::clip;
+        let w = world();
+        bank_game(&w);
+        add(&w, "a", &clips_of(5, BANK, 0, false), &[("c.bin", &clip(b"a-five"))]);
+        add(&w, "b", &clips_of(9, BANK, 0, false), &[("c.bin", &clip(b"b-nine"))]);
+        let conflicts = |w: &World| {
+            let lib = Library::open(&w.data).unwrap();
+            let c = crate::compose::plan_for(&lib, &Profile::load(&w.data).unwrap(), Some(&w.game.contents())).unwrap();
+            c.conflicts.into_iter().filter(|c| c.name_hash == BANK).map(|c| (c.winner, c.losers)).collect::<Vec<_>>()
+        };
+        assert!(conflicts(&w).is_empty(), "different clips combine");
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        let (en, _, _) = deployed(&w, "00000000000000cc", BANK, 0);
+        assert_eq!((audio_of(&en, 5), audio_of(&en, 9)), (b"a-five".to_vec(), b"b-nine".to_vec()));
+        add(&w, "c", &clips_of(5, BANK, 0, false), &[("c.bin", &clip(b"c-five"))]);
+        assert_eq!(conflicts(&w), [("c".to_string(), vec!["a".to_string()])]);
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert_eq!(audio_of(&deployed(&w, "00000000000000cc", BANK, 0).0, 5), b"c-five");
+        add(&w, "d", &clips_of(5, BANK, 0, false), &[("c.bin", &clip(b"c-five"))]);
+        assert_eq!(conflicts(&w), [("c".to_string(), vec!["a".to_string()])], "the same bytes lose nothing");
+    }
+
+    #[test]
+    fn a_recipe_goes_on_a_whole_bank_below_it_and_loses_to_one_above() {
+        use crate::bank::tests::{clip, make};
+        let w = world();
+        bank_game(&w);
+        let (whole, whole_s) = make(&[(5, b"whole-five", b"W5"), (9, b"whole-nine", b"")]);
+        let res = format!(r##"{{"type":"timpani_bank","name":"#{BANK:016x}","bundle":"00000000000000cc","data":"w.bin","stream":"w.stream"}}"##);
+        add(&w, "whole", &res, &[("w.bin", &whole), ("w.stream", &whole_s)]);
+        add(&w, "top", &clips_of(9, BANK, 0, false), &[("c.bin", &clip(b"top-nine"))]);
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        let (en, _, _) = deployed(&w, "00000000000000cc", BANK, 0);
+        assert_eq!((audio_of(&en, 5), audio_of(&en, 9)), (b"whole-five".to_vec(), b"top-nine".to_vec()));
+        assert_eq!(waiting(&w), ChangesWaiting::UpToDate);
+        add(&w, "miss", &clips_of(2, BANK, 0, false), &[("c.bin", &clip(b"x"))]);
+        let e = deploy(&w.game, &w.data, &w.opts).unwrap_err();
+        assert!(matches!(e, ObsidianError::RecipeClip { ref mod_id, .. } if mod_id == "miss"), "a clip the whole bank lacks: {e}");
+        let lib = Library::open(&w.data).unwrap();
+        let mut p = Profile::load(&w.data).unwrap();
+        p.set_enabled("miss", false).unwrap();
+        p.save(&w.data).unwrap();
+        add(&w, "whole2", &res.replace("w.bin", "w2.bin").replace("w.stream", "w2.stream"), &[("w2.bin", &make(&[(5, b"second", b"")]).0), ("w2.stream", b"")]);
+        let c = crate::compose::plan_for(&lib, &Profile::load(&w.data).unwrap(), Some(&w.game.contents())).unwrap();
+        let c = c.conflicts.iter().find(|c| c.name_hash == BANK).unwrap();
+        assert_eq!((c.winner.as_str(), c.losers.clone()), ("whole2", vec!["whole".to_string(), "top".to_string()]));
+    }
+
+    #[test]
+    fn a_recipe_the_game_cant_take_is_refused_and_the_last_deploy_stays() {
+        use crate::bank::tests::clip;
+        let refused = |res: String, file: Vec<u8>| {
+            let w = world();
+            bank_game(&w);
+            deploy(&w.game, &w.data, &w.opts).unwrap();
+            let before = snapshot(&w.game.contents());
+            add(&w, "m", &res, &[("c.bin", &file)]);
+            let e = deploy(&w.game, &w.data, &w.opts).unwrap_err();
+            assert_eq!(snapshot(&w.game.contents()), before, "{e}");
+            assert_eq!(waiting(&w), ChangesWaiting::Waiting, "{e}");
+            e
+        };
+        assert!(matches!(refused(clips_of(77, BANK, 0, false), clip(b"x")), ObsidianError::RecipeClip { ref clip, lang: 0, .. } if clip == "#000000000000004d"));
+        assert!(matches!(refused(clips_of(5, BANK, 512, false), clip(b"x")), ObsidianError::RecipeLanguage { lang: 512, .. }));
+        assert!(matches!(refused(clips_of(5, 0xbad, 0, false), clip(b"x")), ObsidianError::RecipeBank { ref bank, .. } if bank == "#0000000000000bad"));
+        assert!(matches!(refused(clips_of(5, BANK, 0, false), b"not a clip".to_vec()), ObsidianError::RecipeFile { ref file, .. } if file == "c.bin"));
+    }
+
+    #[test]
+    fn a_changed_bank_in_the_game_counts_as_changes_waiting() {
+        use crate::bank::tests::{clip, make};
+        let w = world();
+        bank_game(&w);
+        add(&w, "s", &clips_of(7, SHARED, 0, false), &[("c.bin", &clip(b"new"))]);
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert_eq!(waiting(&w), ChangesWaiting::UpToDate);
+        let (sh, _) = make(&[(7, b"patched by steam", b"")]);
+        let v = Variant { lang: 0, data: sh, stream_size: 0 };
+        let path = w.game.contents().join("00000000000000dd");
+        bundle::write_file(&path, &Bundle { props: [9; 256], entries: vec![Entry { type_hash: timpani(), name_hash: SHARED, flags: 0, variants: vec![v] }] }).unwrap();
+        assert_eq!(waiting(&w), ChangesWaiting::Waiting);
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert_eq!(waiting(&w), ChangesWaiting::UpToDate, "a new deploy is all it takes");
     }
 }

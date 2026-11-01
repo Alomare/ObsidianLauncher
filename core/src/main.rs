@@ -4,7 +4,6 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
-use obsidian_core::compose::compose;
 use obsidian_core::deploy::{ChangesWaiting, DeployOptions, changes_waiting, deploy, purge, status};
 use obsidian_core::game::{GameInstall, find_game};
 use obsidian_core::gate::KNOWN_BUILDS;
@@ -212,7 +211,7 @@ fn run(cli: Cli) -> Result<()> {
         Command::Enable { id } => toggle(&mut profile, &lib, &data, &id, true)?,
         Command::Disable { id } => toggle(&mut profile, &lib, &data, &id, false)?,
         Command::Conflicts => {
-            let c = compose(&lib, &profile)?;
+            let c = obsidian_core::compose::plan(&lib, &profile)?;
             if c.conflicts.is_empty() {
                 println!("No conflicts between the enabled mods.");
             }

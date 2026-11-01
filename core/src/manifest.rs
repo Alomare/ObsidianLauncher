@@ -52,6 +52,27 @@ pub enum Payload {
     /// Raw payloads per language, each with the part the game reads from the bundle's `.stream`: audio
     /// banks and videos keep most of their bytes there.
     Variants(Vec<VariantSpec>),
+    /// A sound bank rebuilt from the installed game at deploy, with these clips in place of its own.
+    Clips(Vec<ClipSpec>),
+}
+
+/// One clip of a sound bank in one language: `clip` is `#` and 16 hex digits, `data` the bytes in the bank
+/// (a 68-byte header and the first part of the audio), `stream` the bytes in the stream.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ClipSpec {
+    pub clip: String,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub lang: u32,
+    pub data: PathBuf,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stream: Option<PathBuf>,
+}
+
+impl ClipSpec {
+    /// The clip's id. `ResourceSpec` has checked the text.
+    pub fn id(&self) -> u64 {
+        u64::from_str_radix(self.clip.trim_start_matches('#'), 16).unwrap_or(0)
+    }
 }
 
 /// One language of a resource: `lang` is the engine's language flag (0 for every language without its
@@ -71,6 +92,7 @@ impl Payload {
         match self {
             Payload::Source(p) | Payload::Bytecode(p) | Payload::Data(p) => p,
             Payload::Variants(v) => &v[0].data,
+            Payload::Clips(c) => &c[0].data,
         }
     }
 
@@ -78,6 +100,7 @@ impl Payload {
     pub fn paths(&self) -> Vec<&Path> {
         match self {
             Payload::Variants(v) => v.iter().flat_map(|v| std::iter::once(v.data.as_path()).chain(v.stream.as_deref())).collect(),
+            Payload::Clips(c) => c.iter().flat_map(|c| std::iter::once(c.data.as_path()).chain(c.stream.as_deref())).collect(),
             _ => vec![self.path()],
         }
     }
@@ -123,6 +146,8 @@ struct RawResource {
     stream: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     variants: Vec<VariantSpec>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    clips: Vec<ClipSpec>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     when: BTreeMap<String, Value>,
 }
@@ -134,7 +159,30 @@ fn is_zero(v: &u32) -> bool {
 impl TryFrom<RawResource> for ResourceSpec {
     type Error = String;
     fn try_from(r: RawResource) -> std::result::Result<Self, String> {
+        let clips = !r.clips.is_empty();
+        if clips {
+            if r.type_ != "timpani_bank" {
+                return Err("clips goes only with the type timpani_bank".into());
+            }
+            if r.bundle.is_some() || r.flags != 0 {
+                return Err("clips leaves out bundle and flags: Obsidian finds the bundles that hold the bank".into());
+            }
+            if r.source.is_some() || r.bytecode.is_some() || r.data.is_some() || r.stream.is_some() || !r.variants.is_empty() {
+                return Err("needs exactly one of source, bytecode, data, variants or clips".into());
+            }
+            let mut seen: Vec<(u32, &str)> = Vec::new();
+            for c in &r.clips {
+                if !c.clip.strip_prefix('#').is_some_and(is_hex16) {
+                    return Err(format!("clip {} is not # and 16 lowercase hex digits", c.clip));
+                }
+                if seen.contains(&(c.lang, c.clip.as_str())) {
+                    return Err(format!("clip {} is listed twice for lang {}", c.clip, c.lang));
+                }
+                seen.push((c.lang, c.clip.as_str()));
+            }
+        }
         let payload = match (r.source, r.bytecode, r.data, r.variants.is_empty()) {
+            _ if clips => Payload::Clips(r.clips),
             (Some(p), None, None, true) if r.stream.is_none() => Payload::Source(p),
             (None, Some(p), None, true) if r.stream.is_none() => Payload::Bytecode(p),
             (None, None, Some(p), true) => match r.stream {
@@ -149,7 +197,7 @@ impl TryFrom<RawResource> for ResourceSpec {
                 }
                 Payload::Variants(r.variants)
             }
-            _ => return Err("needs exactly one of source, bytecode, data or variants (stream goes only with data)".into()),
+            _ => return Err("needs exactly one of source, bytecode, data, variants or clips (stream goes only with data)".into()),
         };
         Ok(ResourceSpec {
             type_hash: parse_ref(&r.type_).map_err(|e| e.to_string())?,
@@ -166,7 +214,7 @@ impl TryFrom<RawResource> for ResourceSpec {
 
 impl From<ResourceSpec> for RawResource {
     fn from(s: ResourceSpec) -> Self {
-        let (mut source, mut bytecode, mut data, mut stream, mut variants) = (None, None, None, None, Vec::new());
+        let (mut source, mut bytecode, mut data, mut stream, mut variants, mut clips) = (None, None, None, None, Vec::new(), Vec::new());
         match s.payload {
             Payload::Source(p) => source = Some(p),
             Payload::Bytecode(p) => bytecode = Some(p),
@@ -177,8 +225,9 @@ impl From<ResourceSpec> for RawResource {
                 (data, stream) = (Some(v.data), v.stream);
             }
             Payload::Variants(v) => variants = v,
+            Payload::Clips(c) => clips = c,
         }
-        RawResource { type_: s.type_text, name: s.name_text, bundle: s.bundle, flags: s.flags, source, bytecode, data, stream, variants, when: s.when }
+        RawResource { type_: s.type_text, name: s.name_text, bundle: s.bundle, flags: s.flags, source, bytecode, data, stream, variants, clips, when: s.when }
     }
 }
 
@@ -482,6 +531,31 @@ mod tests {
     }
 
     const BANK: &str = r##"{ "type": "timpani_bank", "name": "#e709d0c5697fb286", "bundle": "0e2ec9da60a0f53a", "##;
+
+    #[test]
+    fn a_recipe_lists_clips_and_nothing_else_on_the_resource() {
+        let good = r##"{"type":"timpani_bank","name":"#e0f28740d6c19769","clips":[
+            {"clip":"#1111111111111111","data":"res/bank.bin","stream":"res/bank.stream"},
+            {"clip":"#1111111111111111","lang":256,"data":"res/bank.fr.bin"}]}"##;
+        let d = audio_mod(good);
+        let m = load_manifest(d.path()).unwrap();
+        let Payload::Clips(c) = &m.resources[0].payload else { panic!() };
+        assert_eq!((c[0].id(), c[0].lang, c[1].lang, c[1].stream.is_none()), (0x1111111111111111, 0, 256, true));
+        assert_eq!(m.resources[0].payload.paths().len(), 3);
+        let again: ResourceSpec = serde_json::from_value(serde_json::to_value(&m.resources[0]).unwrap()).unwrap();
+        assert_eq!(again, m.resources[0], "it survives a round trip");
+        for (bad, why) in [
+            (r##"{"type":"lua","name":"#00000000000000f1","clips":[{"clip":"#1111111111111111","data":"res/bank.bin"}]}"##, "only with"),
+            (r##"{"type":"timpani_bank","name":"#00000000000000f1","bundle":"00000000000000aa","clips":[{"clip":"#1111111111111111","data":"res/bank.bin"}]}"##, "leaves out bundle"),
+            (r##"{"type":"timpani_bank","name":"#00000000000000f1","data":"res/bank.bin","clips":[{"clip":"#1111111111111111","data":"res/bank.bin"}]}"##, "exactly one"),
+            (r##"{"type":"timpani_bank","name":"#00000000000000f1","clips":[{"clip":"1111111111111111","data":"res/bank.bin"}]}"##, "16 lowercase"),
+            (r##"{"type":"timpani_bank","name":"#00000000000000f1","clips":[{"clip":"#1111111111111111","data":"res/bank.bin"},{"clip":"#1111111111111111","data":"res/bank.fr.bin"}]}"##, "twice"),
+        ] {
+            let d = audio_mod(bad);
+            let e = load_manifest(d.path()).unwrap_err().to_string();
+            assert!(e.contains(why), "{bad}: {e}");
+        }
+    }
 
     fn audio_mod(resource: &str) -> tempfile::TempDir {
         let d = mod_with(&EXAMPLE.replace(r#"{ "type": "lua", "name": "lua/settings/perk_settings", "source": "res/perk_settings.lua" },"#, &format!("{resource},")));
