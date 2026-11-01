@@ -178,8 +178,7 @@ button.link:hover { filter: brightness(1.2); }
 .note-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.7rem; padding: 0.5rem 0.8rem; font-size: 0.875rem; color: var(--tx); overflow-wrap: anywhere; }
 .note-row + .note-row { border-top: 1px solid var(--ln); }
 .note-time { color: var(--mu); font-size: 0.75rem; white-space: nowrap; padding-top: 0.1rem; }
-.note-time::before { content: ""; display: inline-block; width: 0.45rem; height: 0.45rem; margin-right: 0.45rem; transform: rotate(45deg); background: var(--gold); vertical-align: 0.05rem; }
-.note-row.error .note-time::before { background: var(--warn); }
+.note-row.error .note-time { color: var(--warn); }
 
 /* Dialogs */
 .muted { color: var(--mu); }
