@@ -171,7 +171,12 @@ local function with_hint_box(e)
 	local hints = {}
 	rawset(_G, "HintSettings", {})
 	rawset(_G, "LocalizationManager", { string = function(_, key) return "game:" .. key end })
-	local box = { add_hint = function(_, key, override, params, color, seconds) hints[#hints + 1] = { key = key, override = override, seconds = seconds } end }
+	local box = { queued_hints = {} }
+	box.add_hint = function(_, key, override, params, color, seconds)
+		hints[#hints + 1] = { key = key, override = override, seconds = seconds }
+		box.queued_hints[#box.queued_hints + 1] = { text = key }
+	end
+	hints.box = box
 	rawget(_G, "Boot").state_machine = { get_current_state = function() return { hint_manager = box } end, get_current_state_name = function() return "menu" end }
 	local toasts, menu = {}, e.loaded["obsidian/loader/menu"]
 	menu.toast = function(text) toasts[#toasts + 1] = text end
@@ -227,6 +232,68 @@ test("a_hint_box_that_fails_falls_back_to_a_toast", function()
 	e:core().notice("every_player_off", "Big")
 	e:frames(1)
 	E.eq(toasts[1], "Obsidian: Big is off.")
+end)
+
+local function as_mod(e, id)
+	e:core().current = { id = id, mod = {} }
+	return rawget(_G, "obsidian")
+end
+
+test("a_mod_shows_its_words_in_the_games_hint_box", function()
+	local e = engine(nil, NOTICE_TEXTS)
+	local hints, toasts = with_hint_box(e)
+	e:frames(1)
+	E.eq(as_mod(e, "m").notify("Hold the line: 100%", 3), true)
+	E.eq(#toasts, 0)
+	E.eq(hints[1].override, true, "shown with the game's hints turned off")
+	E.eq(hints[1].seconds, 3)
+	local entry = rawget(_G, "HintSettings")[hints[1].key]
+	E.eq(rawget(_G, "LocalizationManager"):string(entry.text), "Hold the line: 100%", "a % stays as written")
+	E.eq(rawget(_G, "obsidian").capabilities.notify, true)
+end)
+
+test("a_mod_notification_is_a_toast_where_there_is_no_hint_box", function()
+	local e = engine(nil, NOTICE_TEXTS)
+	local hints, toasts = with_hint_box(e)
+	rawget(_G, "Boot").state_machine.get_current_state = function() return {} end
+	E.eq(as_mod(e, "m").notify("Hello"), true)
+	E.eq(#hints, 0)
+	E.eq(toasts[1], "Hello")
+end)
+
+test("a_mod_notification_is_checked", function()
+	local e = engine(nil, NOTICE_TEXTS)
+	with_hint_box(e)
+	local o = as_mod(e, "m")
+	E.eq(select(2, o.notify("")), "bad_type")
+	E.eq(select(2, o.notify(5)), "bad_type")
+	E.eq(select(2, o.notify("words", 0)), "out_of_range")
+	E.eq(select(2, o.notify("words", "long")), "out_of_range")
+end)
+
+test("one_mod_cant_fill_the_queue", function()
+	local e = engine(nil, NOTICE_TEXTS)
+	local hints = with_hint_box(e)
+	local o = as_mod(e, "noisy")
+	for i = 1, 3 do E.eq(o.notify("line " .. i), true) end
+	E.eq(select(2, o.notify("line 4")), "queue_full")
+	E.eq(#hints, 3)
+	E.eq(as_mod(e, "quiet").notify("mine"), true, "another mod still gets through")
+	table.remove(hints.box.queued_hints, 1)
+	E.eq(as_mod(e, "noisy").notify("line 5"), true, "room again once one has shown")
+end)
+
+test("the_loaders_notices_go_ahead_of_what_mods_queued", function()
+	local e = engine(nil, NOTICE_TEXTS)
+	local hints = with_hint_box(e)
+	as_mod(e, "m").notify("a mod's line")
+	e:core().notice("every_player_off", "Big")
+	e:core().notice("every_player_off", "Small")
+	e:frames(1)
+	local settings, lm = rawget(_G, "HintSettings"), rawget(_G, "LocalizationManager")
+	local order = {}
+	for i, q in ipairs(hints.box.queued_hints) do order[i] = lm:string(settings[q.text].text) end
+	E.eq(table.concat(order, " | "), "Obsidian: Big is off. | Obsidian: Small is off. | a mod's line")
 end)
 
 test("own_member_data_is_published", function()

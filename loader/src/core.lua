@@ -22,7 +22,7 @@ local M = {
 
 local capabilities = {
 	after_startup = true, log = true, hook = true, on_require = true, on_session = true, session = true,
-	settings = true, keybind = true, text = true, on_frame = true, module = true, import = true, menu = true, toast = true, storage = true, caller = true,
+	settings = true, keybind = true, text = true, on_frame = true, module = true, import = true, menu = true, toast = true, notify = true, storage = true, caller = true,
 	ui = true, scope = true,
 }
 local api = {
@@ -74,6 +74,9 @@ end
 
 -- Notices are queued anywhere and shown from the frame hook, where the game UI exists.
 local NOTICE_SECONDS = 10
+local NOTIFY_SECONDS = 7
+local MOD_WAITING = 3
+local NOTICE_KEY, MOD_KEY = "obsidian_notice/", "obsidian_mod/"
 
 -- The game's own hint box, on the ship and in a mission. One key per text, because it leaves out a
 -- text it already has: a notice raised again doesn't queue up. The override shows it with hints off.
@@ -83,12 +86,51 @@ local function show_hint(n)
 	if not machine or B.type(settings) ~= "table" then return false end
 	local box = machine:get_current_state().hint_manager
 	if not box then return false end
-	local key = "obsidian_notice/" .. n.key .. "/" .. B.concat(n.args, "/")
+	local key = NOTICE_KEY .. n.key .. "/" .. B.concat(n.args, "/")
 	settings[key] = settings[key] or { audio = "ui_select", duration = NOTICE_SECONDS, icon = "icon_hint", text = key }
 	game_text.replace(M, hooks, key, n.key, n.args)
 	box:add_hint(key, true, nil, nil, NOTICE_SECONDS)
+	-- What the loader says goes ahead of what mods queued, behind what the loader queued before.
+	local queue = box.queued_hints
+	if B.type(queue) == "table" and queue[#queue] and queue[#queue].text == key then
+		local to = 1
+		while to < #queue and B.sub(queue[to].text, 1, #NOTICE_KEY) == NOTICE_KEY do to = to + 1 end
+		B.insert(queue, to, B.remove(queue))
+	end
 	return true
 end
+
+-- obsidian.notify: a mod's words in the same box, for what's rare and matters. The box shows one at
+-- a time, so a mod can only have so many waiting. Where there's no box, it's a toast.
+local function notify(text, seconds)
+	if B.type(text) ~= "string" or text == "" then return false, "bad_type" end
+	if seconds ~= nil and not (B.type(seconds) == "number" and seconds > 0) then return false, "out_of_range" end
+	seconds = seconds or NOTIFY_SECONDS
+	local boot, settings = B.rawget(B.G, "Boot"), B.rawget(B.G, "HintSettings")
+	local machine = B.type(boot) == "table" and boot.state_machine
+	local ok, state = B.pcall(function() return machine:get_current_state() end)
+	local box = ok and B.type(state) == "table" and state.hint_manager
+	if not box or B.type(settings) ~= "table" then
+		menu.toast(text, seconds)
+		return true
+	end
+	local id = M.current and M.current.id or "unknown"
+	local mine = MOD_KEY .. id .. "/"
+	local waiting = 0
+	for _, q in B.ipairs(box.queued_hints or {}) do
+		if B.sub(q.text, 1, #mine) == mine then waiting = waiting + 1 end
+	end
+	if waiting >= MOD_WAITING then
+		log.limited(id .. "\0notify", "notify: " .. id .. " has " .. MOD_WAITING .. " waiting, so this one is dropped: " .. text)
+		return false, "queue_full"
+	end
+	local key = mine .. text
+	settings[key] = settings[key] or { audio = "ui_select", duration = seconds, icon = "icon_hint", text = key }
+	game_text.replace(M, hooks, key, "%s", { text })
+	box:add_hint(key, true, nil, nil, seconds)
+	return true
+end
+api.notify = notify
 
 local function show_notices()
 	while #M.notices > 0 do

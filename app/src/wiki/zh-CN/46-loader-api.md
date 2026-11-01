@@ -141,6 +141,12 @@ obsidian.keybind("open", function() obsidian.menu.toggle() end)
 
 在屏幕左上角显示一条简短消息；游戏内菜单打开时，则显示在菜单旁边。
 
+### obsidian.notify(text, seconds) {#obsidian-notify-text-seconds}
+
+在游戏自己的提示框中显示你的文字，带有它的图标和声音，即使游戏提示已关闭。省略 `seconds` 时为 7。在游戏没有提示框的地方（例如主菜单），它会改为显示 toast。
+
+提示框一次只显示一条消息，因此请把它用于少见且重要的内容，快速反馈（例如按键）请用 `obsidian.toast`。已在等待的文字不会再次加入，每个模组最多有 3 条在等待：超过后 `notify` 返回 `false` 和 `"queue_full"`。Obsidian 自己的消息优先显示。
+
 ## 替换游戏界面 {#ui}
 
 `obsidian.ui` 用于重绘游戏菜单和 HUD 的模组。任何作用范围的模组都能使用，`requires` 中无需填写任何内容，所以换肤模组仍是客户端模组，保留银河战争和匹配功能。在模组请求之前，这里的任何内容都不会运行。
@@ -313,7 +319,7 @@ kit:text("HELLDIVERS", 100, 200, { font = "title" })
 
 `obsidian.version` 是 API 版本，目前为 `1`。需要更新 API 的模组在 `obsidian.json` 中设置 `loader_api`，较旧的加载器会拒绝启动它。
 
-`obsidian.capabilities` 是一个只读表，列出当前加载器支持的功能，每项一个条目：`hook`、`on_require`、`on_frame`、`on_session`、`after_startup`、`settings`、`keybind`、`session`、`text`、`log`、`module`、`import`、`caller`、`menu`、`toast`、`storage`、`ui`。使用较晚加入的功能前，先按名称检查：
+`obsidian.capabilities` 是一个只读表，列出当前加载器支持的功能，每项一个条目：`hook`、`on_require`、`on_frame`、`on_session`、`after_startup`、`settings`、`keybind`、`session`、`text`、`log`、`module`、`import`、`caller`、`menu`、`toast`、`notify`、`storage`、`ui`。使用较晚加入的功能前，先按名称检查：
 
 ```lua
 if obsidian.capabilities.on_frame then

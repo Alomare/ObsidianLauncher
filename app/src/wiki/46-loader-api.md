@@ -141,6 +141,12 @@ Calls `fn(draw, width, height)` every frame, to put something on screen outside 
 
 Shows a short message at the top left of the screen, or beside the in-game menu while it's open.
 
+### obsidian.notify(text, seconds)
+
+Shows your words in the game's own hint box, with its icon and sound, even with the game's hints turned off. `seconds` is 7 if you leave it out. Where the game has no hint box, such as the main menu, it shows as a toast instead.
+
+The box shows one message at a time, so use it for what's rare and matters, and `obsidian.toast` for quick feedback such as a key press. A text already waiting isn't added again, and a mod can have 3 waiting: past that, `notify` returns `false` and `"queue_full"`. Obsidian's own messages go first.
+
 ## Replacing the game's screens {#ui}
 
 `obsidian.ui` is for a mod that redraws the game's menus and HUD. Any mod can use it, of any scope, with nothing in `requires`, so a reskin stays a client mod and keeps the Galactic War and matchmaking. Nothing here runs until a mod asks for it.
@@ -313,7 +319,7 @@ Strings, numbers and booleans this mod keeps between launches. `set` with `nil` 
 
 `obsidian.version` is the API version, `1` today. A mod that needs a newer API sets `loader_api` in `obsidian.json`, and older loaders refuse to start it.
 
-`obsidian.capabilities` is a read-only table of what the running loader supports, one entry per feature: `hook`, `on_require`, `on_frame`, `on_session`, `after_startup`, `settings`, `keybind`, `session`, `text`, `log`, `module`, `import`, `caller`, `menu`, `toast`, `storage`, `ui`. Test a feature by name before using one that came later:
+`obsidian.capabilities` is a read-only table of what the running loader supports, one entry per feature: `hook`, `on_require`, `on_frame`, `on_session`, `after_startup`, `settings`, `keybind`, `session`, `text`, `log`, `module`, `import`, `caller`, `menu`, `toast`, `notify`, `storage`, `ui`. Test a feature by name before using one that came later:
 
 ```lua
 if obsidian.capabilities.on_frame then

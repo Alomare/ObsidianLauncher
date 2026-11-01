@@ -141,6 +141,12 @@ Chama `fn(draw, width, height)` a cada quadro, para mostrar algo na tela fora do
 
 Mostra uma mensagem curta no canto superior esquerdo da tela, ou ao lado do menu dentro do jogo enquanto ele está aberto.
 
+### obsidian.notify(text, seconds) {#obsidian-notify-text-seconds}
+
+Mostra as suas palavras na caixa de dicas do próprio jogo, com o ícone e o som dela, mesmo com as dicas do jogo desligadas. `seconds` é 7 se você não informar. Onde o jogo não tem caixa de dicas, como no menu principal, aparece como toast.
+
+A caixa mostra uma mensagem por vez, então use para o que é raro e importante, e `obsidian.toast` para respostas rápidas, como ao apertar uma tecla. Um texto que já está esperando não entra de novo, e um mod pode ter 3 esperando: além disso, `notify` retorna `false` e `"queue_full"`. As mensagens do próprio Obsidian vão primeiro.
+
 ## Substituir as telas do jogo {#ui}
 
 `obsidian.ui` é para um mod que redesenha os menus e o HUD do jogo. Qualquer mod pode usar, de qualquer escopo, sem nada em `requires`, então um reskin continua sendo um mod client e mantém a Guerra Galáctica e o matchmaking. Nada aqui roda até um mod pedir.
@@ -313,7 +319,7 @@ Textos, números e booleanos que este mod guarda entre aberturas do jogo. `set` 
 
 `obsidian.version` é a versão da API, hoje `1`. Um mod que precisa de uma API mais nova define `loader_api` no `obsidian.json`, e loaders mais antigos se recusam a iniciá-lo.
 
-`obsidian.capabilities` é uma tabela, só de leitura, do que o loader em execução oferece, uma entrada por recurso: `hook`, `on_require`, `on_frame`, `on_session`, `after_startup`, `settings`, `keybind`, `session`, `text`, `log`, `module`, `import`, `caller`, `menu`, `toast`, `storage`, `ui`. Teste um recurso pelo nome antes de usar um que chegou depois:
+`obsidian.capabilities` é uma tabela, só de leitura, do que o loader em execução oferece, uma entrada por recurso: `hook`, `on_require`, `on_frame`, `on_session`, `after_startup`, `settings`, `keybind`, `session`, `text`, `log`, `module`, `import`, `caller`, `menu`, `toast`, `notify`, `storage`, `ui`. Teste um recurso pelo nome antes de usar um que chegou depois:
 
 ```lua
 if obsidian.capabilities.on_frame then

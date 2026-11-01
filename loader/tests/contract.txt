@@ -9,6 +9,7 @@ obsidian.capabilities.keybind boolean
 obsidian.capabilities.log boolean
 obsidian.capabilities.menu boolean
 obsidian.capabilities.module boolean
+obsidian.capabilities.notify boolean
 obsidian.capabilities.on_frame boolean
 obsidian.capabilities.on_require boolean
 obsidian.capabilities.on_session boolean
@@ -25,6 +26,7 @@ obsidian.keybind function
 obsidian.log function
 obsidian.menu table
 obsidian.module function
+obsidian.notify function
 obsidian.on_frame function
 obsidian.on_require function
 obsidian.on_session function
