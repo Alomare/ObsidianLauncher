@@ -44,6 +44,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
+      - name: The Obsidian Kit
+        run: python tools/starter_pack.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: The LuaJIT 2.0 compiler
         shell: cmd
         run: tools\build-luajit.cmd

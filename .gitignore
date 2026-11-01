@@ -5,6 +5,9 @@ internal/
 Desktop.ini
 Thumbs.db
 
+# The Obsidian Kit: fetched by tools/starter_pack.py
+bundled/
+
 # Build output
 target/
 node_modules/
