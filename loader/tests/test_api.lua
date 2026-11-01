@@ -2250,6 +2250,22 @@ test("one_table_edit_can_be_told_apart_and_undone", function()
 	E.eq(api.edits.revert_table(t, "a"), false, "nothing left to undo")
 end)
 
+test("what_frozen_enemies_are_sent_keeps_its_values_after_the_game_reuses_the_table", function()
+	local api, game = start()
+	local entity_aux = rawget(_G, "EntityAux")
+	local real = entity_aux.queue_command_master
+	api.effects.set("freeze", true)
+	local unit = { owned = true, master = {}, slave = {} }
+	local temp = { damage = 12, owner_unit = "me" }
+	local before = #game.commands
+	entity_aux.queue_command_master(unit, "enemy", "damage_taken", temp)
+	local queued = game.commands[before + 1]
+	temp.damage = nil -- the game's TempTableFactory takes it back at the frame's end
+	E.eq(queued.data.damage, 12, "the frozen enemy reads its own copy")
+	api.effects.set("freeze", false)
+	E.eq(entity_aux.queue_command_master, real, "the game's function is back once they move again")
+end)
+
 test("a_screen_of_the_game_shows_a_mods_words_only_while_it_runs", function()
 	local api = start()
 	local lm = rawget(_G, "LocalizationManager")
@@ -2289,6 +2305,9 @@ test("a_prop_is_a_unit_on_this_machine_that_moves_grows_and_goes", function()
 	E.eq(units[1].pos.x, 4)
 	E.eq(p:scale(2), true)
 	E.eq(units[1].scale, 2)
+	unit.flow_event = function(u, event) u.flowed = event end
+	E.eq(p:flow("on_picked_up"), true)
+	E.eq(units[1].flowed, "on_picked_up")
 	p:remove()
 	E.eq(destroyed, 1)
 	E.eq(p:alive(), false)

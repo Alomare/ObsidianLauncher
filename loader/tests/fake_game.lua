@@ -24,7 +24,7 @@ for component, list in pairs({
 	inventory = "ammo_pickup set_grenades set_grenade_path set_stratagem_info broadcast_stratagem_cooldown set_stratagem_cooldown_multiplier receive_stratagem set_weapon set_perk set_item_upgrades set_backpack",
 	customization = "set_customization communication_event enable_heavy_armor disable_heavy_armor set_visible set_silhouette_color",
 	enemy_target = "enable disable",
-	enemy = "remove_from_group",
+	enemy = "remove_from_group damage_taken",
 	research_sample_pickup = "interact",
 	show_on_map = "show",
 	stratagem = "set_thrown_direction",

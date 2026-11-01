@@ -275,7 +275,7 @@ for peer, text in pairs(api.lobby.shared("score")) do total = total + tonumber(t
 
 ## Props {#props}
 
-`api.world.prop(unit, pos, opts)` puts a unit of the game in the level on this machine only. Nothing goes over the network and no game system knows about it, so it does nothing but be seen, with whatever glow and highlight the unit has. `opts.scale` sets its size, 1 as made. It answers a prop with `move(pos)`, `scale(size)`, `alive()` and `remove()`, or `nil` and a reason.
+`api.world.prop(unit, pos, opts)` puts a unit of the game in the level on this machine only. Nothing goes over the network and no game system knows about it, so it does nothing but be seen, with whatever glow and highlight the unit has. `opts.scale` sets its size, 1 as made. It answers a prop with `move(pos)`, `scale(size)`, `flow(event)`, `alive()` and `remove()`, or `nil` and a reason. `flow` runs one of the unit's own flow events, the way the game makes a unit play its sounds and effects: `on_picked_up` on a research sample plays the pickup.
 
 ```lua
 local sample = api.world.prop("gameobjects_spec/gameobject_bug_research_object", pos, { scale = 2 })
