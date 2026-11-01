@@ -136,8 +136,8 @@ end)
 | `api.combat` | `scale{ players, enemies }` |
 | `api.events` | `on(name, fn)`, `off(name, fn)` |
 | `api.ui` | `hint(text, seconds)`, `ping(pos)`, `open(name, opts)`, `close()`, `menus()` |
-| `api.lobby` | `players()` |
-| `api.world` | `cursor`, `ahead`, `explode`, `camera`, `shading(name, kind, value)`, `flash(seconds)` |
+| `api.lobby` | `players()`, `share(name, value)`, `shared(name)` |
+| `api.world` | `cursor`, `ahead`, `to_screen(pos)`, `explode`, `camera`, `shading(name, kind, value)`, `flash(seconds)` |
 | `api.audio` | `bus(name, db)`, `play(event, pos)`, `stinger(name)` |
 | `api.progress` | `set_samples`, `unlock_items`, `upgrade_all`, `loadout()`, `set_loadout(t)`, `upgrades()`, `set_upgrade(name, value)`, `upgrade_limit(name)` |
 | `api.console` | `run(line)`, `commands()` |
@@ -197,6 +197,7 @@ api.enemies.set_pressure({ difficulty = false })
 - `set_pressure` is the host's. `cap` runs up to 32 and lifts both limits waves stop at. Corpses count.
 - `difficulty` is what each encounter can spend. The seed, the waves on offer and the objectives stay the same.
 - `force_wave` spawns a wave from `api.enemies.waves()` all at once, ignoring its delays.
+- `spawn(key, count, where)` takes `where` as `"cursor"`, a position (a vector or `{ x, y, z }`), or nothing for in front of the player.
 - `spawn_entity` spawns a crate or pickup. Take paths from `api.catalog.crates()` and `pickups()`, which leave out paid items.
 - `near(radius, pos)` lists living enemies, nearest first, around a position or the player.
 - `damage(unit, power, statuses)` is a hit from this player that works from any player's game, and armor counts. `statuses` is an optional list of status names.
@@ -260,6 +261,17 @@ api.world.flash()                           -- lightning
 - `spectate` takes another player's unit, from `api.game.all_avatars()`.
 - `shading` takes the names in `api.world.SHADING`, by kind: `scalar` is a number, `vector2` and `vector3` are lists. A value goes on again in each new mission. The game only ships code for `fog_color`, `sun_color` and the other `vector3` names, with no use of its own, so check them on your first run.
 - `flash` needs a forest planet, and not one of the illuminates. Others answer `"wrong_environment"`.
+
+## Sharing between machines {#lobby}
+
+`api.lobby.share(name, value)` puts a text of up to 200 characters where every other machine in the lobby can read it, under your mod's id. `api.lobby.shared(name)` answers what each other machine shares, by peer. Steam passes a change on within about a second, so it suits state that changes now and then, such as a score, not every frame. Without a lobby, `share` answers `false, "not_available"`.
+
+```lua
+api.lobby.share("score", tostring(my_score))
+for peer, text in pairs(api.lobby.shared("score")) do total = total + tonumber(text) end
+```
+
+`api.world.to_screen(pos)` answers where a point of the level is on the screen, in pixels from the bottom left, and whether it's in view, for drawing over the world with a kit.
 
 ## Sound {#sound}
 

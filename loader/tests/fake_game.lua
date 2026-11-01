@@ -461,7 +461,7 @@ function G.start(ids, opts)
 		encounter_manager = {
 			max_num_enemies = 8, mission_difficulty = 5, mission_enemy = "bugs",
 			spawn_enemy = function(_, path) game.spawned[#game.spawned + 1] = path end,
-			spawn_group = function(_, _, g, _, cost) game.spawned[#game.spawned + 1] = g.units[1].amount game.group_cost = cost end,
+			spawn_group = function(_, pos, g, _, cost) game.spawned[#game.spawned + 1] = g.units[1].amount game.group_cost = cost game.spawned_at = pos end,
 			set_disabled = function(_, v) game.encounters_off = v end,
 			start_encounter = function() game.alarm = true end,
 		},

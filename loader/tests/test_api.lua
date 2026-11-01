@@ -509,6 +509,47 @@ test("large_spawns_go_in_batches_the_spawner_can_place", function()
 	E.eq(table.concat(game.spawned, ","), "10,10,3")
 end)
 
+test("enemies_spawn_at_a_position_given", function()
+	local api, game = start()
+	E.eq(api.enemies.spawn("bug_scout", 3, { x = 5, y = 6, z = 1 }), true)
+	local V = rawget(_G, "Vector3")
+	E.eq(game.spawned_at.x, 5)
+	E.eq(game.spawned_at.y, 6)
+	E.eq(api.enemies.spawn("bug_scout", 3, V(7, 8, 0)), true, "or a vector")
+	E.eq(game.spawned_at.x, 7)
+	E.eq(select(2, api.enemies.spawn("bug_scout", 3, "sideways")), "bad_type")
+end)
+
+test("a_position_in_the_level_has_a_place_on_the_screen", function()
+	local api = start()
+	local V = rawget(_G, "Vector3")
+	rawget(_G, "CameraManager").world_to_screen = function(_, p) return V(p.x * 10, p.y * 10, p.z) end
+	rawget(_G, "Application").resolution = function() return 1920, 1080 end
+	local x, y, on = api.world.to_screen({ x = 10, y = 20, z = 5 })
+	E.eq(x, 100) E.eq(y, 200) E.eq(on, true)
+	E.eq(select(3, api.world.to_screen({ x = 500, y = 20, z = 5 })), false, "past the right edge")
+	E.eq(select(3, api.world.to_screen({ x = 10, y = 20, z = -5 })), false, "behind the camera")
+end)
+
+test("a_value_shared_through_the_lobby_reaches_the_others", function()
+	local api = start()
+	local lobby = rawget(_G, "NetworkGlobal").lobby
+	local data = { friend = {} }
+	lobby.members = function() return { "me", "friend" } end
+	lobby.set_member_data = function(_, key, value) data.me = data.me or {} data.me[key] = value end
+	lobby.member_data = function(_, peer, key) return (data[peer] or {})[key] end
+	E.eq(api.lobby.share("run", "5;1"), true)
+	local key
+	for k in pairs(data.me) do key = k end
+	E.eq(key, "mod:obsidian.api:run", "under the mod's id and the name")
+	data.friend[key] = "7;2"
+	local shared = api.lobby.shared("run")
+	E.eq(shared.friend, "7;2")
+	E.eq(shared.me, nil, "not this machine's own")
+	E.eq(select(2, api.lobby.share("run", string.rep("x", 201))), "out_of_range")
+	E.eq(select(2, api.lobby.share("", "x")), "bad_type")
+end)
+
 test("groups_are_for_the_host", function()
 	local api = start({ host = false })
 	local ok, why = api.enemies.spawn("bug_scout", 5)
