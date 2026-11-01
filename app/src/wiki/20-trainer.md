@@ -40,7 +40,7 @@ The menu blocks your character while it's open, and it closes by itself when the
 ## What's in it
 
 - **Player:** god mode, infinite sprint, speed, teleporting, respawning, and helmets, armor and capes you own.
-- **Weapons:** infinite ammo, instant reload, refills, and giving yourself any weapon, backpack or perk from the base game or a DLC you own, with the upgrades you choose.
+- **Weapons:** infinite ammo, instant reload, refills, the fire rate, damage, magazine, reload, spread and armor piercing of each of your own weapons, and giving yourself any weapon, backpack or perk from the base game or a DLC you own, with the upgrades you choose.
 - **Stratagems:** no cooldowns, unlimited uses, instant call-ins, ignoring no-stratagem zones, any stratagem from the base game or a DLC you own dropped at the cursor, and real flares, Reinforce included.
 - **Vehicles:** speed, turning, armor, no damage and endless exosuit rockets for the vehicle you're driving, plus repairs and refills.
 - **Spawn:** ammunition, supply crates and pickups on the spot, and flares at the cursor.
