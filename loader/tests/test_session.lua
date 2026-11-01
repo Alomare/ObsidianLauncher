@@ -173,6 +173,35 @@ test("own_member_data_is_published", function()
 	E.eq(lobby.published.obsidian, "1;" .. OWN .. ";0")
 end)
 
+-- The game keeps one NetworkRoom when a player leaves their own lobby to join another, and swaps
+-- the engine's lobby inside it. Member data belongs to that one.
+test("joining_another_lobby_publishes_in_that_lobby", function()
+	local lobby = { my_id = "me", members = { "me" }, data = {} }
+	local e = engine(lobby)
+	e:frames(31)
+	local room = rawget(_G, "NetworkGlobal").lobby
+	room.lobby, lobby.members, lobby.published = nil, {}, {}
+	e:frames(31)
+	E.eq(next(lobby.published), nil, "no lobby to write to while between the two")
+	E.eq(cleared(), true)
+	room.lobby, lobby.members = {}, { "me", "host" }
+	lobby.data.host = "1;" .. OWN .. ";0"
+	e:frames(31)
+	E.eq(lobby.published.obsidian, "1;" .. OWN .. ";0")
+	E.eq(lobby.published.obsidian_every, "")
+	E.eq(lobby.published.obsidian_forfeit, "0")
+	E.eq(cleared(), true)
+end)
+
+test("member_data_is_written_again_once_the_lobby_is_joined", function()
+	local lobby = { my_id = "me", members = { "me" }, data = {}, state = "joining" }
+	local e = engine(lobby)
+	e:frames(31)
+	lobby.published, lobby.state = {}, "joined"
+	e:frames(31)
+	E.eq(lobby.published.obsidian, "1;" .. OWN .. ";0")
+end)
+
 local HOOK_MODS = {
 	["obsidian/mods/s/main"] = "obsidian.hook('Target', 'run', function(original, self, x) return 'session ' .. x end)",
 	["obsidian/mods/c/main"] = "obsidian.hook(Target, 'look', function(original, self) return 'client' end)",

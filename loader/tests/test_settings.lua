@@ -116,6 +116,8 @@ test("session_mod_keybind_waits_for_a_cleared_session", function()
 	e:core().deploy.has_session = true
 	rawset(_G, "NetworkGlobal", { lobby = {
 		my_id = "me",
+		lobby = {},
+		state = function() return "joined" end,
 		members = function() return { "me", "p2" } end,
 		member_data = function() return nil end,
 		set_member_data = function() end,

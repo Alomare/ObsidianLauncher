@@ -13,7 +13,7 @@ local PROGRESS = { "player_xp", "research_samples", "item_unlocks", "new_unlocks
 local HELD = {}
 for _, key in B.ipairs(PROGRESS) do HELD[key] = true end
 
-local M = { state = true, missing = {}, members = {}, listeners = {}, published = nil, published_lobby = nil, warned = nil, forfeited = false, kept = nil, restoring = false, holders = {}, peer_holds = false, tip_shown = false }
+local M = { state = true, missing = {}, members = {}, listeners = {}, sent = {}, sent_to = nil, sent_state = nil, warned = nil, forfeited = false, kept = nil, restoring = false, holders = {}, peer_holds = false, tip_shown = false }
 
 function M.setup(core)
 	M.core = core
@@ -29,8 +29,21 @@ end
 
 local function lobby()
 	local network = B.rawget(B.G, "NetworkGlobal")
-	if B.type(network) == "table" then return network.lobby end
+	-- Between leaving one lobby and joining the next, the room has no engine lobby in it.
+	if B.type(network) == "table" and network.lobby and network.lobby.lobby then return network.lobby end
 	return nil
+end
+
+-- Member data belongs to the engine's lobby. The game keeps one NetworkRoom when a player leaves
+-- their own lobby to join another and swaps the engine's lobby inside it, so that's what counts as
+-- a new lobby here. Everything goes out again once it's joined, in case a write while joining is lost.
+local function publish(l, key, value)
+	local to, state = l.lobby, l:state()
+	if M.sent_to ~= to or M.sent_state ~= state then M.sent, M.sent_to, M.sent_state = {}, to, state end
+	if M.sent[key] == value then return false end
+	l:set_member_data(key, value)
+	M.sent[key] = value
+	return true
 end
 
 local function in_mission()
@@ -97,22 +110,10 @@ function M.evaluate()
 		return
 	end
 	local value = "1;" .. B.tostring(deploy.modset) .. ";" .. (own_consent and "1" or "0")
-	if M.published ~= value or M.published_lobby ~= l then
-		l:set_member_data("obsidian", value)
-		log.line("session: published member data " .. value)
-		M.published, M.published_lobby = value, l
-	end
+	if publish(l, "obsidian", value) then log.line("session: published member data " .. value) end
 	local own_every = every_pairs()
-	local every = B.concat(own_every, ",")
-	if M.published_every ~= every or M.every_lobby ~= l then
-		l:set_member_data(EVERY_KEY, every)
-		M.published_every, M.every_lobby = every, l
-	end
-	local forfeit = (M.forfeited or holding()) and "1" or "0"
-	if M.published_forfeit ~= forfeit or M.forfeit_lobby ~= l then
-		l:set_member_data(FORFEIT_KEY, forfeit)
-		M.published_forfeit, M.forfeit_lobby = forfeit, l
-	end
+	publish(l, EVERY_KEY, B.concat(own_every, ","))
+	publish(l, FORFEIT_KEY, (M.forfeited or holding()) and "1" or "0")
 	local me, list, signature, peer_holds = l.my_id, {}, {}, false
 	-- My session mods run when every other player runs the same set or allows other players' mods.
 	-- My own consent is about their mods in my game, so it plays no part here.

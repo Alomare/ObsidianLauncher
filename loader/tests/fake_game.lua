@@ -150,7 +150,7 @@ function G.start(ids, opts)
 		return 0.042
 	end })
 	rawset(_G, "NetworkGlobal", rawget(_G, "NetworkGlobal") or { lobby = { is_host = function() return opts.host ~= false end,
-		members = function() return { "me" } end, member_data = function() end, set_member_data = function() end, my_id = "me" } })
+		lobby = {}, state = function() return "joined" end, members = function() return { "me" } end, member_data = function() end, set_member_data = function() end, my_id = "me" } })
 	local lobby = rawget(_G, "NetworkGlobal").lobby
 	lobby.is_host = function() return opts.host ~= false end
 	lobby.lobby_host = function() return opts.host ~= false and "me" or "friend" end

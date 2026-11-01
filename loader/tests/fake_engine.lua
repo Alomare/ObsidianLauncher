@@ -104,6 +104,8 @@ function E.new(opts)
 		rawset(_G, "NetworkGlobal", {
 			lobby = {
 				my_id = l.my_id,
+				lobby = {},
+				state = function() return l.state or "joined" end,
 				members = function() return l.members end,
 				member_data = function(_, peer, key)
 					if key == "obsidian" then return l.data[peer] end
