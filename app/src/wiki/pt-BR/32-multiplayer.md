@@ -6,7 +6,7 @@ summary: Matchmaking, o interruptor de multijogador e quando os mods de sessão 
 
 ## O interruptor de multijogador {#the-multiplayer-switch}
 
-**Permitir mods de sessão de outros jogadores** fica no topo da janela e pertence ao perfil ativo. Ligar o interruptor diz uma coisa só: outros jogadores do Obsidian podem rodar os mods de sessão deles no seu jogo.
+**Permitir que outros modders afetem meu jogo** fica no topo da janela e pertence ao perfil ativo. Ligar o interruptor diz uma coisa só: outros jogadores do Obsidian podem rodar os mods de sessão deles no seu jogo.
 
 Ele não decide se os seus próprios mods de sessão rodam. Isso depende dos outros jogadores, como explicado abaixo.
 

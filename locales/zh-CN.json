@@ -197,8 +197,8 @@
   "app.mods.withFiles": "%s（%s 个文件）",
   "app.mods.withOneFile": "%s（1 个文件）",
   "app.mods.zipFilter": "模组压缩包",
-  "app.nav.consent": "允许其他玩家的会话模组",
-  "app.nav.consentHint": "允许其他 Obsidian 玩家在你的游戏中运行他们的会话模组，并让他们看到你的大厅。开启期间，匹配只会遇到 Obsidian 玩家。当其他所有人运行相同的模组组合或开启此项时，你自己的会话模组才会运行。保存在当前配置中。",
+  "app.nav.consent": "允许其他模组玩家影响我的游戏",
+  "app.nav.consentHint": "开启：你们一起游戏时，其他玩家的会话模组会继续运行，并可能改变你的游戏，例如敌人、伤害和任务。匹配时只会遇到其他 Obsidian 玩家，运行你没有的模组的游戏不计入银河战争或试炼场。关闭：你在大厅中时，他们的会话模组会关闭。保存在当前配置中。",
   "app.nav.consentTitle": "多人游戏（配置 %s）",
   "app.nav.home": "主页",
   "app.nav.mods": "模组",
@@ -240,8 +240,6 @@
   "app.profiles.title": "配置",
   "app.profiles.use": "使用",
   "app.profiles.zipFilter": "Obsidian 配置",
-  "app.purge.text": "移除 Obsidian 写入游戏的所有内容，使其恢复为原版。你的模组库和配置不受影响。",
-  "app.purge.title": "清除",
   "app.report.copied": "报告已复制到剪贴板，可粘贴到问题反馈中。",
   "app.save": "保存",
   "app.scope.client": "客户端",
@@ -373,5 +371,5 @@
   "app.wiki.search": "搜索指南",
   "app.wiki.tip": "提示",
   "app.wiki.warning": "注意",
-  "progress_forfeited": "Obsidian: 此任务使用了模组，因此不会计入你的进度。"
+  "progress_forfeited": "此任务使用了模组，因此不会计入你的进度。"
 }

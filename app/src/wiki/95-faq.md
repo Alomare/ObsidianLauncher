@@ -12,7 +12,7 @@ HELLDIVERS has no anti-cheat, and Obsidian never edits a game file. Session mods
 
 ### Why can't I find any lobbies?
 
-With session mods deployed, or with **Allow session mods from other players** on, you only see other Obsidian players. Turn the switch off and deploy without session mods for normal matchmaking ([Playing online](wiki:multiplayer#matchmaking)).
+With session mods deployed, or with **Allow other modders to affect my game** on, you only see other Obsidian players. Turn the switch off and deploy without session mods for normal matchmaking ([Playing online](wiki:multiplayer#matchmaking)).
 
 ### My friend and I both use Obsidian. Why are my session mods off?
 

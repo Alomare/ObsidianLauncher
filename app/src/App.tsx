@@ -27,7 +27,6 @@ export default function App() {
   const busy = useLocked();
   const { tab } = useNav();
   const [dropping, setDropping] = useState<DropState>(null);
-  const [askPurge, setAskPurge] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("system");
   const [askUpdate, setAskUpdate] = useState(false);
   const [wave, setWave] = useState<Wave | null>(null);
@@ -71,7 +70,7 @@ export default function App() {
   if (!settings) return null;
   return (
     <div className="app">
-      <NavBar tab={tab} onTab={(to) => { if (to === "settings" && update.phase === "found") setSettingsTab("updates"); setTab(to); }} snap={snap} busy={busy} updateFound={update.phase === "found"} wave={wave} onWaveEnd={() => setWave(null)} onPurge={() => setAskPurge(true)}
+      <NavBar tab={tab} onTab={(to) => { if (to === "settings" && update.phase === "found") setSettingsTab("updates"); setTab(to); }} snap={snap} busy={busy} updateFound={update.phase === "found"} wave={wave} onWaveEnd={() => setWave(null)} onPurge={() => { startWave(snap?.deployed ? "red" : "grey"); purge(); }}
         onDeploy={() => { startWave(snap?.changes === "Waiting" ? "green" : "grey"); deploy(); }} onPlay={() => { startWave("yellow"); play(); }} />
       <main className={tab === "home" || tab === "wiki" ? "page bleed" : "page"}>
         {tab === "home" && <div className="view" key="home"><HomePage /></div>}
@@ -86,10 +85,6 @@ export default function App() {
           style={{ left: dropping.rect.left, top: dropping.rect.top, width: dropping.rect.width, height: dropping.rect.height }}>
           {t("app.mods.dropHere")}
         </div>
-      )}
-      {askPurge && (
-        <Confirm title={t("app.purge.title")} text={t("app.purge.text")} confirm={t("app.action.purge")}
-          onCancel={() => setAskPurge(false)} onConfirm={() => { setAskPurge(false); startWave(snap?.deployed ? "red" : "grey"); purge(); }} />
       )}
       {askUpdate && (
         <Confirm title={t("app.update.title", update.version ?? "")} text={t("app.update.text")} confirm={t("app.update.install")}
