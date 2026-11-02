@@ -25,6 +25,10 @@ Quando a global ainda não existe, o hook espera e entra assim que o jogo a defi
 
 Num mod de sessão, o hook só chama a original enquanto o lobby não estiver liberado ([Escrever mods de sessão](wiki:session-mods)).
 
+### obsidian.wrap(target, method, fn) {#obsidian-wrap-target-method-fn}
+
+Igual a `obsidian.hook`, com a mesma segurança se `fn` falhar, só que continua rodando enquanto o lobby não está liberado. Serve para um mod cujos arquivos substituídos também não podem ser desligados, em que um hook desligado deixaria um jogo pela metade. Todo o resto deve usar `obsidian.hook`. Num loader mais antigo, confira `obsidian.capabilities.wrap`.
+
 ### obsidian.on_require(name, fn) {#obsidian-on-require-name-fn}
 
 Chama `fn(module)` quando o jogo carrega o script `name`, como `"lua/settings/perk_settings"`. Use para mudar uma tabela de configuração logo depois que o jogo a monta.
@@ -60,6 +64,8 @@ Uma visão da tabela `t` para entregar a outros mods. As funções da lista `fre
 ### obsidian.session.members() {#obsidian-session-members}
 
 Uma lista dos outros jogadores no lobby. Cada entrada tem `peer`, `obsidian` (se o jogador usa o Obsidian), `modset` e `consent`.
+
+Para rodar só quando todos os jogadores têm o seu mod, defina [`every_player`](wiki:session-mods#every-player) no manifesto em vez de comparar estes dados você mesmo.
 
 ### obsidian.session.forfeit_progress(), release_progress(key) e hold_progress() {#obsidian-session-forfeit-progress-release-progress-key-and-hold-progress}
 

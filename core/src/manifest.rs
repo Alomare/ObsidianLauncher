@@ -282,6 +282,12 @@ pub struct Manifest {
     pub requires: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub conflicts: Vec<String>,
+    /// `"last"`: where this mod asks to sit when it joins a profile, and new mods go before it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub load: Option<String>,
+    /// Ids of mods this one asks to load after, when either joins a profile. The player's order wins after that.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub load_after: Vec<String>,
     #[serde(default = "one")]
     pub loader_api: u32,
     #[serde(flatten)]
@@ -351,6 +357,14 @@ impl Manifest {
             if !valid_id(id) || *id == self.id {
                 return Err(bad("requires", format!("{id} is not the id of another mod")));
             }
+        }
+        for id in &self.load_after {
+            if !valid_id(id) || *id == self.id {
+                return Err(bad("load_after", format!("{id} is not the id of another mod")));
+            }
+        }
+        if self.load.as_deref().is_some_and(|l| l != "last") {
+            return Err(bad("load", "the only value is \"last\""));
         }
         let options = self.option_specs()?;
         crate::options::parse_keybinds(&self.keybinds)?;

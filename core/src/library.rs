@@ -264,18 +264,35 @@ impl Profile {
         }
         Ok(changed)
     }
-    /// Appends newly installed mods as disabled and drops entries whose mod is gone.
+    /// Adds newly installed mods as disabled and drops entries whose mod is gone. A new mod goes last,
+    /// unless a load hint says otherwise (`place_new`).
     pub fn sync(&mut self, lib: &Library) -> Result<()> {
         let installed = lib.list()?;
         // A mod that can't be read keeps its place, so fixing it doesn't lose the load order.
         self.mods.retain(|m| installed.iter().any(|i| i.id == m.id) || lib.mod_dir(&m.id).join(FILE).is_file());
         for m in &installed {
             if !self.mods.iter().any(|e| e.id == m.id) {
-                self.mods.push(ProfileEntry { id: m.id.clone(), enabled: false, folder: None });
+                let at = self.place_new(m, &installed);
+                self.mods.insert(at, ProfileEntry { id: m.id.clone(), enabled: false, folder: None });
             }
         }
         self.tidy_folders();
         Ok(())
+    }
+
+    /// Where a new mod goes: before the first mod that asks to load after it, unless it asks to load
+    /// after one further down. Only a mod's arrival uses this: the order the player set stays.
+    fn place_new(&self, m: &Manifest, installed: &[Manifest]) -> usize {
+        let wants_after = |e: &ProfileEntry| {
+            installed.iter().find(|o| o.id == e.id).is_some_and(|o| o.load_after.contains(&m.id) || (m.load.is_none() && o.load.is_some()))
+        };
+        let mut before = self.mods.iter().position(wants_after).unwrap_or(self.mods.len());
+        // A folder's mods stay together, so the place before one inside a folder is before the folder.
+        while before > 0 && before < self.mods.len() && self.mods[before].folder.is_some() && self.mods[before - 1].folder == self.mods[before].folder {
+            before -= 1;
+        }
+        let after = self.mods.iter().rposition(|e| m.load_after.contains(&e.id)).map_or(0, |i| i + 1);
+        before.max(after)
     }
 }
 
@@ -289,6 +306,84 @@ mod tests {
         let json = format!(r#"{{"obsidian":1,"id":"{id}","version":"{version}","name":{{"en":"{id}"}}}}"#);
         put(&d, "obsidian.json", json.as_bytes());
         d
+    }
+
+    fn hinted(root: &Path, id: &str, hint: &str) -> PathBuf {
+        let d = root.join(format!("stage-{id}"));
+        let json = format!(r#"{{"obsidian":1,"id":"{id}","version":"1.0.0","name":{{"en":"{id}"}},{hint}}}"#);
+        put(&d, "obsidian.json", json.as_bytes());
+        d
+    }
+
+    fn order_of(p: &Profile) -> Vec<&str> {
+        p.mods.iter().map(|m| m.id.as_str()).collect()
+    }
+
+    #[test]
+    fn a_mod_that_asks_to_load_last_stays_after_new_ones() {
+        let t = spaced_tempdir();
+        let lib = Library::open(&t.path().join("data")).unwrap();
+        lib.install(&staged(t.path(), "plain", "1.0.0")).unwrap();
+        lib.install(&hinted(t.path(), "zlast", r#""load":"last""#)).unwrap();
+        let mut p = Profile::default();
+        p.sync(&lib).unwrap();
+        lib.install(&staged(t.path(), "newer", "1.0.0")).unwrap();
+        p.sync(&lib).unwrap();
+        assert_eq!(order_of(&p).last(), Some(&"zlast"));
+        assert_eq!(order_of(&p).len(), 3);
+    }
+
+    #[test]
+    fn load_after_places_a_mod_on_arrival_either_way_round() {
+        let t = spaced_tempdir();
+        let lib = Library::open(&t.path().join("data")).unwrap();
+        lib.install(&staged(t.path(), "first", "1.0.0")).unwrap();
+        lib.install(&staged(t.path(), "second", "1.0.0")).unwrap();
+        let mut p = Profile::default();
+        p.sync(&lib).unwrap();
+        p.set_order(&["second".to_string(), "first".to_string()]);
+        // Asks to follow the one that's first: it goes right where it arrives, after that one.
+        lib.install(&hinted(t.path(), "after-first", r#""load_after":["first"]"#)).unwrap();
+        p.sync(&lib).unwrap();
+        assert_eq!(order_of(&p), ["second", "first", "after-first"]);
+        // Named by a mod already there: the new one goes before it.
+        lib.install(&hinted(t.path(), "needs-x", r#""load_after":["x-mod"]"#)).unwrap();
+        p.sync(&lib).unwrap();
+        lib.install(&staged(t.path(), "x-mod", "1.0.0")).unwrap();
+        p.sync(&lib).unwrap();
+        let order = order_of(&p);
+        let at = |id: &str| order.iter().position(|o| *o == id).unwrap();
+        assert!(at("x-mod") < at("needs-x"), "{order:?}");
+        // The player's order stays after that.
+        let flipped: Vec<String> = order.iter().rev().map(|s| s.to_string()).collect();
+        p.set_order(&flipped);
+        p.sync(&lib).unwrap();
+        assert_eq!(p.mods.iter().map(|m| m.id.clone()).collect::<Vec<_>>(), flipped);
+    }
+
+    #[test]
+    fn a_new_mod_goes_before_the_folder_that_holds_a_last_mod() {
+        let t = spaced_tempdir();
+        let lib = Library::open(&t.path().join("data")).unwrap();
+        lib.install(&staged(t.path(), "boxed", "1.0.0")).unwrap();
+        lib.install(&hinted(t.path(), "zlast", r#""load":"last""#)).unwrap();
+        let mut p = Profile::default();
+        p.sync(&lib).unwrap();
+        p.folders.push(crate::folders::Folder { id: "f".into(), name: "F".into(), color: "#fff".into(), collapsed: false, locked: false });
+        for e in &mut p.mods {
+            e.folder = Some("f".into());
+        }
+        lib.install(&staged(t.path(), "newer", "1.0.0")).unwrap();
+        p.sync(&lib).unwrap();
+        assert_eq!(order_of(&p), ["newer", "boxed", "zlast"]);
+    }
+
+    #[test]
+    fn load_hints_are_checked() {
+        let t = spaced_tempdir();
+        let lib = Library::open(&t.path().join("data")).unwrap();
+        assert!(lib.install(&hinted(t.path(), "bad-load", r#""load":"first""#)).is_err() || load_manifest(&lib.mod_dir("bad-load")).is_err());
+        assert!(load_manifest(&hinted(t.path(), "bad-after", r#""load_after":["bad-after"]"#)).is_err());
     }
 
     fn needing(root: &Path, id: &str, needs: &str) -> PathBuf {

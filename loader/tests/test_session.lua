@@ -309,6 +309,20 @@ test("session_hook_calls_original_when_not_cleared", function()
 	E.eq(rawget(_G, "Target"):run(1), "vanilla 1")
 end)
 
+test("a_wrap_runs_with_the_lobby_not_cleared_and_keeps_a_hooks_safety", function()
+	rawset(_G, "Target", { run = function(_, x) return "vanilla " .. x end })
+	local e = engine({ my_id = "me", members = { "me", "p2" }, data = { p2 = "1;" .. OTHER .. ";0" } },
+		{ mods = { E.mod("s", { scope = "session" }) } },
+		{ ["obsidian/mods/s/main"] = [[obsidian.wrap("Target", "run", function(original, self, x)
+			if x == 2 then error("broken") end
+			return "wrapped " .. original(self, x)
+		end)]] })
+	e:frames(31)
+	E.eq(rawget(_G, "Target"):run(1), "wrapped vanilla 1")
+	E.eq(rawget(_G, "Target"):run(2), "vanilla 2", "a failure falls back to the game's function")
+	E.eq(rawget(_G, "obsidian").capabilities.wrap, true)
+end)
+
 test("session_hook_runs_when_cleared", function()
 	local e = hook_engine({ p2 = "1;" .. OWN .. ";0" })
 	e:frames(31)

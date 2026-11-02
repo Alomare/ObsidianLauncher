@@ -36,3 +36,5 @@ O cadeado antes do nome da pasta trava a pasta. Uma pasta travada mantém o nome
 ## Marcar vários mods {#checking-several-mods}
 
 As caixas à esquerda selecionam mods para ações em lote. Shift+clique marca um intervalo. Com mods marcados, a barra no pé da lista liga, desliga, move para uma pasta ou remove todos de uma vez.
+
+Um mod pode pedir um lugar quando entra num perfil: no fim da lista ou depois de outro mod. Depois disso a ordem é sua, e o que você mover fica onde está.

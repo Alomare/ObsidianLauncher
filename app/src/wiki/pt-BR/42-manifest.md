@@ -48,6 +48,8 @@ O `obsidian.json` fica no topo da pasta do mod, ou no topo do `.zip`. O Obsidian
 | `entry` | não | O script Lua que o loader inicia. Mods que só substituem arquivos do jogo não usam. |
 | `modules` | não | Mais arquivos `.lua` além do `entry`, que o mod carrega com `obsidian.module`. Caminhos dentro da pasta do mod. |
 | `requires` | não | Ids dos mods de que este precisa. Ligar o mod liga esses também, e eles iniciam primeiro. Os jogadores os veem na aba Dependências do mod. A aplicação para com uma mensagem se faltar algum. |
+| `load` | não | `"last"` pede o fim da ordem de carregamento quando o mod entra num perfil, e os mods novos vão antes dele. Depois disso vale a ordem do jogador. |
+| `load_after` | não | Ids dos mods depois dos quais este pede para carregar, quando qualquer um deles entra num perfil. Depois disso vale a ordem do jogador. |
 | `loader_api` | não | A versão da [API do loader](wiki:loader-api) de que o mod precisa. `1` se ficar de fora. |
 | `options` | não | Configurações que os jogadores mudam no app ([Opções e teclas](wiki:options-and-keys)). |
 | `keybinds` | não | Teclas que os jogadores podem trocar no app. |

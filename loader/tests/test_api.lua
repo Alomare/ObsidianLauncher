@@ -1262,6 +1262,30 @@ test("drones_ride_outside_the_backpack_slot_with_only_the_drones_seen_and_go_wit
 	em.has_entities, em.get_slave_entities = has, slaves
 end)
 
+test("a_perk_goes_on_top_of_the_main_one_and_comes_off", function()
+	local api, game = start()
+	game.perk_calls = {}
+	rawget(_G, "PerkSettings").perk_extra = { setup_master = function() game.perk_calls[#game.perk_calls + 1] = "extra setup" end,
+		remove_master = function() game.perk_calls[#game.perk_calls + 1] = "extra remove" end }
+	rawget(_G, "PerkSettings").perk_each_frame = { update_master = function() end }
+	E.eq(api.gear.add_perk("perk_extra"), true)
+	E.eq(game.perk_calls[1], "extra setup")
+	E.eq(game.me.master.inventory.perk, 1, "the main perk stays")
+	E.eq(api.gear.extra_perks()[1], "perk_extra")
+	E.eq(api.gear.add_perk("perk_extra"), true)
+	E.eq(#game.perk_calls, 1, "already on: its setup runs once")
+	E.eq(api.gear.add_perk("perk_cardio"), true)
+	E.eq(#api.gear.extra_perks(), 1, "the main perk isn't added again")
+	E.eq(select(2, api.gear.add_perk("perk_each_frame")), "not_available", "the game would run its frames for no one")
+	E.eq(select(2, api.gear.add_perk("perk_lasersight")), "not_available")
+	E.eq(select(2, api.gear.add_perk("perk_none")), "not_available")
+	E.eq(api.gear.remove_extra_perk("perk_extra"), true)
+	E.eq(game.perk_calls[2], "extra remove")
+	E.eq(#api.gear.extra_perks(), 0)
+	E.eq(api.gear.remove_extra_perk("perk_extra"), true)
+	E.eq(#game.perk_calls, 2, "already off: nothing more to undo")
+end)
+
 test("a_path_outside_the_catalog_never_reaches_set_backpack", function()
 	local api, game = start()
 	local ok, why = api.gear.give_backpack("equipment/rifle")

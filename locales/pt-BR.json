@@ -374,6 +374,7 @@
   "app.update.install": "Instalar",
   "app.update.installing": "Instalando. O Obsidian abre de novo quando terminar.",
   "app.update.none": "Esta é a versão mais recente.",
+  "app.update.readChangelog": "Ver as novidades",
   "app.update.progressTitle": "Atualizando para o Obsidian %s",
   "app.update.text": "Instalar agora? O Obsidian fecha, instala a nova versão e abre de novo.",
   "app.update.title": "Obsidian %s disponível",

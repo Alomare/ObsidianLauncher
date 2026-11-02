@@ -7,7 +7,7 @@ use clap::{Parser, Subcommand};
 use obsidian_core::deploy::{ChangesWaiting, DeployOptions, changes_waiting, deploy, purge, status};
 use obsidian_core::game::{GameInstall, find_game};
 use obsidian_core::gate::KNOWN_BUILDS;
-use obsidian_core::hash::{format_name, format_type};
+use obsidian_core::hash::{display_name, display_text, format_type};
 use obsidian_core::import::import_path;
 use obsidian_core::library::{InstallOutcome, Library, Profile};
 use obsidian_core::paths::data_dir;
@@ -218,8 +218,8 @@ fn run(cli: Cli) -> Result<()> {
                 println!(
                     "{} {} in {}: {} wins over {}",
                     format_type(x.type_hash),
-                    format_name(x.name_hash),
-                    x.bundle,
+                    display_name(x.name_hash),
+                    display_text(&x.bundle),
                     x.winner,
                     x.losers.join(", ")
                 );

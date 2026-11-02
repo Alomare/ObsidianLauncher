@@ -5,7 +5,6 @@ import { loadSnapshot, refresh, useSnapshot } from "./api";
 import { useLocked } from "./busy";
 import { Confirm } from "./Confirm";
 import { pick, t } from "./i18n";
-import { Markdown, parse } from "./Markdown";
 import { listenForDrops, type DropState } from "./mods/dropImport";
 import { checkModUpdates } from "./mods/modUpdates";
 import { HomePage } from "./HomePage";
@@ -88,8 +87,8 @@ export default function App() {
       )}
       {askUpdate && (
         <Confirm title={t("app.update.title", update.version ?? "")} text={t("app.update.text")} confirm={t("app.update.install")}
-          tone="go" onCancel={() => setAskUpdate(false)} onConfirm={() => { setAskUpdate(false); installUpdate(); }}>
-          {update.notes && <div className="update-notes"><Markdown tokens={parse(update.notes).tokens} /></div>}
+          tone="go" onCancel={() => setAskUpdate(false)} onConfirm={() => { setAskUpdate(false); installUpdate(); }}
+          extra={{ label: t("app.update.readChangelog"), onClick: () => { setAskUpdate(false); setSettingsTab("updates"); setTab("settings"); } }}>
         </Confirm>
       )}
       <UpdateProgress />

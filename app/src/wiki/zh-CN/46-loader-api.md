@@ -25,6 +25,10 @@ end)
 
 在会话模组中，大厅未获许可时挂钩只会调用原函数（[编写会话模组](wiki:session-mods)）。
 
+### obsidian.wrap(target, method, fn) {#obsidian-wrap-target-method-fn}
+
+与 `obsidian.hook` 相同，`fn` 失败时同样安全，但在大厅未获许可时也会继续运行。它用于替换的文件同样无法关闭的模组，否则关闭钩子会让游戏只修改了一半。其他情况都应使用 `obsidian.hook`。在较旧的加载器上请检查 `obsidian.capabilities.wrap`。
+
 ### obsidian.on_require(name, fn) {#obsidian-on-require-name-fn}
 
 游戏加载脚本 `name`（例如 `"lua/settings/perk_settings"`）时调用 `fn(module)`。可用于在游戏构建设置表之后立即修改它。
@@ -60,6 +64,8 @@ end)
 ### obsidian.session.members() {#obsidian-session-members}
 
 大厅中其他玩家的列表。每项包含 `peer`、`obsidian`（该玩家是否使用 Obsidian）、`modset` 和 `consent`。
+
+若要仅在所有玩家都有你的模组时运行，请在清单中设置 [`every_player`](wiki:session-mods#every-player)，无需自行比较这些数据。
 
 ### obsidian.session.forfeit_progress()、release_progress(key) 和 hold_progress() {#obsidian-session-forfeit-progress-release-progress-key-and-hold-progress}
 

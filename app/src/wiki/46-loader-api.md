@@ -25,6 +25,10 @@ When the global doesn't exist yet, the hook waits and goes in as soon as the gam
 
 In a session mod, the hook calls only the original while the lobby isn't cleared ([Writing session mods](wiki:session-mods)).
 
+### obsidian.wrap(target, method, fn)
+
+The same as `obsidian.hook`, with the same safety if `fn` fails, except that it keeps running while the lobby isn't cleared. It's for a mod whose replaced files can't be switched off either, where a hook going off would leave one game half modded. Anything else should use `obsidian.hook`. Check `obsidian.capabilities.wrap` on an older loader.
+
 ### obsidian.on_require(name, fn)
 
 Calls `fn(module)` when the game loads the script `name`, such as `"lua/settings/perk_settings"`. Use it to change a settings table right after the game builds it.
@@ -60,6 +64,8 @@ A view of table `t` to hand to other mods. The functions named in the list `free
 ### obsidian.session.members()
 
 A list of the other players in the lobby. Each entry has `peer`, `obsidian` (whether that player runs Obsidian), `modset` and `consent`.
+
+To run only when every player has your mod, set [`every_player`](wiki:session-mods#every-player) in the manifest instead of comparing these yourself.
 
 ### obsidian.session.forfeit_progress(), release_progress(key) and hold_progress()
 

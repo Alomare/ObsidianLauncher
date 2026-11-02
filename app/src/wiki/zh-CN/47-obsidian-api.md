@@ -128,7 +128,7 @@ end)
 | `api.game` | 当前状态、本地玩家、`is_host()` 和安全写入 |
 | `api.catalog` | 按名称列出武器、战略配备、技能、敌人和敌群：基础游戏，加上玩家拥有的 DLC。`usable(name)` 检查这一点，`unowned_path(path)` 检查武器的路径，`unlocked(name)` 说明玩家是否通过游玩解锁了某个物品。还有 `backpacks`、`crates`、`pickups`、`vehicles`、`by_subtype(name)` 和 `max_upgrade(path)` |
 | `api.player` | `heal`、`heal_by(amount)`、`set_health(n)`、`respawn`、`teleport`、`set_cosmetic`、`set_outline(r, g, b)`、`clear_status(name)`、`immune(name, on)`、`knockdown`、`drop_carried` 等 |
-| `api.gear` | `refill`、`give_weapon(slot, path, upgrade)`、`give_backpack(path, upgrade)`、`give_perk`、`remove_perk`、`refresh`、`weapons_of(owner)`、`tune(unit, component, changes)`、`add_drone(path, unit, upgrade)` |
+| `api.gear` | `refill`、`give_weapon(slot, path, upgrade)`、`give_backpack(path, upgrade)`、`give_perk`、`remove_perk`、`add_perk(name, unit)`、`remove_extra_perk(name, unit)`、`extra_perks(unit)`、`refresh`、`weapons_of(owner)`、`tune(unit, component, changes)`、`add_drone(path, unit, upgrade)` |
 | `api.stratagems` | `reset_cooldowns`、`refill_uses`、`give`、`drop`、`call(name, pos, delay)`、`edit(name, field, value)` |
 | `api.enemies` | `spawn`、`spawn_group`、`spawn_entity(path, pos)`、`kill_all`、`kill(unit)`、`list`、`info(unit)`、`nearest(pos)`、`apply_status(unit, template)`、`stun_near(radius)`、`near(radius, pos)`、`damage(unit, power, statuses)`、`set_hitpoints(unit, n)`、`despawn(unit)`、`load_faction(name)`、`set_pressure(t)`、`waves()`、`force_wave(name, pos)`、`carried()`（地图上的敌人，含尸体和生成队列）、`room()`（低于 `MAX_SAFE` 还能容纳的数量） |
 | `api.mission` | `finish_objectives`、`objectives()`、`mutator(name)`、`win`、`abort`、`practice` |
@@ -168,6 +168,8 @@ end)
 `give_weapon` 和 `give_backpack` 的 `upgrade` 取值 0 到 15。省略时使用玩家为该物品拥有的升级。`api.catalog.max_upgrade(path)` 给出最高值。
 
 `give_backpack` 只接受 `api.catalog.backpacks()` 中的路径，因为游戏会读取其他路径没有的设置，而且那里的错误无法捕获。旧背包会掉到地上，旧武器也一样。
+
+`add_perk(name, unit)` 在主技能之外为玩家增加技能，配套的有 `remove_extra_perk(name, unit)` 和 `extra_perks(unit)`。死亡后的新身体不带额外技能。带每帧代码的技能（如激光瞄准）返回 `"not_available"`，因为游戏只为主技能运行这些代码。
 
 `give_perk` 以游戏控制台的方式更换技能。大厅里有其他玩家时，激光瞄准器会返回 `"alone_only"`，因为他们的游戏会在没有初始化的情况下运行它。
 

@@ -128,7 +128,7 @@ end)
 | `api.game` | O estado atual, o jogador local, `is_host()` e escritas seguras |
 | `api.catalog` | Armas, estratagemas, vantagens, inimigos e grupos por nome: o jogo base, mais as DLCs que o jogador tem. `usable(name)` verifica isso, `unowned_path(path)` verifica o caminho de uma arma, e `unlocked(name)` diz se o jogador desbloqueou um item jogando. Também `backpacks`, `crates`, `pickups`, `vehicles`, `by_subtype(name)` e `max_upgrade(path)` |
 | `api.player` | `heal`, `heal_by(amount)`, `set_health(n)`, `respawn`, `teleport`, `set_cosmetic`, `set_outline(r, g, b)`, `clear_status(name)`, `immune(name, on)`, `knockdown`, `drop_carried` e mais |
-| `api.gear` | `refill`, `give_weapon(slot, path, upgrade)`, `give_backpack(path, upgrade)`, `give_perk`, `remove_perk`, `refresh`, `weapons_of(owner)`, `tune(unit, component, changes)`, `add_drone(path, unit, upgrade)` |
+| `api.gear` | `refill`, `give_weapon(slot, path, upgrade)`, `give_backpack(path, upgrade)`, `give_perk`, `remove_perk`, `add_perk(name, unit)`, `remove_extra_perk(name, unit)`, `extra_perks(unit)`, `refresh`, `weapons_of(owner)`, `tune(unit, component, changes)`, `add_drone(path, unit, upgrade)` |
 | `api.stratagems` | `reset_cooldowns`, `refill_uses`, `give`, `drop`, `call(name, pos, delay)`, `edit(name, field, value)` |
 | `api.enemies` | `spawn`, `spawn_group`, `spawn_entity(path, pos)`, `kill_all`, `kill(unit)`, `list`, `info(unit)`, `nearest(pos)`, `apply_status(unit, template)`, `stun_near(radius)`, `near(radius, pos)`, `damage(unit, power, statuses)`, `set_hitpoints(unit, n)`, `despawn(unit)`, `load_faction(name)`, `set_pressure(t)`, `waves()`, `force_wave(name, pos)`, `carried()`, os inimigos no mapa com cadáveres e a fila de surgimento, e `room()`, quantos mais cabem abaixo de `MAX_SAFE` |
 | `api.mission` | `finish_objectives`, `objectives()`, `mutator(name)`, `win`, `abort`, `practice` |
@@ -168,6 +168,8 @@ Estes efeitos continuam depois de um respawn. A maioria devolve o que havia ante
 `upgrade` em `give_weapon` e `give_backpack` vai de 0 a 15. Deixe de fora para usar o que o jogador tem para aquele item. `api.catalog.max_upgrade(path)` dá o maior valor.
 
 `give_backpack` só aceita caminhos de `api.catalog.backpacks()`, porque o jogo lê configurações que outros caminhos não têm, num ponto em que nada captura o erro. A mochila antiga cai no chão, como a arma antiga.
+
+`add_perk(name, unit)` coloca uma vantagem num jogador além da principal, junto com `remove_extra_perk(name, unit)` e `extra_perks(unit)`. Um corpo novo depois de uma morte começa sem nenhuma. Uma vantagem com código por quadro, como a mira laser, responde `"not_available"`, porque o jogo só roda esse código para a vantagem principal.
 
 `give_perk` troca vantagens do jeito que o console do jogo troca. A mira laser responde `"alone_only"` com outros jogadores no lobby, porque o jogo deles a rodaria sem preparo.
 

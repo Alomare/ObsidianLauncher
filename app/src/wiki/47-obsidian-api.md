@@ -128,7 +128,7 @@ end)
 | `api.game` | The current state, the local player, `is_host()`, and safe writes |
 | `api.catalog` | Weapons, stratagems, perks, enemies and groups by name: the base game, plus the DLC the player owns. `usable(name)` checks that, `unowned_path(path)` checks a weapon's path, and `unlocked(name)` says whether the player has unlocked an item by playing. Also `backpacks`, `crates`, `pickups`, `vehicles`, `by_subtype(name)` and `max_upgrade(path)` |
 | `api.player` | `heal`, `heal_by(amount)`, `set_health(n)`, `respawn`, `teleport`, `set_cosmetic`, `set_outline(r, g, b)`, `clear_status(name)`, `immune(name, on)`, `knockdown`, `drop_carried`, and more |
-| `api.gear` | `refill`, `give_weapon(slot, path, upgrade)`, `give_backpack(path, upgrade)`, `give_perk`, `remove_perk`, `refresh`, `weapons_of(owner)`, `tune(unit, component, changes)`, `add_drone(path, unit, upgrade)` |
+| `api.gear` | `refill`, `give_weapon(slot, path, upgrade)`, `give_backpack(path, upgrade)`, `give_perk`, `remove_perk`, `add_perk(name, unit)`, `remove_extra_perk(name, unit)`, `extra_perks(unit)`, `refresh`, `weapons_of(owner)`, `tune(unit, component, changes)`, `add_drone(path, unit, upgrade)` |
 | `api.stratagems` | `reset_cooldowns`, `refill_uses`, `give`, `drop`, `call(name, pos, delay)`, `edit(name, field, value)` |
 | `api.enemies` | `spawn`, `spawn_group`, `spawn_entity(path, pos)`, `kill_all`, `kill(unit)`, `list`, `info(unit)`, `nearest(pos)`, `apply_status(unit, template)`, `stun_near(radius)`, `near(radius, pos)`, `damage(unit, power, statuses)`, `set_hitpoints(unit, n)`, `despawn(unit)`, `load_faction(name)`, `set_pressure(t)`, `waves()`, `force_wave(name, pos)`, `carried()`, the enemies on the map with corpses and the spawn queue, and `room()`, how many more fit under `MAX_SAFE` |
 | `api.mission` | `finish_objectives`, `objectives()`, `mutator(name)`, `win`, `abort`, `practice` |
@@ -168,6 +168,8 @@ These effects stay on across respawns. Most give back what was there before, so 
 `upgrade` in `give_weapon` and `give_backpack` runs from 0 to 15. Leave it out for what the player owns for that item. `api.catalog.max_upgrade(path)` gives the highest one.
 
 `give_backpack` takes only paths from `api.catalog.backpacks()`, because the game reads settings other paths don't have, where nothing can catch the error. The old pack drops to the ground, as the old weapon does.
+
+`add_perk(name, unit)` puts a perk on a player on top of the main one, and `remove_extra_perk(name, unit)` and `extra_perks(unit)` go with it. A new body after a death starts with none. A perk with per-frame code, such as laser sight, answers `"not_available"`, because the game runs that code for the main perk alone.
 
 `give_perk` changes perks the way the game's console does. Laser sight answers `"alone_only"` with other players in the lobby, because their games would run it with no setup.
 

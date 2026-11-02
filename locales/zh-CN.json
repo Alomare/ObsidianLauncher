@@ -374,6 +374,7 @@
   "app.update.install": "安装",
   "app.update.installing": "正在安装。完成后 Obsidian 会重新打开。",
   "app.update.none": "已是最新版本。",
+  "app.update.readChangelog": "查看更新日志",
   "app.update.progressTitle": "正在更新到 Obsidian %s",
   "app.update.text": "现在安装吗？Obsidian 会关闭、安装新版本，然后重新打开。",
   "app.update.title": "Obsidian %s 已发布",

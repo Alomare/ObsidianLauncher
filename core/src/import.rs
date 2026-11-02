@@ -201,6 +201,8 @@ fn import_against(src: &Path, game: &GameInstall, lib: &Library, known: &[KnownB
         modules: Vec::new(),
         requires: Vec::new(),
         conflicts: Vec::new(),
+        load: None,
+        load_after: Vec::new(),
         loader_api: 1,
         extra: [("legacy".to_string(), serde_json::Value::Bool(true))].into(),
     };
