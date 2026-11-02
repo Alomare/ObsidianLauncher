@@ -83,6 +83,8 @@ pub struct Imported {
     pub installed: Vec<String>,
     /// Mods already in the library at the same or a newer version, kept as they are.
     pub kept: Vec<String>,
+    /// The guardrails the profile came with switched on: `block_achievements`, `freeze_progress`.
+    pub guardrails: Vec<String>,
 }
 
 /// Adds the profile in `src` as a new profile, installing the mods it carries. It does not become active.
@@ -117,12 +119,20 @@ pub fn import(data: &Path, src: &Path) -> Result<Imported> {
     profile.sync(&lib)?;
     // Letting other players' mods in is for each player to choose, not for a shared file.
     profile.consent = false;
+    // The guardrails only protect the player's own save, so they come along, and the player is told.
+    let mut guardrails = Vec::new();
+    if profile.block_achievements {
+        guardrails.push("block_achievements".to_string());
+    }
+    if profile.freeze_progress {
+        guardrails.push("freeze_progress".to_string());
+    }
     profile.save_named(data, &name)?;
     let image = images::TYPES.iter().map(|ext| tmp.path().join(format!("image.{ext}"))).find(|p| p.is_file());
     if let Some(img) = image {
         images::set(data, Owner::Profile, &name, Some(&img))?;
     }
-    Ok(Imported { name, installed, kept })
+    Ok(Imported { name, installed, kept, guardrails })
 }
 
 #[cfg(test)]
@@ -147,6 +157,8 @@ mod tests {
         let mut p = Profile::load(&home).unwrap();
         p.sync(&lib).unwrap();
         p.set_enabled("a.on", true).unwrap();
+        p.consent = true;
+        p.freeze_progress = true;
         p.options.insert("a.on".into(), [("speed".to_string(), serde_json::json!(3))].into());
         p.create_folder("Main", "#e8b931", &["a.on".to_string()]);
         p.save(&home).unwrap();
@@ -160,13 +172,15 @@ mod tests {
         let other = Library::open(&away).unwrap();
         add(&other, t.path(), "a.on", "0.9.0");
         let r = import(&away, &zip).unwrap();
-        assert_eq!(r, Imported { name: "Default (2)".into(), installed: vec!["a.on".into()], kept: vec![] });
+        assert_eq!(r, Imported { name: "Default (2)".into(), installed: vec!["a.on".into()], kept: vec![], guardrails: vec!["freeze_progress".into()] });
         assert_eq!(load_manifest(&other.mod_dir("a.on")).unwrap().version.to_string(), "1.0.0");
         assert!(!other.mod_dir("b.off").exists(), "disabled mods stay home");
         let q = Profile::load_named(&away, "Default (2)").unwrap();
         assert!(q.mods.iter().any(|m| m.id == "a.on" && m.enabled && m.folder.as_deref() == Some("f1")));
         assert_eq!(q.options["a.on"]["speed"], serde_json::json!(3));
         assert_eq!(q.folders[0].name, "Main");
+        assert!(!q.consent, "letting other players in is each player's own choice");
+        assert!(q.freeze_progress, "a guardrail only protects the player, so it comes along");
         assert!(images::custom(&away, Owner::Profile, "Default (2)").is_some());
 
         // Importing again keeps the installed copy.

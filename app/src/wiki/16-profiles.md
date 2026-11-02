@@ -1,10 +1,10 @@
 ---
 title: Profiles
 group: Getting started
-summary: Named sets of mods, order, options, color and the multiplayer setting, and how to share them.
+summary: Named sets of mods, order, options, color and the Guardrails, and how to share them.
 ---
 
-A profile remembers which mods are on, the load order, the folders, every option value and key, the multiplayer switch and a color. Switching profiles changes all of that at once. The library of mods is shared, so a mod only takes space once.
+A profile remembers which mods are on, the load order, the folders, every option value and key, the [Guardrails](wiki:guardrails) and a color. Switching profiles changes all of that at once. The library of mods is shared, so a mod only takes space once.
 
 Open the profiles with the **Profile** button at the top of the [Mods](app:mods) tab. From there you can make a new profile, copy one, rename one, delete one, or give one a picture and a color.
 
@@ -19,6 +19,6 @@ The color of a profile shows on the **Profile** button and on the switches that 
 
 **Export** saves the active profile as a `.zip`. The file holds the profile settings and a copy of every enabled mod.
 
-**Import** reads such a file. Each mod in it is installed if you don't have it, or if the copy in the file is newer than yours. The profile is added under a name that doesn't clash with yours.
+**Import** reads such a file. Each mod in it is installed if you don't have it, or if the copy in the file is newer than yours. The profile is added under a name that doesn't clash with yours. The guardrails that protect the account come along, and Obsidian says so. Letting other players' session mods in stays off, for each player to choose.
 
 A shared profile is the easiest way to give friends the same set of session mods, so your mods run when you play together ([Playing online](wiki:multiplayer)).

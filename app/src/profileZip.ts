@@ -20,7 +20,7 @@ export async function exportProfile(name: string) {
   }
 }
 
-type Imported = { snapshot: Snapshot; imported: { name: string; installed: string[]; kept: string[] } };
+type Imported = { snapshot: Snapshot; imported: { name: string; installed: string[]; kept: string[]; guardrails: string[] } };
 
 export async function importProfile() {
   const path = await open({ filters: filters() });
@@ -30,6 +30,9 @@ export async function importProfile() {
     setSnapshot(r.snapshot);
     const n = r.imported.installed.length;
     notify("info", n === 1 ? t("app.profiles.importedOne", r.imported.name) : t("app.profiles.imported", r.imported.name, n));
+    // The guardrails come along with a profile, so the player hears which ones are on.
+    const guards = r.imported.guardrails.map((g) => t(g === "freeze_progress" ? "app.guardrails.freeze" : "app.guardrails.achievements"));
+    if (guards.length > 0) notify("info", t("app.profiles.importedGuardrails", r.imported.name, guards.join(", ")));
   } catch (e) {
     notify("error", errorText(e));
   }

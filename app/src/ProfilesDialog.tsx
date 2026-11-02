@@ -4,7 +4,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { run } from "./api";
 import { Confirm } from "./Confirm";
-import { CloseIcon, CopyIcon, ExportIcon, ImportIcon, ModdersIcon, PaletteIcon, PenIcon, PlusIcon, TrashIcon } from "./Icons";
+import { CloseIcon, CopyIcon, ExportIcon, ImportIcon, ModdersIcon, PaletteIcon, PenIcon, PlusIcon, ShieldIcon, TrashIcon } from "./Icons";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { FOLDER_COLORS } from "./mods/FolderDialog";
 import { t } from "./i18n";
@@ -56,6 +56,8 @@ export function ProfilesDialog({ snap, onClose }: { snap: Snapshot; onClose: () 
                   {active && <span className="tag">{t("app.profiles.active")}</span>}
                   <span className={p.consent ? "consent-ico on" : "consent-ico"} role="img" aria-label={t(p.consent ? "app.profiles.consentOn" : "app.profiles.consentOff")}
                     data-tip={t(p.consent ? "app.profiles.consentOn" : "app.profiles.consentOff")}><ModdersIcon /></span>
+                  <span className={p.guarded ? "consent-ico on" : "consent-ico"} role="img" aria-label={t(p.guarded ? "app.profiles.guardedOn" : "app.profiles.guardedOff")}
+                    data-tip={t(p.guarded ? "app.profiles.guardedOn" : "app.profiles.guardedOff")}><ShieldIcon filled={p.guarded} /></span>
                 </div>
                 <div className="sub">{t(p.on === 1 ? "app.profiles.oneOn" : "app.profiles.on", p.on)}</div>
               </div>

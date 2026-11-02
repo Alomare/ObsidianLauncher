@@ -63,7 +63,11 @@ Uma lista dos outros jogadores no lobby. Cada entrada tem `peer`, `obsidian` (se
 
 ### obsidian.session.forfeit_progress(), release_progress(key) e hold_progress() {#obsidian-session-forfeit-progress-release-progress-key-and-hold-progress}
 
-Estas não fazem nada. O save de um jogador é dele, então o Obsidian não retém nada do progresso de uma missão, seja o que for que os mods façam. Elas continuam existindo para que os mods que as chamam sigam funcionando. Só os relatórios da Guerra Galáctica e dos placares continuam bloqueados enquanto houver conteúdo de sessão aplicado ([A Guerra Galáctica](wiki:galactic-war)).
+Estas não fazem nada. O save de um jogador é dele, então o Obsidian não retém nada do progresso de uma missão, seja o que for que os mods façam. Elas continuam existindo para que os mods que as chamam sigam funcionando. Só os relatórios da Guerra Galáctica e dos placares continuam bloqueados enquanto houver conteúdo de sessão aplicado ([A Guerra Galáctica](wiki:galactic-war)). Para jogar sem que uma missão conte, o jogador liga **Congelar a progressão da minha conta** em [Proteções](wiki:guardrails).
+
+### obsidian.guardrails() {#obsidian-guardrails}
+
+O que o jogador escolheu em **Proteções** para esta abertura do jogo, como `{ consent, block_achievements, freeze_progress }`. Um mod pode lê-las, por exemplo para avisar que a conta está congelada. Só o jogador pode mudá-las, e o loader as aplica por baixo de todos os mods ([Proteções](wiki:guardrails)).
 
 ### obsidian.on_session(fn) {#obsidian-on-session-fn}
 

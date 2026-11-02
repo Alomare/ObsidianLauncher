@@ -85,6 +85,8 @@ pub fn run() {
             commands::rename_profile,
             commands::delete_profile,
             commands::set_consent,
+            commands::set_block_achievements,
+            commands::set_freeze_progress,
             commands::set_profile_color,
             commands::set_image,
             commands::system_info,

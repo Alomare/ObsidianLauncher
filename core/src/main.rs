@@ -52,6 +52,10 @@ enum Command {
     Status,
     /// Allow session mods from other Obsidian users (on or off)
     Consent { state: OnOff },
+    /// Keep Steam achievements from unlocking (on or off), from the next launch
+    BlockAchievements { state: OnOff },
+    /// Keep the account's progression as it is (on or off), from the next launch
+    FreezeProgress { state: OnOff },
     /// Set a mod option, for example: obsidian set author.mod distance 7
     Set { id: String, option: String, value: String },
     /// Delete a mod from the library
@@ -111,7 +115,7 @@ fn run(cli: Cli) -> Result<()> {
     let uses_library = matches!(
         cli.command,
         Command::Import { .. } | Command::List | Command::Order { .. } | Command::Enable { .. } | Command::Disable { .. } | Command::Conflicts
-            | Command::Consent { .. } | Command::Set { .. } | Command::Key { .. } | Command::Profile { .. }
+            | Command::Consent { .. } | Command::BlockAchievements { .. } | Command::FreezeProgress { .. } | Command::Set { .. } | Command::Key { .. } | Command::Profile { .. }
             | Command::Remove { .. } | Command::RestoreStarter | Command::Updates | Command::Update { .. }
     );
     let mut profile = Profile::default();
@@ -278,6 +282,16 @@ fn run(cli: Cli) -> Result<()> {
         Command::Consent { state } => {
             profile.consent = matches!(state, OnOff::On);
             live_change(&profile, &data, &lib, &game()?, &format!("Session mods from other Obsidian users are now {}", if profile.consent { "allowed" } else { "not allowed" }))?;
+        }
+        Command::BlockAchievements { state } => {
+            profile.block_achievements = matches!(state, OnOff::On);
+            let now = if profile.block_achievements { "kept from unlocking" } else { "unlocking as usual" };
+            live_change(&profile, &data, &lib, &game()?, &format!("Achievements are {now} from the next launch"))?;
+        }
+        Command::FreezeProgress { state } => {
+            profile.freeze_progress = matches!(state, OnOff::On);
+            let now = if profile.freeze_progress { "frozen" } else { "saved as usual" };
+            live_change(&profile, &data, &lib, &game()?, &format!("Your progression is {now} from the next launch"))?;
         }
         Command::Set { id, option, value } => {
             // 7, true and "night" all work; anything that isn't JSON is taken as text.

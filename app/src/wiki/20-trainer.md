@@ -57,7 +57,7 @@ Actions that only the host can do say so when you choose them.
 
 ## What it won't do
 
-- **It doesn't edit your progression.** None of its pages write your save. What you earn in a mission with it on is yours, as in any other.
+- **It doesn't edit your progression.** No page of the Trainer writes your save. What you earn in a mission with it on is yours, as in any other. To play without it counting, use [Guardrails](wiki:guardrails).
 - **It won't give you DLC you don't own.** Lists show all of the base game, whatever you've unlocked by playing, plus the DLC you own. Items only reach you for that mission, so nothing is added to your save.
 - **It won't touch the shared war.** Commands that report to the Galactic War are refused, and results stay blocked ([The Galactic War](wiki:galactic-war)).
 

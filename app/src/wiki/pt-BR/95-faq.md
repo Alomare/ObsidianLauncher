@@ -12,7 +12,7 @@ O HELLDIVERS não tem anti-cheat, e o Obsidian nunca edita um arquivo do jogo. M
 
 ### Por que não encontro nenhum lobby? {#why-can-t-i-find-any-lobbies}
 
-Com mods de sessão aplicados, ou com **Permitir que outros modders afetem meu jogo** ligado, você só vê outros jogadores do Obsidian. Desligue o interruptor e aplique sem mods de sessão para ter o matchmaking normal ([Jogar online](wiki:multiplayer#matchmaking)).
+Com mods de sessão aplicados, ou com **Permitir mods de sessão de outros jogadores no meu jogo** ligado em Proteções, você só vê outros jogadores do Obsidian. Desligue o interruptor e aplique sem mods de sessão para ter o matchmaking normal ([Jogar online](wiki:multiplayer#matchmaking)).
 
 ### Eu e um amigo usamos o Obsidian. Por que os meus mods de sessão estão desligados? {#my-friend-and-i-both-use-obsidian-why-are-my-session-mods-off}
 

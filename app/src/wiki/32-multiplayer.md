@@ -6,7 +6,7 @@ summary: Matchmaking, the multiplayer switch, and when session mods run in a lob
 
 ## The multiplayer switch
 
-**Allow other modders to affect my game** sits at the top of the window. It belongs to the active profile. Switching it on says one thing: other Obsidian players may run their session mods in your game.
+**Allow other players' session mods in my game** is one of the switches in [Guardrails](wiki:guardrails), at the top of the window. It belongs to the active profile and applies from the next launch. Switching it on says one thing: other Obsidian players may run their session mods in your game.
 
 It does not decide whether your own session mods run. That depends on the other players, as described below.
 

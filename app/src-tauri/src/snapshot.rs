@@ -119,6 +119,8 @@ pub struct ProfileRow {
     /// Mods switched on, counting only those in the library.
     pub on: usize,
     pub consent: bool,
+    /// Either of the guardrails that protect the player's own save.
+    pub guarded: bool,
     pub image: Option<ImageRef>,
     /// `#rrggbb`, or none for the default gold.
     pub color: Option<String>,
@@ -135,6 +137,8 @@ pub struct Snapshot {
     /// The active profile's folders.
     pub folders: Vec<obsidian_core::folders::Folder>,
     pub consent: bool,
+    pub block_achievements: bool,
+    pub freeze_progress: bool,
     pub conflicts: Vec<ConflictRow>,
     pub changes: ChangesWaiting,
     /// Whether a purge has anything to remove.
@@ -327,11 +331,13 @@ pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Re
                 let p = Profile::load_named(data, &name).unwrap_or_default();
                 let on = p.mods.iter().filter(|e| e.enabled && manifests.contains_key(&e.id)).count();
                 let image = image_ref(images::custom(data, Owner::Profile, &name));
-                ProfileRow { name, on, consent: p.consent, image, color: p.color }
+                ProfileRow { name, on, consent: p.consent, guarded: p.block_achievements || p.freeze_progress, image, color: p.color }
             })
             .collect(),
         profiles: profiles::list(data)?,
         consent: profile.consent,
+        block_achievements: profile.block_achievements,
+        freeze_progress: profile.freeze_progress,
         conflicts,
         changes: changes_waiting_for(&comp, &profile, data, game_install.as_ref().map(|g| g.contents()).as_deref()).unwrap_or(ChangesWaiting::Waiting),
         deployed: has_deployed(data),

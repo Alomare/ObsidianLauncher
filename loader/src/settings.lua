@@ -47,8 +47,8 @@ local function find(list, id)
 	return nil
 end
 
--- Reads the file and fills core.consent_on and the option values. A missing file leaves the
--- defaults: no consent and every option at the default.
+-- Reads the file and fills core.consent_on, the guardrails and the option values. A missing file
+-- leaves the defaults: no consent, no guardrails and every option at the default.
 function M.load(core, path)
 	M.core = core
 	local mods = {}
@@ -70,6 +70,8 @@ function M.load(core, path)
 			-- blank or comment
 		elseif x[1] == "consent" and #x == 2 and (x[2] == "0" or x[2] == "1") then
 			core.consent_on = x[2] == "1"
+		elseif (x[1] == "block_achievements" or x[1] == "freeze_progress") and #x == 2 and (x[2] == "0" or x[2] == "1") then
+			core[x[1]] = x[2] == "1"
 		elseif x[1] == "option" and #x == 5 then
 			local opt = mods[x[2]] and find(mods[x[2]].options, x[3])
 			local v = nil

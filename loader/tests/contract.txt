@@ -3,6 +3,7 @@ obsidian.caller function
 obsidian.capabilities table
 obsidian.capabilities.after_startup boolean
 obsidian.capabilities.caller boolean
+obsidian.capabilities.guardrails boolean
 obsidian.capabilities.hook boolean
 obsidian.capabilities.import boolean
 obsidian.capabilities.keybind boolean
@@ -20,6 +21,7 @@ obsidian.capabilities.storage boolean
 obsidian.capabilities.text boolean
 obsidian.capabilities.toast boolean
 obsidian.capabilities.ui boolean
+obsidian.guardrails function
 obsidian.hook function
 obsidian.import function
 obsidian.keybind function

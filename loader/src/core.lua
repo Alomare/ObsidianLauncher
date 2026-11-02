@@ -4,6 +4,7 @@ local log = require("obsidian/loader/log")
 local hooks = require("obsidian/loader/hooks")
 local session = require("obsidian/loader/session")
 local backend_block = require("obsidian/loader/backend_block")
+local guardrails = require("obsidian/loader/guardrails")
 local pool = require("obsidian/loader/pool")
 local settings = require("obsidian/loader/settings")
 local game_text = require("obsidian/loader/game_text")
@@ -17,13 +18,13 @@ local STDLIB = { "string", "table", "math", "io", "os", "coroutine", "debug", "p
 
 local M = {
 	mods = {}, mods_by_id = {}, notices = {}, notices_shown = {}, after = {}, frame_callbacks = {},
-	current = nil, deploy = nil, consent_on = false, frame_count = 0,
+	current = nil, deploy = nil, consent_on = false, block_achievements = false, freeze_progress = false, frame_count = 0,
 }
 
 local capabilities = {
 	after_startup = true, log = true, hook = true, on_require = true, on_session = true, session = true,
 	settings = true, keybind = true, text = true, on_frame = true, module = true, import = true, menu = true, toast = true, notify = true, storage = true, caller = true,
-	ui = true, scope = true,
+	ui = true, scope = true, guardrails = true,
 }
 local api = {
 	version = API_VERSION,
@@ -38,6 +39,7 @@ local api = {
 	ui = ui.api(),
 	toast = menu.toast,
 	storage = storage.api(),
+	guardrails = guardrails.api(M),
 	capabilities = B.setmetatable({}, {
 		__index = capabilities,
 		__newindex = function() B.error("obsidian.capabilities is read-only", 2) end,
@@ -352,6 +354,7 @@ function M.boot()
 	hooks.wrap_require()
 
 	backend_block.setup(M, hooks)
+	guardrails.setup(M, hooks)
 	-- The multiplayer terminal lists only lobbies with the same build hash, so the filter titles say so.
 	if tag then
 		game_text.replace(M, hooks, "campaign_public", "lobby_public")

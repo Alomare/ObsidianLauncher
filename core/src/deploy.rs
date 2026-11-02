@@ -608,6 +608,19 @@ mod tests {
     }
 
     #[test]
+    fn a_guardrail_alone_deploys_the_loader() {
+        let w = world();
+        let mut p = Profile::load(&w.data).unwrap();
+        p.set_enabled("mod-aa", false).unwrap();
+        p.set_enabled("mod-bb", false).unwrap();
+        p.freeze_progress = true;
+        p.save(&w.data).unwrap();
+        assert_eq!(deploy(&w.game, &w.data, &w.opts).unwrap().patches, vec![patch(&w, "9cf71054ea26dddf.patch_0")]);
+        assert!(settings_text(&w).contains("freeze_progress\t1\n"));
+        assert!(settings_text(&w).contains("block_achievements\t0\n"));
+    }
+
+    #[test]
     fn slot_follows_foreign_patches() {
         let w = world();
         bundle::write_file(&patch(&w, "00000000000000aa.patch_0"), &base(7)).unwrap();

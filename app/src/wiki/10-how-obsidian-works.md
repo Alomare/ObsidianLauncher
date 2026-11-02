@@ -30,7 +30,7 @@ The loader also handles the multiplayer rules. Mods that change the shared game 
 | Wiki | These guides |
 | [Settings](app:settings) | Language, theme, game folder, updates |
 
-The bar at the top holds the multiplayer switch and three buttons:
+The bar at the top holds [Guardrails](wiki:guardrails), the shield, and three buttons:
 
 - **Purge** takes every Obsidian patch out of the game.
 - **Deploy** puts the enabled mods into the game. It turns green when your changes have not been deployed yet.

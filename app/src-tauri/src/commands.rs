@@ -286,6 +286,25 @@ pub async fn set_consent(ctx: State<'_, Ctx>, on: bool) -> CmdResult<Snapshot> {
     })
 }
 
+/// The guardrails belong to the active profile too, and reach the game at its next launch.
+#[tauri::command]
+pub async fn set_block_achievements(ctx: State<'_, Ctx>, on: bool) -> CmdResult<Snapshot> {
+    let _turn = ctx.turn();
+    live_edit(&ctx, |_, p| {
+        p.block_achievements = on;
+        Ok(())
+    })
+}
+
+#[tauri::command]
+pub async fn set_freeze_progress(ctx: State<'_, Ctx>, on: bool) -> CmdResult<Snapshot> {
+    let _turn = ctx.turn();
+    live_edit(&ctx, |_, p| {
+        p.freeze_progress = on;
+        Ok(())
+    })
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Backup {

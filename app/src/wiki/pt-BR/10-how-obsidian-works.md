@@ -30,7 +30,7 @@ O loader também cuida das regras do multijogador. Mods que mudam o jogo compart
 | Wiki | Estes guias |
 | [Configurações](app:settings) | Idioma, tema, pasta do jogo, atualizações |
 
-A barra de cima tem o interruptor de multijogador e três botões:
+A barra de cima tem as [Proteções](wiki:guardrails), o escudo, e três botões:
 
 - **Limpar** tira do jogo todos os patches do Obsidian.
 - **Aplicar** coloca os mods ligados no jogo. Ele fica verde quando há mudanças que ainda não foram aplicadas.

@@ -1,4 +1,4 @@
-//! The game-side settings file the loader reads at boot: consent, option values
+//! The game-side settings file the loader reads at boot: consent, the guardrails, option values
 //! and keys. A change applies at the next game launch, with no redeploy.
 
 use std::path::{Path, PathBuf};
@@ -12,6 +12,8 @@ pub const DIR: &str = "ObsidianModManager";
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Settings {
     pub consent: bool,
+    pub block_achievements: bool,
+    pub freeze_progress: bool,
     /// (mod id, option id, option type, value text)
     pub options: Vec<(String, String, String, String)>,
     /// (mod id, keybind id, key name)
@@ -33,6 +35,8 @@ fn field(s: &str) -> String {
 pub fn render(s: &Settings) -> String {
     let mut out = String::from("# Written by Obsidian. Changes made here are replaced at the next deploy.\n");
     out.push_str(&format!("consent\t{}\n", if s.consent { 1 } else { 0 }));
+    out.push_str(&format!("block_achievements\t{}\n", if s.block_achievements { 1 } else { 0 }));
+    out.push_str(&format!("freeze_progress\t{}\n", if s.freeze_progress { 1 } else { 0 }));
     for (m, o, t, v) in &s.options {
         out.push_str(&format!("option\t{}\t{}\t{}\t{}\n", field(m), field(o), field(t), field(v)));
     }
@@ -49,6 +53,8 @@ pub fn parse(text: &str) -> Settings {
         let f: Vec<&str> = line.split('\t').collect();
         match f.as_slice() {
             ["consent", v] => s.consent = *v == "1",
+            ["block_achievements", v] => s.block_achievements = *v == "1",
+            ["freeze_progress", v] => s.freeze_progress = *v == "1",
             ["option", m, o, t, v] => s.options.push((m.to_string(), o.to_string(), t.to_string(), v.to_string())),
             ["key", m, k, key] => s.keys.push((m.to_string(), k.to_string(), key.to_string())),
             _ => {}
@@ -80,6 +86,8 @@ mod tests {
     fn settings_file_round_trips() {
         let s = Settings {
             consent: true,
+            block_achievements: true,
+            freeze_progress: true,
             options: vec![("a.b".into(), "d".into(), "number".into(), "2.5".into())],
             keys: vec![("a.b".into(), "toggle".into(), "f8".into())],
         };

@@ -57,7 +57,7 @@ Ações que só o host pode fazer avisam quando você as escolhe.
 
 ## O que ele não faz {#what-it-wont-do}
 
-- **Não edita sua progressão.** Nenhuma das páginas dele escreve no seu save. O que você ganha numa missão com ele ligado é seu, como em qualquer outra.
+- **Não edita sua progressão.** Nenhuma das páginas dele escreve no seu save. O que você ganha numa missão com ele ligado é seu, como em qualquer outra. Para jogar sem que conte, use as [Proteções](wiki:guardrails).
 - **Não dá DLC que você não tem.** As listas mostram todo o jogo base, o que você desbloqueou jogando, mais as DLCs que você tem. Os itens só chegam a você durante aquela missão, então nada é adicionado ao seu save.
 - **Não mexe na guerra compartilhada.** Comandos que informam a Guerra Galáctica são recusados, e os resultados continuam bloqueados ([A Guerra Galáctica](wiki:galactic-war)).
 

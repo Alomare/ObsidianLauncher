@@ -11,6 +11,8 @@
   "menu_unavailable": "Indisponible pour le moment.",
   "mod_failed": "%s a échoué et reste désactivé jusqu'au redémarrage du jeu.",
   "session_not_cleared": "D'autres joueurs ici utilisent des mods différents, et certains des vôtres modifient des fichiers du jeu qui ne peuvent pas être mis en pause. Envisagez de quitter cette partie.",
+  "progress_frozen": "Votre progression est gelée jusqu'à la fermeture du jeu : rien de ce que vous gagnez ou dépensez n'est sauvegardé.",
+  "achievements_blocked": "Les succès sont désactivés jusqu'à la fermeture du jeu.",
   "uploads_blocked": "Les résultats de la Guerre galactique et des classements ne sont pas envoyés tant que des mods de session sont déployés.",
   "every_player_off": "%s est désactivé, car certains joueurs ici ne l'utilisent pas.",
   "proving_grounds_blocked": "%s est un mode classé, il reste donc fermé tant que des mods de session sont actifs."

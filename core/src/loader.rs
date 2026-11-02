@@ -114,9 +114,9 @@ pub fn find_loader_dir() -> Result<PathBuf> {
     })
 }
 
-/// The loader goes into the game whenever a mod is on or consent is on.
+/// The loader goes into the game whenever a mod, consent or a guardrail is on.
 pub fn needed(comp: &Composition, profile: &Profile) -> bool {
-    !comp.mods.is_empty() || profile.consent
+    !comp.mods.is_empty() || profile.consent || profile.block_achievements || profile.freeze_progress
 }
 
 /// The folder of a mod's resources. Ids are already limited to `[a-z0-9._-]`.
@@ -410,10 +410,15 @@ pub fn build_inputs(loader_dir: &Path, comp: &Composition) -> Result<Vec<u8>> {
     Ok(out)
 }
 
-/// The settings file for this profile: consent and the value of every option of each
+/// The settings file for this profile: consent, the guardrails and the value of every option of each
 /// enabled mod with an entry. Reads manifests only, so nothing is compiled.
 pub fn settings_for(lib: &Library, profile: &Profile) -> Result<Settings> {
-    let mut s = Settings { consent: profile.consent, ..Default::default() };
+    let mut s = Settings {
+        consent: profile.consent,
+        block_achievements: profile.block_achievements,
+        freeze_progress: profile.freeze_progress,
+        ..Default::default()
+    };
     for entry in profile.mods.iter().filter(|m| m.enabled) {
         // A mod that can't be read stays out, as it does in a deploy.
         let Ok(m) = load_manifest(&lib.mod_dir(&entry.id)) else { continue };

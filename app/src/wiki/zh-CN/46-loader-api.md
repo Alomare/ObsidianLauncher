@@ -63,7 +63,11 @@ end)
 
 ### obsidian.session.forfeit_progress()、release_progress(key) 和 hold_progress() {#obsidian-session-forfeit-progress-release-progress-key-and-hold-progress}
 
-这些函数不起任何作用。玩家自己的存档归玩家所有，因此无论模组做什么，Obsidian 都不会扣留任务的任何进度。保留它们是为了让调用它们的模组继续正常工作。部署了会话内容时，只有银河战争和排行榜的报告仍会被拦截（[银河战争](wiki:galactic-war)）。
+这些函数不起任何作用。玩家自己的存档归玩家所有，因此无论模组做什么，Obsidian 都不会扣留任务的任何进度。保留它们是为了让调用它们的模组继续正常工作。部署了会话内容时，只有银河战争和排行榜的报告仍会被拦截（[银河战争](wiki:galactic-war)）。要在不计入进度的情况下游戏，玩家可以在[防护](wiki:guardrails)中打开 **冻结我账号的进度**。
+
+### obsidian.guardrails() {#obsidian-guardrails}
+
+玩家在 **防护** 中为本次启动所做的选择，形式为 `{ consent, block_achievements, freeze_progress }`。模组可以读取它们，例如提示玩家账号已冻结。只有玩家可以更改它们，加载器会在所有模组之下执行它们（[防护](wiki:guardrails)）。
 
 ### obsidian.on_session(fn) {#obsidian-on-session-fn}
 

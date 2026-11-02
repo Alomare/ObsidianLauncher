@@ -73,7 +73,7 @@ pub fn set_key(lib: &Library, profile: &mut Profile, id: &str, keybind: &str, ke
     Ok(())
 }
 
-/// Writes the profile's consent, option values and keys where the loader reads them.
+/// Writes the profile's consent, guardrails, option values and keys where the loader reads them.
 pub fn write_settings(lib: &Library, profile: &Profile, saves_dir: &Path) -> Result<()> {
     crate::settings::write(&crate::settings::game_side_dir(saves_dir), &crate::loader::settings_for(lib, profile)?)
 }

@@ -35,6 +35,10 @@ export const GitHubIcon = () => (
 );
 export const ProfilesIcon = () => <Icon><circle cx="12" cy="8" r="4" /><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" /></Icon>;
 /** Two people: other modders can reach this profile's game. */
+/** A shield, filled while it guards something. */
+export const ShieldIcon = ({ filled = false }: { filled?: boolean }) => (
+  <Icon><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5-4.3-1.2-7.5-4.9-7.5-9.5V6z" fill={filled ? "currentColor" : "none"} /></Icon>
+);
 export const ModdersIcon = () => <Icon><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c.8-3.6 3.2-5.5 6.5-5.5s5.7 1.9 6.5 5.5M15.5 4.8a3.5 3.5 0 0 1 0 6.4M18 14.9c1.9.8 3 2.5 3.5 5.1" /></Icon>;
 export const CogIcon = () => (
   <Icon>

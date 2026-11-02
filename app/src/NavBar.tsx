@@ -1,9 +1,9 @@
-// The navigation bar: the tabs (Home, Mods, Wiki), then the "prepare to play" area: the multiplayer consent of the active
+// The navigation bar: the tabs (Home, Mods, Wiki), then the "prepare to play" area: the Guardrails of the active
 // profile, Purge, Deploy and Play, and the Settings tab at the far end (spec section 3). Deploy turns green while changes wait.
 // When one of the three starts, one glow in its color crosses from Play toward the tabs, and fades out before them.
-import { type ComponentType, useLayoutEffect, useRef } from "react";
-import { run } from "./api";
-import { BookIcon, CogIcon, DeployIcon, HomeIcon, ModsIcon, PlayIcon, PurgeIcon, WarnIcon } from "./Icons";
+import { type ComponentType, useLayoutEffect, useRef, useState } from "react";
+import { GuardrailsDialog, guardrailsSummary, guardsOn } from "./GuardrailsDialog";
+import { BookIcon, CogIcon, DeployIcon, HomeIcon, ModsIcon, PlayIcon, PurgeIcon, ShieldIcon, WarnIcon } from "./Icons";
 import { t } from "./i18n";
 import type { Tab } from "./nav";
 import type { Snapshot } from "./types";
@@ -33,6 +33,8 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
   const locked = busy || running || !snap || missing;
   const why = running ? t("app.action.closeGameFirst") : missing ? t("app.error.GameNotFound") : undefined;
   const waiting = snap?.changes === "Waiting";
+  const [guarding, setGuarding] = useState(false);
+  const guards = snap ? guardsOn(snap) : 0;
   // HD1 gets no more updates, so only a missing game or an unknown build needs a word here.
   const warn = snap && (missing || snap.game === "unknown") ? t(`app.game.${snap.game}`) : null;
   // The glow runs from the end of Play to the end of the first tabs, so it never reaches them.
@@ -65,12 +67,14 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
           </span>
         )}
         {snap && (
-          <label className="consent" data-tip-title={t("app.nav.consentTitle", snap.profile)} data-tip={t("app.nav.consentHint")}>
-            <span>{t("app.nav.consent")}</span>
-            <button role="switch" aria-checked={snap.consent} aria-label={t("app.nav.consentTitle", snap.profile)} className={snap.consent ? "sw on" : "sw"}
-              onClick={() => run("set_consent", { on: !snap.consent })} />
-          </label>
+          <button className={guards ? "guard on" : "guard"} onClick={() => setGuarding(true)} aria-haspopup="dialog"
+            data-tip-title={t("app.guardrails.button", snap.profile)} data-tip={guardrailsSummary(snap)}>
+            <ShieldIcon filled={guards > 0} />
+            <span>{t("app.nav.guardrails")}</span>
+            {guards > 0 && <i className="guard-count" aria-hidden="true">{guards}</i>}
+          </button>
         )}
+        {guarding && snap && <GuardrailsDialog snap={snap} onClose={() => setGuarding(false)} />}
         <div className="actions">
           <button className={snap?.deployed ? "btn icon danger" : "btn icon"} onClick={onPurge} disabled={locked} data-tip-title={t("app.action.purge")} data-tip={why ?? t("app.action.purgeHint")} aria-label={t("app.action.purge")}>
             <PurgeIcon />

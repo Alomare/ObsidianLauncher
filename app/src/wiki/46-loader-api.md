@@ -63,7 +63,11 @@ A list of the other players in the lobby. Each entry has `peer`, `obsidian` (whe
 
 ### obsidian.session.forfeit_progress(), release_progress(key) and hold_progress()
 
-These do nothing. A player's own save is theirs, so Obsidian holds none of a mission's progress back, whatever the mods do. They stay so mods that call them keep working. Only Galactic War and leaderboard reports stay blocked while session content is deployed ([The Galactic War](wiki:galactic-war)).
+These do nothing. A player's own save is theirs, so Obsidian holds none of a mission's progress back, whatever the mods do. They stay so mods that call them keep working. Only Galactic War and leaderboard reports stay blocked while session content is deployed ([The Galactic War](wiki:galactic-war)). To play without a mission counting, a player switches on **Freeze my account's progression** in [Guardrails](wiki:guardrails).
+
+### obsidian.guardrails()
+
+What the player chose in **Guardrails** for this launch, as `{ consent, block_achievements, freeze_progress }`. A mod can read them, for example to tell the player their account is frozen. Only the player can change them, and the loader enforces them under every mod ([Guardrails](wiki:guardrails)).
 
 ### obsidian.on_session(fn)
 

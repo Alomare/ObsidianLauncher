@@ -172,6 +172,13 @@ pub struct Profile {
     /// "Allow session mods from other Obsidian users".
     #[serde(default)]
     pub consent: bool,
+    /// No Steam achievement unlocks, and no achievement progress kept, while this profile plays.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub block_achievements: bool,
+    /// Nothing about the account's progression reaches the save while this profile plays: XP, samples,
+    /// unlocks, upgrades, stats and achievement progress stay as they were at launch.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub freeze_progress: bool,
     /// Option values per mod id, as set by the player.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub options: BTreeMap<String, BTreeMap<String, serde_json::Value>>,
