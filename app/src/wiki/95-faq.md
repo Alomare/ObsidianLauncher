@@ -38,7 +38,7 @@ The one lower in the list ([Load order](wiki:load-order)).
 
 ### Do I need an ultrawide mod?
 
-No. Obsidian Quality of Life removes the black bars on wide screens, and that option starts on. An imported ultrawide patch does the same job, but it counts as a session mod ([Scopes](wiki:scopes)).
+No. Obsidian Quality of Life removes the black bars on wide screens, and that option starts on. An imported ultrawide patch does the same job.
 
 ### What is Obsidian Quality of Life?
 

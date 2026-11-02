@@ -6,7 +6,7 @@ use std::path::Path;
 use serde_json::Value;
 
 use crate::library::{Library, Profile};
-use crate::manifest::{Manifest, Scope};
+use crate::manifest::Manifest;
 use crate::options::{parse_keybinds, validate};
 use crate::{ObsidianError, Result};
 
@@ -25,7 +25,7 @@ fn manifest(lib: &Library, id: &str) -> Result<Manifest> {
 
 /// Whether a change to `option` of `m` needs a deploy.
 pub fn needs_deploy(m: &Manifest, option: &str, client: bool) -> bool {
-    m.resources.iter().any(|r| r.when.contains_key(option)) || (m.scope != Scope::Client && !client) || m.entry.is_none()
+    m.resources.iter().any(|r| r.when.contains_key(option)) || (!m.scope.is_client() && !client) || m.entry.is_none()
 }
 
 /// Sets an option to `value`, or back to the default when `value` is `None`.

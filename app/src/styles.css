@@ -12,7 +12,7 @@
   --bar: rgba(0, 0, 0, 0.32);
   --tx: #ecebe7; --mu: #b4b5b2; --ln: rgba(255, 255, 255, 0.1); --row: rgba(255, 255, 255, 0.05);
   --gold: #f0b429; --goldtx: #f0b429; --on: #1b1b1b;
-  --warn: #ff9b5e; --client: #2fb889; --session: #e8891c; --library: #4a90d9; --go: #2fb889;
+  --warn: #ff9b5e; --client: #2fb889; --session: #e8891c; --library: #4a90d9; --unspecified: #8a8f98; --go: #2fb889;
   /* A step below the panels, for content set into them. */
   --well: rgba(0, 0, 0, 0.17);
   --scale: 1; --text: 1;
@@ -145,6 +145,7 @@ button.bare:hover { color: var(--tx); }
 .scope i { width: 0.6rem; height: 0.6rem; transform: rotate(45deg); display: inline-block; background: var(--client); }
 .scope.session i { background: var(--session); }
 .scope.library i { background: var(--library); }
+.scope.unspecified i { background: var(--unspecified); }
 /* The update check beside the switches: one mod, a folder, or the whole list in the header */
 .bare.up-ck { padding: 0.1rem; justify-self: center; }
 .up-ck svg { width: 1rem; height: 1rem; }

@@ -180,7 +180,7 @@ fn read_texts(dir: &Path) -> Result<Value> {
 }
 
 fn scope_text(s: &Scope) -> &'static str {
-    if *s == Scope::Client { "client" } else { "session" }
+    if s.is_client() { "client" } else { "session" }
 }
 
 /// The ids of the libraries that run as session mods: those an enabled session mod requires,
@@ -549,6 +549,19 @@ mod tests {
 
     fn scope_in<'a>(table: &'a Value, id: &str) -> &'a str {
         table["mods"].as_array().unwrap().iter().find(|m| m["id"] == id).unwrap()["scope"].as_str().unwrap()
+    }
+
+    #[test]
+    fn a_mod_with_no_scope_runs_as_a_client_mod() {
+        let t = spaced_tempdir();
+        let lib = Library::open(&t.path().join("data")).unwrap();
+        let d = t.path().join("stage-legacy");
+        put(&d, "obsidian.json", br#"{"obsidian":1,"id":"legacy","version":"1.0.0","name":{"en":"legacy"},"entry":"main.lua"}"#);
+        put(&d, "main.lua", b"return true\n");
+        lib.install(&d).unwrap();
+        let table = table_of(&lib, &["legacy"]);
+        assert_eq!(scope_in(&table, "legacy"), "client");
+        assert_eq!(table["has_session"], false, "it keeps the player in the normal pool");
     }
 
     #[test]

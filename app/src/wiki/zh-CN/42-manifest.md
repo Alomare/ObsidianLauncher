@@ -43,7 +43,7 @@ summary: 描述模组的文件中的每个字段。
 | `authors` | 否 | 作者名单。 |
 | `image` | 否 | 模组文件夹中的正方形 PNG、JPG 或 WebP 图片，最大 4 MB。 |
 | `source` | 否 | 模组的地址，显示在模组详情中。如果是 GitHub 仓库（例如 `https://github.com/you/mod`），玩家还可以在应用中更新此模组（[分享模组](wiki:sharing#updates)）。 |
-| `scope` | 否 | `client`、`session` 或 `library`（[作用范围](wiki:scopes)）。缺失或未知时视为 `session`。 |
+| `scope` | 否 | `client`、`session` 或 `library`（[作用范围](wiki:scopes)）。缺失或未知时模组为未指定，作为客户端模组运行；带 `every_player` 时作为会话模组运行。 |
 | `every_player` | 否 | 设为 `true` 表示模组只有在大厅中每位玩家都运行时才能工作（[每位玩家都需要的模组](wiki:session-mods#every-player)）。不适用于客户端模组。 |
 | `entry` | 否 | 加载器启动的 Lua 脚本。只替换游戏文件的模组可省略。 |
 | `modules` | 否 | `entry` 之外的其他 `.lua` 文件，模组用 `obsidian.module` 加载。路径位于模组文件夹内。 |

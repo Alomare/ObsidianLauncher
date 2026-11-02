@@ -16,7 +16,11 @@ O Obsidian Qualidade de Vida é um mod de cliente.
 
 Um mod de sessão pode mudar o jogo compartilhado: balanceamento, inimigos, spawns, missões, física, qualquer coisa que outros jogadores perceberiam. Mods de sessão só rodam num lobby em que todos os outros jogadores concordaram com eles ([Jogar online](wiki:multiplayer)). Sozinho, você sempre pode usá-los.
 
-Mods que não declaram escopo contam como mods de sessão. O mesmo vale para mods antigos importados de bundles inteiros, porque o Obsidian não tem como saber o que eles mudam.
+## Mods não especificados {#unspecified-mods}
+
+Um mod que não declara escopo fica como não especificado, e o mesmo vale para mods antigos importados de bundles inteiros, porque o Obsidian não tem como saber o que eles mudam. Mods não especificados rodam como mods de cliente, em qualquer lobby: ficar de fora do multijogador por um palpite seria pior. Se um deles mudar o jogo compartilhado, os outros jogadores podem perceber, então jogue com quem também o tem.
+
+Um mod que pede para rodar só enquanto todos os jogadores o rodam (`every_player`) é um mod de sessão, com ou sem escopo.
 
 ## Bibliotecas {#libraries}
 
@@ -24,7 +28,7 @@ Uma biblioteca é código usado por outros mods, como o Obsidian API. Ela assume
 
 ## No aplicativo {#in-the-app}
 
-Cada linha da lista de mods tem um losango para o escopo: verde para cliente, laranja para sessão e azul para biblioteca. Passe o mouse por cima para ver o nome. Os detalhes de cada mod também mostram o escopo.
+Cada linha da lista de mods tem um losango para o escopo: verde para cliente, laranja para sessão, azul para biblioteca e cinza para não especificado. Passe o mouse por cima para ver o nome. Os detalhes de cada mod também mostram o escopo.
 
 ## Quem decide o escopo {#who-decides-the-scope}
 

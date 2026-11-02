@@ -16,7 +16,11 @@ Obsidian Quality of Life is a client mod.
 
 A session mod can change the shared game: balance, enemies, spawns, missions, physics, anything other players would notice. Session mods only run in a lobby where every other player has agreed to them ([Playing online](wiki:multiplayer)). Alone, they always run.
 
-Mods that don't declare a scope count as session mods. So do older mods imported from whole bundles, because Obsidian can't know what they change.
+## Unspecified mods
+
+A mod that doesn't declare a scope is unspecified, and so is an older mod imported from whole bundles, because Obsidian can't know what it changes. Unspecified mods run as client mods, in any lobby: being kept out of multiplayer by a guess would be worse. If one does change the shared game, the other players may notice, so play it with people who have it too.
+
+A mod that asks to run only while every player runs it (`every_player`) is a session mod, scope or not.
 
 ## Libraries
 
@@ -24,7 +28,7 @@ A library is code other mods build on, such as Obsidian API. It takes the scope 
 
 ## In the app
 
-Every row of the mod list has a diamond for the scope, green for client, orange for session and blue for a library. Hover over it for the name. The details of each mod say it too.
+Every row of the mod list has a diamond for the scope, green for client, orange for session, blue for a library and grey for unspecified. Hover over it for the name. The details of each mod say it too.
 
 ## Who decides the scope
 

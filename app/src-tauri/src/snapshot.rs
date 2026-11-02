@@ -11,7 +11,7 @@ use obsidian_core::gate::{KNOWN_BUILDS, check_build};
 use obsidian_core::hash::{display_name, display_text};
 use obsidian_core::images::{self, Owner};
 use obsidian_core::library::{BrokenMod, ImportInfo, Library, Profile};
-use obsidian_core::manifest::{Localized, Manifest, Scope};
+use obsidian_core::manifest::{Localized, Manifest};
 use obsidian_core::options::{OptionKind, effective_values, parse_keybinds};
 use obsidian_core::{Result, profiles, starter};
 use serde::Serialize;
@@ -215,7 +215,7 @@ fn option_rows(m: &Manifest, profile: &Profile) -> Result<Vec<OptionRow>> {
                 OptionKind::Number { min, max, step } => (*min, *max, *step),
                 _ => (None, None, None),
             };
-            let deploy = m.resources.iter().any(|r| r.when.contains_key(&s.id)) || (m.scope != Scope::Client && !s.client) || m.entry.is_none();
+            let deploy = m.resources.iter().any(|r| r.when.contains_key(&s.id)) || (!m.scope.is_client() && !s.client) || m.entry.is_none();
             OptionRow {
                 id: s.id.clone(),
                 kind: s.kind.name(),
@@ -292,11 +292,7 @@ pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Re
             description: m.description.clone().unwrap_or_default(),
             authors: m.authors.clone(),
             version: if unversioned { None } else { Some(m.version.to_string()) },
-            scope: match m.scope {
-                Scope::Client => "client",
-                Scope::Session => "session",
-                Scope::Library => "library",
-            },
+            scope: m.scope.name(),
             on: e.enabled,
             options: option_rows(m, &profile)?,
             keybinds,

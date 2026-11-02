@@ -38,7 +38,7 @@ O que está mais abaixo na lista ([Ordem de carregamento](wiki:load-order)).
 
 ### Preciso de um mod para ultrawide? {#do-i-need-an-ultrawide-mod}
 
-Não. O Obsidian Qualidade de Vida tira as barras pretas em telas largas, e essa opção começa ligada. Um patch de ultrawide importado faz o mesmo, mas conta como mod de sessão ([Escopos](wiki:scopes)).
+Não. O Obsidian Qualidade de Vida tira as barras pretas em telas largas, e essa opção começa ligada. Um patch de ultrawide importado faz o mesmo.
 
 ### O que é o Obsidian Qualidade de Vida? {#what-is-obsidian-quality-of-life}
 

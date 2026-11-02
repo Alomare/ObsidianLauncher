@@ -13,7 +13,7 @@ export type ImportInfo = { date: string; file: string };
 export type ImageRef = { path: string; v: number };
 export type ModRow = {
   id: string; name: Localized; description: Localized; authors: string[];
-  version: string | null; scope: "client" | "session" | "library"; on: boolean;
+  version: string | null; scope: "client" | "session" | "library" | "unspecified"; on: boolean;
   options: OptionRow[]; keybinds: KeyRow[]; files: string[];
   import: ImportInfo | null; source: string | null; updatable: boolean; image: ImageRef | null; customImage: boolean;
   folder: string | null; requires: string[];

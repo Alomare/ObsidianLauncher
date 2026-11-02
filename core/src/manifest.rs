@@ -14,20 +14,39 @@ pub const FILE: &str = "obsidian.json";
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Scope {
     Client,
-    /// Anything that may change the shared game. Missing or unknown scopes count as session.
-    #[default]
+    /// Anything that may change the shared game.
     Session,
     /// Code for other mods: session when an enabled session mod requires it, client otherwise.
     Library,
+    /// No scope given, or one Obsidian doesn't know, as with mods imported from elsewhere. It runs
+    /// as a client mod: being kept out of multiplayer by a guess is worse than what it might change.
+    #[default]
+    Unspecified,
+}
+
+impl Scope {
+    pub fn name(self) -> &'static str {
+        match self {
+            Scope::Client => "client",
+            Scope::Session => "session",
+            Scope::Library => "library",
+            Scope::Unspecified => "unspecified",
+        }
+    }
+
+    /// Runs as a client mod: declared one, or declared nothing.
+    pub fn is_client(self) -> bool {
+        matches!(self, Scope::Client | Scope::Unspecified)
+    }
+
+    fn is_unspecified(&self) -> bool {
+        *self == Scope::Unspecified
+    }
 }
 
 impl Serialize for Scope {
     fn serialize<S: serde::Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
-        s.serialize_str(match self {
-            Scope::Client => "client",
-            Scope::Session => "session",
-            Scope::Library => "library",
-        })
+        s.serialize_str(self.name())
     }
 }
 
@@ -36,8 +55,9 @@ impl<'de> Deserialize<'de> for Scope {
         let v = Value::deserialize(d)?;
         Ok(match v.as_str() {
             Some("client") => Scope::Client,
+            Some("session") => Scope::Session,
             Some("library") => Scope::Library,
-            _ => Scope::Session,
+            _ => Scope::Unspecified,
         })
     }
 }
@@ -241,7 +261,7 @@ pub struct Manifest {
     pub description: Option<Localized>,
     #[serde(default)]
     pub authors: Vec<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Scope::is_unspecified")]
     pub scope: Scope,
     /// Runs only while every other player in the lobby runs it too, at the same version and with
     /// the same shared option values. Players who allow other players' mods don't count.
@@ -400,6 +420,14 @@ fn read_manifest(mod_dir: &Path) -> Result<Manifest> {
         Some(_) => return Err(bad("resources", "must be a list")),
     };
     let mut m: Manifest = serde_json::from_value(v).map_err(|e| bad(FILE, e.to_string()))?;
+    // An older mod's manifest is Obsidian's own, and its "session" was an earlier version's guess.
+    if m.scope == Scope::Session && m.extra.get("legacy") == Some(&Value::Bool(true)) {
+        m.scope = Scope::Unspecified;
+    }
+    // Asking to run only while every player runs it is asking to change the shared game.
+    if m.every_player && m.scope == Scope::Unspecified {
+        m.scope = Scope::Session;
+    }
     m.resources = resources;
     m.validate(mod_dir)?;
     Ok(m)
@@ -460,13 +488,36 @@ mod tests {
     }
 
     #[test]
-    fn unknown_or_missing_scope_is_session() {
+    fn unknown_or_missing_scope_is_unspecified_and_runs_as_client() {
         let weird = EXAMPLE.replace(r#""scope": "client""#, r#""scope": "weird""#);
-        assert_eq!(load_manifest(mod_with(&weird).path()).unwrap().scope, Scope::Session);
+        assert_eq!(load_manifest(mod_with(&weird).path()).unwrap().scope, Scope::Unspecified);
         let missing = EXAMPLE.replace(r#""scope": "client","#, "");
-        assert_eq!(load_manifest(mod_with(&missing).path()).unwrap().scope, Scope::Session);
+        let d = mod_with(&missing);
+        let m = load_manifest(d.path()).unwrap();
+        assert_eq!(m.scope, Scope::Unspecified);
+        assert!(m.scope.is_client());
+        write_manifest(d.path(), &m).unwrap();
+        let written = std::fs::read_to_string(d.path().join(FILE)).unwrap();
+        assert!(!written.contains("scope"), "a scope nobody gave isn't written down");
+        assert_eq!(load_manifest(d.path()).unwrap().scope, Scope::Unspecified);
+        let session = EXAMPLE.replace(r#""scope": "client""#, r#""scope": "session""#);
+        assert_eq!(load_manifest(mod_with(&session).path()).unwrap().scope, Scope::Session);
         let library = EXAMPLE.replace(r#""scope": "client""#, r#""scope": "library""#);
         assert_eq!(load_manifest(mod_with(&library).path()).unwrap().scope, Scope::Library);
+    }
+
+    #[test]
+    fn an_older_mod_imported_as_session_is_unspecified() {
+        let legacy = EXAMPLE.replace(r#""scope": "client","#, r#""scope": "session", "legacy": true,"#);
+        assert_eq!(load_manifest(mod_with(&legacy).path()).unwrap().scope, Scope::Unspecified);
+        let audio = EXAMPLE.replace(r#""scope": "client","#, r#""scope": "client", "legacy": true,"#);
+        assert_eq!(load_manifest(mod_with(&audio).path()).unwrap().scope, Scope::Client, "a sound mod stays client");
+    }
+
+    #[test]
+    fn every_player_without_a_scope_is_session() {
+        let every = EXAMPLE.replace(r#""scope": "client","#, r#""every_player": true,"#);
+        assert_eq!(load_manifest(mod_with(&every).path()).unwrap().scope, Scope::Session);
     }
 
     #[test]

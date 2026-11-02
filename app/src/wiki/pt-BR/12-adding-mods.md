@@ -18,7 +18,7 @@ Um mod feito para o Obsidian tem um arquivo `obsidian.json` no topo da pasta ou 
 
 A maioria dos mods de HD1 que circulam hoje substitui bundles inteiros do jogo, com arquivos de nomes como `9e13b2414b41b842`. O Obsidian importa esses também. Ele compara cada bundle do mod com o do seu jogo e guarda só os recursos que o mod de fato altera, então dois mods antigos que mexem em coisas diferentes agora rodam juntos.
 
-Mods antigos entram com o escopo **sessão**, porque o Obsidian não tem como saber o que eles mudam num jogo compartilhado ([Escopos](wiki:scopes)). Um mod antigo que só muda bancos de som entra como mod de **cliente**, já que som muda só o que você ouve. Eles também não podem ser desligados no meio de uma missão.
+Mods antigos entram com o escopo **não especificado**, porque o Obsidian não tem como saber o que eles mudam num jogo compartilhado. Eles rodam como mods de cliente, então nunca tiram você de um lobby ([Escopos](wiki:scopes)). Um mod antigo que só muda bancos de som entra como mod de **cliente**, já que som muda só o que você ouve. Eles também não podem ser desligados no meio de uma missão.
 
 Um patch para outro mod não traz esse mod junto. Importe os dois e deixe o patch mais abaixo na lista. Confira para qual versão o patch foi feito: os arquivos que os dois têm em comum vêm do patch, então um patch para uma versão antiga volta esses arquivos para aquela versão.
 

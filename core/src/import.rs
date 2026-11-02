@@ -155,9 +155,11 @@ fn import_against(src: &Path, game: &GameInstall, lib: &Library, known: &[KnownB
         Some(n) => (n.id(), n.version, n.name),
         None => (legacy_id(&stem), semver::Version::new(0, 0, 0), stem),
     };
-    // Audio changes only what this player hears, so a mod of sound banks alone plays in any lobby.
+    // Audio changes only what this player hears, so a mod of sound banks alone is a client mod. Any
+    // other older mod could change anything, and Obsidian can't tell: it says so, and runs it as a
+    // client mod rather than keep the player out of multiplayer on a guess.
     let audio = hash_name("timpani_bank");
-    let scope = if entry_file.is_none() && resources.iter().all(|r| r.type_hash == audio) { Scope::Client } else { Scope::Session };
+    let scope = if entry_file.is_none() && resources.iter().all(|r| r.type_hash == audio) { Scope::Client } else { Scope::Unspecified };
     let m = Manifest {
         obsidian: 1,
         id,
@@ -443,7 +445,7 @@ mod tests {
         assert_eq!((r.id.as_str(), r.legacy, r.changed, r.added, r.removed_ignored), ("legacy.my-mod-v2", true, 1, 1, 0));
         assert_eq!(r.version, semver::Version::new(0, 0, 0));
         let m = &f.lib.list().unwrap()[0];
-        assert_eq!(m.scope, Scope::Session);
+        assert_eq!(m.scope, Scope::Unspecified);
         assert_eq!(m.resources.len(), 2);
         let tex = m.resources.iter().find(|r| r.flags == 7).unwrap();
         assert_eq!(tex.type_text, "texture");

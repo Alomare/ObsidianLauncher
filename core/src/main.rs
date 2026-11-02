@@ -10,7 +10,6 @@ use obsidian_core::gate::KNOWN_BUILDS;
 use obsidian_core::hash::{format_name, format_type};
 use obsidian_core::import::import_path;
 use obsidian_core::library::{InstallOutcome, Library, Profile};
-use obsidian_core::manifest::Scope;
 use obsidian_core::paths::data_dir;
 use obsidian_core::{profiles, starter};
 use obsidian_core::updates::{self, GitHub};
@@ -195,11 +194,7 @@ fn run(cli: Cli) -> Result<()> {
             for (i, entry) in profile.mods.iter().enumerate() {
                 let Some(m) = mods.iter().find(|m| m.id == entry.id) else { continue };
                 let on = if entry.enabled { "on " } else { "off" };
-                let scope = match m.scope {
-                    Scope::Client => "client",
-                    Scope::Session => "session",
-                    Scope::Library => "library",
-                };
+                let scope = m.scope.name();
                 println!("{:>3}. [{on}] {} {} ({scope})", i + 1, m.id, m.version);
             }
         }
