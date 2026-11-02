@@ -37,7 +37,7 @@
 <br>
 
 <p align="center">
-  <img src="assets/readme/home.png" alt="The Home tab over HELLDIVERS cover art of four Helldivers fighting Bugs, with the logo and name at the top left, and links to Nexus, the Discord, sponsoring and the source code at the bottom left" width="100%">
+  <img src="assets/readme/home.png" alt="The Home tab over HELLDIVERS art of four Helldivers fighting Bugs, with the logo and name at the top left, links to Nexus, the Discord, sponsoring and the source code at the bottom left, and controls for the picture before or after at the bottom right" width="100%">
 </p>
 
 <br>
@@ -46,9 +46,9 @@
 
 ### 🧩 Mods
 
-The mod library. Turn mods on and off, drag them into the load order, sort them into folders, and change options and keys for each mod. Conflicts show which mods change the same thing, and profiles keep separate sets of mods and settings. Mods that name a GitHub repository update from inside the app, and old mods that replace whole game files import like any other.
+The mod library. Turn mods on and off, drag them into the load order, sort them into folders, and change options and keys for each mod. Conflicts show which mods change the same thing, and profiles keep separate sets of mods and settings. Mods that name a GitHub repository update from inside the app, Older mods that replace whole game files or come as `.patch` files import like any other, and mods that add new weapons or units work side by side.
 
-<img src="assets/readme/mods.png" alt="The Mods tab: the Obsidian Kit and Favorites folders, each mod with a switch, a place in the load order, a version and a scope diamond, and the options of Obsidian Quality of Life on the right" width="100%">
+<img src="assets/readme/mods.png" alt="The Mods tab: the Obsidian Kit and a Favorites folder of four mods from Nexus, each mod with a switch, a place in the load order, a version and a scope diamond, a warning on two that change the same file, and the options of Obsidian Quality of Life on the right" width="100%">
 
 ### 📖 Wiki
 
@@ -62,7 +62,7 @@ Three mods come with Obsidian, in the Obsidian Kit folder. Obsidian Quality of L
 
 #### [Obsidian Quality of Life](https://github.com/Alomare/ObsidianQoL)
 
-Skips the intro, the login screen, war briefs and planet scanning, removes the black bars on screens wider than 16:9, and can speed up or skip the results screens after a mission. Each fix is an option.
+Skips the intro, the login screen, war briefs and planet scanning, removes the black bars on screens wider than 16:9, and can speed up or skip the results screens after a mission. It can also keep the aim cursor visible and make the minimap stay open with one press. Each fix is an option.
 
 #### [Obsidian Trainer](https://github.com/Alomare/ObsidianTrainer)
 
