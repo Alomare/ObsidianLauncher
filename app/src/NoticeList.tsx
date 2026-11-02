@@ -7,7 +7,7 @@ export function Notices() {
   return (
     <div className="notices" role="status" aria-live="polite">
       {list.map((n) => (
-        <div key={n.id} className={`notice ${n.kind}`}>
+        <div key={n.id} className={`notice ${n.kind}${n.leaving ? " leaving" : ""}`}>
           <span>{n.text}</span>
           <button className="bare" onClick={() => dismiss(n.id)} aria-label={t("app.close")}><CloseIcon /></button>
         </div>
