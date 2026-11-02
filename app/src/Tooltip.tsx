@@ -73,10 +73,12 @@ export function Tooltip() {
 
   if (!tip) return null;
   return (
-    <div ref={box} role="tooltip" className={place?.below ? "tip below" : "tip"}
-      style={place ? { left: place.x, top: place.y } : { left: 0, top: 0, visibility: "hidden" }}>
-      {tip.title && <b className="tip-title">{tip.title}</b>}
-      {tip.text && <span>{tip.text}</span>}
+    <div className="tip-layer">
+      <div ref={box} role="tooltip" className={place?.below ? "tip below" : "tip"}
+        style={place ? { left: place.x, top: place.y } : { left: 0, top: 0, visibility: "hidden" }}>
+        {tip.title && <b className="tip-title">{tip.title}</b>}
+        {tip.text && <span>{tip.text}</span>}
+      </div>
     </div>
   );
 }

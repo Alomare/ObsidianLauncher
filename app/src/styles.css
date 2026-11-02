@@ -67,12 +67,9 @@ button.bare:hover { color: var(--tx); }
 .tab.cur { color: var(--tx); background: linear-gradient(0deg, rgba(240, 180, 41, 0.18), transparent); box-shadow: inset 0 -3px 0 var(--gold); }
 .nav-end { margin-left: auto; display: flex; align-items: center; gap: 0.7rem; }
 /* Guardrails: a shield that fills, with how many of the account's guardrails are on */
-.guard { display: inline-flex; align-items: center; gap: 0.45rem; height: 2rem; padding: 0 0.7rem; border: 0; background: var(--row); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08); font: inherit; font-size: 0.84rem; color: var(--mu); cursor: pointer; transition: color var(--fast), box-shadow var(--fast); }
-:root[data-theme="light"] .guard { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12); }
-.guard:hover { color: var(--tx); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2); }
-:root[data-theme="light"] .guard:hover { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.28); }
-.guard.on { color: var(--gold); }
-.guard-count { min-width: 1.05rem; height: 1.05rem; display: inline-grid; place-items: center; font-style: normal; font-size: 0.7rem; font-weight: 700; color: var(--on); background: var(--gold); border-radius: 0.55rem; }
+.btn.guard { gap: 0.2rem; background: linear-gradient(180deg, #dfe2e5, #9ea4aa); color: #1b1d20; border: 0; }
+.btn.guard:hover:not(:disabled) { background: linear-gradient(180deg, #f0f2f4, #b3b9bf); }
+.guard-count { min-width: 0.95rem; height: 0.95rem; display: inline-grid; place-items: center; font-style: normal; font-family: inherit; letter-spacing: 0; font-size: 0.66rem; font-weight: 700; color: #eceef0; background: #26282c; border-radius: 0.5rem; }
 .modal.guardrails { width: min(38rem, 94vw); }
 .modal.guardrails .head h2 { margin: 0; font-size: 1.05rem; display: flex; align-items: center; gap: 0.5rem; }
 .modal.guardrails .head .close { margin-left: auto; }
@@ -106,6 +103,13 @@ button.bare:hover { color: var(--tx); }
 .btn.play { background: linear-gradient(180deg, #f7c548, #e0a215); color: #1b1b1b; border: 0; font-weight: 770; min-width: 9rem; }
 .nav .btn.play { font-size: 1rem; gap: 0.55rem; }
 .nav .btn.play svg { width: 1.3rem; height: 1.3rem; }
+
+/* What floats over the page. Tooltips and notices have cut corners, and that mask also takes away anything
+   drawn outside them, so the edge and the shadow are on the layer around them, and follow the corners. */
+:root { --float-edge: rgba(255, 255, 255, 0.32); --float-shadow: rgba(0, 0, 0, 0.55); }
+:root[data-theme="light"] { --float-edge: rgba(0, 0, 0, 0.3); --float-shadow: rgba(0, 0, 0, 0.22); }
+.notices, .tip-layer { filter: drop-shadow(0 0 0.6px var(--float-edge)) drop-shadow(0 6px 14px var(--float-shadow)); }
+.tip-layer { position: fixed; inset: 0; z-index: 100; pointer-events: none; }
 
 /* Notices */
 .notices { position: fixed; right: 0.9rem; bottom: 2.4rem; display: flex; flex-direction: column; gap: 0.5rem; z-index: 50; max-width: 28rem; }
