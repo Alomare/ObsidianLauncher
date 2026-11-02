@@ -205,18 +205,46 @@ fn payload_parts(b: &Bundle) -> Vec<std::borrow::Cow<'_, [u8]>> {
     parts
 }
 
-/// One 64 KB block of a bundle file: compressed, or stored when that's no smaller.
-fn write_block(out: &mut impl std::io::Write, block: &[u8]) -> std::io::Result<()> {
+/// One 64 KB block of a bundle file: compressed, or None when that's no smaller and it's stored.
+fn pack_block(block: &[u8]) -> std::io::Result<Option<Vec<u8>>> {
     use std::io::Write;
     let mut z = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::best());
     z.write_all(block)?;
     let z = z.finish()?;
-    let body = if z.len() >= CHUNK { block } else { &z };
-    out.write_all(&(body.len() as u32).to_le_bytes())?;
-    out.write_all(body)
+    Ok((z.len() < CHUNK).then_some(z))
+}
+
+/// How many blocks wait to be compressed together, per core. A patch can pass a gigabyte, and compressing
+/// it one block at a time takes over a minute.
+const BLOCKS_PER_CORE: usize = 64;
+
+/// Compresses the waiting blocks on every core and writes them in their order.
+fn flush_blocks(out: &mut impl std::io::Write, blocks: &mut Vec<Vec<u8>>) -> std::io::Result<()> {
+    let cores = std::thread::available_parallelism().map_or(1, |n| n.get());
+    let per = blocks.len().div_ceil(cores).max(1);
+    let groups: Vec<std::io::Result<Vec<Option<Vec<u8>>>>> = std::thread::scope(|s| {
+        let running: Vec<_> = blocks.chunks(per).map(|group| s.spawn(move || group.iter().map(|b| pack_block(b)).collect())).collect();
+        running.into_iter().map(|t| t.join().expect("compressing a block doesn't panic")).collect()
+    });
+    let mut plain = blocks.iter();
+    for group in groups {
+        for packed in group? {
+            let block = plain.next().expect("one result per block");
+            let body = packed.as_deref().unwrap_or(block);
+            out.write_all(&(body.len() as u32).to_le_bytes())?;
+            out.write_all(body)?;
+        }
+    }
+    blocks.clear();
+    Ok(())
 }
 
 pub fn write_file(path: &Path, b: &Bundle) -> Result<()> {
+    write_file_with(path, b, &mut |_| {})
+}
+
+/// `write_file`, saying now and then how far it is, from 0 to 1.
+pub fn write_file_with(path: &Path, b: &Bundle, progress: &mut dyn FnMut(f32)) -> Result<()> {
     use std::io::Write;
     let parts = payload_parts(b);
     let total: u64 = parts.iter().map(|p| p.len() as u64).sum();
@@ -226,7 +254,10 @@ pub fn write_file(path: &Path, b: &Bundle) -> Result<()> {
     out.write_all(&VERSION.to_le_bytes())?;
     out.write_all(&total.to_le_bytes())?;
     out.write_all(&0u32.to_le_bytes())?;
+    let batch = BLOCKS_PER_CORE * std::thread::available_parallelism().map_or(1, |n| n.get());
+    let mut blocks: Vec<Vec<u8>> = Vec::with_capacity(batch);
     let mut block = Vec::with_capacity(CHUNK);
+    let mut done = 0u64;
     for part in &parts {
         let mut rest: &[u8] = part;
         while !rest.is_empty() {
@@ -234,16 +265,22 @@ pub fn write_file(path: &Path, b: &Bundle) -> Result<()> {
             block.extend_from_slice(now);
             rest = later;
             if block.len() == CHUNK {
-                write_block(&mut out, &block)?;
-                block.clear();
+                blocks.push(std::mem::replace(&mut block, Vec::with_capacity(CHUNK)));
+                if blocks.len() == batch {
+                    flush_blocks(&mut out, &mut blocks)?;
+                    done += (batch * CHUNK) as u64;
+                    progress(done as f32 / total.max(1) as f32);
+                }
             }
         }
     }
     if !block.is_empty() {
         block.resize(CHUNK, 0);
-        write_block(&mut out, &block)?;
+        blocks.push(block);
     }
+    flush_blocks(&mut out, &mut blocks)?;
     out.flush()?;
+    progress(1.0);
     Ok(())
 }
 
@@ -471,6 +508,31 @@ mod tests {
         let mut b = sample();
         b.sort_entries();
         assert_eq!((b.entries[0].type_hash, b.entries[1].type_hash), (1, 2));
+    }
+
+    #[test]
+    fn many_blocks_keep_their_order_and_progress_reaches_the_end() {
+        // Past several batches of blocks, part of it not compressible, so some blocks are stored as they are.
+        let cores = std::thread::available_parallelism().map_or(1, |n| n.get());
+        let size = (BLOCKS_PER_CORE * cores * 3 + 7) * CHUNK + 123;
+        let mut x = 0x2545f4914f6cdd1du64;
+        let data: Vec<u8> = (0..size)
+            .map(|i| {
+                x ^= x << 13;
+                x ^= x >> 7;
+                x ^= x << 17;
+                if i % (CHUNK * 2) < CHUNK { x as u8 } else { (i / CHUNK) as u8 }
+            })
+            .collect();
+        let b = Bundle { props: [3; 256], entries: vec![Entry { type_hash: 1, name_hash: 2, flags: 0, variants: vec![Variant { lang: 0, data, stream_size: 0 }] }] };
+        let t = tempfile::tempdir().unwrap();
+        let path = t.path().join("big");
+        let mut seen = Vec::new();
+        write_file_with(&path, &b, &mut |part| seen.push(part)).unwrap();
+        assert_eq!(read_file(&path).unwrap(), b);
+        assert!(seen.len() >= 3, "{seen:?}");
+        assert!(seen.windows(2).all(|w| w[0] <= w[1]), "{seen:?}");
+        assert_eq!(*seen.last().unwrap(), 1.0);
     }
 
     #[test]

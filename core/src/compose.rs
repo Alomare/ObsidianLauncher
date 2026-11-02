@@ -214,7 +214,7 @@ pub struct Composition {
 /// Everything the game would get, with the data, for a deploy. `contents` is the game's folder of
 /// bundles, which a mod's sound bank clips need.
 pub fn compose_for(lib: &Library, profile: &Profile, contents: Option<&Path>) -> Result<Composition> {
-    compose_with(lib, profile, true, contents)
+    compose_with(lib, profile, true, contents, None)
 }
 
 /// `compose_for` with no game.
@@ -227,7 +227,13 @@ pub fn compose(lib: &Library, profile: &Profile) -> Result<Composition> {
 /// large library. Sound bank clips are left out when the game or the bank can't be found: the deploy
 /// is what says so.
 pub fn plan_for(lib: &Library, profile: &Profile, contents: Option<&Path>) -> Result<Composition> {
-    compose_with(lib, profile, false, contents)
+    compose_with(lib, profile, false, contents, None)
+}
+
+/// `plan_for` with the library's manifests already read, by id, so they aren't read again: the
+/// window's snapshot has them, and it runs after every click.
+pub fn plan_with(lib: &Library, profile: &Profile, contents: Option<&Path>, manifests: &BTreeMap<String, Manifest>) -> Result<Composition> {
+    compose_with(lib, profile, false, contents, Some(manifests))
 }
 
 /// `plan_for` with no game.
@@ -251,6 +257,12 @@ fn file_digest(path: &Path, stamps: &std::collections::HashMap<PathBuf, Stamp>, 
     digests().lock().unwrap().insert(path.to_path_buf(), (stamp, d));
     *worked_out = true;
     Ok(d)
+}
+
+/// `file_digest` for a file outside a mod's folder walk, such as the loader's: worked out once, then
+/// kept while its time and size stay the same.
+pub(crate) fn cached_digest(path: &Path) -> Result<[u8; 32]> {
+    file_digest(path, &Default::default(), &mut false)
 }
 
 fn file_stamp(path: &Path) -> Option<Stamp> {
@@ -329,9 +341,9 @@ fn game_resource(contents: &Path, bundle: &str, type_hash: u64, name_hash: u64, 
     Ok(entry.flags)
 }
 
-/// A digest of a bank as the game has it, kept while its bundle and stream are unchanged: a bank can pass
-/// a gigabyte, and this runs after every click.
-fn game_digest(data_dir: &Path, contents: &Path, bundle: &str, type_hash: u64, name_hash: u64, worked_out: &mut bool) -> Result<[u8; 32]> {
+/// A digest for a bank as the game has it, from when its bundle and stream last changed. A bank can pass a
+/// gigabyte and this runs after every click, and the game's files change only with a game update.
+fn game_digest(contents: &Path, bundle: &str, name_hash: u64) -> Result<[u8; 32]> {
     use sha2::{Digest, Sha256};
     let path = contents.join(bundle);
     let (time, len) = file_stamp(&path).ok_or(ObsidianError::TruncatedBundle)?;
@@ -339,23 +351,13 @@ fn game_digest(data_dir: &Path, contents: &Path, bundle: &str, type_hash: u64, n
         Some((t, n)) => (time.max(t), len + n),
         None => (time, len),
     };
-    let key = data_dir.join("game-banks").join(format!("{bundle}.{name_hash:016x}"));
-    if let Some((_, d)) = digests().lock().unwrap().get(&key).filter(|(s, _)| *s == stamp) {
-        return Ok(*d);
-    }
+    let since = stamp.0.duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
     let mut h = Sha256::new();
-    game_resource(contents, bundle, type_hash, name_hash, |p| {
-        h.update(p.lang.to_le_bytes());
-        h.update((p.data.len() as u64).to_le_bytes());
-        h.update((p.stream.len() as u64).to_le_bytes());
-        h.update(&p.data);
-        h.update(&p.stream);
-        Ok(())
-    })?;
-    let d: [u8; 32] = h.finalize().into();
-    digests().lock().unwrap().insert(key, (stamp, d));
-    *worked_out = true;
-    Ok(d)
+    h.update(bundle.as_bytes());
+    h.update(name_hash.to_le_bytes());
+    h.update(since.as_nanos().to_le_bytes());
+    h.update(stamp.1.to_le_bytes());
+    Ok(h.finalize().into())
 }
 
 fn recipe_digest(base: &[u8; 32], recipe: &Recipe) -> [u8; 32] {
@@ -443,8 +445,44 @@ fn file_stamps(dir: &Path) -> std::collections::HashMap<PathBuf, Stamp> {
 /// The resource that wins one (bundle, type, name), and the earlier owners it replaced with the digests of their data.
 type Slot = (Planned, Vec<(String, [u8; 32])>);
 
-fn compose_with(lib: &Library, profile: &Profile, with_data: bool, contents: Option<&Path>) -> Result<Composition> {
+/// The game's generated tables a mod has to change to add a unit. Mods that do can't take turns: each needs
+/// its entries there, so these merge instead of the last one winning.
+const MERGED_TABLES: [&str; 4] = ["lua/generated/settings_paths", "lua/generated/units_with_settings", "lua/generated/unit_paths", "lua/generated/unit_path_to_network_object"];
+const MERGE_SCRIPT: &str = include_str!("../data/merge_tables.lua");
+
+fn merged_table(type_hash: u64, name_hash: u64) -> Option<&'static str> {
+    (type_hash == hash_name("lua")).then(|| MERGED_TABLES.iter().find(|n| hash_name(n) == name_hash).copied()).flatten()
+}
+
+/// One table from several mods' versions: each as a script of its own, and a script in the table's place that
+/// asks for them and puts them together when the game asks for the table.
+fn merge_table(table: &str, versions: &[Planned], with_data: bool) -> Result<Vec<Planned>> {
+    use sha2::{Digest, Sha256};
+    let last = versions.last().expect("a merge has versions");
+    let mut h = Sha256::new();
+    h.update(b"merged table");
+    let mut out = Vec::with_capacity(versions.len() + 1);
+    let mut names = Vec::with_capacity(versions.len());
+    for v in versions {
+        h.update(v.digest);
+        let name = format!("obsidian/merged/{}/{table}", v.owner);
+        out.push(Planned { name_hash: hash_name(&name), ..v.clone() });
+        names.push(format!("{name:?}"));
+    }
+    let data = if with_data {
+        let source = format!("local NAMES = {{ {} }}\n{MERGE_SCRIPT}", names.join(", "));
+        wrap_resource(&compile(source.as_bytes(), &format!("obsidian/merged/{table}"))?)
+    } else {
+        Vec::new()
+    };
+    out.push(Planned { data, digest: h.finalize().into(), ..last.clone() });
+    Ok(out)
+}
+
+fn compose_with(lib: &Library, profile: &Profile, with_data: bool, contents: Option<&Path>, known: Option<&BTreeMap<String, Manifest>>) -> Result<Composition> {
     let mut slots: BTreeMap<(String, u64, u64), Slot> = BTreeMap::new();
+    // Every mod's version of a table that merges, in load order, with one entry for the same bytes.
+    let mut table_versions: BTreeMap<(String, u64), (&str, Vec<Planned>)> = BTreeMap::new();
     let mut mods = Vec::new();
     let mut unplaced = Vec::new();
     let reserved = (hash_name("lua"), hash_name(crate::loader::ENTRY));
@@ -458,7 +496,13 @@ fn compose_with(lib: &Library, profile: &Profile, with_data: bool, contents: Opt
             return Err(ObsidianError::ModMissing(entry.id.clone()));
         }
         // `Library::broken` reports a mod that can't be read, and it stays out until it's fixed.
-        let Ok(m) = load_manifest(&dir) else { continue };
+        let m = match known.and_then(|k| k.get(&entry.id)) {
+            Some(m) => m.clone(),
+            None => match load_manifest(&dir) {
+                Ok(m) => m,
+                Err(_) => continue,
+            },
+        };
         let values = effective_values(&m.option_specs()?, profile.options.get(&m.id));
         if m.resources.iter().any(|r| (r.type_hash, r.name_hash) == reserved) {
             return Err(ObsidianError::ReservedResource { mod_id: m.id.clone(), name: crate::loader::ENTRY.into() });
@@ -588,6 +632,12 @@ fn compose_with(lib: &Library, profile: &Profile, with_data: bool, contents: Opt
                     Planned { type_hash: r.type_hash, name_hash: r.name_hash, flags: r.flags, data: Vec::new(), digest, owner: m.id.clone(), pieces: Vec::new(), recipe: None }
                 }
             };
+            if let Some(table) = merged_table(r.type_hash, r.name_hash) {
+                let (_, versions) = table_versions.entry((bundle.clone(), r.name_hash)).or_insert((table, Vec::new()));
+                if !versions.iter().any(|v| v.digest == planned.digest) {
+                    versions.push(planned.clone());
+                }
+            }
             let key = (bundle, r.type_hash, r.name_hash);
             let earlier = match slots.remove(&key) {
                 Some((old, mut earlier)) => {
@@ -622,10 +672,14 @@ fn compose_with(lib: &Library, profile: &Profile, with_data: bool, contents: Opt
     }
     let mut out = Composition { mods, unplaced, ..Default::default() };
     for ((bundle, type_hash, name_hash), (mut planned, earlier)) in slots {
+        if let Some((table, versions)) = table_versions.get(&(bundle.clone(), name_hash)).filter(|(_, v)| v.len() > 1 && planned.recipe.is_none()) {
+            out.bundles.entry(bundle).or_default().extend(merge_table(table, versions, with_data)?);
+            continue;
+        }
         if let Some(recipe) = &planned.recipe {
             let base = match &recipe.base {
                 Some(b) => Ok(b.digest),
-                None => game_digest(lib.data_dir(), contents.expect("a recipe has a game"), &recipe.first, type_hash, name_hash, &mut worked_out),
+                None => game_digest(contents.expect("a recipe has a game"), &recipe.first, name_hash),
             };
             let base = match base {
                 Ok(d) => d,
@@ -733,6 +787,55 @@ mod tests {
         let c = compose(&lib, &profile(&[("bc", true)])).unwrap();
         assert_eq!(&c.bundles["00000000000000aa"][0].data[..8], &[76, 0, 0, 0, 2, 0, 0, 0]);
         assert!(matches!(compose(&lib, &profile(&[("bad", true)])), Err(ObsidianError::InvalidBytecode(_))));
+    }
+
+    fn add_table_mod(t: &std::path::Path, lib: &Library, id: &str, table: &str, bytes: &[u8]) {
+        let d = t.join(format!("stage-{id}"));
+        let json = format!(
+            r##"{{"obsidian":1,"id":"{id}","version":"1.0.0","name":{{"en":"{id}"}},
+               "resources":[{{"type":"lua","name":"{table}","bundle":"00000000000000aa","source":"r.bin"}}]}}"##
+        );
+        put(&d, "obsidian.json", json.as_bytes());
+        put(&d, "r.bin", bytes);
+        lib.install(&d).unwrap();
+    }
+
+    #[test]
+    fn mods_changing_a_generated_table_merge_instead_of_conflicting() {
+        let t = spaced_tempdir();
+        let lib = Library::open(&t.path().join("data")).unwrap();
+        let table = "lua/generated/settings_paths";
+        add_table_mod(t.path(), &lib, "one", table, b"return { 'game', 'one' }");
+        add_table_mod(t.path(), &lib, "two", table, b"return { 'game', 'two' }");
+        add_table_mod(t.path(), &lib, "same", table, b"return { 'game', 'two' }");
+        let p = profile(&[("one", true), ("two", true), ("same", true)]);
+        let c = compose(&lib, &p).unwrap();
+        assert!(c.conflicts.is_empty(), "{:?}", c.conflicts);
+        let list = &c.bundles["00000000000000aa"];
+        assert_eq!(list.len(), 3, "the same bytes need one script");
+        let lua = hash_name("lua");
+        let name = |id: &str| hash_name(&format!("obsidian/merged/{id}/{table}"));
+        assert!(list.iter().any(|r| r.type_hash == lua && r.name_hash == name("one")));
+        assert!(list.iter().any(|r| r.type_hash == lua && r.name_hash == name("two")));
+        let merged = list.iter().find(|r| r.name_hash == hash_name(table)).unwrap();
+        crate::lua::check_bytecode(crate::lua::unwrap_resource(&merged.data).unwrap()).unwrap();
+        // A plan with no data says the same, so a deploy isn't called for after one.
+        let planned = plan(&lib, &p).unwrap();
+        let again = planned.bundles["00000000000000aa"].iter().find(|r| r.name_hash == hash_name(table)).unwrap();
+        assert_eq!(again.digest, merged.digest);
+    }
+
+    #[test]
+    fn one_mod_on_a_generated_table_stays_as_it_is_and_other_scripts_still_conflict() {
+        let t = spaced_tempdir();
+        let lib = Library::open(&t.path().join("data")).unwrap();
+        add_table_mod(t.path(), &lib, "one", "lua/generated/unit_paths", b"return { 'game' }");
+        let c = compose(&lib, &profile(&[("one", true)])).unwrap();
+        assert_eq!(c.bundles["00000000000000aa"].len(), 1);
+        add_table_mod(t.path(), &lib, "a", "lua/settings/perk_settings", b"return 1");
+        add_table_mod(t.path(), &lib, "b", "lua/settings/perk_settings", b"return 2");
+        let c = compose(&lib, &profile(&[("a", true), ("b", true)])).unwrap();
+        assert_eq!(c.conflicts.len(), 1);
     }
 
     #[test]

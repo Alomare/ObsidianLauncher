@@ -18,6 +18,8 @@ Um mod feito para o Obsidian tem um arquivo `obsidian.json` no topo da pasta ou 
 
 A maioria dos mods de HD1 que circulam hoje substitui bundles inteiros do jogo, com arquivos de nomes como `9e13b2414b41b842`. O Obsidian importa esses também. Ele compara cada bundle do mod com o do seu jogo e guarda só os recursos que o mod de fato altera, então dois mods antigos que mexem em coisas diferentes agora rodam juntos.
 
+Alguns mods antigos trazem arquivos `.patch_0`, `.patch_1`, com nomes como `9e13b2414b41b842.patch_0`, que o jogo lê por cima do próprio bundle. O Obsidian importa esses também, então não é preciso renomeá-los à mão para o próximo número livre. Um mod que é só um preset do ReShade (um `ReShadePreset.ini`) não é um mod do jogo: ele precisa do ReShade na pasta do jogo, e a importação avisa isso.
+
 Mods antigos entram com o escopo **não especificado**, porque o Obsidian não tem como saber o que eles mudam num jogo compartilhado. Eles rodam como mods de cliente, então nunca tiram você de um lobby ([Escopos](wiki:scopes)). Um mod antigo que só muda bancos de som entra como mod de **cliente**, já que som muda só o que você ouve. Eles também não podem ser desligados no meio de uma missão.
 
 Um patch para outro mod não traz esse mod junto. Importe os dois e deixe o patch mais abaixo na lista. Confira para qual versão o patch foi feito: os arquivos que os dois têm em comum vêm do patch, então um patch para uma versão antiga volta esses arquivos para aquela versão.
@@ -41,7 +43,7 @@ Clique com o botão direito num mod e escolha **Remover**, ou use a lixeira abai
 
 ## Obsidian Kit
 
-Três mods vêm com o Obsidian, na pasta **Obsidian Kit**, no topo da lista: Obsidian API, [Obsidian Trainer](wiki:trainer) e Obsidian Qualidade de Vida. O Qualidade de Vida começa ligado, só com as correções para tela larga ativas. Os outros dois ficam desligados até você ligar.
+Três mods vêm com o Obsidian, na pasta **Obsidian Kit**, no topo da lista: Obsidian API, [Obsidian Trainer](wiki:trainer) e Obsidian Qualidade de Vida. O Qualidade de Vida começa ligado, só com as correções para tela larga e a **Pausa dinâmica solo** ativas. Os outros dois ficam desligados até você ligar.
 
 Eles são mods como quaisquer outros: você pode ligar, desligar, remover e atualizar os mods pelo GitHub. A pasta começa trancada, então fica onde está. Clique no cadeado para destrancar, e aí você pode mover os mods e renomear ou apagar a pasta. Para deixar tudo como era, use **Restaurar Obsidian Kit** em [Configurações](app:settings). Isso traz de volta os mods apagados e a pasta, e volta as configurações deles ao padrão no perfil ativo.
 

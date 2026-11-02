@@ -21,7 +21,7 @@ local function install(h)
 	if B.type(original) ~= "function" then return false end
 	local core, session, state, fn, site = M.core, M.session, h.state, h.fn, "hook " .. B.tostring(h.method)
 	-- A missing or unknown scope counts as session. The loader's own hooks are never gated.
-	local gated = not h.loader and not (state and state.mod.scope == "client")
+	local gated = not h.loader and not h.always and not (state and state.mod.scope == "client")
 	-- A hook that fails falls back to the game's function, unless it already ran it: that would
 	-- spawn, spend or save twice. One closure per hook, as a new one per call stops the JIT here.
 	local ran, results = false, nil
@@ -52,6 +52,12 @@ end
 
 function M.hook(target, method, fn)
 	local h = { state = M.core.current, target = target, method = method, fn = fn }
+	if not install(h) then B.insert(M.pending, h) end
+end
+
+-- A hook the session gate leaves alone, for a mod whose replaced files can't be switched off either.
+function M.wrap(target, method, fn)
+	local h = { state = M.core.current, always = true, target = target, method = method, fn = fn }
 	if not install(h) then B.insert(M.pending, h) end
 end
 

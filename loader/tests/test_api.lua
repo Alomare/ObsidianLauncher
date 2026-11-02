@@ -16,7 +16,7 @@ end
 
 test("every_module_loads_and_the_api_is_exported", function()
 	local api = start()
-	for _, name in ipairs({ "game", "effects", "edits", "console", "catalog", "world", "player", "gear", "stratagems", "enemies", "mission", "progress", "events", "combat", "vehicles", "lobby", "ui", "audio" }) do
+	for _, name in ipairs({ "game", "effects", "edits", "console", "catalog", "world", "player", "gear", "stratagems", "enemies", "mission", "progress", "events", "combat", "vehicles", "lobby", "ui", "audio", "map", "bots" }) do
 		E.eq(type(api[name]), "table", name)
 	end
 end)
@@ -1262,6 +1262,30 @@ test("drones_ride_outside_the_backpack_slot_with_only_the_drones_seen_and_go_wit
 	em.has_entities, em.get_slave_entities = has, slaves
 end)
 
+test("a_perk_goes_on_top_of_the_main_one_and_comes_off", function()
+	local api, game = start()
+	game.perk_calls = {}
+	rawget(_G, "PerkSettings").perk_extra = { setup_master = function() game.perk_calls[#game.perk_calls + 1] = "extra setup" end,
+		remove_master = function() game.perk_calls[#game.perk_calls + 1] = "extra remove" end }
+	rawget(_G, "PerkSettings").perk_each_frame = { update_master = function() end }
+	E.eq(api.gear.add_perk("perk_extra"), true)
+	E.eq(game.perk_calls[1], "extra setup")
+	E.eq(game.me.master.inventory.perk, 1, "the main perk stays")
+	E.eq(api.gear.extra_perks()[1], "perk_extra")
+	E.eq(api.gear.add_perk("perk_extra"), true)
+	E.eq(#game.perk_calls, 1, "already on: its setup runs once")
+	E.eq(api.gear.add_perk("perk_cardio"), true)
+	E.eq(#api.gear.extra_perks(), 1, "the main perk isn't added again")
+	E.eq(select(2, api.gear.add_perk("perk_each_frame")), "not_available", "the game would run its frames for no one")
+	E.eq(select(2, api.gear.add_perk("perk_lasersight")), "not_available")
+	E.eq(select(2, api.gear.add_perk("perk_none")), "not_available")
+	E.eq(api.gear.remove_extra_perk("perk_extra"), true)
+	E.eq(game.perk_calls[2], "extra remove")
+	E.eq(#api.gear.extra_perks(), 0)
+	E.eq(api.gear.remove_extra_perk("perk_extra"), true)
+	E.eq(#game.perk_calls, 2, "already off: nothing more to undo")
+end)
+
 test("a_path_outside_the_catalog_never_reaches_set_backpack", function()
 	local api, game = start()
 	local ok, why = api.gear.give_backpack("equipment/rifle")
@@ -1301,7 +1325,8 @@ test("a_called_stratagem_is_a_real_flare_at_the_players_level", function()
 	local pos = api.world.cursor()
 	E.eq(api.stratagems.call("stratagem_resupply", pos, 15), true)
 	E.eq(game.spawned[1], "gameobjects/flare_01")
-	E.eq(game.spawn_pos, pos)
+	E.eq(game.spawn_pos.x, pos.x)
+	E.eq(game.spawn_pos.y, pos.y)
 	E.eq(game.spawn_setup.has_been_thrown, true)
 	E.eq(game.spawn_setup.stratagem_id, 1)
 	E.eq(game.spawn_setup.extra_activation_time, 15)
@@ -1311,6 +1336,9 @@ test("a_called_stratagem_is_a_real_flare_at_the_players_level", function()
 	E.eq(direction.unit, game.flare)
 	E.eq(type(direction.data), "table", "a vector in a command has to be boxed")
 	E.eq(game.pods, nil, "the flare calls the pod, not this")
+	E.eq(api.stratagems.call("stratagem_resupply", { x = 3, y = 4 }, 15), true)
+	E.eq(getmetatable(game.spawn_pos), G.vector, "a plain position reaches the game as a vector")
+	E.eq(game.spawn_pos.z, 0)
 	no_tampering(game)
 end)
 
@@ -2452,6 +2480,387 @@ test("a_prop_is_a_unit_on_this_machine_that_moves_grows_and_goes", function()
 	E.eq(select(2, api.world.prop("missing", { x = 0, y = 0 })), "unknown")
 	E.eq(select(2, api.world.prop("x", "here")), "bad_type")
 	E.eq(select(2, api.world.prop(nil, { x = 0, y = 0 })), "bad_type")
+end)
+
+-- The map: its units both ways, the view, pings, opening it from code, and markers.
+local function map_world()
+	local map_state = {}
+	-- As the game's: it leaves when the map input is off or exit_map is set.
+	map_state.update = function(unit, ctx)
+		if not ctx.state.input.map or ctx.state.exit_map then
+			map_state.on_exit(unit, ctx)
+			ctx.state.current_state = nil
+			ctx.state.exit_map = nil
+		end
+	end
+	map_state.on_exit = function() end
+	rawset(_G, "CharacterStateMap", map_state)
+	rawset(_G, "CharacterStateMachine", { change_state = function(_, ctx, s) ctx.state.current_state = s end })
+	rawset(_G, "Hud", { draw_map = function(_, _, _, _, gui) gui.drawn = (gui.drawn or 0) + 1 end })
+	rawset(_G, "Vector2", function(x, y) return { x = x, y = y } end)
+	rawset(_G, "Color", function(a, r, g, b) return { a, r, g, b } end)
+	-- The loader installs a waiting hook when the game next requires a module.
+	rawget(_G, "require")("lua/network/network_global")
+end
+
+test("the_map_converts_both_ways_and_its_view_follows_zoom_and_pan", function()
+	local api, game = start()
+	local V = rawget(_G, "Vector3")
+	local x, y = api.map.to_map(V(150, 120, 0))
+	local back = api.map.to_world(x, y)
+	E.eq(math.abs(back.x - 150) < 1e-6 and math.abs(back.y - 120) < 1e-6, true, "there and back")
+	E.eq(math.abs(api.map.to_world(0, 0).x - 96) < 1e-6, true, "the middle of the map is the middle of the level")
+	game.state.hud.hud_info = { { map_zoom = 1, map_offset = { x = 0, y = 0 }, map_pan_vel = { x = 3, y = 3 } } }
+	E.eq(api.map.zoom(), 1)
+	E.eq(api.map.set_zoom(2), true)
+	E.eq(api.map.zoom(), 2)
+	E.eq(select(2, api.map.set_zoom(9)), "out_of_range")
+	E.eq(select(2, api.map.set_zoom("far")), "bad_type")
+	E.eq(api.map.look_at(V(150, 120, 0)), true)
+	local view = api.map.view()
+	E.eq(math.abs(view.x - 150) < 1e-6 and math.abs(view.y - 120) < 1e-6, true, "the crosshair is on the point at any zoom")
+	E.eq(game.state.hud.hud_info[1].map_pan_vel.x, 0, "a pan in flight stops")
+	E.eq(api.map.cursor, api.map.view)
+end)
+
+test("every_players_ping_reads_back_as_a_world_position", function()
+	local api = start()
+	local V = rawget(_G, "Vector3")
+	E.eq(#api.map.pings(), 0, "no ping is the field's default")
+	api.ui.ping(V(150, 120, 0))
+	local pings = api.map.pings()
+	E.eq(#pings, 1)
+	E.eq(math.abs(pings[1].position.x - 150) < 1e-6 and math.abs(pings[1].position.y - 120) < 1e-6, true)
+	E.eq(pings[1].owned, true)
+	api.ui.ping(nil)
+	E.eq(#api.map.pings(), 0)
+end)
+
+test("opening_the_map_holds_its_input_until_the_player_takes_over", function()
+	local api, game = start()
+	map_world()
+	local ctx = { state = game.me.master.character }
+	game.masters.character = { [game.me] = ctx }
+	ctx.state.input = { map = false }
+	-- The pad manager's live table for this player.
+	local pad = { map_pressed = false }
+	game.me.master.input = { input_data = pad }
+	local map_state = rawget(_G, "CharacterStateMap")
+	E.eq(api.map.is_open(), false)
+	E.eq(api.map.open(), true)
+	E.eq(api.map.is_open(), true)
+	map_state.update(game.me, ctx)
+	E.eq(api.map.is_open(), true, "held open with the key up")
+	-- The player holds the map key: the map is theirs, and letting go closes it.
+	pad.map_pressed = true
+	map_state.update(game.me, ctx)
+	E.eq(api.map.is_open(), true)
+	pad.map_pressed = false
+	ctx.state.input.map = false
+	map_state.update(game.me, ctx)
+	E.eq(api.map.is_open(), false)
+	-- Closed from code, nothing forced is left behind for the idle state to open it again on.
+	api.map.open()
+	map_state.update(game.me, ctx)
+	E.eq(ctx.state.input.map, true)
+	E.eq(api.map.close(), true)
+	E.eq(ctx.state.exit_map, true)
+	map_state.update(game.me, ctx)
+	E.eq(api.map.is_open(), false, "close() leaves the next frame")
+	E.eq(ctx.state.input.map, false)
+	game.state.players[1].player_go.avatar_unit = nil
+	E.eq(select(2, api.map.open()), "no_avatar")
+	game.state.players[1].player_go.avatar_unit = game.me
+	game.me.master.input = nil
+end)
+
+test("a_marker_draws_after_the_map_in_its_units_and_tells_the_clip_its_icon_once", function()
+	local api, game, e, ui = start()
+	map_world()
+	local V = rawget(_G, "Vector3")
+	local gui = { images = {}, clippable = {} }
+	function gui:image(icon, pos, size, color) self.images[#self.images + 1] = { icon = icon, pos = pos, size = size, color = color } end
+	function gui:add_clippable_materials(m) self.clippable[m] = (self.clippable[m] or 0) + 1 end
+	local info, hud = { map_zoom = 2 }, { generated_level = game.state.generated_level }
+	local draw = rawget(_G, "Hud").draw_map
+	local m = api.map.marker(V(96, 96, 0), { size = 10, color = { 255, 1, 2, 3 } })
+	draw(hud, 0.016, 0, info, gui)
+	E.eq(gui.drawn, 1, "the game's map is drawn")
+	E.eq(gui.images[1].icon, "icon_map_pickup_generic")
+	E.eq(math.abs(gui.images[1].pos.x + 5) < 1e-6, true, "the middle of the level, less half the size")
+	E.eq(gui.images[1].color[2], 1)
+	E.eq(gui.clippable.icon_map_pickup_generic, 1)
+	draw(hud, 0.016, 0, info, gui)
+	E.eq(gui.clippable.icon_map_pickup_generic, 1, "once per gui")
+	m:move(V(196, 96, 0))
+	gui.images = {}
+	draw(hud, 0.016, 0, info, gui)
+	local expected = 100 * math.cos(math.rad(45)) * 350 / (10 * 48) * 2 * 2 - 5
+	E.eq(math.abs(gui.images[1].pos.x - expected) < 1e-6, true, "scaled by the zoom")
+	-- One that follows a unit, and stops when it's gone.
+	local follower = api.map.marker(nil, { unit = game.me, icon = "map_marker_ping" })
+	gui.images = {}
+	draw(hud, 0.016, 0, info, gui)
+	E.eq(#gui.images, 2)
+	E.eq(gui.clippable.map_marker_ping, 1)
+	game.me.alive = false
+	gui.images = {}
+	draw(hud, 0.016, 0, info, gui)
+	E.eq(#gui.images, 1)
+	game.me.alive = true
+	follower:remove()
+	-- A broken marker costs the markers, not the map.
+	m:set({ color = 5 })
+	gui.drawn = 0
+	draw(hud, 0.016, 0, info, gui)
+	E.eq(gui.drawn, 1)
+	E.has(e:log("obsidianapi"), "map markers:")
+	m:remove()
+	gui.images = {}
+	draw(hud, 0.016, 0, info, gui)
+	E.eq(#gui.images, 0)
+	E.eq(select(2, api.map.marker(nil)), "bad_type")
+	E.eq(select(2, api.map.marker(V(1, 1, 0), { size = -1 })), "out_of_range")
+	-- A marker belongs to its mission.
+	api.map.marker(V(96, 96, 0))
+	local was = ui.state_object
+	ui.state_object = { players = {} }
+	gui.images = {}
+	draw(hud, 0.016, 0, info, gui)
+	E.eq(#gui.images, 0)
+	ui.state_object = was
+end)
+
+-- Bots: three free records past the player's, pad 1 held by a real controller, and units that land
+-- when the test says.
+local function bot_world(game, e)
+	rawset(_G, "KEYBOARD_MOUSE_PAD_NUMBER", 0)
+	rawset(_G, "Pads", { 1, 2, 3, 4 })
+	rawset(_G, "PadManager", { is_pad_active = function(_, pad) return pad == 1 end })
+	rawset(_G, "ControllerSettings", { pad = {
+		{ func = "axis", output_name = "move" }, { func = "axis", output_name = "aim" }, { func = "button", output_name = "fire_button" },
+		{ func = "button", output_name = "throw" }, { func = "pressed", output_name = "reload_pressed" }, { func = "button", output_name = "sprint_button" },
+		{ func = "filter", key = "FilterSticky", output_name = "sprint_pressed" }, { func = "pressed", output_name = "melee" },
+		{ func = "pressed", output_name = "switch_weapon_down" }, { func = "filter", key = "FilterVirtualAxis", output_name = "look" },
+		{ func = "pressed", output_name = "interact" },
+	} })
+	local st = game.state
+	local function go_for()
+		local go = { made = false }
+		function go:exists() return self.made end
+		function go:owned() return self.made end
+		function go:get(k) return self[k] end
+		function go:set(k, v) self[k] = v end
+		function go:has(k) return self[k] ~= nil end
+		function go:create() self.made = true end
+		function go:destroy() self.made = false self.avatar_unit = nil end
+		return go
+	end
+	for i = 2, 4 do st.players[i] = { player_go = go_for(), pad_number = 0 } end
+	st.rpc_add_local_player_accepted = function(self, peer, pad, index)
+		local r = self.players[index]
+		r.player_go:set("name", rawget(_G, "UserManager"):get_name(pad))
+		r.player_go:create()
+		r.pad_number = pad
+		game.joined = { peer = peer, pad = pad, index = index }
+	end
+	st.dropped_pads = {}
+	st.despawn_player = function(self, pad)
+		for _, r in ipairs(self.players) do
+			if r.pad_number == pad and r.player_go:owned() then
+				r.player_go:destroy()
+				r.pad_number = 0
+				self.dropped_pads[pad] = true
+			end
+		end
+	end
+	local function body(pos, pad)
+		return { alive = true, owned = true, pos = pos or { x = 1, y = 1, z = 0 },
+			master = { input = { pad_number = pad, has_focus = false }, character = {}, inventory = {}, customization = {} }, slave = {} }
+	end
+	game.land = function(index, pos)
+		local u = body(pos, st.players[index].pad_number)
+		st.players[index].player_go:set("avatar_unit", u)
+		return u
+	end
+	st.spawn_manager = { queue_spawn = function(_, path, pos, _, listener, data)
+		game.queued = { path = path, pos = pos, data = data }
+		local u = body({ x = pos.x, y = pos.y, z = 0 }, nil)
+		game.bare = u
+		listener:on_entity_spawned(u)
+	end }
+	rawget(_G, "CameraManager").follow_spin = 0
+	-- The game's input component, which reads its players' input once a frame.
+	rawset(_G, "InputComponent", { update_masters = function() end })
+	-- An early Hud with an update, which the real script writes over when it loads.
+	rawset(_G, "Hud", rawget(_G, "Hud") or { draw_map = function() end })
+	rawget(_G, "Hud").update = function() end
+	rawget(_G, "require")("lua/network/network_global")
+	rawget(_G, "Hud").update = function() end
+	e.opts.modules["lua/hud/hud"] = true
+	rawget(_G, "require")("lua/hud/hud")
+	game.step = function(n)
+		for _ = 1, n do
+			e:frames(1)
+			rawget(_G, "InputComponent").update_masters({}, 0.016)
+		end
+	end
+	return st
+end
+
+test("a_bot_joins_as_a_local_player_on_a_free_pad_with_input_of_the_games_types", function()
+	local api, game, e = start()
+	local st = bot_world(game, e)
+	local bot = api.bots.add({ name = "Dummy" })
+	E.eq(bot.kind, "player")
+	E.eq(game.joined.pad, 2, "pad 0 is the keyboard and pad 1 a controller someone holds")
+	E.eq(game.joined.index, 2)
+	E.eq(game.joined.peer, "me")
+	E.eq(st.players[2].player_go.name, "Dummy")
+	E.eq(rawget(_G, "UserManager"):get_name(2), "Tester", "the name is lent only while it joins")
+	E.eq(bot:alive(), false, "still in its hellpod")
+	local u = game.land(2)
+	E.eq(bot:unit(), u)
+	bot:move({ x = 1, y = 0 }):fire(true)
+	game.step(1)
+	local input = u.master.input
+	E.eq(input.has_focus, true)
+	local t = input.input_data
+	E.eq(t.is_active, true)
+	E.eq(t.fire_button, 1)
+	E.eq(t.throw, 0, "a button is a number")
+	E.eq(t.reload_pressed, false, "a press is a boolean")
+	E.eq(t.sprint_pressed, false, "so is a filter")
+	E.eq(type(t.look), "table", "a virtual axis is a vector")
+	E.eq(t.fire_button_primary_vehicle, 0, "a seat reads these")
+	E.eq(t.move.x, 1)
+	E.eq(t.aim.x, 0)
+	bot:reload()
+	game.step(1)
+	E.eq(t.reload_pressed, true)
+	game.step(1)
+	E.eq(t.reload_pressed, true, "held two frames")
+	game.step(1)
+	E.eq(t.reload_pressed, false)
+	bot:throw()
+	game.step(1)
+	E.eq(t.throw, 1)
+	game.step(10)
+	E.eq(t.throw, 0, "and let go")
+	-- The camera turns the sticks: a world direction is turned back for the stick.
+	rawget(_G, "CameraManager").follow_spin = math.pi / 2
+	bot:move({ x = 0, y = 1 })
+	game.step(1)
+	E.eq(math.abs(t.move.x - 1) < 1e-6 and math.abs(t.move.y) < 1e-6, true)
+	rawget(_G, "CameraManager").follow_spin = 0
+	E.eq(select(2, api.bots.add({ name = 5 })), "bad_type")
+	E.eq(select(2, api.bots.add({ name = string.rep("x", 33) })), "bad_type")
+end)
+
+test("a_bot_fights_and_follows_by_itself", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add()
+	E.eq(bot.name, "Bot 1")
+	local u = game.land(2, { x = 20, y = 1, z = 0 })
+	bot:follow(nil, 6)
+	game.step(1)
+	local t = u.master.input.input_data
+	E.eq(t.move.x, -1, "walks to the player")
+	u.pos = { x = 4, y = 1, z = 0 }
+	game.step(1)
+	E.eq(t.move.x, 0, "and stops near")
+	bot:fight(25)
+	game.step(1)
+	E.eq(t.fire_button, 1)
+	E.eq(math.abs(t.aim.x - (-1 / math.sqrt(2))) < 1e-6, true, "aims at the nearest enemy")
+	bot:fight(false)
+	game.step(1)
+	E.eq(t.fire_button, 0)
+end)
+
+test("past_the_records_a_bot_is_a_bare_helldiver_and_bots_go_before_the_mission_ends", function()
+	local api, game, e = start()
+	local st = bot_world(game, e)
+	local a, _, c = api.bots.add(), api.bots.add(), api.bots.add()
+	E.eq(c.kind, "player")
+	E.eq(game.joined.pad, 4)
+	E.eq(select(2, api.bots.add({ bare = false })), "no_slot")
+	local bare = api.bots.add({ name = "Dummy" })
+	E.eq(bare.kind, "bare")
+	E.eq(game.queued.path, "characters/helldiver_private_01/helldiver_private_01")
+	E.eq(game.queued.pos.x, 4, "beside the player")
+	E.eq(G.command(game, "inventory", "loadout").data.pad_number, 0, "in the main player's loadout")
+	E.eq(bare:unit(), game.bare)
+	game.step(1)
+	-- Every pad of the game is taken: a pad number it doesn't have would fail in its filter code.
+	E.eq(game.bare.master.input.pad_number, nil, "no pad, so it stands still")
+	E.eq(game.bare.master.input.input_data, nil)
+	E.eq(#api.bots.all(), 4)
+	E.eq(a:remove(), true)
+	E.eq(st.players[2].player_go:exists(), false)
+	E.eq(st.dropped_pads[2], nil, "a pad never plugged in isn't waited for")
+	E.eq(#api.bots.all(), 3)
+	local still = game.bare
+	local driven = api.bots.add({ bare = true })
+	game.step(1)
+	E.eq(game.bare.master.input.pad_number, 2, "the pad a bot left")
+	E.eq(game.bare.master.input.input_data.is_active, true)
+	E.eq(select(2, api.bots.add({ bare = false })), "no_slot", "a record, but its pad is the bare bot's")
+	E.eq(driven.kind, "bare")
+	still.alive = false
+	E.eq(bare:alive(), false)
+	st.game_state = "game_over"
+	game.step(1)
+	E.eq(#api.bots.all(), 0)
+	E.eq(st.players[3].player_go:exists(), false, "gone before the results")
+	st.game_state = nil
+end)
+
+test("a_bare_bot_wears_its_name_as_a_player_does_and_it_needs_the_input_hook_to_move", function()
+	local api, game, e = start()
+	local st = bot_world(game, e)
+	for _ = 1, 3 do api.bots.add() end
+	local bare = api.bots.add({ name = "Dummy" })
+	E.eq(bare.kind, "bare")
+	local texts = {}
+	local gui = { screen_resolution = { width = 1920, height = 1080 }, ui_scale = 1 }
+	function gui:set_current_font(f) self.font = f end
+	function gui:set_ignore_position_scale() end
+	function gui:text(text, pos) texts[#texts + 1] = { text = text, pos = pos, font = self.font } end
+	local hud = { hd_gui = gui, gui_metrics_cacher = { get_text_extents = function() return 60, 20 end } }
+	rawget(_G, "CameraManager").get_viewport = function() return { world_to_viewport = function(_, p) return { x = p.x * 10, y = 7, z = p.y * 10 } end } end
+	rawget(_G, "Hud").update(hud, 0.016)
+	E.eq(#texts, 1, "the players with a record have the game's")
+	E.eq(texts[1].text, "Dummy")
+	E.eq(texts[1].font, "body")
+	E.eq(texts[1].pos.x, 40 + -30 + 6, "centred and a little above, as the HUD puts a name")
+	E.eq(texts[1].pos.y, 40 + -10 - 21, "the screen's height is the projection's z; its y is the depth")
+	-- Off the screen, no name.
+	game.bare.pos = { x = -5, y = 1, z = 0 }
+	texts = {}
+	rawget(_G, "Hud").update(hud, 0.016)
+	E.eq(#texts, 0)
+	-- Input is handed over only when the input component reads it: vectors from the frame callback
+	-- would be a frame old.
+	local first = api.bots.all()[1]
+	local u = game.land(2)
+	first:move({ x = 1, y = 0 })
+	e:frames(1)
+	E.eq(u.master.input.input_data, nil, "not from the frame callback")
+	game.step(1)
+	E.eq(u.master.input.input_data.move.x, 1)
+	api.bots.remove_all()
+end)
+
+test("only_the_host_in_a_mission_makes_bots", function()
+	local api, game, e = start({ host = false })
+	bot_world(game, e)
+	E.eq(select(2, api.bots.add()), "host_only")
+	local api2, game2, e2, ui2 = start()
+	bot_world(game2, e2)
+	ui2.state = "menu"
+	E.eq(select(2, api2.bots.add()), "not_in_mission")
 end)
 
 return T

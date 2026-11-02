@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use obsidian_core::compose::plan_for;
+use obsidian_core::compose::plan_with;
 use obsidian_core::deploy::{ChangesWaiting, UncleanEnd, changes_waiting_for, crash_culprit, has_deployed, unclean_end};
 use obsidian_core::game::{GameInstall, find_game, is_running};
 use obsidian_core::gate::{KNOWN_BUILDS, check_build};
@@ -244,14 +244,16 @@ pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Re
     let lib = Library::open(data)?;
     let mut profile = Profile::load(data)?;
     let before = profile.clone();
-    profile.sync(&lib)?;
+    // One pass over the library's folders serves the sync, the rows and the mods that can't be read.
+    let (installed, broken) = lib.list_and_broken()?;
+    profile.sync_with(&lib, &installed)?;
     // Every click comes through here, so the file is only touched when the library changed it.
     if profile != before {
         profile.save(data)?;
     }
-    let manifests: BTreeMap<String, Manifest> = lib.list()?.into_iter().map(|m| (m.id.clone(), m)).collect();
+    let manifests: BTreeMap<String, Manifest> = installed.into_iter().map(|m| (m.id.clone(), m)).collect();
     let game_install = find(settings);
-    let comp = plan_for(&lib, &profile, game_install.as_ref().map(|g| g.contents()).as_deref())?;
+    let comp = plan_with(&lib, &profile, game_install.as_ref().map(|g| g.contents()).as_deref(), &manifests)?;
 
     let conflicts: Vec<ConflictRow> = comp
         .conflicts
@@ -344,7 +346,7 @@ pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Re
         game,
         game_dir: game_install.map(|g| tidy(&g.root)),
         crash_culprit,
-        broken: lib.broken()?,
+        broken,
         damaged_profiles: profiles::damaged(data),
         unclean_end,
         portable,

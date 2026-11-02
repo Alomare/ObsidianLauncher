@@ -22,13 +22,14 @@ local M = {
 }
 
 local capabilities = {
-	after_startup = true, log = true, hook = true, on_require = true, on_session = true, session = true,
+	after_startup = true, log = true, hook = true, wrap = true, on_require = true, on_session = true, session = true,
 	settings = true, keybind = true, text = true, on_frame = true, module = true, import = true, menu = true, toast = true, notify = true, storage = true, caller = true,
 	ui = true, scope = true, guardrails = true,
 }
 local api = {
 	version = API_VERSION,
 	hook = hooks.hook,
+	wrap = hooks.wrap,
 	on_require = hooks.on_require,
 	on_session = session.on_session,
 	session = session.api(),

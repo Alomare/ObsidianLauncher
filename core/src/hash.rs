@@ -71,7 +71,14 @@ pub fn format_name(hash: u64) -> String {
 /// Resource names found in the game's bundles (tools/make-names.py), `<hash> <name>` per line.
 const NAMES: &str = include_str!("../data/names.txt");
 /// Names the bundles don't spell out but Obsidian knows.
-const EXTRA_NAMES: &[&str] = &["resource_packages/boot", "foundation/lua/build_date_information", "lua/boot/boot"];
+const EXTRA_NAMES: &[&str] = &[
+    "resource_packages/boot",
+    "foundation/lua/build_date_information",
+    "lua/boot/boot",
+    "lua/components/inventory_component",
+    "lua/menu/menu_screen_campaign_multiplayer",
+    "lua/generated/unit_path_to_network_object",
+];
 
 fn known_names() -> &'static std::collections::HashMap<u64, &'static str> {
     static MAP: std::sync::OnceLock<std::collections::HashMap<u64, &'static str>> = std::sync::OnceLock::new();
@@ -103,6 +110,13 @@ pub fn display_text(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn scripts_the_bundles_dont_spell_out_have_names_too() {
+        assert_eq!(display_name(0x520e79e14b304a44), "lua/components/inventory_component");
+        assert_eq!(display_name(0x54ca95ed20705469), "lua/menu/menu_screen_campaign_multiplayer");
+        assert_eq!(display_name(0xb04000fc3086bd36), "lua/generated/unit_path_to_network_object");
+    }
 
     #[test]
     fn known_names_replace_hashes_for_people() {

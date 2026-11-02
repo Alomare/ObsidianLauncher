@@ -309,6 +309,48 @@ test("session_hook_calls_original_when_not_cleared", function()
 	E.eq(rawget(_G, "Target"):run(1), "vanilla 1")
 end)
 
+test("a_wrap_runs_with_the_lobby_not_cleared_and_keeps_a_hooks_safety", function()
+	rawset(_G, "Target", { run = function(_, x) return "vanilla " .. x end })
+	local e = engine({ my_id = "me", members = { "me", "p2" }, data = { p2 = "1;" .. OTHER .. ";0" } },
+		{ mods = { E.mod("s", { scope = "session" }) } },
+		{ ["obsidian/mods/s/main"] = [[obsidian.wrap("Target", "run", function(original, self, x)
+			if x == 2 then error("broken") end
+			return "wrapped " .. original(self, x)
+		end)]] })
+	e:frames(31)
+	E.eq(rawget(_G, "Target"):run(1), "wrapped vanilla 1")
+	E.eq(rawget(_G, "Target"):run(2), "vanilla 2", "a failure falls back to the game's function")
+	E.eq(rawget(_G, "obsidian").capabilities.wrap, true)
+end)
+
+test("merged_tables_come_out_the_same_in_any_load_order", function()
+	local source = assert(io.open("core/data/merge_tables.lua", "rb")):read("*a")
+	local function merge(names, tables)
+		local env = setmetatable({ NAMES = names, require = function(name) return tables[name] end }, { __index = _G })
+		return setfenv(assert(loadstring(source)), env)()
+	end
+	local one = { [1] = "game", [2] = "zed", game = 1, zed = 2 }
+	local two = { [1] = "alpha", [2] = "game", alpha = 1, game = 2 }
+	local t = { one = one, two = two }
+	local a, b = merge({ "one", "two" }, t), merge({ "two", "one" }, t)
+	for _, m in ipairs({ a, b }) do
+		E.eq(m[1], "alpha")
+		E.eq(m[2], "game")
+		E.eq(m[3], "zed")
+		E.eq(m.zed, 3, "the number each path has")
+		E.eq(m.game, 2)
+	end
+	-- A plain list stays a list.
+	local list = merge({ "x", "y" }, { x = { "b", "a" }, y = { "c", "a" } })
+	E.eq(table.concat(list, ","), "a,b,c")
+	E.eq(list.a, nil)
+	-- A map keeps every key, and the later mod's value.
+	local map = merge({ "x", "y" }, { x = { p = "one", q = { dynamic = "d" } }, y = { p = "two", r = "three" } })
+	E.eq(map.p, "two")
+	E.eq(map.q.dynamic, "d")
+	E.eq(map.r, "three")
+end)
+
 test("session_hook_runs_when_cleared", function()
 	local e = hook_engine({ p2 = "1;" .. OWN .. ";0" })
 	e:frames(31)

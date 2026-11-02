@@ -53,7 +53,7 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
       {wave && <span key={wave.n} ref={waveRef} className={`nav-wave ${wave.tone}`} aria-hidden="true" onAnimationEnd={onWaveEnd} />}
       <div className="tabs" role="tablist" ref={tabsRef}>
         {TABS.map(([id, Icon]) => (
-          <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? "tab cur" : "tab"} onClick={() => onTab(id)}>
+          <button key={id} role="tab" aria-selected={tab === id} aria-label={t(`app.nav.${id}`)} data-tip={t(`app.nav.${id}`)} className={tab === id ? "tab cur" : "tab"} onClick={() => onTab(id)}>
             <Icon />
             <span className="cap">{t(`app.nav.${id}`)}</span>
           </button>
@@ -66,14 +66,6 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
             {warn}
           </span>
         )}
-        {snap && (
-          <button className={guards ? "guard on" : "guard"} onClick={() => setGuarding(true)} aria-haspopup="dialog"
-            data-tip-title={t("app.guardrails.button", snap.profile)} data-tip={guardrailsSummary(snap)}>
-            <ShieldIcon filled={guards > 0} />
-            <span>{t("app.nav.guardrails")}</span>
-            {guards > 0 && <i className="guard-count" aria-hidden="true">{guards}</i>}
-          </button>
-        )}
         {guarding && snap && <GuardrailsDialog snap={snap} onClose={() => setGuarding(false)} />}
         <div className="actions">
           <button className={snap?.deployed ? "btn icon danger" : "btn icon"} onClick={onPurge} disabled={locked} data-tip-title={t("app.action.purge")} data-tip={why ?? t("app.action.purgeHint")} aria-label={t("app.action.purge")}>
@@ -83,6 +75,13 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
             data-tip={why ?? (waiting ? t("app.action.deployWaiting") : t(`app.action.deploy${snap?.changes ?? "UpToDate"}`))} aria-label={t("app.action.deploy")}>
             <DeployIcon />
           </button>
+          {snap && (
+            <button className={guards ? "btn icon guard on" : "btn icon guard"} onClick={() => setGuarding(true)} aria-haspopup="dialog" aria-label={t("app.nav.guardrails")}
+              data-tip-title={t("app.guardrails.button", snap.profile)} data-tip={guardrailsSummary(snap)}>
+              <ShieldIcon filled={guards > 0} />
+              {guards > 0 && <i className="guard-count" aria-hidden="true">{guards}</i>}
+            </button>
+          )}
           <button className="btn play" onClick={onPlay} disabled={locked} data-tip={why ?? t("app.action.playHint")}>
             <PlayIcon />
             <span>{t("app.action.play")}</span>

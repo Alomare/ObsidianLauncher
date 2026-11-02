@@ -24,6 +24,8 @@ pub enum ObsidianError {
     NothingToImport(String),
     #[error("{0} is not a bundle of this game")]
     UnknownBundle(String),
+    #[error("{0} is a ReShade preset, not a game mod: it works with ReShade installed in the game folder, outside Obsidian")]
+    ReshadePreset(String),
     #[error("the game files don't match a build Obsidian knows ({}), so it can't tell what this mod changes. If you copied a mod into the game folder by hand, verify the game files in Steam and import it again", .0.mismatches.join(", "))]
     GameFilesChanged(crate::gate::GateReport),
     #[error("bundle {bundle}, entry {entry}: its streamed data is in neither the mod's nor the game's .stream file")]
@@ -82,6 +84,10 @@ pub enum ObsidianError {
     LockedFolder,
     #[error("close the game first")]
     GameRunning,
+    #[error("this mod needs Obsidian {needs} or newer: update Obsidian, then add the mod again")]
+    NewerObsidian { needs: String },
+    #[error("another deploy or purge is running on this library; try again when it ends")]
+    Busy,
     #[error("deploy failed and was undone: {0}")]
     DeployFailed(String),
     #[error("purge couldn't remove a file, so run it again with the game closed: {0}")]

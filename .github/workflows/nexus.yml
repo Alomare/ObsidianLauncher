@@ -1,0 +1,129 @@
+# Uploads a release's installer and portable ZIP to Nexus Mods, as new versions of the Setup and Portable files
+# already on the mod page. The mod's version follows, and the release text becomes each version's changelog.
+# It runs when a release is published (the Release workflow makes a draft; publishing it starts this), and by
+# hand from the Actions tab for a tag that's already out. Drafts and pre-releases are never uploaded.
+#
+# Needs the repository secret NEXUSMODS_API_KEY (a Nexus Mods API key; Settings, Secrets and variables, Actions).
+# Without it the run stops with a message and nothing is uploaded.
+# Never run it with debug logging on: the upload action writes the API key into the debug log. GitHub masks it, but
+# the logs of a public repository are open to anyone.
+name: Nexus Mods
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to upload (for example v1.0.5)
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nexus-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  NEXUS_MOD_ID: '15255723835408'   # the Unique Mod ID (Files tab, Advanced)
+  TAG: ${{ github.event.release.tag_name || inputs.tag }}
+
+jobs:
+  nexus:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the API key is set
+        env:
+          KEY: ${{ secrets.NEXUSMODS_API_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::Add the NEXUSMODS_API_KEY repository secret (Settings, Secrets and variables, Actions) first."
+            exit 1
+          fi
+
+      - name: Download the release files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json tagName >/dev/null 2>&1; then
+            echo "::error::No published release with the tag $TAG. Publish the draft first."
+            exit 1
+          fi
+          [ "$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,isPrerelease -q '.isDraft or .isPrerelease')" = false ] \
+            || { echo "::error::$TAG is a draft or a pre-release: not uploaded."; exit 1; }
+          # tags are v1.0.4, ...; the files are named by the version without the v (as tools/verify_release.py checks)
+          VERSION="${TAG#v}"
+          SETUP="Obsidian.Mod.Manager_${VERSION}_x64-setup.exe"
+          PORTABLE="ObsidianModManager-${VERSION}-portable.zip"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$SETUP" --pattern "$PORTABLE"
+          test -s "$SETUP" || { echo "::error::$SETUP is missing from the release $TAG."; exit 1; }
+          test -s "$PORTABLE" || { echo "::error::$PORTABLE is missing from the release $TAG."; exit 1; }
+          { echo "VERSION=$VERSION"; echo "SETUP=$SETUP"; echo "PORTABLE=$PORTABLE"; } >> "$GITHUB_ENV"
+
+      - name: Changelog from the release text
+        id: notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body -q .body > body.md
+          # Nexus shows each changelog line as a point of its own: the section headings (Highlights, Additions...)
+          # go, a highlight's title leads its paragraph, and list marks, bold and link targets go
+          python3 - <<'PY' > notes.txt
+          import re
+          out, title = [], None
+          for line in open("body.md", encoding="utf-8").read().replace("\r", "").split("\n"):
+              line = line.strip()
+              if not line or line.startswith("### "):
+                  continue
+              if line.startswith("#### "):
+                  title = line[5:].strip()
+                  continue
+              line = re.sub(r"^[-*]\s+", "", line)
+              line = re.sub(r"\*\*(.+?)\*\*", r"\1", line)
+              line = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", line)
+              if title:
+                  line, title = f"{title}: {line}", None
+              out.append(line)
+          print("\n".join(out))
+          PY
+          test -s notes.txt || echo "Version ${VERSION}." > notes.txt
+          { echo 'text<<NOTES_END'; cat notes.txt; echo 'NOTES_END'; } >> "$GITHUB_OUTPUT"
+
+      # New versions of the two files already on the page (Files tab, Advanced, API File ID). The action gets the
+      # API key, so it is pinned to the commit of the tag v1.0.0-beta.11 (a tag can be moved); a new version of the
+      # action means a new commit here. Only the Setup bumps the mod's version, so the second upload doesn't set it
+      # again.
+      - name: Upload Obsidian Mod Manager Setup
+        uses: Nexus-Mods/upload-action@98532f7670c27cbecc78fae03fa3e278147827e2  # v1.0.0-beta.11
+        with:
+          api_key: ${{ secrets.NEXUSMODS_API_KEY }}
+          file_id: '8290677'
+          filename: ${{ env.SETUP }}
+          version: ${{ env.VERSION }}
+          display_name: Obsidian Mod Manager Setup
+          description: Windows setup. Install like any other program. Updates itself from within the app.
+          category: main
+          archive_existing_version: true
+          primary_mod_manager_download: true
+          allow_mod_manager_download: true
+          update_mod_version: true
+          mod_id: ${{ env.NEXUS_MOD_ID }}
+          changelog: ${{ steps.notes.outputs.text }}
+
+      - name: Upload Obsidian Mod Manager Portable
+        uses: Nexus-Mods/upload-action@98532f7670c27cbecc78fae03fa3e278147827e2  # v1.0.0-beta.11
+        with:
+          api_key: ${{ secrets.NEXUSMODS_API_KEY }}
+          file_id: '8290683'
+          filename: ${{ env.PORTABLE }}
+          version: ${{ env.VERSION }}
+          display_name: Obsidian Mod Manager Portable
+          description: Portable ZIP. Unzip anywhere and run Obsidian.exe; it keeps its data beside it.
+          category: main
+          archive_existing_version: true
+          primary_mod_manager_download: false
+          allow_mod_manager_download: true
+          update_mod_version: false
+          mod_id: ${{ env.NEXUS_MOD_ID }}
+          changelog: ${{ steps.notes.outputs.text }}

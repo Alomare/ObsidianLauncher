@@ -93,7 +93,8 @@ async function measure(done, act) {
 }
 
 const invoke = (cmd, args = {}) => js(`window.__TAURI_INTERNALS__.invoke(${JSON.stringify(cmd)}, ${JSON.stringify(args)})`);
-const tab = (i) => `.tabs .tab:nth-child(${i})`;
+// Home, Mods and Wiki are the tabs on the left; Settings is the gear at the far right of the bar.
+const tab = (i) => (i === SETTINGS ? `.nav > .tabs:last-child .tab` : `.nav > .tabs:first-child .tab:nth-child(${i})`);
 const SETTINGS = 4;
 // The nth mod row that can move (not in a locked folder).
 const rowSel = (n) => js(`[...document.querySelectorAll(".tbody .tr[data-key]:not(.fr):not(.pinned)")][${n}]?.dataset.key ?? null`);

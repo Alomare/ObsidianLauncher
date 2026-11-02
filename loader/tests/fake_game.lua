@@ -21,7 +21,7 @@ for component, list in pairs({
 	shield = "set_shieldpoints set_shield_activated set_shield_info reset_shield_info",
 	character = "infinite_stamina move_speed_sprint_max do_knockdown drop_carry exit_interact_objective set_throw_range_multiplier",
 	mover = "position position_teleport move_speed acceleration deceleration ignore_slow keep_inside_screen destroy enable",
-	inventory = "ammo_pickup set_grenades set_grenade_path set_stratagem_info broadcast_stratagem_cooldown set_stratagem_cooldown_multiplier receive_stratagem set_weapon set_perk set_item_upgrades set_backpack",
+	inventory = "loadout ammo_pickup set_grenades set_grenade_path set_stratagem_info broadcast_stratagem_cooldown set_stratagem_cooldown_multiplier receive_stratagem set_weapon set_perk set_item_upgrades set_backpack",
 	customization = "set_customization communication_event enable_heavy_armor disable_heavy_armor set_visible set_silhouette_color",
 	enemy_target = "enable disable",
 	enemy = "remove_from_group damage_taken",

@@ -3,7 +3,7 @@ local E = require "fake_engine"
 local T = {}
 local function test(name, fn) T[#T + 1] = { name, fn } end
 
-local IDS = { "skip_intro", "skip_login", "skip_war_briefs", "skip_planet_scanning", "widescreen" }
+local IDS = { "skip_intro", "skip_login", "skip_war_briefs", "skip_planet_scanning", "solo_pause", "widescreen", "aim_cursor", "toggle_map" }
 
 -- off: option ids switched off in settings.txt; every other option keeps the default (on).
 -- expedite: the mission end choice, off when not given.
@@ -126,6 +126,127 @@ test("skip_war_briefs_skips_the_recap", function()
 	E.eq(seen.recap, false)
 end)
 
+-- The galaxy map's recap screen, as the game defines it when the campaign menu loads. params.events
+-- gives the screen something to play; params.war_over makes it the war's end; params.from_backend
+-- leaves the snapshots to come later.
+local function load_recap(e)
+	local recap = {}
+	function recap.on_enter(self, params)
+		self.params, self.wants_exit, self.snapshots = params, false, {}
+		if params.war_over then self.season_end_params = { season = 3 } end
+		if params.events then self.snapshots = { "event" } elseif not params.from_backend then self.wants_exit = true end
+	end
+	function recap.recieve_snapshots(self) self.snapshots = { "event" } end
+	local campaign = { recap = setmetatable({}, { __index = recap }) }
+	function campaign.go_to_recap(self) self.recap:on_enter({ next_state = "region", events = true }) end
+	rawset(_G, "MenuScreenCampaignRecap", recap)
+	rawset(_G, "MenuScreenCampaign", campaign)
+	e.opts.modules["lua/menu/menu_screen_campaign"] = true
+	rawget(_G, "require")("lua/menu/menu_screen_campaign")
+	return setmetatable({}, { __index = recap }), campaign
+end
+
+test("skip_war_briefs_leaves_the_galaxy_maps_brief_at_once", function()
+	local e = engine()
+	local screen = load_recap(e)
+	screen:on_enter({ next_state = "start", events = true })
+	E.eq(screen.wants_exit, true, "the brief of what changed")
+	E.has(e:log("obsidianqol"), "skip war briefs: brief skipped")
+end)
+
+test("skip_war_briefs_plays_the_recap_the_player_asks_for_and_the_wars_end", function()
+	local e = engine()
+	local screen, campaign = load_recap(e)
+	campaign:go_to_recap()
+	E.eq(campaign.recap.wants_exit, false, "asked for")
+	screen:on_enter({ next_state = "start", events = true })
+	E.eq(screen.wants_exit, true, "the next one is skipped again")
+	local over = load_recap(e)
+	over:on_enter({ next_state = "start", events = true, war_over = true })
+	E.eq(over.wants_exit, false, "the war's end goes on to the season end")
+end)
+
+test("skip_war_briefs_waits_for_the_snapshots_from_the_backend", function()
+	local e = engine()
+	local screen = load_recap(e)
+	screen:on_enter({ from_backend = true })
+	E.eq(screen.wants_exit, false, "nothing to decide yet")
+	screen:recieve_snapshots({}, { 1 })
+	E.eq(screen.wants_exit, true)
+end)
+
+-- A mission alone or with others: the game state's component manager, the lobby and the pause menu.
+local function mission(e, members)
+	local cm = { component_name_to_index = { navmesh_mover = 1, enemy = 2, hud_thing = 3 }, active_components = { 1, 2, 3 } }
+	function cm:pause_component(name)
+		local index = self.component_name_to_index[name]
+		for i, x in ipairs(self.active_components) do
+			if x == index then table.remove(self.active_components, i) return end
+		end
+	end
+	function cm:resume_component(name) table.insert(self.active_components, self.component_name_to_index[name]) end
+	local game = { component_manager = cm }
+	rawset(_G, "Boot", { state_machine = { get_current_state = function() return game end, get_current_state_name = function() return "game" end } })
+	local lobby = { lobby = {}, list = members }
+	function lobby:members() return self.list end
+	rawset(_G, "NetworkGlobal", { lobby = lobby })
+	local sent = {}
+	rawset(_G, "EntityAux", { queue_command_master = function(unit, component, command, data) sent[#sent + 1] = data end })
+	rawset(_G, "MenuScreenMain", { set_active_pause = function() end })
+	e.opts.modules["lua/menu/menu_screen_main"] = true
+	rawget(_G, "require")("lua/menu/menu_screen_main")
+	local function running(name)
+		for _, x in ipairs(cm.active_components) do
+			if x == cm.component_name_to_index[name] then return true end
+		end
+		return false
+	end
+	return running, lobby, sent, cm
+end
+
+test("solo_pause_freezes_a_mission_alone_and_goes_on_when_someone_joins", function()
+	local e = engine()
+	local running, lobby, sent = mission(e, { "me" })
+	local menu = rawget(_G, "MenuScreenMain")
+	menu.set_active_pause({}, true)
+	E.eq(rawget(_G, "PAUSED"), true, "the scripts' clock")
+	E.eq(running("enemy") or running("navmesh_mover"), false, "enemies and movement wait")
+	E.eq(running("hud_thing"), true, "the rest runs")
+	local data = { damage = 5 }
+	rawget(_G, "EntityAux").queue_command_master("unit", "enemy", "damage_taken", data)
+	E.eq(sent[1] ~= data and sent[1].damage == 5, true, "a waiting enemy's command keeps a copy")
+	lobby.list = { "me", "friend" }
+	e:frames(1)
+	E.eq(rawget(_G, "PAUSED"), false, "someone joined")
+	E.eq(running("enemy") and running("navmesh_mover"), true)
+	E.has(e:log("obsidianqol"), "solo pause: someone joined")
+end)
+
+test("solo_pause_ends_with_the_menu_and_stays_off_with_company", function()
+	local e = engine()
+	local running, lobby = mission(e, { "me" })
+	local menu = rawget(_G, "MenuScreenMain")
+	menu.set_active_pause({}, true)
+	menu.set_active_pause({}, false)
+	E.eq(rawget(_G, "PAUSED"), false)
+	E.eq(running("enemy"), true)
+	lobby.list = { "me", "friend" }
+	menu.set_active_pause({}, true)
+	E.eq(rawget(_G, "PAUSED"), false, "with another player the game goes on, as it always did")
+	E.eq(running("enemy"), true)
+end)
+
+test("solo_pause_leaves_a_freeze_it_didnt_make", function()
+	local e = engine()
+	local running, _, _, cm = mission(e, { "me" })
+	cm:pause_component("enemy")
+	local menu = rawget(_G, "MenuScreenMain")
+	menu.set_active_pause({}, true)
+	menu.set_active_pause({}, false)
+	E.eq(running("enemy"), false, "another mod's freeze stays")
+	E.eq(running("navmesh_mover"), true)
+end)
+
 test("skip_planet_scanning_shortens_every_step", function()
 	local e = engine()
 	rawset(_G, "CampaignSettings", { planet_scanning_states = { { name = "wait", time = 1 }, { name = "first_scan", time = 0.75 } } })
@@ -232,6 +353,71 @@ test("expedite_faster_speeds_up_a_long_screen_and_presses_after_a_second", funct
 	E.eq(state.seen_dt, 0.5, "Done keeps the real time")
 end)
 
+-- The game's input code and cursor, and a save with the crosshair option off.
+local function cursor_game(e)
+	local saved = { crosshair_always_visible = false }
+	local seen = {}
+	rawset(_G, "SaveManager", { get = function(_, key) return saved[key] end })
+	rawset(_G, "CursorManager", { set_cursor = function(_, name) seen.cursor = name end })
+	rawset(_G, "InputComponent", { update_masters = function()
+		seen.option = rawget(_G, "SaveManager"):get("crosshair_always_visible")
+		rawget(_G, "CursorManager"):set_cursor("hud/cursors/game_inactive")
+	end })
+	e.opts.modules["lua/components/input_component"] = true
+	rawget(_G, "require")("lua/components/input_component")
+	return seen
+end
+
+test("aim_cursor_keeps_the_aiming_cursor_for_the_input_code_alone", function()
+	local e = engine()
+	local seen = cursor_game(e)
+	rawget(_G, "InputComponent").update_masters()
+	E.eq(seen.option, true, "the input code sees the crosshair option on")
+	E.eq(seen.cursor, "hud/cursors/game", "the aiming cursor, not the dimmed one")
+	E.eq(rawget(_G, "SaveManager"):get("crosshair_always_visible"), false, "the option in the menu stays as set")
+	rawget(_G, "CursorManager"):set_cursor("hud/cursors/game_inactive")
+	E.eq(seen.cursor, "hud/cursors/game_inactive", "anyone else gets the cursor they asked for")
+end)
+
+test("aim_cursor_stops_answering_when_the_input_code_fails", function()
+	local e = engine()
+	rawset(_G, "SaveManager", { get = function() return false end })
+	rawset(_G, "InputComponent", { update_masters = function() error("broken") end })
+	e.opts.modules["lua/components/input_component"] = true
+	rawget(_G, "require")("lua/components/input_component")
+	pcall(rawget(_G, "InputComponent").update_masters)
+	E.eq(rawget(_G, "SaveManager"):get("crosshair_always_visible"), false)
+end)
+
+-- The player's bindings, with the map held.
+local function bindings_game(e)
+	local map = { func = "filter", key = "FilterSticky", output_name = "map_pressed", input = { button = "map_button", start_sticky = false } }
+	local other = { func = "filter", key = "FilterSticky", output_name = "sprint_pressed", input = { button = "sprint_button", start_sticky = false } }
+	local bindings = { { func = "button", output_name = "map_button" }, map, other }
+	rawset(_G, "InputRebinder", { get_or_default = function() return bindings end })
+	e.opts.modules["lua/utility/input_rebinder"] = true
+	rawget(_G, "require")("lua/utility/input_rebinder")
+	return map, other
+end
+
+local function sticky(list, name)
+	for _, binding in ipairs(list) do
+		if binding.output_name == name then return binding.input.start_sticky end
+	end
+end
+
+test("toggle_map_makes_the_map_binding_sticky_on_a_copy", function()
+	local e = engine()
+	local map, other = bindings_game(e)
+	local rebinder = rawget(_G, "InputRebinder")
+	local list = rebinder:get_or_default("keyboard_mouse")
+	E.eq(sticky(list, "map_pressed"), true, "the input code gets a toggle")
+	E.eq(sticky(list, "sprint_pressed"), false, "only the map's")
+	E.eq(map.input.start_sticky, false, "the player's saved binding stays")
+	E.eq(other.input.start_sticky, false)
+	E.eq(#list, 3)
+end)
+
 test("options_off_change_nothing", function()
 	rawset(_G, "GameSettings", { max_aspect_ratio = 16 / 9 })
 	local e = engine(IDS)
@@ -246,6 +432,16 @@ test("options_off_change_nothing", function()
 	E.eq(seen.recap, true, "war briefs")
 	E.eq(rawget(_G, "CampaignSettings").planet_scanning_states[1].time, 1, "planet scanning")
 	E.eq(rawget(_G, "GameSettings").max_aspect_ratio, 16 / 9, "widescreen")
+	local running = mission(e, { "me" })
+	rawget(_G, "MenuScreenMain").set_active_pause({}, true)
+	E.eq(rawget(_G, "PAUSED"), nil, "solo pause")
+	E.eq(running("enemy"), true)
+	local seen = cursor_game(e)
+	rawget(_G, "InputComponent").update_masters()
+	E.eq(seen.option, false, "aim cursor")
+	E.eq(seen.cursor, "hud/cursors/game_inactive")
+	bindings_game(e)
+	E.eq(sticky(rawget(_G, "InputRebinder"):get_or_default("keyboard_mouse"), "map_pressed"), false, "toggle map")
 end)
 
 return T
