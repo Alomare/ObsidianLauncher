@@ -51,6 +51,7 @@ summary: Every field of the file that describes a mod.
 | `load` | no | `"last"` asks for the end of the load order when the mod joins a profile, and new mods then go before it. The player's order wins after that. |
 | `load_after` | no | Ids of mods this one asks to load after, when either joins a profile. The player's order wins after that. |
 | `loader_api` | no | The version of the [Loader API](wiki:loader-api) the mod needs. `1` when left out. |
+| `min_obsidian` | no | The oldest Obsidian the mod works with, such as `"1.1.0"`. An older one refuses the mod and asks the player to update. Obsidian before 1.1 doesn't read it. |
 | `options` | no | Settings players change in the app ([Options and keys](wiki:options-and-keys)). |
 | `keybinds` | no | Keys players can rebind in the app. |
 | `resources` | no | Game files the mod replaces or adds ([Replacing game files](wiki:resources)). |

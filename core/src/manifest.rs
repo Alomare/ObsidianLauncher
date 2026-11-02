@@ -290,6 +290,10 @@ pub struct Manifest {
     pub load_after: Vec<String>,
     #[serde(default = "one")]
     pub loader_api: u32,
+    /// The oldest Obsidian the mod works with. A newer one than this is refused, asking for an update,
+    /// instead of deploying something it can't do right. Obsidian before 1.1 doesn't read it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_obsidian: Option<semver::Version>,
     #[serde(flatten)]
     pub extra: BTreeMap<String, Value>,
 }
@@ -325,11 +329,19 @@ fn check_path(mod_dir: &Path, p: &Path, field: &str) -> Result<()> {
     Ok(())
 }
 
+/// The Obsidian this is, for `min_obsidian`.
+fn running_version() -> semver::Version {
+    semver::Version::parse(env!("CARGO_PKG_VERSION")).expect("the crate's own version")
+}
+
 impl Manifest {
     /// Ships with Obsidian: always in the library, can't be removed.
     pub fn validate(&self, mod_dir: &Path) -> Result<()> {
         if self.obsidian != 1 {
             return Err(bad("obsidian", "only version 1 is supported"));
+        }
+        if let Some(needs) = self.min_obsidian.as_ref().filter(|v| **v > running_version()) {
+            return Err(ObsidianError::NewerObsidian { needs: needs.to_string() });
         }
         if !valid_id(&self.id) {
             return Err(bad("id", "use 1 to 64 of a-z, 0-9, '.', '_' or '-', starting with a letter or digit"));
@@ -499,6 +511,16 @@ mod tests {
         assert_eq!(m.scope, Scope::Client);
         assert_eq!(m.resources.len(), 2);
         assert_eq!(m.resources[0].type_hash, 0xa14e8dfa2cd117e2);
+    }
+
+    #[test]
+    fn a_mod_for_a_newer_obsidian_asks_for_an_update() {
+        let now = running_version();
+        let newer = semver::Version::new(now.major, now.minor + 1, 0);
+        let later = EXAMPLE.replace(r#""loader_api": 1,"#, &format!(r#""loader_api": 1, "min_obsidian": "{newer}","#));
+        assert!(matches!(load_manifest(mod_with(&later).path()), Err(ObsidianError::NewerObsidian { needs }) if needs == newer.to_string()));
+        let fine = EXAMPLE.replace(r#""loader_api": 1,"#, &format!(r#""loader_api": 1, "min_obsidian": "{now}","#));
+        assert_eq!(load_manifest(mod_with(&fine).path()).unwrap().min_obsidian, Some(now));
     }
 
     #[test]

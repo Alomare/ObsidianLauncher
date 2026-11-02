@@ -79,6 +79,7 @@
   "app.error.GameFilesChanged": "游戏文件与 Obsidian 已知的版本不一致，因此无法判断这个模组改了什么。如果你曾手动把模组复制到游戏文件夹，请在 Steam 中验证游戏文件，然后重新导入。",
   "app.error.GameNotFound": "未找到游戏。请在设置中选择游戏文件夹。",
   "app.error.Busy": "另一个部署或清除正在进行。请在它结束后再试。",
+  "app.error.NewerObsidian": "此模组需要更新版本的 Obsidian。请先更新 Obsidian（设置，更新），再重新添加此模组。",
   "app.error.GameRunning": "请先关闭游戏。",
   "app.error.LastProfile": "无法删除最后一个配置。",
   "app.error.NoRelease": "该仓库没有带版本号的发布。",

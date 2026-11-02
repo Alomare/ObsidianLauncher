@@ -51,6 +51,7 @@ O `obsidian.json` fica no topo da pasta do mod, ou no topo do `.zip`. O Obsidian
 | `load` | não | `"last"` pede o fim da ordem de carregamento quando o mod entra num perfil, e os mods novos vão antes dele. Depois disso vale a ordem do jogador. |
 | `load_after` | não | Ids dos mods depois dos quais este pede para carregar, quando qualquer um deles entra num perfil. Depois disso vale a ordem do jogador. |
 | `loader_api` | não | A versão da [API do loader](wiki:loader-api) de que o mod precisa. `1` se ficar de fora. |
+| `min_obsidian` | não | O Obsidian mais antigo com que o mod funciona, como `"1.1.0"`. Um mais antigo recusa o mod e pede ao jogador que atualize. Obsidian antes do 1.1 não lê este campo. |
 | `options` | não | Configurações que os jogadores mudam no app ([Opções e teclas](wiki:options-and-keys)). |
 | `keybinds` | não | Teclas que os jogadores podem trocar no app. |
 | `resources` | não | Arquivos do jogo que o mod substitui ou adiciona ([Substituir arquivos do jogo](wiki:resources)). |

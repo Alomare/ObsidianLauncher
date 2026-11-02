@@ -204,6 +204,7 @@ fn import_against(src: &Path, game: &GameInstall, lib: &Library, known: &[KnownB
         load: None,
         load_after: Vec::new(),
         loader_api: 1,
+        min_obsidian: None,
         extra: [("legacy".to_string(), serde_json::Value::Bool(true))].into(),
     };
     write_manifest(staged.path(), &m)?;

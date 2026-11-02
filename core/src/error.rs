@@ -84,6 +84,8 @@ pub enum ObsidianError {
     LockedFolder,
     #[error("close the game first")]
     GameRunning,
+    #[error("this mod needs Obsidian {needs} or newer: update Obsidian, then add the mod again")]
+    NewerObsidian { needs: String },
     #[error("another deploy or purge is running on this library; try again when it ends")]
     Busy,
     #[error("deploy failed and was undone: {0}")]
