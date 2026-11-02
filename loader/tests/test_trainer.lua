@@ -141,6 +141,20 @@ test("a_mission_with_the_trainer_on_still_pays_the_player", function()
 	E.eq(game.save.user.player_xp, 1500, "the player's own save is theirs")
 end)
 
+test("the_player_page_says_whether_this_launch_counts", function()
+	for _, frozen in ipairs({ false, true }) do
+		local e, _, ui, M = start()
+		e:core().freeze_progress = frozen
+		M.open()
+		M.nav = true
+		ui.tap("enter")
+		local first = M.stack[#M.stack].page.items[1]
+		local label = type(first.label) == "function" and first.label() or first.label
+		E.eq(first.kind, "label")
+		E.eq(label:find(frozen and "frozen" or "counts") ~= nil, true, label)
+	end
+end)
+
 test("every_page_opens_and_every_row_has_real_text", function()
 	local e, game, ui, M = start()
 	rawget(_G, "obsidian").menu.open()
