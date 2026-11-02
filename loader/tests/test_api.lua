@@ -216,9 +216,10 @@ end)
 test("every_command_that_reaches_the_backend_or_wipes_a_save_is_denied", function()
 	local api = start()
 	for _, name in ipairs({ "push_planet", "push_defend_event", "push_attack_event", "push_bogus_statistics", "clear_save_and_tus",
-		"clear_achievemenets", "unlock_all", "unlock_dlc", "season_end", "upgrade_all", "console_command" }) do
+		"clear_achievemenets", "unlock_all", "unlock_dlc", "season_end", "console_command" }) do
 		E.eq(api.console.denied(name), true, name)
 	end
+	E.eq(api.console.denied("upgrade_all"), false, "the player's own progression is theirs")
 end)
 
 test("paid_items_a_player_doesnt_own_are_left_out_of_every_list", function()
@@ -622,20 +623,10 @@ test("winning_marks_the_player_extracted_first", function()
 	E.eq(game.record.player_go.has_extracted, true)
 end)
 
-test("a_mission_the_api_finishes_pays_nothing", function()
-	for _, fn in ipairs({ "win", "finish_objectives" }) do
-		local api, _, e = start()
-		local session = e.loaded["obsidian/loader/session"]
-		E.eq(session.forfeited, false, fn)
-		E.eq(api.mission[fn](), true, fn)
-		E.eq(session.forfeited, true, fn)
-	end
-end)
-
 test("a_refused_action_leaves_the_mission_alone", function()
-	local api, _, e = start({ host = false })
+	local api, game = start({ host = false })
 	E.eq(api.mission.win(), false)
-	E.eq(e.loaded["obsidian/loader/session"].forfeited, false)
+	E.eq(game.completed, nil)
 end)
 
 test("practice_starts_only_from_the_ship_and_pays_nothing", function()
@@ -772,12 +763,12 @@ test("samples_stop_at_the_games_cap", function()
 	E.eq(game.save.user.research_samples, 3168)
 end)
 
-test("steam_achievements_are_held_back", function()
+test("steam_achievements_are_the_players", function()
 	local api, game, e = start()
 	e.opts.modules["x"] = true
 	rawget(_G, "require")("x")
 	rawget(_G, "UserManager").unlock_trophy(rawget(_G, "UserManager"), "trophy_gold_all_upgrades")
-	E.eq(game.trophy, nil)
+	E.eq(game.trophy, "trophy_gold_all_upgrades")
 end)
 
 test("a_shake_is_dropped_only_when_asked", function()

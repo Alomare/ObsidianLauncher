@@ -61,13 +61,9 @@ Uma visão da tabela `t` para entregar a outros mods. As funções da lista `fre
 
 Uma lista dos outros jogadores no lobby. Cada entrada tem `peer`, `obsidian` (se o jogador usa o Obsidian), `modset` e `consent`.
 
-### obsidian.session.forfeit_progress() {#obsidian-session-forfeit-progress}
+### obsidian.session.forfeit_progress(), release_progress(key) e hold_progress() {#obsidian-session-forfeit-progress-release-progress-key-and-hold-progress}
 
-A missão em andamento não acrescenta nada ao save, e o jogador é avisado: nem XP, amostras, desbloqueios, estatísticas ou conquistas, para todos na missão. Serve para um mod que muda o jeito como uma missão se desenrola. Termina com a missão, então a Armaria continua funcionando na nave.
-
-### obsidian.session.hold_progress() {#obsidian-session-hold-progress}
-
-O mesmo para todas as missões, enquanto o seu mod estiver rodando, e a tela de carregamento da missão avisa no lugar da dica. Chame uma vez, quando o seu mod iniciar.
+Estas não fazem nada. O save de um jogador é dele, então o Obsidian não retém nada do progresso de uma missão, seja o que for que os mods façam. Elas continuam existindo para que os mods que as chamam sigam funcionando. Só os relatórios da Guerra Galáctica e dos placares continuam bloqueados enquanto houver conteúdo de sessão aplicado ([A Guerra Galáctica](wiki:galactic-war)).
 
 ### obsidian.on_session(fn) {#obsidian-on-session-fn}
 

@@ -5,15 +5,9 @@ local B = require("obsidian/loader/builtins")
 local log = require("obsidian/loader/log")
 
 local EVERY = 30
-local FORFEIT_KEY = "obsidian_forfeit"
 local EVERY_KEY = "obsidian_every"
 
--- What a mission can add to a player's save.
-local PROGRESS = { "player_xp", "research_samples", "item_unlocks", "new_unlocks", "item_upgrades", "boss_influence", "lifetime_stats", "trophy_unlock_progress", "seen_enemies" }
-local HELD = {}
-for _, key in B.ipairs(PROGRESS) do HELD[key] = true end
-
-local M = { state = true, missing = {}, members = {}, listeners = {}, sent = {}, sent_to = nil, sent_state = nil, warned = nil, forfeited = false, kept = nil, restoring = false, holders = {}, peer_holds = false, tip_shown = false }
+local M = { state = true, missing = {}, members = {}, listeners = {}, sent = {}, sent_to = nil, sent_state = nil, warned = nil }
 
 function M.setup(core)
 	M.core = core
@@ -44,23 +38,6 @@ local function publish(l, key, value)
 	l:set_member_data(key, value)
 	M.sent[key] = value
 	return true
-end
-
-local function in_mission()
-	local boot = B.rawget(B.G, "Boot")
-	local machine = B.type(boot) == "table" and boot.state_machine
-	if not machine then return false end
-	local name = machine:get_current_state_name()
-	return name == "game" or name == "mission_end"
-end
-
--- A mod that holds every mission does so while it runs.
-local function holding()
-	if not M.state then return false end
-	for _, mod in B.ipairs(M.holders) do
-		if not mod.off then return true end
-	end
-	return false
 end
 
 -- Whether a mod's gated code may run: a cleared session, and for a mod every player has to run,
@@ -105,7 +82,7 @@ function M.evaluate()
 	local own_consent = core.consent()
 	local l = lobby()
 	if not l then
-		M.members, M.peer_holds = {}, false
+		M.members = {}
 		set_cleared(true, {})
 		return
 	end
@@ -113,8 +90,7 @@ function M.evaluate()
 	if publish(l, "obsidian", value) then log.line("session: published member data " .. value) end
 	local own_every = every_pairs()
 	publish(l, EVERY_KEY, B.concat(own_every, ","))
-	publish(l, FORFEIT_KEY, (M.forfeited or holding()) and "1" or "0")
-	local me, list, signature, peer_holds = l.my_id, {}, {}, false
+	local me, list, signature = l.my_id, {}, {}
 	-- My session mods run when every other player runs the same set or allows other players' mods.
 	-- My own consent is about their mods in my game, so it plays no part here.
 	local allowed, missing = true, {}
@@ -124,8 +100,6 @@ function M.evaluate()
 			B.insert(list, { peer = peer, obsidian = d ~= nil, modset = d and d.modset, consent = d and d.consent or false })
 			B.insert(signature, B.tostring(peer))
 			if not (d and (d.modset == deploy.modset or d.consent)) then allowed = false end
-			-- What one player's mod does to a mission, it does to everyone in it.
-			if l:member_data(peer, FORFEIT_KEY) == "1" then peer_holds = true end
 			-- Agreeing to other players' mods isn't enough here: they have to run the same one.
 			if #own_every > 0 then
 				local theirs = {}
@@ -139,7 +113,7 @@ function M.evaluate()
 			end
 		end
 	end
-	M.members, M.peer_holds = list, peer_holds
+	M.members = list
 	local on = allowed
 	set_cleared(on, missing)
 	-- Data overrides and legacy mods can't be switched off live, so everyone running Obsidian gets told.
@@ -164,7 +138,6 @@ function M.tick()
 			-- Not knowing who's here can't count as cleared.
 			set_cleared(false)
 		end
-		if M.mission_held() and in_mission() then M.forfeit_progress() end
 	end
 end
 
@@ -175,78 +148,6 @@ end
 function M.on_session(fn)
 	local state = M.core.current
 	B.insert(M.listeners, { state = state, fn = fn, on = M.allows(state) })
-end
-
-local function copy(value)
-	if B.type(value) ~= "table" then return value end
-	local out = {}
-	for k, v in B.pairs(value) do out[k] = copy(v) end
-	return out
-end
-
--- The save hands out its live tables and the game fills them in place, so holding back the writes
--- isn't enough: these values go back before anything reaches the disk.
-local function keep()
-	local save, users = B.rawget(B.G, "SaveManager"), B.rawget(B.G, "UserManager")
-	if B.type(save) ~= "table" or B.type(users) ~= "table" then return end
-	local user = users:get_user_id()
-	local values = {}
-	for _, key in B.ipairs(PROGRESS) do values[key] = copy(save:user_get(key, user)) end
-	M.kept = { save = save, user = user, values = values }
-end
-
--- The mission under way adds nothing to the save, until it's over. For a mod that changes how a mission
--- plays out: what it earns would stay in the save, and a later clean mission would upload the total.
-function M.forfeit_progress(opts)
-	if M.forfeited then return end
-	M.forfeited = true
-	local ok, err = B.pcall(keep)
-	if not ok then log.limited("session keep", "session: could not keep the save's values: " .. B.tostring(err)) end
-	log.line("session: this mission adds nothing to the save")
-	if not M.tip_shown and not (B.type(opts) == "table" and opts.quiet) then M.core.notice("progress_forfeited") end
-end
-
--- Lets one of the values a forfeit holds back reach the save after all, for a mod that pays only part of
--- a mission's progress and only once it's earned.
-function M.release_progress(key)
-	if not (M.forfeited and HELD[key]) then return false end
-	M.released = M.released or {}
-	M.released[key] = true
-	return true
-end
-
--- Every mission adds nothing to the save, for as long as the calling mod runs.
-function M.hold_progress()
-	B.insert(M.holders, M.core.current)
-end
-
--- True when a mission starting now won't add to the save.
-function M.mission_held()
-	return holding() or M.peer_holds
-end
-
-function M.holds(key)
-	return M.forfeited and not M.restoring and HELD[key] == true and not (M.released and M.released[key])
-end
-
-function M.restore_progress()
-	local kept = M.kept
-	if not kept then return end
-	M.restoring = true
-	local ok, err = B.pcall(function()
-		for _, key in B.ipairs(PROGRESS) do
-			if not (M.released and M.released[key]) then kept.save:user_set(key, copy(kept.values[key]), kept.user) end
-		end
-	end)
-	M.restoring = false
-	if not ok then log.limited("session restore", "session: could not restore the save's values: " .. B.tostring(err)) end
-end
-
-function M.end_forfeit()
-	M.tip_shown = false
-	if not M.forfeited then return end
-	M.restore_progress()
-	M.forfeited, M.kept, M.released = false, nil, nil
 end
 
 -- A view of a mod's table for other mods to call. Every function not named in `free` answers
@@ -283,9 +184,11 @@ function M.api()
 		guard = M.guard,
 		-- For the calling mod, so a mod every player has to run hears when one doesn't.
 		cleared = function() return M.allows(M.core.current) end,
-		forfeit_progress = M.forfeit_progress,
-		release_progress = M.release_progress,
-		hold_progress = M.hold_progress,
+		-- A player's own save is theirs, so Obsidian holds none of it back. These stay for the mods that
+		-- still ask, and do nothing.
+		forfeit_progress = function() end,
+		release_progress = function() return false end,
+		hold_progress = function() end,
 		members = function()
 			local copy = {}
 			for i, m in B.ipairs(M.members) do

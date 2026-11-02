@@ -57,7 +57,7 @@ Ações que só o host pode fazer avisam quando você as escolhe.
 
 ## O que ele não faz {#what-it-wont-do}
 
-- **Não mexe na sua progressão.** Enquanto ele está ligado, uma missão não acrescenta nada ao seu save: nem XP, amostras, desbloqueios, estatísticas ou conquistas, e a tela de carregamento avisa. Isso vale para todos na missão. Gastar suas amostras na Armaria funciona como sempre. Para ganhar progresso, desligue o Trainer e aplique.
+- **Não edita sua progressão.** Nenhuma das páginas dele escreve no seu save. O que você ganha numa missão com ele ligado é seu, como em qualquer outra.
 - **Não dá DLC que você não tem.** As listas mostram todo o jogo base, o que você desbloqueou jogando, mais as DLCs que você tem. Os itens só chegam a você durante aquela missão, então nada é adicionado ao seu save.
 - **Não mexe na guerra compartilhada.** Comandos que informam a Guerra Galáctica são recusados, e os resultados continuam bloqueados ([A Guerra Galáctica](wiki:galactic-war)).
 
@@ -71,9 +71,6 @@ O trainer é um mod de sessão, então todos no lobby precisam usar os mesmos mo
 Os números do Editor e as duas linhas de dano rodam no jogo de cada jogador, então funcionam melhor quando todos usam os mesmos.
 
 Duas coisas exigem que você esteja sozinho no lobby: dar a si mesmo a mira laser, porque o jogo dos outros a rodaria sem preparo, e o `spawn_enemy` do console, porque ele carrega um pacote só no seu jogo.
-
-> [!NOTE]
-> Conquistas da Steam ficam retidas enquanto o Obsidian API está ligado, então nada que você faz com o trainer ganha uma.
 
 ## Manter mudanças {#keeping-changes}
 

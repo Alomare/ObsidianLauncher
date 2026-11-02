@@ -61,13 +61,9 @@ end)
 
 大厅中其他玩家的列表。每项包含 `peer`、`obsidian`（该玩家是否使用 Obsidian）、`modset` 和 `consent`。
 
-### obsidian.session.forfeit_progress() {#obsidian-session-forfeit-progress}
+### obsidian.session.forfeit_progress()、release_progress(key) 和 hold_progress() {#obsidian-session-forfeit-progress-release-progress-key-and-hold-progress}
 
-正在进行的任务不会向存档写入任何内容，并会告知玩家：任务中的所有人都没有经验值、样本、解锁、统计或成就。适用于改变任务进行方式的模组。效果随任务结束而结束，因此在飞船上军械库仍然可用。
-
-### obsidian.session.hold_progress() {#obsidian-session-hold-progress}
-
-对每个任务都是如此，只要你的模组在运行，任务的加载画面会用这一提示取代原来的小贴士。请在模组启动时调用一次。
+这些函数不起任何作用。玩家自己的存档归玩家所有，因此无论模组做什么，Obsidian 都不会扣留任务的任何进度。保留它们是为了让调用它们的模组继续正常工作。部署了会话内容时，只有银河战争和排行榜的报告仍会被拦截（[银河战争](wiki:galactic-war)）。
 
 ### obsidian.on_session(fn) {#obsidian-on-session-fn}
 

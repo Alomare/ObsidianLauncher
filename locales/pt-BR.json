@@ -387,7 +387,6 @@
   "mod_failed": "%s falhou e fica desligado até o jogo reiniciar.",
   "session_not_cleared": "Outros jogadores aqui usam mods diferentes, e alguns dos seus mudam arquivos do jogo que não podem ser pausados. Considere sair desta partida.",
   "uploads_blocked": "Resultados da Guerra Galáctica e dos placares não são enviados enquanto houver mods de sessão instalados.",
-  "progress_forfeited": "Esta missão tem mods, então não vai contar para o seu progresso.",
   "every_player_off": "%s está desligado, porque nem todos os jogadores aqui o usam.",
   "proving_grounds_blocked": "%s é ranqueado, então fica fechado enquanto houver mods de sessão em jogo."
 }

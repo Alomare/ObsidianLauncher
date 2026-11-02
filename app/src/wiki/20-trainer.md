@@ -57,7 +57,7 @@ Actions that only the host can do say so when you choose them.
 
 ## What it won't do
 
-- **It can't touch your progression.** While it's on, a mission adds nothing to your save: no XP, samples, unlocks, stats or achievements, and the loading screen says so. That goes for everyone in the mission. Spending your samples in the Armory works as usual. To earn progress, switch the Trainer off and Deploy.
+- **It doesn't edit your progression.** None of its pages write your save. What you earn in a mission with it on is yours, as in any other.
 - **It won't give you DLC you don't own.** Lists show all of the base game, whatever you've unlocked by playing, plus the DLC you own. Items only reach you for that mission, so nothing is added to your save.
 - **It won't touch the shared war.** Commands that report to the Galactic War are refused, and results stay blocked ([The Galactic War](wiki:galactic-war)).
 
@@ -71,9 +71,6 @@ The trainer is a session mod, so everyone in the lobby has to run the same mods 
 Numbers from the Editor and the two damage rows run on each player's game, so they work best when everyone uses the same ones.
 
 Two things need you to be alone in the lobby: giving yourself laser sight, because other players' games would run it with no setup, and the console's `spawn_enemy`, because it loads a package on your game only.
-
-> [!NOTE]
-> Steam achievements are held back while Obsidian API is on, so nothing you do with the trainer earns one.
 
 ## Keeping changes
 

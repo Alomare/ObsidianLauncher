@@ -373,6 +373,5 @@
   "app.wiki.resize": "调整指南列表宽度",
   "app.wiki.search": "搜索指南",
   "app.wiki.tip": "提示",
-  "app.wiki.warning": "注意",
-  "progress_forfeited": "此任务使用了模组，因此不会计入你的进度。"
+  "app.wiki.warning": "注意"
 }

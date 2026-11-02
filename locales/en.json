@@ -387,7 +387,6 @@
   "mod_failed": "%s failed and is off until the game restarts.",
   "session_not_cleared": "Other players here run different mods, and some of yours change game files that can't be paused. Consider leaving this game.",
   "uploads_blocked": "Galactic War and leaderboard results aren't sent while session mods are deployed.",
-  "progress_forfeited": "This mission is modded, so it won't add to your progress.",
   "every_player_off": "%s is off, because not every player here runs it.",
   "proving_grounds_blocked": "%s is ranked, so it's closed while session mods are in play."
 }

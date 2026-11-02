@@ -133,28 +133,12 @@ test("no_page_writes_the_players_progression", function()
 	end
 end)
 
-test("a_mission_with_the_trainer_on_adds_nothing_to_the_save", function()
-	local e, game, ui = start()
-	local session = e.loaded["obsidian/loader/session"]
-	e.opts.modules["x"] = true
-	rawget(_G, "require")("x")
+test("a_mission_with_the_trainer_on_still_pays_the_player", function()
+	local e, game = start()
 	e:frames(31)
-	E.eq(session.forfeited, true, "from the start of the mission")
-	local unlocks = game.save.user.item_unlocks
-	local before = #unlocks
-	unlocks[#unlocks + 1] = "reward"
-	rawget(_G, "SaveManager"):user_set("player_xp", 999999, "user")
-	rawget(_G, "SaveManager"):user_set("research_samples", 999, "user")
+	rawget(_G, "SaveManager"):user_set("player_xp", 1500, "user")
 	rawget(_G, "SaveManager"):user_save()
-	E.eq(game.save.user.player_xp, 1000, "XP")
-	E.eq(game.save.user.research_samples, 50, "samples")
-	E.eq(#game.save.user.item_unlocks, before, "unlocks")
-end)
-
-test("on_the_ship_nothing_is_held", function()
-	local e, game, ui = start({ state = "menu" })
-	e:frames(31)
-	E.eq(e.loaded["obsidian/loader/session"].forfeited, false, "the Armory can spend")
+	E.eq(game.save.user.player_xp, 1500, "the player's own save is theirs")
 end)
 
 test("every_page_opens_and_every_row_has_real_text", function()

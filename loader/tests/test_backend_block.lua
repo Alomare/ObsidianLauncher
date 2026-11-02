@@ -79,173 +79,28 @@ test("consent_alone_blocks_uploads_only_beside_a_different_set", function()
 	E.eq(#cm.sent, 1, "the same set again")
 end)
 
-test("a_forfeit_can_let_one_value_through_once_its_earned", function()
+test("a_players_save_and_achievements_are_theirs_with_session_mods", function()
 	local e = engine(true, { my_id = "me", members = { "me" }, data = {} })
 	local save = load_save_manager(e)
 	local sm = rawget(_G, "SaveManager")
-	rawset(_G, "StateGame", { on_enter = function() end })
-	e.opts.modules["lua/states/state_game"] = true
-	rawget(_G, "require")("lua/states/state_game")
-	sm:user_set("player_xp", 200, "user")
-	local session = rawget(_G, "obsidian").session
-	E.eq(session.release_progress("player_xp"), false, "nothing is held yet")
-	session.forfeit_progress({ quiet = true })
-	sm:user_set("player_xp", 300, "user")
-	E.eq(save.user.player_xp, 200, "held until it's earned")
-	E.eq(session.release_progress("customization"), false, "only what a forfeit holds")
-	E.eq(session.release_progress("player_xp"), true)
-	sm:user_set("player_xp", 900, "user")
-	E.eq(save.user.player_xp, 900, "through")
-	sm:user_set("research_samples", 7, "user")
-	E.eq(save.user.research_samples, nil, "the rest stays held")
-end)
-
-test("a_forfeited_mission_leaves_the_save_as_it_was", function()
-	local e = engine(true, { my_id = "me", members = { "me" }, data = {} })
-	local save = load_save_manager(e)
-	local sm = rawget(_G, "SaveManager")
-	rawset(_G, "StateGame", { on_enter = function() end })
-	e.opts.modules["lua/states/state_game"] = true
-	rawget(_G, "require")("lua/states/state_game")
-	sm:user_set("player_xp", 200, "user")
-	E.eq(save.user.player_xp, 200, "an ordinary mission pays")
-
-	local session = rawget(_G, "obsidian").session
-	session.forfeit_progress()
-	session.forfeit_progress()
-	sm:user_set("player_xp", 900, "user")
-	E.eq(save.user.player_xp, 200, "every way of paying ends in this write")
-	sm:user_set("research_samples", 7, "user")
-	E.eq(save.user.research_samples, nil, "samples too")
-	sm:user_set("customization", "cape", "user")
-	E.eq(save.user.customization, "cape", "what isn't progression still saves")
-	E.eq(E.count(e:log(), "this mission adds nothing to the save"), 1, "told once")
-	E.eq(#e:core().notices + #e:core().notices_shown, 1)
-
-	rawget(_G, "StateGame").on_enter({})
-	sm:user_set("player_xp", 300, "user")
-	E.eq(save.user.player_xp, 300, "the next mission pays again")
-end)
-
--- A mission that's over, for the tests of what comes after it.
-local function forfeit_with(save, values)
-	for k, v in pairs(values) do save.user[k] = v end
-	rawset(_G, "UserManager", { get_user_id = function() return "user" end })
-	rawget(_G, "obsidian").session.forfeit_progress()
-end
-
-test("rewards_the_game_adds_to_a_live_table_never_reach_the_disk", function()
-	local e = engine(true, { my_id = "me", members = { "me" }, data = {} })
-	local save = load_save_manager(e)
-	local sm = rawget(_G, "SaveManager")
-	forfeit_with(save, { item_unlocks = { "owned" }, lifetime_stats = { kills = 5, seasons = { { won = 1 } } } })
-	-- As mission_end_state_waiting_for_data does: read, change in place, write.
-	local unlocks, stats = sm:user_get("item_unlocks"), sm:user_get("lifetime_stats")
-	unlocks[#unlocks + 1] = "reward"
-	stats.kills, stats.seasons[1].won = 900, 9
-	sm:user_set("item_unlocks", unlocks, "user")
-	sm:user_set("lifetime_stats", stats, "user")
-	sm:user_save(nil, nil, nil, nil, "user")
-	E.eq(table.concat(save.user.item_unlocks, ","), "owned", "the reward didn't stay")
-	E.eq(save.user.lifetime_stats.kills, 5)
-	E.eq(save.user.lifetime_stats.seasons[1].won, 1, "however deep")
-end)
-
-test("a_value_the_mission_created_goes_away_too", function()
-	local e = engine(true, { my_id = "me", members = { "me" }, data = {} })
-	local save = load_save_manager(e)
-	forfeit_with(save, {})
-	save.user.seen_enemies = { "bug" }
-	rawget(_G, "SaveManager"):user_save(nil, nil, nil, nil, "user")
-	E.eq(save.user.seen_enemies, nil)
-end)
-
-test("the_ship_is_free_of_it_so_the_armory_can_spend", function()
-	local e = engine(true, { my_id = "me", members = { "me" }, data = {} })
-	local save = load_save_manager(e)
-	local sm = rawget(_G, "SaveManager")
-	rawset(_G, "StateMenu", { on_enter = function() end })
-	e.opts.modules["lua/states/state_menu"] = true
-	rawget(_G, "require")("lua/states/state_menu")
-	forfeit_with(save, { research_samples = 50, new_unlocks = { "old" } })
-	save.user.research_samples = 90
-	local list = sm:user_get("new_unlocks")
-	list[#list + 1] = "reward"
-	rawget(_G, "StateMenu").on_enter({})
-	E.eq(save.user.research_samples, 50, "what the mission left is gone before the ship shows it")
-	E.eq(#save.user.new_unlocks, 1)
-	sm:user_set("research_samples", 40, "user")
-	E.eq(save.user.research_samples, 40, "a purchase saves")
-end)
-
--- The game's loading state, with its own tips, and a mod that holds every mission when asked.
-local function loading_screen(e, hold)
-	rawset(_G, "LocalizationManager", { string = function(_, key) return "game " .. key end })
-	rawset(_G, "StateMissionStart", { on_enter = function(self)
-		self.loading_tips, self.selected_tip = { "loading_tip1", "loading_tip2" }, "loading_tip1"
-	end })
-	e.opts.modules["lua/states/state_mission_start"] = true
-	rawget(_G, "require")("lua/states/state_mission_start")
-	if hold then
-		local core = e:core()
-		core.current = { id = "holder" }
-		rawget(_G, "obsidian").session.hold_progress()
-		core.current = nil
-	end
-	local state = {}
-	rawget(_G, "StateMissionStart").on_enter(state)
-	e:frames(1)
-	return state
-end
-
-test("the_loading_screen_says_when_a_mission_wont_count", function()
-	local e = engine(true, { my_id = "me", members = { "me" }, data = {} })
-	local state = loading_screen(e, true)
-	E.eq(state.loading_tips[1] ~= state.loading_tips[2], true, "the game loops until it draws a different tip")
-	local lm = rawget(_G, "LocalizationManager")
-	for _, tip in ipairs(state.loading_tips) do E.eq(lm:string(tip), "progress_forfeited", "the loader's text") end
-	E.eq(lm:string(state.selected_tip), "progress_forfeited", "from the first frame")
-	E.eq(lm:string("loading_tip1"), "game loading_tip1", "the game's own tips still read")
-end)
-
-test("a_loading_screen_keeps_its_tips_when_the_mission_counts", function()
-	local e = engine(true, { my_id = "me", members = { "me" }, data = {} })
-	local state = loading_screen(e, false)
-	E.eq(state.selected_tip, "loading_tip1")
-end)
-
-test("once_the_loading_screen_has_said_it_the_mission_doesnt_say_it_again", function()
-	local e = engine(true, { my_id = "me", members = { "me" }, data = {} })
-	rawset(_G, "StateGame", { on_enter = function() end })
-	e.opts.modules["lua/states/state_game"] = true
-	rawget(_G, "require")("lua/states/state_game")
-	loading_screen(e, true)
-	e:frames(31)
-	rawget(_G, "StateGame").on_enter({})
-	e:frames(31)
-	local core, session = e:core(), rawget(_G, "obsidian").session
-	session.forfeit_progress()
-	E.eq(e.loaded["obsidian/loader/session"].forfeited, true)
-	E.eq(#core.notices + #core.notices_shown, 0)
-end)
-
-test("a_forfeit_with_no_loading_screen_is_a_message", function()
-	local e = engine(true, { my_id = "me", members = { "me" }, data = {} })
-	rawget(_G, "obsidian").session.forfeit_progress()
-	E.eq(#e:core().notices + #e:core().notices_shown, 1)
-end)
-
-test("no_achievement_comes_from_a_forfeited_mission", function()
-	local e = engine(true, { my_id = "me", members = { "me" }, data = {} })
-	load_save_manager(e)
 	local got = {}
 	rawset(_G, "UserManager", { get_user_id = function() return "user" end, unlock_trophy = function(_, name) got[#got + 1] = name end })
 	e.opts.modules["lua/managers/user_manager"] = true
 	rawget(_G, "require")("lua/managers/user_manager")
+	-- Mods that still ask for their missions not to count get nothing done.
+	local session = rawget(_G, "obsidian").session
+	session.forfeit_progress()
+	session.hold_progress()
+	E.eq(session.release_progress("player_xp"), false)
+	sm:user_set("player_xp", 900, "user")
+	sm:user_set("research_samples", 7, "user")
+	sm:user_save(nil, nil, nil, nil, "user")
+	E.eq(save.user.player_xp, 900)
+	E.eq(save.user.research_samples, 7)
 	rawget(_G, "UserManager"):unlock_trophy("first")
-	rawget(_G, "obsidian").session.forfeit_progress()
-	rawget(_G, "UserManager"):unlock_trophy("second")
 	E.eq(table.concat(got, ","), "first")
+	e:frames(31)
+	E.eq(#e:core().notices + #e:core().notices_shown, 0, "nothing to tell the player")
 end)
 
 test("uploads_untouched_without_session_content", function()
