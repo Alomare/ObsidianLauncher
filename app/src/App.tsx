@@ -18,6 +18,7 @@ import { loadSettings, useAppSettings } from "./settings";
 import { StatusBar } from "./StatusBar";
 import { Tooltip } from "./Tooltip";
 import { installUpdate, startupUpdate, useUpdates } from "./updates";
+import { DeployProgress } from "./DeployProgress";
 import { UpdateProgress } from "./UpdateProgress";
 
 export default function App() {
@@ -92,6 +93,7 @@ export default function App() {
         </Confirm>
       )}
       <UpdateProgress />
+      <DeployProgress />
       <Notices />
       <Tooltip />
     </div>

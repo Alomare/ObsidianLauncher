@@ -19,6 +19,7 @@
   "app.action.deployed": "Deployed %s mods to the game.",
   "app.action.deployedOne": "Deployed 1 mod to the game.",
   "app.action.deployedVanilla": "No mods are on, so the game is vanilla.",
+  "app.action.deployProgress": "Writing the mods into the game: %s %",
   "app.action.deploying": "Deploying…",
   "app.action.play": "Play",
   "app.action.playHint": "Starts the game through Steam, with the mods you last deployed.",

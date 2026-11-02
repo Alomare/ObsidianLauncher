@@ -528,11 +528,22 @@ pub struct DeployDone {
 }
 
 #[tauri::command]
-pub async fn deploy(ctx: State<'_, Ctx>) -> CmdResult<DeployDone> {
+pub async fn deploy(app: tauri::AppHandle, ctx: State<'_, Ctx>) -> CmdResult<DeployDone> {
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use tauri::Emitter;
     let _turn = ctx.turn();
     let game = game_of(&ctx)?;
     ensure_closed()?;
-    let r = core_deploy(&game, &ctx.data, &DeployOptions::default())?;
+    // A deploy that's over in a moment needs no window. Mods that rebuild sound banks can take a minute.
+    let started = std::time::Instant::now();
+    let shown = AtomicU32::new(u32::MAX);
+    let tell = move |part: f32| {
+        let percent = (part * 100.0) as u32;
+        if started.elapsed().as_millis() > 1500 && shown.swap(percent, Ordering::Relaxed) != percent {
+            let _ = app.emit("deploy-progress", percent);
+        }
+    };
+    let r = core_deploy(&game, &ctx.data, &DeployOptions { progress: Some(&tell), ..DeployOptions::default() })?;
     let snapshot = fresh(&ctx)?;
     Ok(DeployDone { mods: if r.patches.is_empty() { 0 } else { snapshot.mods.iter().filter(|m| m.on).count() }, backup: r.backup.is_some(), snapshot })
 }

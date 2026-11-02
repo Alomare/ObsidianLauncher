@@ -55,11 +55,13 @@ pub struct DeployOptions<'a> {
     pub keep_backups: usize,
     /// The loader sources; `None` finds them with `loader::find_loader_dir`.
     pub loader_dir: Option<PathBuf>,
+    /// Told how far the writing is, from 0 to 1.
+    pub progress: Option<&'a (dyn Fn(f32) + Sync)>,
 }
 
 impl Default for DeployOptions<'static> {
     fn default() -> Self {
-        DeployOptions { known_builds: KNOWN_BUILDS, keep_backups: 10, loader_dir: None }
+        DeployOptions { known_builds: KNOWN_BUILDS, keep_backups: 10, loader_dir: None, progress: None }
     }
 }
 
@@ -301,7 +303,14 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
     let backup = backup_game_saves(game, &data_dir.join("backups"), opts.keep_backups)?;
 
     let mut temps = Vec::new();
-    for (bundle, base, target) in &plan {
+    let count = plan.len().max(1) as f32;
+    for (i, (bundle, base, target)) in plan.iter().enumerate() {
+        let tell = |part: f32| {
+            if let Some(progress) = opts.progress {
+                progress((i as f32 + part.min(1.0)) / count);
+            }
+        };
+        tell(0.0);
         // Sound banks are rebuilt here, one bundle at a time, as a big one can pass a gigabyte.
         let built = comp.bundles[*bundle]
             .iter()
@@ -318,7 +327,7 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
         };
         let tmp = target.with_extension(format!("{}.{TMP}", target.extension().unwrap().to_string_lossy()));
         temps.push((tmp.clone(), target.clone()));
-        let mut written = bundle::write_file(&tmp, &b);
+        let mut written = bundle::write_file_with(&tmp, &b, &mut |part| tell(part));
         if written.is_ok() && !stream.is_empty() {
             // The engine reads a patch's streamed bytes from `<patch>.stream`, as it does for a bundle.
             let target = beside(target, "stream");
@@ -537,7 +546,7 @@ mod tests {
         p.set_enabled("mod-aa", true).unwrap();
         p.set_enabled("mod-bb", true).unwrap();
         p.save(&data).unwrap();
-        World { _t: t, game, data, opts: DeployOptions { known_builds: known, keep_backups: 10, loader_dir: None } }
+        World { _t: t, game, data, opts: DeployOptions { known_builds: known, keep_backups: 10, loader_dir: None, progress: None } }
     }
 
     fn snapshot(dir: &Path) -> BTreeMap<String, String> {

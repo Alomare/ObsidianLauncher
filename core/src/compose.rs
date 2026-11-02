@@ -329,9 +329,9 @@ fn game_resource(contents: &Path, bundle: &str, type_hash: u64, name_hash: u64, 
     Ok(entry.flags)
 }
 
-/// A digest of a bank as the game has it, kept while its bundle and stream are unchanged: a bank can pass
-/// a gigabyte, and this runs after every click.
-fn game_digest(data_dir: &Path, contents: &Path, bundle: &str, type_hash: u64, name_hash: u64, worked_out: &mut bool) -> Result<[u8; 32]> {
+/// A digest for a bank as the game has it, from when its bundle and stream last changed. A bank can pass a
+/// gigabyte and this runs after every click, and the game's files change only with a game update.
+fn game_digest(contents: &Path, bundle: &str, name_hash: u64) -> Result<[u8; 32]> {
     use sha2::{Digest, Sha256};
     let path = contents.join(bundle);
     let (time, len) = file_stamp(&path).ok_or(ObsidianError::TruncatedBundle)?;
@@ -339,23 +339,13 @@ fn game_digest(data_dir: &Path, contents: &Path, bundle: &str, type_hash: u64, n
         Some((t, n)) => (time.max(t), len + n),
         None => (time, len),
     };
-    let key = data_dir.join("game-banks").join(format!("{bundle}.{name_hash:016x}"));
-    if let Some((_, d)) = digests().lock().unwrap().get(&key).filter(|(s, _)| *s == stamp) {
-        return Ok(*d);
-    }
+    let since = stamp.0.duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
     let mut h = Sha256::new();
-    game_resource(contents, bundle, type_hash, name_hash, |p| {
-        h.update(p.lang.to_le_bytes());
-        h.update((p.data.len() as u64).to_le_bytes());
-        h.update((p.stream.len() as u64).to_le_bytes());
-        h.update(&p.data);
-        h.update(&p.stream);
-        Ok(())
-    })?;
-    let d: [u8; 32] = h.finalize().into();
-    digests().lock().unwrap().insert(key, (stamp, d));
-    *worked_out = true;
-    Ok(d)
+    h.update(bundle.as_bytes());
+    h.update(name_hash.to_le_bytes());
+    h.update(since.as_nanos().to_le_bytes());
+    h.update(stamp.1.to_le_bytes());
+    Ok(h.finalize().into())
 }
 
 fn recipe_digest(base: &[u8; 32], recipe: &Recipe) -> [u8; 32] {
@@ -671,7 +661,7 @@ fn compose_with(lib: &Library, profile: &Profile, with_data: bool, contents: Opt
         if let Some(recipe) = &planned.recipe {
             let base = match &recipe.base {
                 Some(b) => Ok(b.digest),
-                None => game_digest(lib.data_dir(), contents.expect("a recipe has a game"), &recipe.first, type_hash, name_hash, &mut worked_out),
+                None => game_digest(contents.expect("a recipe has a game"), &recipe.first, name_hash),
             };
             let base = match base {
                 Ok(d) => d,

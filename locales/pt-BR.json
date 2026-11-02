@@ -19,6 +19,7 @@
   "app.action.deployed": "%s mods aplicados ao jogo.",
   "app.action.deployedOne": "1 mod aplicado ao jogo.",
   "app.action.deployedVanilla": "Nenhum mod está ligado, então o jogo está original.",
+  "app.action.deployProgress": "Gravando os mods no jogo: %s %",
   "app.action.deploying": "Aplicando…",
   "app.action.play": "Jogar",
   "app.action.playHint": "Inicia o jogo pela Steam, com os mods que você aplicou por último.",

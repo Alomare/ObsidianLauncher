@@ -7,7 +7,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { run } from "../api";
 import { Confirm } from "../Confirm";
 import { ContextMenu, type MenuItem } from "../ContextMenu";
-import { CloseIcon, ExternalIcon, FolderAddIcon, FolderIcon, ImportIcon, LockIcon, PlusIcon, ProfilesIcon, SearchIcon, SwitchOffIcon, SwitchOnIcon, TrashIcon, UnlockIcon } from "../Icons";
+import { CloseIcon, ExternalIcon, FolderAddIcon, FolderIcon, ImportIcon, LockIcon, PlusIcon, ProfilesIcon, SearchIcon, SwitchOffIcon, SwitchOnIcon, TrashIcon, UnlockIcon, UpdateIcon } from "../Icons";
 import { language, pick, t } from "../i18n";
 import { useNav } from "../nav";
 import { ProfilesDialog } from "../ProfilesDialog";
@@ -211,7 +211,7 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
           onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAddMenu({ x: r.left, y: r.bottom + 4 }); }}>
           <PlusIcon />
         </button>
-        {waiting.length > 0 && <button className="btn small play" onClick={() => updateMods(waiting, names)}>{t("app.mods.updateAll", waiting.length)}</button>}
+        {waiting.length > 0 && <button className="btn play head-update" onClick={() => updateMods(waiting, names)}><UpdateIcon />{t("app.mods.updateAll", waiting.length)}</button>}
         <label className="search">
           <SearchIcon />
           <input ref={search} type="text" value={query} placeholder={t("app.mods.search")} aria-label={t("app.mods.search")} onChange={(e) => setQuery(e.target.value)}

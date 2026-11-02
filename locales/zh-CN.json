@@ -19,6 +19,7 @@
   "app.action.deployed": "已向游戏部署 %s 个模组。",
   "app.action.deployedOne": "已向游戏部署 1 个模组。",
   "app.action.deployedVanilla": "没有启用的模组，游戏保持原版。",
+  "app.action.deployProgress": "正在将模组写入游戏：%s %",
   "app.action.deploying": "正在部署…",
   "app.action.play": "开始游戏",
   "app.action.playHint": "通过 Steam 启动游戏，使用你上次部署的模组。",
