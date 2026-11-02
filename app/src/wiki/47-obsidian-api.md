@@ -128,7 +128,7 @@ end)
 | `api.game` | The current state, the local player, `is_host()`, and safe writes |
 | `api.catalog` | Weapons, stratagems, perks, enemies and groups by name: the base game, plus the DLC the player owns. `usable(name)` checks that, `unowned_path(path)` checks a weapon's path, and `unlocked(name)` says whether the player has unlocked an item by playing. Also `backpacks`, `crates`, `pickups`, `vehicles`, `by_subtype(name)` and `max_upgrade(path)` |
 | `api.player` | `heal`, `heal_by(amount)`, `set_health(n)`, `respawn`, `teleport`, `set_cosmetic`, `set_outline(r, g, b)`, `clear_status(name)`, `immune(name, on)`, `knockdown`, `drop_carried`, and more |
-| `api.gear` | `refill`, `give_weapon(slot, path, upgrade)`, `give_backpack(path, upgrade)`, `give_perk`, `remove_perk`, `refresh`, `weapons_of(owner)`, `tune(unit, component, changes)` |
+| `api.gear` | `refill`, `give_weapon(slot, path, upgrade)`, `give_backpack(path, upgrade)`, `give_perk`, `remove_perk`, `refresh`, `weapons_of(owner)`, `tune(unit, component, changes)`, `add_drone(path, unit, upgrade)` |
 | `api.stratagems` | `reset_cooldowns`, `refill_uses`, `give`, `drop`, `call(name, pos, delay)`, `edit(name, field, value)` |
 | `api.enemies` | `spawn`, `spawn_group`, `spawn_entity(path, pos)`, `kill_all`, `kill(unit)`, `list`, `info(unit)`, `nearest(pos)`, `apply_status(unit, template)`, `stun_near(radius)`, `near(radius, pos)`, `damage(unit, power, statuses)`, `set_hitpoints(unit, n)`, `despawn(unit)`, `load_faction(name)`, `set_pressure(t)`, `waves()`, `force_wave(name, pos)`, `carried()`, the enemies on the map with corpses and the spawn queue, and `room()`, how many more fit under `MAX_SAFE` |
 | `api.mission` | `finish_objectives`, `objectives()`, `mutator(name)`, `win`, `abort`, `practice` |
@@ -173,15 +173,25 @@ These effects stay on across respawns. Most give back what was there before, so 
 
 `api.data` edits change a weapon's type for everyone on that machine. `api.gear.weapons_of(owner)` lists the weapons a player holds, as `{ unit, component, slot, info }`, and `api.gear.tune(unit, component, changes)` changes one of them alone. `changes` holds a factor for a number (`firerate = 1.2`) and `true` or `false` for an attribute (`armorpiercing = true`). Each call replaces the last, and `{}` takes it all off. It reaches only the weapons this machine owns, so each player's game tunes their own.
 
+The component `"melee"` tunes the same weapon's melee attack instead: `power`, `duration` (how long the swing holds the player, so a smaller one swings faster) and `delay` (how soon it hits).
+
 ```lua
 for _, w in ipairs(api.gear.weapons_of()) do
   api.gear.tune(w.unit, w.component, { firerate = 1.2 })
 end
 ```
 
+### Drones without a backpack
+
+`api.gear.add_drone(path, unit, upgrade)` gives a player a drone pack's drones and leaves their backpack slot alone. `path` is a drone pack from `api.catalog.backpacks()`, such as `equipment/equipment_drone_defensive_backpack_01` or `equipment/equipment_drone_heal_backpack_01`. The drones need the pack's station to dock, reload and fly around, so the station rides on the player as a worn pack does, and every game running Obsidian API hides it. Call it again for more drones. It answers a drone with `:alive()` and `:remove()`. The drones dock while their player sits in a vehicle, and go when the player dies, as a worn pack drops, so give them again after a respawn.
+
+```lua
+local dog = api.gear.add_drone("equipment/equipment_drone_defensive_backpack_01")
+```
+
 ## Stratagems {#stratagems}
 
-`api.stratagems.call` puts down a real flare, as the game does for its own timed drops. It has the sound and the countdown, patrols hear it, and it works for Reinforce. It spends no cooldown or use, and it's called at the level the player owns.
+`api.stratagems.call` puts down a real flare, as the game does for its own timed drops. It has the sound and the countdown, patrols hear it, and it works for Reinforce. It spends no cooldown or use, and it's called at the level the player owns. A fourth argument, a unit, calls it for another player on this machine: the call-in and its kills are theirs.
 
 ```lua
 api.stratagems.call("stratagem_resupply", api.world.cursor(), 15)   -- 15 s on top of its own call-in

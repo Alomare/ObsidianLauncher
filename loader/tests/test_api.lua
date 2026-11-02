@@ -1204,6 +1204,73 @@ test("a_backpack_comes_from_the_catalog_with_its_own_uses", function()
 	E.eq(G.command(game, "inventory", "set_backpack").data.num_uses, 90, "the upgrade's own number")
 end)
 
+test("drones_ride_outside_the_backpack_slot_with_only_the_drones_seen_and_go_with_their_player", function()
+	local api, game, e = start()
+	E.eq(select(2, api.gear.add_drone("equipment/pack")), "not_available", "a pack with no drones")
+	game.pack.drone_station_info = { docking_node = "j_attach" }
+	game.pack.pickup_info.child_unit_paths = { "equipment/drone" }
+	E.eq(select(2, api.gear.add_drone("equipment/rifle")), "not_available")
+	E.eq(select(2, api.gear.add_drone("equipment/pack_dlc")), "not_available", "paid")
+	E.eq(select(2, api.gear.add_drone("equipment/pack", nil, 99)), "out_of_range")
+	local st = api.game.state()
+	local spawned, gone = {}, {}
+	st.entity_spawner.spawn_entity = function(_, path, _, _, _, setup)
+		local parts = path == "equipment/pack" and { equipment = {}, drone_station = {} } or {}
+		local u = { alive = true, owned = true, master = parts, slave = parts }
+		spawned[#spawned + 1] = { path = path, setup = setup, unit = u }
+		return u
+	end
+	st.entity_spawner.despawn_entity = function(_, u) gone[#gone + 1] = u u.alive = false end
+	local units = rawget(_G, "Unit")
+	units.set_unit_visibility = function(u, on) u.visible = on end
+
+	local dog = api.gear.add_drone("equipment/pack")
+	E.eq(dog:alive(), true)
+	local station = spawned[1].unit
+	E.eq(spawned[1].setup.wielder_unit, game.me)
+	E.eq(spawned[1].setup.upgrade_value, 0)
+	E.eq(spawned[2].path, "equipment/drone")
+	E.eq(spawned[2].setup.station_unit, station, "the drone flies around its station")
+	E.eq(G.command(game, "equipment", "wielder").data, game.me, "the station rides on the player")
+	E.eq(G.command(game, "equipment", "wield").unit, station)
+	E.eq(G.command(game, "inventory", "set_backpack"), nil, "the backpack slot is left alone")
+
+	-- Every game hides a station that isn't its player's backpack.
+	local em = st.entity_manager
+	local has, slaves = em.has_entities, em.get_slave_entities
+	em.has_entities = function(self, name) return name == "equipment" or has(self, name) end
+	em.get_slave_entities = function(self, name)
+		if name == "equipment" then return { [station] = { state = { wielder = game.me } } } end
+		return slaves(self, name)
+	end
+	e:frames(1)
+	E.eq(station.visible, false)
+	game.me.master.inventory.backpack = station
+	e:frames(1)
+	E.eq(station.visible, true, "seen again as the player's own pack")
+	game.me.master.inventory.backpack = nil
+
+	-- Docked in a vehicle, out again after.
+	local seat = {}
+	rawset(_G, "CharacterStateSeated", seat)
+	station.master.drone_station.drone_unit = spawned[2].unit
+	game.me.master.character.current_state = seat
+	e:frames(1)
+	E.eq(G.command(game, "drone_station", "set_force_dock").data, true)
+	game.commands = {}
+	game.me.master.character.current_state = nil
+	e:frames(1)
+	E.eq(G.command(game, "drone_station", "set_force_dock").data, false)
+
+	game.me.master.health.is_dead = true
+	e:frames(1)
+	E.eq(gone[1], station, "the station goes, and its drones with it")
+	E.eq(#gone, 1, "the game takes the drone away itself")
+	E.eq(dog:alive(), false)
+	E.eq(select(2, api.gear.add_drone("equipment/pack")), "no_avatar")
+	em.has_entities, em.get_slave_entities = has, slaves
+end)
+
 test("a_path_outside_the_catalog_never_reaches_set_backpack", function()
 	local api, game = start()
 	local ok, why = api.gear.give_backpack("equipment/rifle")
@@ -1254,6 +1321,14 @@ test("a_called_stratagem_is_a_real_flare_at_the_players_level", function()
 	E.eq(type(direction.data), "table", "a vector in a command has to be boxed")
 	E.eq(game.pods, nil, "the flare calls the pod, not this")
 	no_tampering(game)
+end)
+
+test("a_stratagem_can_be_called_for_another_player_on_this_machine", function()
+	local api, game = start()
+	local second = { alive = true, owned = true, master = { inventory = { item_upgrades = { stratagem_resupply = 3 } } }, slave = {} }
+	E.eq(api.stratagems.call("stratagem_resupply", api.world.cursor(), 0, second), true)
+	E.eq(game.spawn_setup.owner_unit, second, "their call-in, so their kills")
+	E.eq(game.spawn_setup.upgrade_value, 3, "at their own level")
 end)
 
 test("reinforce_works_through_a_flare", function()
@@ -2304,6 +2379,34 @@ test("tuning_a_weapon_leaves_others_of_its_type_alone_and_comes_off_again", func
 	E.eq(select(2, api.gear.tune("nope", "firearm", {})), "unknown")
 	E.eq(select(2, api.gear.tune(unit, "firearm", 3)), "bad_type")
 	aux.get_component = real.get_component
+	em.has_entities, em.get_master_entities, em.get_slave_entities = has, masters, slaves
+end)
+
+test("a_weapons_melee_is_tuned_alone_from_its_melee_settings", function()
+	local api = start()
+	local shared = { power = 50, duration = 0.33, center_distance = 1, radius = 1 }
+	local mine, theirs, slave = { state = { melee_info = shared } }, { state = { melee_info = shared } }, { state = { melee_info = shared, melee_time = -1 } }
+	local component = { set_protected = function(_, state, key, value) state[key] = value end }
+	local unit, other = "gun", "their gun"
+	local aux = rawget(_G, "EntityAux")
+	local real = aux.get_component
+	aux.get_component = function(name) return name == "melee" and component or real(name) end
+	local em = api.game.state().entity_manager
+	local has, masters, slaves = em.has_entities, em.get_master_entities, em.get_slave_entities
+	em.has_entities = function(self, name) return name == "melee" or has(self, name) end
+	em.get_master_entities = function(self, name) if name == "melee" then return { [unit] = mine, [other] = theirs } end return masters(self, name) end
+	em.get_slave_entities = function(self, name) if name == "melee" then return { [unit] = slave } end return slaves(self, name) end
+
+	E.eq(api.gear.tune(unit, "melee", { power = 1.2, duration = 1 / 1.25, delay = 0.5 }), true)
+	E.eq(mine.state.melee_info.power, 60)
+	E.eq(math.floor(slave.state.melee_info.duration * 1000 + 0.5), 264, "the copy the hit and the swing's length read")
+	E.eq(slave.state.melee_info.delay, nil, "a field its settings leave out stays out")
+	E.eq(slave.state.melee_info.attributes, nil, "melee settings have no attributes")
+	E.eq(shared.power, 50, "the type's settings are untouched")
+	E.eq(theirs.state.melee_info, shared, "another player's weapon is untouched")
+	api.gear.tune(unit, "melee", {})
+	E.eq(mine.state.melee_info.power, 50, "{} takes it off")
+	aux.get_component = real
 	em.has_entities, em.get_master_entities, em.get_slave_entities = has, masters, slaves
 end)
 

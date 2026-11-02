@@ -29,6 +29,8 @@ for component, list in pairs({
 	show_on_map = "show",
 	stratagem = "set_thrown_direction",
 	exosuit_inventory = "set_full_ammo",
+	equipment = "wielder wield holster unwield",
+	drone_station = "set_uses set_drone ammo_pickup backpack_used drone_reload set_force_dock",
 }) do
 	KNOWN[component] = {}
 	for word in list:gmatch("%S+") do KNOWN[component][word] = true end
