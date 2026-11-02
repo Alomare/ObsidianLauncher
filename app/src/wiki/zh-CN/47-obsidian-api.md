@@ -136,6 +136,8 @@ end)
 | `api.combat` | `scale{ players, enemies }` |
 | `api.events` | `on(name, fn)`、`off(name, fn)` |
 | `api.ui` | `hint(text, seconds)`、`ping(pos)`、`open(name, opts)`、`close()`、`menus()`、`with_texts(texts, fn, ...)` |
+| `api.map` | `is_open(unit)`, `open()`, `close()`, `zoom()`, `set_zoom(z)`, `view()`, `cursor()`, `look_at(pos)`, `pings()`, `to_map(pos)`, `to_world(x, y)`, `marker(pos, opts)`, `clear_markers()` |
+| `api.bots` | `add(opts)`, `all()`, `remove_all()` |
 | `api.lobby` | `players()`、`share(name, value)`、`shared(name)` |
 | `api.world` | `cursor`、`ahead`、`to_screen(pos)`、`prop(unit, pos, opts)`、`explode`、`camera`、`shading(name, kind, value)`、`flash(seconds)` |
 | `api.audio` | `bus(name, db)`、`play(event, pos)`、`stinger(name)` |
@@ -348,6 +350,39 @@ api.progress.set_upgrade("weapon_railgun", 3)
 `api.ui.open(name, opts)` 按名称打开飞船上的菜单，效果与终端相同；`api.ui.close()` 关闭最上层的菜单。`api.ui.menus()` 列出所有名称。`opts.seed` 为配装和简报界面指定任务，`opts.pad` 为主玩家以外的手柄打开菜单。
 
 `api.lobby.players()` 列出 `peer`、`name`、以毫秒为单位的 `ping`、`host` 和 `me`。它只读取数据。队友只有在任务中才有名字。
+
+## 地图 {#map}
+
+`api.map` 读取并控制本地玩家的任务地图。这里的一切只改变该玩家看到的内容，因此客户端模组也可以使用。
+
+- `is_open(unit)` 返回地图是否打开，`unit` 为 nil 时指本地玩家。`open()` 和 `close()` 的效果与地图键相同。这样打开的地图会保持打开，直到玩家按下并松开地图键、执行翻滚或换弹等其他操作，或调用 `close()`。
+- `zoom()` 和 `set_zoom(z)` 读取和设置缩放，范围 0.5 到 4。`view()` 是准星下的世界坐标，也就是信标会落下的位置，`cursor()` 是它的别名。`look_at(pos)` 平移视图，让某一点位于准星下。
+- `pings()` 以 `{ record, owned, position }` 列出每位玩家的信标。`api.ui.ping(pos)` 设置本地玩家的信标。
+- `to_map(pos)` 和 `to_world(x, y)` 在世界坐标和缩放为 1 时的地图单位之间转换。
+
+`marker(pos, opts)` 在该玩家的地图上放置模组自己的标记，任务结束时标记消失。`opts` 接受 `icon`（地图已加载的材质，默认 `icon_map_pickup_generic`）、`size`、`{ a, r, g, b }` 形式的 `color`，以及用于跟随单位而不是停在 `pos` 的 `unit`。
+
+```lua
+local m = api.map.marker(pos, { icon = "icon_map_objective_bunker_01", size = 32, color = { 255, 40, 255, 40 } })
+m:move(new_pos)
+m:remove()
+```
+
+## 机器人 {#bots}
+
+`api.bots.add(opts)` 创建一名由这台机器操控的绝地潜兵。必须在任务中，且是主机或独自一人的玩家，否则返回 `nil, "host_only"` 或 `nil, "not_in_mission"`。`opts` 接受 `name`、`bare` 和 `position`。
+
+机器人首先是使用无人手柄的本地玩家，因此有 HUD 栏位、名字、复活和增援。其他玩家看到的是普通的本地合作玩家。四个玩家记录都被占用时，机器人是独立的绝地潜兵：头顶有名字，但没有 HUD 栏位，也不会重生。`bare = true` 直接要求这种机器人，`bare = false` 则返回 `nil, "no_slot"`。独立机器人需要一个无人使用的游戏手柄编号才能被操控，没有可用编号时会站着不动。
+
+```lua
+local bot = api.bots.add({ name = "Dummy" })
+bot:follow(nil, 6)   -- 与玩家保持 6 米以内
+bot:fight(25)        -- 瞄准并射击 25 米内最近的敌人
+```
+
+自行操控时可用：`move(dir)`、`aim(dir)`、`fire(on)`、`sprint(on)`、`reload()`、`dodge()`、`melee()`、`interact()`、`throw()` 和 `switch()`。方向是 `{ x, y }` 形式的世界方向。`unit()`、`alive()` 和 `remove()` 如其名。机器人直线走向目标，没有寻路，而且游戏会把本地玩家留在屏幕内，因此玩家机器人会停在视野边缘。
+
+机器人会在任务结算前离开，因此不会进入结算画面，也不会影响任何人的存档。
 
 ## 重要规则 {#rules}
 

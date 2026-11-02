@@ -18,6 +18,8 @@ A mod made for Obsidian has an `obsidian.json` file at the top of the folder or 
 
 Most HD1 mods shared today replace whole game bundles, with files named like `9e13b2414b41b842`. Obsidian imports those as well. It compares each bundle in the mod with the one in your game and keeps only the resources the mod really changes, so two older mods that touch different things can now run together.
 
+Some older mods bring `.patch_0`, `.patch_1` files instead, named like `9e13b2414b41b842.patch_0`, which the game reads over its own bundle. Obsidian imports those too, so there's no renaming them to the next free number by hand. A mod that is only a ReShade preset (a `ReShadePreset.ini`) isn't a game mod: it needs ReShade in the game folder, and the import says so.
+
 Older mods are imported with the **unspecified** scope, because Obsidian can't tell what they change in a shared game. They run as client mods, so they never keep you out of a lobby ([Scopes](wiki:scopes)). An older mod that changes only sound banks comes in as a **client** mod, since sound changes only what you hear. They also can't be switched off in the middle of a mission.
 
 A patch for another mod doesn't bring that mod with it. Import both and put the patch lower in the list. Check which version the patch was built for: the files the two share come from the patch, so a patch for an older version takes them back to that version.
@@ -41,7 +43,7 @@ Right-click a mod and choose **Remove**, or use the bin under the close button i
 
 ## Obsidian Kit
 
-Three mods come with Obsidian, in the **Obsidian Kit** folder at the top of the list: Obsidian API, [Obsidian Trainer](wiki:trainer) and Obsidian Quality of Life. Quality of Life starts on, with only the widescreen fixes enabled. The other two stay off until you turn them on.
+Three mods come with Obsidian, in the **Obsidian Kit** folder at the top of the list: Obsidian API, [Obsidian Trainer](wiki:trainer) and Obsidian Quality of Life. Quality of Life starts on, with only the widescreen fixes and **Dynamic solo pause** enabled. The other two stay off until you turn them on.
 
 They're mods like any other: you can turn them on or off, remove them and update them from GitHub. The folder starts locked, so it stays where it is. Click its padlock to unlock it, and then you can move the mods, or rename or delete the folder. To put everything back, use **Restore Obsidian Kit** in [Settings](app:settings). It brings back deleted mods and the folder, and resets their settings in the active profile.
 

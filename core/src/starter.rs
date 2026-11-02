@@ -155,7 +155,7 @@ mod tests {
         folders_ok(&p);
         let values = qol_values(&lib, &p);
         let toggled: Vec<&str> = values.iter().filter(|(_, v)| *v == json!(true)).map(|(k, _)| k.as_str()).collect();
-        assert_eq!(toggled, ["widescreen"], "only the widescreen fixes start on");
+        assert_eq!(toggled, ["solo_pause", "widescreen"], "the widescreen fixes and Dynamic solo pause start on");
         assert!(values.contains(&("expedite_mission_end".to_string(), json!("off"))));
         for id in MODS {
             assert!(crate::updates::source_of(&load_manifest(&lib.mod_dir(id)).unwrap()).is_some(), "{id} updates from its repository");

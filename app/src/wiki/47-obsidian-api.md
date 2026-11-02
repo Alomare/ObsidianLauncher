@@ -136,6 +136,8 @@ end)
 | `api.combat` | `scale{ players, enemies }` |
 | `api.events` | `on(name, fn)`, `off(name, fn)` |
 | `api.ui` | `hint(text, seconds)`, `ping(pos)`, `open(name, opts)`, `close()`, `menus()`, `with_texts(texts, fn, ...)` |
+| `api.map` | `is_open(unit)`, `open()`, `close()`, `zoom()`, `set_zoom(z)`, `view()`, `cursor()`, `look_at(pos)`, `pings()`, `to_map(pos)`, `to_world(x, y)`, `marker(pos, opts)`, `clear_markers()` |
+| `api.bots` | `add(opts)`, `all()`, `remove_all()` |
 | `api.lobby` | `players()`, `share(name, value)`, `shared(name)` |
 | `api.world` | `cursor`, `ahead`, `to_screen(pos)`, `prop(unit, pos, opts)`, `explode`, `camera`, `shading(name, kind, value)`, `flash(seconds)` |
 | `api.audio` | `bus(name, db)`, `play(event, pos)`, `stinger(name)` |
@@ -348,6 +350,39 @@ api.ui.with_texts({ menu_campaign = "SURVIVORS" }, original, self, ...)
 ```
 
 `api.lobby.players()` lists `peer`, `name`, `ping` in milliseconds, `host` and `me`. It only reads. A teammate has a name during a mission.
+
+## The map {#map}
+
+`api.map` reads and steers the mission map of the local player. All of it changes only what this player sees, so a client mod can use it.
+
+- `is_open(unit)` says whether a map is open, the local player's when `unit` is nil. `open()` and `close()` do what the map key does. A map opened this way stays open until the player presses the map key and lets go, does something else such as a dodge or a reload, or `close()` is called.
+- `zoom()` and `set_zoom(z)` read and set the zoom, from 0.5 to 4. `view()` is the world point under the crosshair, where a ping would land, and `cursor()` is another name for it. `look_at(pos)` pans so a point is under the crosshair.
+- `pings()` lists every player's ping as `{ record, owned, position }`. `api.ui.ping(pos)` sets the local player's.
+- `to_map(pos)` and `to_world(x, y)` convert between world positions and the map's units at zoom 1.
+
+`marker(pos, opts)` puts a mod's own marker on this player's map, and it goes when the mission ends. `opts` takes `icon` (a material the map has loaded, `icon_map_pickup_generic` by default), `size`, `color` as `{ a, r, g, b }`, and `unit` to follow a unit instead of staying at `pos`.
+
+```lua
+local m = api.map.marker(pos, { icon = "icon_map_objective_bunker_01", size = 32, color = { 255, 40, 255, 40 } })
+m:move(new_pos)
+m:remove()
+```
+
+## Bots {#bots}
+
+`api.bots.add(opts)` makes a Helldiver this machine plays. It needs the host or a player alone, in a mission, and answers `nil, "host_only"` or `nil, "not_in_mission"` otherwise. `opts` takes `name`, `bare` and `position`.
+
+A bot is first a local player on a pad nobody holds, so it has a HUD slot, a name, revives and reinforcements. Other players see an ordinary local co-op player. With the four player records taken, a bot is a bare Helldiver: a unit with its name over its head and no HUD slot or respawn. `bare = true` asks for one, and `bare = false` answers `nil, "no_slot"` instead. A bare bot needs a game pad number nobody uses to be driven, and stands still when none is left.
+
+```lua
+local bot = api.bots.add({ name = "Dummy" })
+bot:follow(nil, 6)   -- keep within 6 metres of the player
+bot:fight(25)        -- aim at and shoot the nearest enemy within 25 metres
+```
+
+To drive one yourself: `move(dir)`, `aim(dir)`, `fire(on)`, `sprint(on)`, `reload()`, `dodge()`, `melee()`, `interact()`, `throw()` and `switch()`. Directions are world directions as `{ x, y }`. `unit()`, `alive()` and `remove()` do what they say. Bots walk straight at a goal with no pathfinding, and the game keeps local players on screen, so a player bot stops at the edge of the view.
+
+Bots go before a mission's results, so they never reach the end screens or anyone's save.
 
 ## Rules worth knowing {#rules}
 

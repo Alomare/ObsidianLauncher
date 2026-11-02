@@ -136,6 +136,8 @@ end)
 | `api.combat` | `scale{ players, enemies }` |
 | `api.events` | `on(name, fn)`, `off(name, fn)` |
 | `api.ui` | `hint(text, seconds)`, `ping(pos)`, `open(name, opts)`, `close()`, `menus()`, `with_texts(texts, fn, ...)` |
+| `api.map` | `is_open(unit)`, `open()`, `close()`, `zoom()`, `set_zoom(z)`, `view()`, `cursor()`, `look_at(pos)`, `pings()`, `to_map(pos)`, `to_world(x, y)`, `marker(pos, opts)`, `clear_markers()` |
+| `api.bots` | `add(opts)`, `all()`, `remove_all()` |
 | `api.lobby` | `players()`, `share(name, value)`, `shared(name)` |
 | `api.world` | `cursor`, `ahead`, `to_screen(pos)`, `prop(unit, pos, opts)`, `explode`, `camera`, `shading(name, kind, value)`, `flash(seconds)` |
 | `api.audio` | `bus(name, db)`, `play(event, pos)`, `stinger(name)` |
@@ -348,6 +350,39 @@ Os dois escrevem no save real, na nave, com os menus fechados, e respondem `"clo
 `api.ui.open(name, opts)` abre um menu da nave pelo nome, como um terminal faz, e `api.ui.close()` fecha o de cima. `api.ui.menus()` lista os nomes. `opts.seed` dá uma missão ao Loadout e ao briefing, e `opts.pad` abre para um controle que não seja o do jogador principal.
 
 `api.lobby.players()` lista `peer`, `name`, `ping` em milissegundos, `host` e `me`. Só lê. Um colega tem nome durante uma missão.
+
+## O mapa {#map}
+
+`api.map` lê e controla o mapa da missão do jogador local. Tudo aqui muda só o que esse jogador vê, então um mod de cliente pode usar.
+
+- `is_open(unit)` diz se um mapa está aberto, o do jogador local quando `unit` é nil. `open()` e `close()` fazem o que a tecla do mapa faz. Um mapa aberto assim fica aberto até o jogador apertar e soltar a tecla do mapa, fazer outra coisa como esquivar ou recarregar, ou até `close()` ser chamado.
+- `zoom()` e `set_zoom(z)` leem e definem o zoom, de 0.5 a 4. `view()` é o ponto do mundo sob a mira, onde um ping cairia, e `cursor()` é outro nome para ele. `look_at(pos)` move a visão para deixar um ponto sob a mira.
+- `pings()` lista o ping de cada jogador como `{ record, owned, position }`. `api.ui.ping(pos)` define o do jogador local.
+- `to_map(pos)` e `to_world(x, y)` convertem entre posições do mundo e as unidades do mapa no zoom 1.
+
+`marker(pos, opts)` coloca um marcador do mod no mapa desse jogador, e ele some quando a missão termina. `opts` aceita `icon` (um material que o mapa carregou, `icon_map_pickup_generic` por padrão), `size`, `color` como `{ a, r, g, b }` e `unit` para seguir uma unidade em vez de ficar em `pos`.
+
+```lua
+local m = api.map.marker(pos, { icon = "icon_map_objective_bunker_01", size = 32, color = { 255, 40, 255, 40 } })
+m:move(new_pos)
+m:remove()
+```
+
+## Bots {#bots}
+
+`api.bots.add(opts)` cria um Helldiver que esta máquina controla. Precisa ser o host ou um jogador sozinho, numa missão, e responde `nil, "host_only"` ou `nil, "not_in_mission"` nos outros casos. `opts` aceita `name`, `bare` e `position`.
+
+Um bot é primeiro um jogador local num controle que ninguém usa, então tem espaço no HUD, nome, revives e reforços. Os outros jogadores veem um jogador comum de co-op local. Com os quatro registros de jogador ocupados, o bot é um Helldiver avulso: uma unidade com o nome sobre a cabeça, sem espaço no HUD nem respawn. `bare = true` pede um desses, e `bare = false` responde `nil, "no_slot"` em vez disso. Um bot avulso precisa de um número de controle do jogo que ninguém use para ser controlado, e fica parado quando não sobra nenhum.
+
+```lua
+local bot = api.bots.add({ name = "Dummy" })
+bot:follow(nil, 6)   -- fica a até 6 metros do jogador
+bot:fight(25)        -- mira e atira no inimigo mais próximo a até 25 metros
+```
+
+Para controlar você mesmo: `move(dir)`, `aim(dir)`, `fire(on)`, `sprint(on)`, `reload()`, `dodge()`, `melee()`, `interact()`, `throw()` e `switch()`. Direções são direções do mundo como `{ x, y }`. `unit()`, `alive()` e `remove()` fazem o que dizem. Bots andam em linha reta até o objetivo, sem busca de caminho, e o jogo mantém jogadores locais na tela, então um bot jogador para na borda da visão.
+
+Os bots saem antes dos resultados da missão, então nunca chegam às telas finais nem ao save de ninguém.
 
 ## Regras importantes {#rules}
 

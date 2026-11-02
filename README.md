@@ -58,7 +58,7 @@ Guides inside the app, for players and for mod authors. They cover adding mods, 
 
 ### 🎁 Obsidian Kit
 
-Three mods come with Obsidian, in the Obsidian Kit folder. Obsidian Quality of Life starts on with only the widescreen fixes enabled, and the other two stay off until you turn them on. They're mods like any other: each has its own repository and updates from GitHub, and you can move or delete them. **Restore Obsidian Kit** in Settings puts everything back.
+Three mods come with Obsidian, in the Obsidian Kit folder. Obsidian Quality of Life starts on with only the widescreen fixes and Dynamic solo pause enabled, and the other two stay off until you turn them on. They're mods like any other: each has its own repository and updates from GitHub, and you can move or delete them. **Restore Obsidian Kit** in Settings puts everything back.
 
 #### [Obsidian Quality of Life](https://github.com/Alomare/ObsidianQoL)
 

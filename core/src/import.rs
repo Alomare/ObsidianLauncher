@@ -1,4 +1,4 @@
-//! Importing mods: Obsidian mods as they are, legacy whole-bundle mods as resource-level changes.
+//! Importing mods: Obsidian mods as they are, legacy whole-bundle and patch-file mods as resource-level changes.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -49,8 +49,21 @@ fn import_against(src: &Path, game: &GameInstall, lib: &Library, known: &[KnownB
         return Ok(ImportReport { id: m.id, legacy: false, outcome, version: m.version, changed: 0, added: 0, removed_ignored: 0 });
     }
 
-    let bundles: Vec<&PathBuf> = files.iter().filter(|p| p.file_name().is_some_and(|n| is_bundle_name(&n.to_string_lossy()))).collect();
+    // A mod's files: whole bundles, which stand for the game's, and `<bundle>.patch_N` files, which the
+    // game reads over its own bundle. Whole bundles go first and patches after, in their order, so a
+    // resource in two of them ends up as the game would show it.
+    let mut bundles: Vec<(&PathBuf, String, Option<u32>)> = files
+        .iter()
+        .filter_map(|p| {
+            let n = p.file_name()?.to_string_lossy().to_ascii_lowercase();
+            if is_bundle_name(&n) { Some((p, n, None)) } else { patch_name(&n).map(|(b, k)| (p, b, Some(k))) }
+        })
+        .collect();
+    bundles.sort_by(|a, b| (a.2.map_or(0, |k| k + 1), &a.1).cmp(&(b.2.map_or(0, |k| k + 1), &b.1)));
     if bundles.is_empty() {
+        if files.iter().any(|p| is_reshade_preset(p)) {
+            return Err(ObsidianError::ReshadePreset(src.display().to_string()));
+        }
         return Err(ObsidianError::NothingToImport(src.display().to_string()));
     }
     // With a mod copied over the game's files, only what differs from that mod would be kept, and the
@@ -64,8 +77,8 @@ fn import_against(src: &Path, game: &GameInstall, lib: &Library, known: &[KnownB
     let mut resources = Vec::new();
     let entry_key = (hash_name("lua"), hash_name(crate::loader::ENTRY));
     let mut entry_file = None;
-    for path in bundles {
-        let name = path.file_name().unwrap().to_string_lossy().to_string();
+    let mut placed: std::collections::HashMap<(String, u64, u64), usize> = std::collections::HashMap::new();
+    for (path, name, patch) in bundles {
         let vanilla_path = game.contents().join(&name);
         if !vanilla_path.is_file() {
             return Err(ObsidianError::UnknownBundle(name));
@@ -81,11 +94,16 @@ fn import_against(src: &Path, game: &GameInstall, lib: &Library, known: &[KnownB
         let mut stream = Streams::open(if own_stream.is_file() { &own_stream } else { &game_stream });
         let mut vanilla_stream = Streams::open(&game_stream);
         let keys: Vec<(u64, u64)> = modded.entries.iter().map(|e| (e.type_hash, e.name_hash)).collect();
-        removed_ignored += vanilla.keys().filter(|k| !keys.contains(k)).count();
+        // A patch holds only what it changes: what it leaves out isn't removed.
+        if patch.is_none() {
+            removed_ignored += vanilla.keys().filter(|k| !keys.contains(k)).count();
+        }
         for e in modded.entries {
             let key = (e.type_hash, e.name_hash);
             let entry = format!("{}-{}", hex16(e.type_hash), hex16(e.name_hash));
             let missing = || ObsidianError::LegacyStreamMissing { bundle: name.clone(), entry: entry.clone() };
+            // A later file changing the same resource takes its place, and it's counted once.
+            let again = placed.contains_key(&(name.clone(), e.type_hash, e.name_hash));
             match vanilla.get(&key) {
                 // The same entry can still carry other streamed bytes, when the mod brings its own .stream.
                 Some(v) if *v == e && !(own_stream.is_file() && spans.get(&key).is_some_and(|s| s.iter().any(|&(_, n)| n > 0))) => continue,
@@ -94,10 +112,10 @@ fn import_against(src: &Path, game: &GameInstall, lib: &Library, known: &[KnownB
                     if vanilla_spans.get(&key).and_then(|s| vanilla_stream.spans(s)).is_some_and(|theirs| theirs == ours) {
                         continue;
                     }
-                    changed += 1;
+                    changed += usize::from(!again);
                 }
-                Some(_) => changed += 1,
-                None => added += 1,
+                Some(_) => changed += usize::from(!again),
+                None => added += usize::from(!again),
             }
             if name == crate::loader::BUNDLE && key == entry_key {
                 // Obsidian Loader takes the place of this resource, so the mod's version runs as the entry.
@@ -131,7 +149,7 @@ fn import_against(src: &Path, game: &GameInstall, lib: &Library, known: &[KnownB
                     Payload::Variants(specs)
                 }
             };
-            resources.push(ResourceSpec {
+            let spec = ResourceSpec {
                 type_text: format_type(e.type_hash),
                 name_text: format_name(e.name_hash),
                 type_hash: e.type_hash,
@@ -140,7 +158,14 @@ fn import_against(src: &Path, game: &GameInstall, lib: &Library, known: &[KnownB
                 flags: e.flags,
                 payload,
                 when: BTreeMap::new(),
-            });
+            };
+            match placed.get(&(name.clone(), e.type_hash, e.name_hash)) {
+                Some(&i) => resources[i] = spec,
+                None => {
+                    placed.insert((name.clone(), e.type_hash, e.name_hash), resources.len());
+                    resources.push(spec);
+                }
+            }
         }
     }
     if changed + added == 0 {
@@ -281,6 +306,26 @@ fn beside(path: &Path, suffix: &str) -> PathBuf {
 
 fn is_bundle_name(n: &str) -> bool {
     n.len() == 16 && n.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+/// `(bundle, N)` for a file named `<bundle>.patch_<N>`, in lower case.
+fn patch_name(n: &str) -> Option<(String, u32)> {
+    let (bundle, slot) = n.split_once(".patch_")?;
+    if !is_bundle_name(bundle) || slot.is_empty() || !slot.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    Some((bundle.to_string(), slot.parse().ok()?))
+}
+
+/// A ReShade preset: an .ini that lists ReShade techniques. It needs ReShade, not Obsidian.
+fn is_reshade_preset(p: &Path) -> bool {
+    if !p.extension().is_some_and(|x| x.eq_ignore_ascii_case("ini")) {
+        return false;
+    }
+    std::fs::read(p).is_ok_and(|b| {
+        let head = String::from_utf8_lossy(&b[..b.len().min(4096)]).to_string();
+        head.lines().any(|l| l.starts_with("Techniques=") || l.starts_with("TechniqueSorting="))
+    })
 }
 
 fn hex16(h: u64) -> String {
@@ -543,6 +588,53 @@ mod tests {
         std::fs::write(f.game.contents().join("00000000000000aa"), b"changed").unwrap();
         crate::testutil::put(&f.mod_dir.join("kmod"), "obsidian.json", br#"{"obsidian":1,"id":"me.kmod","version":"1.0.0","name":{"en":"K"}}"#);
         assert_eq!(import_against(&f.mod_dir, &f.game, &f.lib, known).unwrap().id, "me.kmod");
+    }
+
+    #[test]
+    fn a_patch_file_is_read_over_its_bundle_and_leaves_the_rest_alone() {
+        let f = fixture(standard());
+        std::fs::remove_file(f.mod_dir.join("contents/00000000000000aa")).unwrap();
+        let patch = Bundle { props: [9; 256], entries: vec![e(LUA, 1, 0, b"patched")] };
+        bundle::write_file(&f.mod_dir.join("contents/00000000000000AA.patch_1"), &patch).unwrap();
+        let r = import_path(&f.mod_dir, &f.game, &f.lib).unwrap();
+        assert_eq!((r.legacy, r.changed, r.added, r.removed_ignored), (true, 1, 0, 0), "what a patch leaves out isn't removed");
+        let m = &f.lib.list().unwrap()[0];
+        assert_eq!(m.resources.len(), 1);
+        assert_eq!(m.resources[0].bundle.as_deref(), Some("00000000000000aa"));
+        assert_eq!(std::fs::read(f.lib.mod_dir(&r.id).join(m.resources[0].data_path())).unwrap(), b"patched");
+    }
+
+    #[test]
+    fn a_patch_wins_over_the_whole_bundle_as_in_the_game() {
+        let f = fixture(standard());
+        let patch = Bundle { props: [9; 256], entries: vec![e(LUA, 1, 0, b"patched")] };
+        bundle::write_file(&f.mod_dir.join("contents/00000000000000aa.patch_0"), &patch).unwrap();
+        // A patch's own stream file is not a bundle.
+        std::fs::write(f.mod_dir.join("contents/00000000000000aa.patch_0.stream"), b"").unwrap();
+        let r = import_path(&f.mod_dir, &f.game, &f.lib).unwrap();
+        assert_eq!((r.changed, r.added), (1, 1), "the resource both change counts once");
+        let m = &f.lib.list().unwrap()[0];
+        let lua = m.resources.iter().find(|r| r.name_hash == 1).unwrap();
+        assert_eq!(m.resources.iter().filter(|r| r.name_hash == 1).count(), 1);
+        assert_eq!(std::fs::read(f.lib.mod_dir(&r.id).join(lua.data_path())).unwrap(), b"patched");
+    }
+
+    #[test]
+    fn a_reshade_preset_is_named_for_what_it_is() {
+        let f = fixture(standard());
+        std::fs::remove_file(f.mod_dir.join("contents/00000000000000aa")).unwrap();
+        std::fs::write(f.mod_dir.join("ReShadePreset.ini"), "Techniques=Comic@Comic.fx\n\n[Comic.fx]\n").unwrap();
+        assert!(matches!(import_path(&f.mod_dir, &f.game, &f.lib), Err(ObsidianError::ReshadePreset(_))));
+        std::fs::write(f.mod_dir.join("ReShadePreset.ini"), "[General]\nname=x\n").unwrap();
+        assert!(matches!(import_path(&f.mod_dir, &f.game, &f.lib), Err(ObsidianError::NothingToImport(_))));
+    }
+
+    #[test]
+    fn patch_names_take_a_bundle_and_a_number_only() {
+        assert_eq!(patch_name("00000000000000aa.patch_12"), Some(("00000000000000aa".to_string(), 12)));
+        assert_eq!(patch_name("00000000000000aa.patch_0.stream"), None);
+        assert_eq!(patch_name("00000000000000aa.patch_"), None);
+        assert_eq!(patch_name("readme.patch_1"), None);
     }
 
     #[test]
