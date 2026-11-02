@@ -40,7 +40,7 @@ O menu trava o personagem enquanto está aberto, e fecha sozinho quando o jogo m
 ## O que tem nele {#whats-in-it}
 
 - **Jogador:** modo deus, corrida infinita, velocidade, teleporte, reaparecer, e capacetes, armaduras e capas que você tem.
-- **Armas:** munição infinita, recarga instantânea, reabastecimento, e qualquer arma, mochila ou vantagem do jogo base ou de uma DLC que você tem, com as melhorias que escolher.
+- **Armas:** munição infinita, recarga instantânea, reabastecimento, a cadência, o dano, o carregador, a recarga, a dispersão e a perfuração de blindagem de cada uma das suas armas, e qualquer arma, mochila ou vantagem do jogo base ou de uma DLC que você tem, com as melhorias que escolher.
 - **Estratagemas:** sem tempo de recarga, usos ilimitados, chamada instantânea, ignorar zonas sem estratagemas, qualquer estratagema do jogo base ou de uma DLC que você tem lançado no cursor, e sinalizadores reais, inclusive Reforço.
 - **Veículos:** velocidade, giro, armadura, sem dano e foguetes de exotraje infinitos no veículo que você dirige, mais reparo e reabastecimento.
 - **Criar:** munição, caixas de suprimentos e itens no chão na hora, e sinalizadores no cursor.

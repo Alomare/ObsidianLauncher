@@ -128,16 +128,16 @@ end)
 | `api.game` | O estado atual, o jogador local, `is_host()` e escritas seguras |
 | `api.catalog` | Armas, estratagemas, vantagens, inimigos e grupos por nome: o jogo base, mais as DLCs que o jogador tem. `usable(name)` verifica isso, `unowned_path(path)` verifica o caminho de uma arma, e `unlocked(name)` diz se o jogador desbloqueou um item jogando. Também `backpacks`, `crates`, `pickups`, `vehicles`, `by_subtype(name)` e `max_upgrade(path)` |
 | `api.player` | `heal`, `heal_by(amount)`, `set_health(n)`, `respawn`, `teleport`, `set_cosmetic`, `set_outline(r, g, b)`, `clear_status(name)`, `immune(name, on)`, `knockdown`, `drop_carried` e mais |
-| `api.gear` | `refill`, `give_weapon(slot, path, upgrade)`, `give_backpack(path, upgrade)`, `give_perk`, `remove_perk`, `refresh` |
+| `api.gear` | `refill`, `give_weapon(slot, path, upgrade)`, `give_backpack(path, upgrade)`, `give_perk`, `remove_perk`, `refresh`, `weapons_of(owner)`, `tune(unit, component, changes)`, `add_drone(path, unit, upgrade)` |
 | `api.stratagems` | `reset_cooldowns`, `refill_uses`, `give`, `drop`, `call(name, pos, delay)`, `edit(name, field, value)` |
 | `api.enemies` | `spawn`, `spawn_group`, `spawn_entity(path, pos)`, `kill_all`, `kill(unit)`, `list`, `info(unit)`, `nearest(pos)`, `apply_status(unit, template)`, `stun_near(radius)`, `near(radius, pos)`, `damage(unit, power, statuses)`, `set_hitpoints(unit, n)`, `despawn(unit)`, `load_faction(name)`, `set_pressure(t)`, `waves()`, `force_wave(name, pos)`, `carried()`, os inimigos no mapa com cadáveres e a fila de surgimento, e `room()`, quantos mais cabem abaixo de `MAX_SAFE` |
 | `api.mission` | `finish_objectives`, `objectives()`, `mutator(name)`, `win`, `abort`, `practice` |
 | `api.vehicles` | `current()`, `driving()`, `repair()`, `refill()` |
 | `api.combat` | `scale{ players, enemies }` |
 | `api.events` | `on(name, fn)`, `off(name, fn)` |
-| `api.ui` | `hint(text, seconds)`, `ping(pos)`, `open(name, opts)`, `close()`, `menus()` |
-| `api.lobby` | `players()` |
-| `api.world` | `cursor`, `ahead`, `explode`, `camera`, `shading(name, kind, value)`, `flash(seconds)` |
+| `api.ui` | `hint(text, seconds)`, `ping(pos)`, `open(name, opts)`, `close()`, `menus()`, `with_texts(texts, fn, ...)` |
+| `api.lobby` | `players()`, `share(name, value)`, `shared(name)` |
+| `api.world` | `cursor`, `ahead`, `to_screen(pos)`, `prop(unit, pos, opts)`, `explode`, `camera`, `shading(name, kind, value)`, `flash(seconds)` |
 | `api.audio` | `bus(name, db)`, `play(event, pos)`, `stinger(name)` |
 | `api.progress` | `set_samples`, `unlock_items`, `upgrade_all`, `loadout()`, `set_loadout(t)`, `upgrades()`, `set_upgrade(name, value)`, `upgrade_limit(name)` |
 | `api.console` | `run(line)`, `commands()` |
@@ -169,9 +169,29 @@ Estes efeitos continuam depois de um respawn. A maioria devolve o que havia ante
 
 `give_perk` troca vantagens do jeito que o console do jogo troca. A mira laser responde `"alone_only"` com outros jogadores no lobby, porque o jogo deles a rodaria sem preparo.
 
+### Estatísticas de uma arma {#one-weapon-s-stats}
+
+Edições de `api.data` mudam o tipo de uma arma para todos naquela máquina. `api.gear.weapons_of(owner)` lista as armas que um jogador tem, como `{ unit, component, slot, info }`, e `api.gear.tune(unit, component, changes)` muda só uma delas. `changes` guarda um fator para um número (`firerate = 1.2`) e `true` ou `false` para um atributo (`armorpiercing = true`). Cada chamada substitui a anterior, e `{}` tira tudo. Só alcança as armas que esta máquina controla, então o jogo de cada jogador ajusta as suas.
+
+O componente `"melee"` ajusta o ataque corpo a corpo da mesma arma: `power`, `duration` (quanto tempo o golpe prende o jogador, então um valor menor golpeia mais rápido) e `delay` (quão cedo o golpe acerta).
+
+```lua
+for _, w in ipairs(api.gear.weapons_of()) do
+  api.gear.tune(w.unit, w.component, { firerate = 1.2 })
+end
+```
+
+### Drones sem mochila {#drones-without-a-backpack}
+
+`api.gear.add_drone(path, unit, upgrade)` dá a um jogador os drones de uma mochila de drone e deixa o espaço de mochila livre. `path` é uma mochila de drone de `api.catalog.backpacks()`, como `equipment/equipment_drone_defensive_backpack_01` ou `equipment/equipment_drone_heal_backpack_01`. Os drones precisam da estação da mochila para pousar, recarregar e voar em volta, então a estação vai no jogador como uma mochila vestida, e todo jogo que roda o Obsidian API a esconde. Chame de novo para ter mais drones. Responde um drone com `:alive()` e `:remove()`. Os drones pousam enquanto o jogador está num veículo e somem quando ele morre, como uma mochila que cai, então dê de novo depois de um respawn.
+
+```lua
+local dog = api.gear.add_drone("equipment/equipment_drone_defensive_backpack_01")
+```
+
 ## Estratagemas {#stratagems}
 
-`api.stratagems.call` coloca um sinalizador real, como o jogo faz nas próprias entregas programadas. Tem som e contagem, as patrulhas ouvem, e funciona para Reforço. Não gasta recarga nem uso, e chama no nível que o jogador tem.
+`api.stratagems.call` coloca um sinalizador real, como o jogo faz nas próprias entregas programadas. Tem som e contagem, as patrulhas ouvem, e funciona para Reforço. Não gasta recarga nem uso, e chama no nível que o jogador tem. Um quarto argumento, uma unidade, chama para outro jogador desta máquina: a chamada e as mortes que ela causar são dele.
 
 ```lua
 api.stratagems.call("stratagem_resupply", api.world.cursor(), 15)   -- 15 s além da própria chamada
@@ -197,6 +217,7 @@ api.enemies.set_pressure({ difficulty = false })
 - `set_pressure` é do host. `cap` vai até 32 e levanta os dois limites em que as ondas param. Cadáveres contam.
 - `difficulty` é quanto cada encontro pode gastar. A semente, as ondas disponíveis e os objetivos continuam iguais.
 - `force_wave` cria uma onda de `api.enemies.waves()` de uma vez, ignorando os atrasos dela.
+- `spawn(key, count, where)` aceita `where` como `"cursor"`, uma posição (um vetor ou `{ x, y, z }`), ou nada para a frente do jogador.
 - `spawn_entity` cria uma caixa ou um item no chão. Use caminhos de `api.catalog.crates()` e `pickups()`, que deixam de fora itens pagos.
 - `near(radius, pos)` lista inimigos vivos, do mais perto ao mais longe, em volta de uma posição ou do jogador.
 - `damage(unit, power, statuses)` é um golpe deste jogador que funciona no jogo de qualquer jogador, e a armadura conta. `statuses` é uma lista opcional de nomes de status.
@@ -260,6 +281,35 @@ api.world.flash()                           -- relâmpago
 - `spectate` recebe a unidade de outro jogador, de `api.game.all_avatars()`.
 - `shading` aceita os nomes em `api.world.SHADING`, por tipo: `scalar` é um número, `vector2` e `vector3` são listas. Um valor volta em cada nova missão. O jogo só traz o código para `fog_color`, `sun_color` e os outros nomes `vector3`, sem usá-los, então confira na primeira vez.
 - `flash` precisa de um planeta de floresta, e não dos illuminates. Os outros respondem `"wrong_environment"`.
+
+## Compartilhar entre máquinas {#lobby}
+
+`api.lobby.share(name, value)` coloca um texto de até 200 caracteres onde todas as outras máquinas do lobby podem lê-lo, sob o id do seu mod. `api.lobby.shared(name)` responde o que cada outra máquina compartilha, por peer. A Steam repassa uma mudança em cerca de um segundo, então serve para um estado que muda de vez em quando, como uma pontuação, não a cada quadro. Sem lobby, `share` responde `false, "not_available"`.
+
+```lua
+api.lobby.share("score", tostring(my_score))
+for peer, text in pairs(api.lobby.shared("score")) do total = total + tonumber(text) end
+```
+
+`api.world.to_screen(pos)` responde onde um ponto do mapa fica na tela, em pixels a partir do canto inferior esquerdo, e se está à vista, para desenhar por cima do mundo com um kit.
+
+## Props {#props}
+
+`api.world.prop(unit, pos, opts)` coloca uma unidade do jogo no mapa só nesta máquina. Nada vai pela rede e nenhum sistema do jogo sabe dela, então ela só serve para ser vista, com o brilho e o destaque que a unidade tiver. `opts.scale` define o tamanho, 1 como foi feita. Responde um prop com `move(pos)`, `scale(size)`, `flow(event)`, `alive()` e `remove()`, ou `nil` e um motivo. `flow` roda um dos eventos de flow da própria unidade, do jeito que o jogo faz uma unidade tocar seus sons e efeitos: `on_picked_up` numa amostra de pesquisa toca a coleta.
+
+```lua
+local sample = api.world.prop("gameobjects_spec/gameobject_bug_research_object", pos, { scale = 2 })
+sample:move(new_pos)
+sample:remove()
+```
+
+A unidade precisa estar num pacote que o mapa carregou: o jogo para quando não encontra uma. As amostras de pesquisa de uma missão, `gameobjects/flare_01` e os inimigos de uma facção carregada são seguros.
+
+`api.ui.with_texts(texts, fn, ...)` roda `fn` com algumas chaves de texto do jogo mostrando suas palavras: `texts` é `{ key = words }`. Só vale enquanto `fn` roda, então você pode envolver uma das telas do jogo e reusá-la como sua, enquanto todo o resto do texto continua sendo o do jogo.
+
+```lua
+api.ui.with_texts({ menu_campaign = "SURVIVORS" }, original, self, ...)
+```
 
 ## Som {#sound}
 

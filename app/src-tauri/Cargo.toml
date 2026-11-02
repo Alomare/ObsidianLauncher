@@ -1,6 +1,6 @@
 [package]
 name = "obsidian-app"
-version = "1.0.3"
+version = "1.0.4"
 description = "Obsidian: mod manager for HELLDIVERS (2015)"
 edition = "2024"
 publish = false

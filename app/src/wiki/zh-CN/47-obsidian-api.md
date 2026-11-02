@@ -128,16 +128,16 @@ end)
 | `api.game` | 当前状态、本地玩家、`is_host()` 和安全写入 |
 | `api.catalog` | 按名称列出武器、战略配备、技能、敌人和敌群：基础游戏，加上玩家拥有的 DLC。`usable(name)` 检查这一点，`unowned_path(path)` 检查武器的路径，`unlocked(name)` 说明玩家是否通过游玩解锁了某个物品。还有 `backpacks`、`crates`、`pickups`、`vehicles`、`by_subtype(name)` 和 `max_upgrade(path)` |
 | `api.player` | `heal`、`heal_by(amount)`、`set_health(n)`、`respawn`、`teleport`、`set_cosmetic`、`set_outline(r, g, b)`、`clear_status(name)`、`immune(name, on)`、`knockdown`、`drop_carried` 等 |
-| `api.gear` | `refill`、`give_weapon(slot, path, upgrade)`、`give_backpack(path, upgrade)`、`give_perk`、`remove_perk`、`refresh` |
+| `api.gear` | `refill`、`give_weapon(slot, path, upgrade)`、`give_backpack(path, upgrade)`、`give_perk`、`remove_perk`、`refresh`、`weapons_of(owner)`、`tune(unit, component, changes)`、`add_drone(path, unit, upgrade)` |
 | `api.stratagems` | `reset_cooldowns`、`refill_uses`、`give`、`drop`、`call(name, pos, delay)`、`edit(name, field, value)` |
 | `api.enemies` | `spawn`、`spawn_group`、`spawn_entity(path, pos)`、`kill_all`、`kill(unit)`、`list`、`info(unit)`、`nearest(pos)`、`apply_status(unit, template)`、`stun_near(radius)`、`near(radius, pos)`、`damage(unit, power, statuses)`、`set_hitpoints(unit, n)`、`despawn(unit)`、`load_faction(name)`、`set_pressure(t)`、`waves()`、`force_wave(name, pos)`、`carried()`（地图上的敌人，含尸体和生成队列）、`room()`（低于 `MAX_SAFE` 还能容纳的数量） |
 | `api.mission` | `finish_objectives`、`objectives()`、`mutator(name)`、`win`、`abort`、`practice` |
 | `api.vehicles` | `current()`、`driving()`、`repair()`、`refill()` |
 | `api.combat` | `scale{ players, enemies }` |
 | `api.events` | `on(name, fn)`、`off(name, fn)` |
-| `api.ui` | `hint(text, seconds)`、`ping(pos)`、`open(name, opts)`、`close()`、`menus()` |
-| `api.lobby` | `players()` |
-| `api.world` | `cursor`、`ahead`、`explode`、`camera`、`shading(name, kind, value)`、`flash(seconds)` |
+| `api.ui` | `hint(text, seconds)`、`ping(pos)`、`open(name, opts)`、`close()`、`menus()`、`with_texts(texts, fn, ...)` |
+| `api.lobby` | `players()`、`share(name, value)`、`shared(name)` |
+| `api.world` | `cursor`、`ahead`、`to_screen(pos)`、`prop(unit, pos, opts)`、`explode`、`camera`、`shading(name, kind, value)`、`flash(seconds)` |
 | `api.audio` | `bus(name, db)`、`play(event, pos)`、`stinger(name)` |
 | `api.progress` | `set_samples`、`unlock_items`、`upgrade_all`、`loadout()`、`set_loadout(t)`、`upgrades()`、`set_upgrade(name, value)`、`upgrade_limit(name)` |
 | `api.console` | `run(line)`、`commands()` |
@@ -169,9 +169,29 @@ end)
 
 `give_perk` 以游戏控制台的方式更换技能。大厅里有其他玩家时，激光瞄准器会返回 `"alone_only"`，因为他们的游戏会在没有初始化的情况下运行它。
 
+### 单把武器的属性 {#one-weapon-s-stats}
+
+`api.data` 的编辑会改变这台机器上所有人的某类武器。`api.gear.weapons_of(owner)` 列出玩家持有的武器，形式为 `{ unit, component, slot, info }`，`api.gear.tune(unit, component, changes)` 只改变其中一把。`changes` 中，数值用倍数（`firerate = 1.2`），属性用 `true` 或 `false`（`armorpiercing = true`）。每次调用都会替换上一次，`{}` 会全部取消。它只作用于这台机器拥有的武器，所以每位玩家的游戏调整自己的武器。
+
+组件 `"melee"` 则调整同一把武器的近战攻击：`power`、`duration`（挥击让玩家停留多久，数值越小挥得越快）和 `delay`（多快命中）。
+
+```lua
+for _, w in ipairs(api.gear.weapons_of()) do
+  api.gear.tune(w.unit, w.component, { firerate = 1.2 })
+end
+```
+
+### 无需背包的无人机 {#drones-without-a-backpack}
+
+`api.gear.add_drone(path, unit, upgrade)` 给玩家一个无人机背包的无人机，同时不占用背包栏位。`path` 是 `api.catalog.backpacks()` 中的无人机背包，例如 `equipment/equipment_drone_defensive_backpack_01` 或 `equipment/equipment_drone_heal_backpack_01`。无人机需要背包的基座来停靠、装弹和环绕飞行，所以基座会像背着的背包一样跟随玩家，而每个运行 Obsidian API 的游戏都会把它隐藏起来。再次调用可获得更多无人机。返回一个带有 `:alive()` 和 `:remove()` 的无人机。玩家坐在载具中时无人机会停靠，玩家死亡时它们会消失，就像背着的背包会掉落一样，所以重生后请再给一次。
+
+```lua
+local dog = api.gear.add_drone("equipment/equipment_drone_defensive_backpack_01")
+```
+
 ## 战略配备 {#stratagems}
 
-`api.stratagems.call` 会放下一枚真实的信标，和游戏自己的定时投放一样。它有声音和倒计时，巡逻队能听到，增援也可以使用。它不消耗冷却或次数，并按玩家拥有的等级呼叫。
+`api.stratagems.call` 会放下一枚真实的信标，和游戏自己的定时投放一样。它有声音和倒计时，巡逻队能听到，增援也可以使用。它不消耗冷却或次数，并按玩家拥有的等级呼叫。第四个参数是一个单位，可以为这台机器上的另一位玩家呼叫：呼叫及其击杀都归该玩家。
 
 ```lua
 api.stratagems.call("stratagem_resupply", api.world.cursor(), 15)   -- 在原有呼叫时间上再加 15 秒
@@ -197,6 +217,7 @@ api.enemies.set_pressure({ difficulty = false })
 - `set_pressure` 只属于主机。`cap` 最大为 32，并同时提高波次受限的两个上限。尸体也计入。
 - `difficulty` 是每次遭遇可花费的预算。种子、可选波次和目标都不变。
 - `force_wave` 一次生成 `api.enemies.waves()` 中的一个波次，忽略其延迟。
+- `spawn(key, count, where)` 的 `where` 可以是 `"cursor"`、一个位置（向量或 `{ x, y, z }`），省略则在玩家前方。
 - `spawn_entity` 生成补给箱或拾取物。请使用 `api.catalog.crates()` 和 `pickups()` 中的路径，它们不含付费物品。
 - `near(radius, pos)` 列出某位置或玩家周围的存活敌人，由近到远。
 - `damage(unit, power, statuses)` 是来自本玩家的一次命中，在任何玩家的游戏中都有效，护甲也会计入。`statuses` 是可选的状态名称列表。
@@ -260,6 +281,35 @@ api.world.flash()                           -- 闪电
 - `spectate` 接受其他玩家的单位，来自 `api.game.all_avatars()`。
 - `shading` 接受 `api.world.SHADING` 中按类型列出的名称：`scalar` 是数字，`vector2` 和 `vector3` 是列表。数值会在每个新任务中重新应用。对于 `fog_color`、`sun_color` 和其他 `vector3` 名称，游戏只附带代码而自身没有使用，所以请在首次运行时检查。
 - `flash` 需要森林星球，且不能是 illuminates 的星球。其他情况返回 `"wrong_environment"`。
+
+## 在机器之间共享 {#lobby}
+
+`api.lobby.share(name, value)` 会把一段最多 200 个字符的文本放在大厅中其他每台机器都能读取的地方，归在你的模组 id 下。`api.lobby.shared(name)` 按 peer 返回其他每台机器共享的内容。Steam 大约一秒内传递一次更改，因此适合偶尔变化的状态，例如分数，而不是每一帧。没有大厅时，`share` 返回 `false, "not_available"`。
+
+```lua
+api.lobby.share("score", tostring(my_score))
+for peer, text in pairs(api.lobby.shared("score")) do total = total + tonumber(text) end
+```
+
+`api.world.to_screen(pos)` 返回关卡中的一个点在屏幕上的位置（以左下角为原点的像素）以及它是否在视野内，用于用 kit 在世界上方绘制。
+
+## 道具 {#props}
+
+`api.world.prop(unit, pos, opts)` 只在这台机器上把游戏中的一个单位放进关卡。它不会通过网络发送，游戏系统也不知道它的存在，所以它只用来被看见，带有该单位本身的发光和高亮。`opts.scale` 设置大小，1 为原始大小。返回一个带有 `move(pos)`、`scale(size)`、`flow(event)`、`alive()` 和 `remove()` 的道具，或返回 `nil` 和原因。`flow` 运行该单位自己的一个 flow 事件，就像游戏让单位播放声音和特效那样：在研究样本上调用 `on_picked_up` 会播放拾取效果。
+
+```lua
+local sample = api.world.prop("gameobjects_spec/gameobject_bug_research_object", pos, { scale = 2 })
+sample:move(new_pos)
+sample:remove()
+```
+
+该单位必须位于关卡已加载的资源包中：找不到时游戏会停止。任务的研究样本、`gameobjects/flare_01` 和已加载阵营的敌人都是安全的。
+
+`api.ui.with_texts(texts, fn, ...)` 在运行 `fn` 时让游戏的某些文本键显示你的文字：`texts` 是 `{ key = words }`。它只在 `fn` 运行期间有效，所以你可以包装游戏的某个界面并当作自己的界面重用，而其他所有文本仍是游戏原有的。
+
+```lua
+api.ui.with_texts({ menu_campaign = "SURVIVORS" }, original, self, ...)
+```
 
 ## 声音 {#sound}
 
