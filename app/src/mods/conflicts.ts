@@ -29,11 +29,25 @@ ${loser}`;
   return [...pairs.values()];
 }
 
+type ModConflicts = { overrides: [string, number][]; overriddenBy: [string, number][] };
+
 /** For one mod: the mods it overrides and the mods that override it, each with a file count. */
-export function conflictsOf(id: string, rows: ConflictRow[]) {
-  const all = overrides(rows);
-  return {
-    overrides: all.filter((o) => o.winner === id).map((o): [string, number] => [o.loser, o.resources.length]),
-    overriddenBy: all.filter((o) => o.loser === id).map((o): [string, number] => [o.winner, o.resources.length]),
+export function conflictsOf(id: string, rows: ConflictRow[]): ModConflicts {
+  return conflictsByMod(rows).get(id) ?? { overrides: [], overriddenBy: [] };
+}
+
+/** `conflictsOf` for every mod in a conflict, from one pass: the table needs them all after every
+ * change, and working them out mod by mod went over every conflict once per mod. */
+export function conflictsByMod(rows: ConflictRow[]): Map<string, ModConflicts> {
+  const out = new Map<string, ModConflicts>();
+  const of = (id: string) => {
+    let c = out.get(id);
+    if (!c) out.set(id, (c = { overrides: [], overriddenBy: [] }));
+    return c;
   };
+  for (const o of overrides(rows)) {
+    of(o.winner).overrides.push([o.loser, o.resources.length]);
+    of(o.loser).overriddenBy.push([o.winner, o.resources.length]);
+  }
+  return out;
 }

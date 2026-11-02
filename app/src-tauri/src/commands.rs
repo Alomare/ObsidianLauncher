@@ -525,6 +525,8 @@ pub struct DeployDone {
     /// Mods written into the game.
     pub mods: usize,
     pub backup: bool,
+    /// The game already had this deploy; nothing was written.
+    pub unchanged: bool,
 }
 
 #[tauri::command]
@@ -545,7 +547,7 @@ pub async fn deploy(app: tauri::AppHandle, ctx: State<'_, Ctx>) -> CmdResult<Dep
     };
     let r = core_deploy(&game, &ctx.data, &DeployOptions { progress: Some(&tell), ..DeployOptions::default() })?;
     let snapshot = fresh(&ctx)?;
-    Ok(DeployDone { mods: if r.patches.is_empty() { 0 } else { snapshot.mods.iter().filter(|m| m.on).count() }, backup: r.backup.is_some(), snapshot })
+    Ok(DeployDone { mods: if r.patches.is_empty() { 0 } else { snapshot.mods.iter().filter(|m| m.on).count() }, backup: r.backup.is_some(), unchanged: r.unchanged, snapshot })
 }
 
 #[derive(Debug, Serialize)]

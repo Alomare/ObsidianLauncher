@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { conflictsOf, overrides, winners } from "../mods/conflicts";
+import { conflictsByMod, conflictsOf, overrides, winners } from "../mods/conflicts";
 import { dependencies } from "../mods/deps";
 import { keyName } from "../mods/keyCapture";
 import { clampNumber } from "../mods/optionValue";
@@ -79,5 +79,10 @@ describe("overrides", () => {
     expect(conflictsOf("y", rows)).toEqual({ overrides: [["x", 2]], overriddenBy: [["z", 1]] });
     expect(conflictsOf("z", rows)).toEqual({ overrides: [["x", 1], ["y", 1]], overriddenBy: [] });
     expect(conflictsOf("q", rows)).toEqual({ overrides: [], overriddenBy: [] });
+  });
+  it("works out every mod at once as it does one by one", () => {
+    const all = conflictsByMod(rows);
+    expect([...all.keys()].sort()).toEqual(["x", "y", "z"]);
+    for (const id of ["x", "y", "z"]) expect(all.get(id)).toEqual(conflictsOf(id, rows));
   });
 });

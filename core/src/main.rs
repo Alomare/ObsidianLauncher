@@ -201,6 +201,7 @@ fn run(cli: Cli) -> Result<()> {
                 let scope = m.scope.name();
                 println!("{:>3}. [{on}] {} {} ({scope})", i + 1, m.id, m.version);
             }
+            print_broken(&lib)?;
         }
         Command::Order { ids } => {
             profile.set_order(&ids);
@@ -210,6 +211,7 @@ fn run(cli: Cli) -> Result<()> {
         Command::Enable { id } => toggle(&mut profile, &lib, &data, &id, true)?,
         Command::Disable { id } => toggle(&mut profile, &lib, &data, &id, false)?,
         Command::Conflicts => {
+            print_broken(&lib)?;
             let c = obsidian_core::compose::plan(&lib, &profile)?;
             if c.conflicts.is_empty() {
                 println!("No conflicts between the enabled mods.");
@@ -227,8 +229,12 @@ fn run(cli: Cli) -> Result<()> {
         }
         Command::Deploy => {
             obsidian_core::game::ensure_closed()?;
+            print_broken(&lib)?;
             let r = deploy(&game()?, &data, &DeployOptions::default())?;
-            for p in &r.patches {
+            if r.unchanged {
+                println!("The game already has these mods, so nothing was written.");
+            }
+            for p in r.patches.iter().filter(|_| !r.unchanged) {
                 println!("Wrote {}", p.display());
             }
             for p in &r.foreign {
@@ -353,6 +359,15 @@ fn live_change(profile: &Profile, data: &std::path::Path, lib: &Library, g: &Gam
         println!("{what}. Applies at the next game launch.");
     } else {
         println!("{what}. Run obsidian deploy to apply.");
+    }
+    Ok(())
+}
+
+/// The mod folders that can't be read: they stay out of deploys until they're fixed or removed, and
+/// saying nothing would leave a mod out without a word.
+fn print_broken(lib: &Library) -> Result<()> {
+    for b in lib.broken()? {
+        println!("Left out, can't be read: {} ({}). Fix it or remove it: obsidian remove {}", b.folder, b.reason, b.folder);
     }
     Ok(())
 }

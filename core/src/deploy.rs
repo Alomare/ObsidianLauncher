@@ -71,6 +71,8 @@ pub struct DeployReport {
     pub conflicts: Vec<Conflict>,
     pub foreign: Vec<PathBuf>,
     pub backup: Option<PathBuf>,
+    /// The game already had this deploy, so no patch was written (only the live settings).
+    pub unchanged: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -160,9 +162,14 @@ fn clear_leftovers(contents: &Path) -> Result<()> {
 
 /// Every regular `*.patch_N` file in `contents` that the recorded state did not write, going by name:
 /// the same folder can be spelled two ways.
-fn foreign_patches(contents: &Path, state: Option<&DeployState>) -> Result<Vec<(String, u32, PathBuf)>> {
+/// `changed`: recorded patches another tool has changed since, which count as that tool's, as in a purge.
+fn foreign_patches(contents: &Path, state: Option<&DeployState>, changed: &[PathBuf]) -> Result<Vec<(String, u32, PathBuf)>> {
     let recorded = state.into_iter().flat_map(|s| s.files.iter().chain(s.previous.iter().flat_map(|p| &p.files)));
-    let ours: Vec<String> = recorded.filter_map(|f| f.path.file_name()).map(|n| n.to_string_lossy().to_ascii_lowercase()).collect();
+    let ours: Vec<String> = recorded
+        .filter(|f| !changed.contains(&here(contents, f)))
+        .filter_map(|f| f.path.file_name())
+        .map(|n| n.to_string_lossy().to_ascii_lowercase())
+        .collect();
     let mut out = Vec::new();
     if !contents.is_dir() {
         return Ok(out);
@@ -255,7 +262,20 @@ pub fn changes_waiting_for(comp: &Composition, profile: &Profile, data_dir: &Pat
     })
 }
 
+/// One deploy or purge at a time per library, whether from the app or the command line: each starts by
+/// clearing half-written files, which would be the other one's. Held until the returned file drops.
+fn hold_lock(data_dir: &Path) -> Result<std::fs::File> {
+    std::fs::create_dir_all(data_dir)?;
+    let f = std::fs::OpenOptions::new().create(true).write(true).truncate(false).open(data_dir.join("deploy.lock"))?;
+    match f.try_lock() {
+        Ok(()) => Ok(f),
+        Err(std::fs::TryLockError::WouldBlock) => Err(ObsidianError::Busy),
+        Err(std::fs::TryLockError::Error(e)) => Err(e.into()),
+    }
+}
+
 pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Result<DeployReport> {
+    let _lock = hold_lock(data_dir)?;
     let contents = game.contents();
     let gate = check_build(&game.root, opts.known_builds)?;
     let build = gate.build.clone().ok_or_else(|| ObsidianError::UnsupportedBuild(gate.clone()))?;
@@ -265,11 +285,25 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
     let lib = Library::open(data_dir)?;
     let mut profile = Profile::load(data_dir)?;
     profile.sync(&lib)?;
-    let mut comp = crate::compose::compose_for(&lib, &profile, Some(&contents))?;
     let loader_dir = match &opts.loader_dir {
         Some(d) => d.clone(),
         None => loader::find_loader_dir()?,
     };
+    // The game may have this deploy already: the same fingerprint, and every patch where it was and as
+    // it was written. Then nothing is rebuilt, which with sound banks saves half a minute; live options
+    // aren't in the patches, so the settings are written all the same.
+    if let Some(prev) = previous.as_ref().filter(|p| !p.incomplete && !p.files.is_empty()) {
+        let planned = crate::compose::plan_for(&lib, &profile, Some(&contents))?;
+        let intact = || prev.files.iter().all(|f| sha256_file(&here(&contents, f)).is_ok_and(|s| s == f.sha256));
+        if planned.unplaced.is_empty() && prev.fingerprint.as_deref() == Some(fingerprint(&planned, &profile, &loader_dir)?.as_str()) && intact() {
+            settings::write(&settings::game_side_dir(&game.saves_dir), &loader::settings_for(&lib, &profile)?)?;
+            let foreign = foreign_patches(&contents, previous.as_ref(), &[])?;
+            let foreign = foreign.into_iter().filter(|(b, _, _)| planned.bundles.contains_key(b)).map(|(_, _, p)| p).collect();
+            let patches = prev.files.iter().map(|f| here(&contents, f)).collect();
+            return Ok(DeployReport { patches, conflicts: planned.conflicts, foreign, backup: None, unchanged: true });
+        }
+    }
+    let mut comp = crate::compose::compose_for(&lib, &profile, Some(&contents))?;
     let fingerprint = fingerprint(&comp, &profile, &loader_dir)?;
     if loader::needed(&comp, &profile) {
         let dir = &loader_dir;
@@ -282,8 +316,17 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
     }
     let settings = loader::settings_for(&lib, &profile)?;
 
-    // Plan every slot before changing anything, so a refusal leaves the previous deploy in place.
-    let foreign = foreign_patches(&contents, previous.as_ref())?;
+    // Plan every slot before changing anything, so a refusal leaves the previous deploy in place. A
+    // patch of the last deploy that another tool has changed stops being Obsidian's, as in a purge: it
+    // stays, and keeps its slot.
+    let mut changed = Vec::new();
+    for f in previous.iter().flat_map(|p| &p.files) {
+        let place = here(&contents, f);
+        if place.is_file() && sha256_file(&place)? != f.sha256 {
+            changed.push(place);
+        }
+    }
+    let foreign = foreign_patches(&contents, previous.as_ref(), &changed)?;
     let mut plan = Vec::new();
     for bundle in comp.bundles.keys() {
         let base = contents.join(bundle);
@@ -356,8 +399,7 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
     let swapped = (|| -> std::result::Result<(), (PathBuf, String)> {
         for f in previous.iter().flat_map(|p| &p.files) {
             let place = here(&contents, f);
-            // A patch another tool changed stops being Obsidian's, as in a purge.
-            if !place.is_file() || sha256_file(&place).map_err(|e| (place.clone(), e.to_string()))? != f.sha256 {
+            if !place.is_file() || changed.contains(&place) {
                 continue;
             }
             let old = beside(&place, OLD);
@@ -391,7 +433,7 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
     }
     settings::write(&settings::game_side_dir(&game.saves_dir), &settings)?;
     let foreign_paths = foreign.into_iter().filter(|(b, _, _)| comp.bundles.contains_key(b)).map(|(_, _, p)| p).collect();
-    Ok(DeployReport { patches: state.files.into_iter().map(|f| f.path).collect(), conflicts: comp.conflicts, foreign: foreign_paths, backup })
+    Ok(DeployReport { patches: state.files.into_iter().map(|f| f.path).collect(), conflicts: comp.conflicts, foreign: foreign_paths, backup, unchanged: false })
 }
 
 /// One bundle's patch, and the bytes of its `.stream` (empty when nothing is streamed). A bundle's
@@ -429,6 +471,7 @@ fn patch_of(props: [u8; 256], planned: Vec<crate::compose::Planned>) -> (Bundle,
 /// Removes the patches the last deploy recorded. Never consults the build gate. A file that can't go
 /// doesn't stop the others, and stays recorded for the next try.
 pub fn purge(game: &GameInstall, data_dir: &Path) -> Result<PurgeReport> {
+    let _lock = hold_lock(data_dir)?;
     let contents = game.contents();
     finish_interrupted(&contents, data_dir)?;
     clear_leftovers(&contents)?;
@@ -460,12 +503,12 @@ pub fn purge(game: &GameInstall, data_dir: &Path) -> Result<PurgeReport> {
 /// The patches in the game folder that aren't Obsidian's, by file name.
 pub fn foreign_files(game: &GameInstall, data_dir: &Path) -> Result<Vec<String>> {
     let state = load_state(data_dir)?;
-    Ok(foreign_patches(&game.contents(), state.as_ref())?.into_iter().filter_map(|(_, _, p)| p.file_name().map(|n| n.to_string_lossy().into_owned())).collect())
+    Ok(foreign_patches(&game.contents(), state.as_ref(), &[])?.into_iter().filter_map(|(_, _, p)| p.file_name().map(|n| n.to_string_lossy().into_owned())).collect())
 }
 
 pub fn status(game: &GameInstall, data_dir: &Path, known: &[KnownBuild]) -> Result<Status> {
     let deployed = load_state(data_dir)?;
-    let foreign = foreign_patches(&game.contents(), deployed.as_ref())?.into_iter().map(|(_, _, p)| p).collect();
+    let foreign = foreign_patches(&game.contents(), deployed.as_ref(), &[])?.into_iter().map(|(_, _, p)| p).collect();
     Ok(Status { gate: check_build(&game.root, known)?, deployed, foreign, crash_culprit: crash_culprit(game) })
 }
 
@@ -691,6 +734,39 @@ mod tests {
         finish_interrupted(&w.game.contents(), &w.data).unwrap();
         assert_eq!(snapshot(&w.game.contents()), before);
         assert_eq!(load_state(&w.data).unwrap().unwrap(), done);
+    }
+
+    #[test]
+    fn a_deploy_the_game_already_has_writes_nothing_and_a_changed_patch_is_put_back() {
+        let w = world();
+        let first = deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert!(!first.unchanged);
+        let before = snapshot(&w.game.contents());
+        let again = deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert!(again.unchanged);
+        assert_eq!(again.patches, first.patches);
+        assert_eq!(snapshot(&w.game.contents()), before);
+        // Another tool changed a patch: it becomes that tool's and stays, and Obsidian's goes after it.
+        std::fs::write(&first.patches[0], b"changed").unwrap();
+        let fixed = deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert!(!fixed.unchanged);
+        assert_eq!(std::fs::read(&first.patches[0]).unwrap(), b"changed");
+        assert!(fixed.patches.iter().any(|p| p.to_string_lossy().ends_with("00000000000000aa.patch_1")), "{:?}", fixed.patches);
+        assert!(fixed.foreign.contains(&first.patches[0]));
+    }
+
+    #[test]
+    fn a_deploy_or_purge_while_another_runs_says_so_and_touches_nothing() {
+        let w = world();
+        let vanilla = snapshot(&w.game.contents());
+        let held = hold_lock(&w.data).unwrap();
+        assert!(matches!(deploy(&w.game, &w.data, &w.opts), Err(ObsidianError::Busy)));
+        assert!(matches!(purge(&w.game, &w.data), Err(ObsidianError::Busy)));
+        assert_eq!(snapshot(&w.game.contents()), vanilla);
+        drop(held);
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        purge(&w.game, &w.data).unwrap();
+        assert_eq!(snapshot(&w.game.contents()), vanilla);
     }
 
     #[test]

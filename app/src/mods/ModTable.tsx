@@ -10,7 +10,7 @@ import { language, pick, t } from "../i18n";
 import { Thumb } from "../Thumb";
 import { offered } from "./modUpdates";
 import type { ConflictRow, ImageRef, ModRow } from "../types";
-import { conflictsOf } from "./conflicts";
+import { conflictsByMod } from "./conflicts";
 import { dropSpot, folderDropIndex, lines, moveFolder, moveMods, nudge, pinned, type Line, type Node } from "./layout";
 
 export type MenuTarget = { kind: "mod"; id: string } | { kind: "folder"; id: string };
@@ -290,9 +290,7 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
     const nameOf = (id: string) => names.get(id) ?? id;
     const withFiles = ([id, n]: [string, number]) => (n === 1 ? t("app.mods.withOneFile", nameOf(id)) : t("app.mods.withFiles", nameOf(id), n));
     const out = new Map<string, { tips: string; lose: boolean }>();
-    for (const id of new Set(conflicts.flatMap((c) => c.mods))) {
-      const c = conflictsOf(id, conflicts);
-      if (!c.overrides.length && !c.overriddenBy.length) continue;
+    for (const [id, c] of conflictsByMod(conflicts)) {
       const tips = [
         c.overrides.length > 0 && t("app.mods.overridesList", c.overrides.map(withFiles).join(", ")),
         c.overriddenBy.length > 0 && t("app.mods.overriddenByList", c.overriddenBy.map(withFiles).join(", ")),

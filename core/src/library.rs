@@ -119,6 +119,10 @@ impl Library {
     pub fn list(&self) -> Result<Vec<Manifest>> {
         Ok(self.scan()?.0)
     }
+    /// `list` and `broken` from one pass over the folders, for a caller that wants both.
+    pub fn list_and_broken(&self) -> Result<(Vec<Manifest>, Vec<BrokenMod>)> {
+        self.scan()
+    }
     /// The folders that look like mods but can't be read.
     pub fn broken(&self) -> Result<Vec<BrokenMod>> {
         Ok(self.scan()?.1)
@@ -268,11 +272,16 @@ impl Profile {
     /// unless a load hint says otherwise (`place_new`).
     pub fn sync(&mut self, lib: &Library) -> Result<()> {
         let installed = lib.list()?;
+        self.sync_with(lib, &installed)
+    }
+
+    /// `sync` with the library's mods already read.
+    pub fn sync_with(&mut self, lib: &Library, installed: &[Manifest]) -> Result<()> {
         // A mod that can't be read keeps its place, so fixing it doesn't lose the load order.
         self.mods.retain(|m| installed.iter().any(|i| i.id == m.id) || lib.mod_dir(&m.id).join(FILE).is_file());
-        for m in &installed {
+        for m in installed {
             if !self.mods.iter().any(|e| e.id == m.id) {
-                let at = self.place_new(m, &installed);
+                let at = self.place_new(m, installed);
                 self.mods.insert(at, ProfileEntry { id: m.id.clone(), enabled: false, folder: None });
             }
         }

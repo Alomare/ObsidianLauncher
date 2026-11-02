@@ -214,7 +214,7 @@ pub struct Composition {
 /// Everything the game would get, with the data, for a deploy. `contents` is the game's folder of
 /// bundles, which a mod's sound bank clips need.
 pub fn compose_for(lib: &Library, profile: &Profile, contents: Option<&Path>) -> Result<Composition> {
-    compose_with(lib, profile, true, contents)
+    compose_with(lib, profile, true, contents, None)
 }
 
 /// `compose_for` with no game.
@@ -227,7 +227,13 @@ pub fn compose(lib: &Library, profile: &Profile) -> Result<Composition> {
 /// large library. Sound bank clips are left out when the game or the bank can't be found: the deploy
 /// is what says so.
 pub fn plan_for(lib: &Library, profile: &Profile, contents: Option<&Path>) -> Result<Composition> {
-    compose_with(lib, profile, false, contents)
+    compose_with(lib, profile, false, contents, None)
+}
+
+/// `plan_for` with the library's manifests already read, by id, so they aren't read again: the
+/// window's snapshot has them, and it runs after every click.
+pub fn plan_with(lib: &Library, profile: &Profile, contents: Option<&Path>, manifests: &BTreeMap<String, Manifest>) -> Result<Composition> {
+    compose_with(lib, profile, false, contents, Some(manifests))
 }
 
 /// `plan_for` with no game.
@@ -251,6 +257,12 @@ fn file_digest(path: &Path, stamps: &std::collections::HashMap<PathBuf, Stamp>, 
     digests().lock().unwrap().insert(path.to_path_buf(), (stamp, d));
     *worked_out = true;
     Ok(d)
+}
+
+/// `file_digest` for a file outside a mod's folder walk, such as the loader's: worked out once, then
+/// kept while its time and size stay the same.
+pub(crate) fn cached_digest(path: &Path) -> Result<[u8; 32]> {
+    file_digest(path, &Default::default(), &mut false)
 }
 
 fn file_stamp(path: &Path) -> Option<Stamp> {
@@ -467,7 +479,7 @@ fn merge_table(table: &str, versions: &[Planned], with_data: bool) -> Result<Vec
     Ok(out)
 }
 
-fn compose_with(lib: &Library, profile: &Profile, with_data: bool, contents: Option<&Path>) -> Result<Composition> {
+fn compose_with(lib: &Library, profile: &Profile, with_data: bool, contents: Option<&Path>, known: Option<&BTreeMap<String, Manifest>>) -> Result<Composition> {
     let mut slots: BTreeMap<(String, u64, u64), Slot> = BTreeMap::new();
     // Every mod's version of a table that merges, in load order, with one entry for the same bytes.
     let mut table_versions: BTreeMap<(String, u64), (&str, Vec<Planned>)> = BTreeMap::new();
@@ -484,7 +496,13 @@ fn compose_with(lib: &Library, profile: &Profile, with_data: bool, contents: Opt
             return Err(ObsidianError::ModMissing(entry.id.clone()));
         }
         // `Library::broken` reports a mod that can't be read, and it stays out until it's fixed.
-        let Ok(m) = load_manifest(&dir) else { continue };
+        let m = match known.and_then(|k| k.get(&entry.id)) {
+            Some(m) => m.clone(),
+            None => match load_manifest(&dir) {
+                Ok(m) => m,
+                Err(_) => continue,
+            },
+        };
         let values = effective_values(&m.option_specs()?, profile.options.get(&m.id));
         if m.resources.iter().any(|r| (r.type_hash, r.name_hash) == reserved) {
             return Err(ObsidianError::ReservedResource { mod_id: m.id.clone(), name: crate::loader::ENTRY.into() });

@@ -223,6 +223,25 @@ fn start_order(mods: &[ComposedMod]) -> Vec<&ComposedMod> {
 /// The deploy table as JSON: version, revision, pool hashes, shared texts and the mods
 /// with an entry, in the order they start.
 pub fn deploy_table(comp: &Composition, texts: Value) -> Result<Value> {
+    table_with(comp, texts, read_texts)
+}
+
+/// Each catalog in a mod's `locales` folder as the digest of its file, in place of its texts. The
+/// folder is listed once: most mods have none, and asking for each language's file costs a call each.
+fn texts_digests(dir: &Path) -> Result<Value> {
+    let mut out = Map::new();
+    let Ok(entries) = std::fs::read_dir(dir) else { return Ok(Value::Object(out)) };
+    for e in entries.flatten() {
+        let name = e.file_name().to_string_lossy().into_owned();
+        let Some(lang) = name.strip_suffix(".json").filter(|l| LANGUAGES.contains(l)) else { continue };
+        let d = crate::compose::cached_digest(&e.path())?;
+        out.insert(lang.to_string(), Value::String(d.iter().map(|b| format!("{b:02x}")).collect()));
+    }
+    Ok(Value::Object(out))
+}
+
+/// `deploy_table` with each mod's texts from `mod_texts`, given the mod's `locales` folder.
+fn table_with(comp: &Composition, texts: Value, mod_texts: fn(&Path) -> Result<Value>) -> Result<Value> {
     let mut session = Vec::new();
     let mut every = Map::new();
     let mut mods = Vec::new();
@@ -281,7 +300,7 @@ pub fn deploy_table(comp: &Composition, texts: Value) -> Result<Value> {
             "requires": m.requires,
             "options": options,
             "keybinds": keybinds,
-            "texts": read_texts(&c.dir.join("locales"))?,
+            "texts": mod_texts(&c.dir.join("locales"))?,
         }));
     }
     let modset = modset_hash(&session);
@@ -385,28 +404,41 @@ pub fn build(loader_dir: &Path, comp: &Composition) -> Result<Vec<Planned>> {
 /// What `build` compiles, uncompiled: the loader sources, each mod entry and the deploy table.
 /// Equal inputs build equal resources, so this stands in for `build` where nothing is written.
 pub fn build_inputs(loader_dir: &Path, comp: &Composition) -> Result<Vec<u8>> {
+    // Each file goes in as its digest, kept while the file is unchanged: this runs for every snapshot,
+    // after every click, and reading every script and font each time took tens of milliseconds.
+    let digest = |p: &Path| crate::compose::cached_digest(p);
     let mut files: Vec<PathBuf> =
         std::fs::read_dir(loader_dir)?.filter_map(|e| e.ok().map(|e| e.path())).filter(|p| p.extension().is_some_and(|x| x == "lua")).collect();
     files.sort();
     let mut out = Vec::new();
     for p in files {
         out.extend(p.file_name().unwrap().to_string_lossy().as_bytes());
-        out.extend(std::fs::read(&p)?);
+        out.extend(digest(&p)?);
     }
     for c in &comp.mods {
         if let Some(entry) = &c.manifest.entry {
             out.extend(c.manifest.id.as_bytes());
-            out.extend(std::fs::read(c.dir.join(entry))?);
+            out.extend(digest(&c.dir.join(entry))?);
             for p in &c.manifest.modules {
-                out.extend(std::fs::read(c.dir.join(p))?);
+                out.extend(digest(&c.dir.join(p))?);
             }
         }
     }
     for (_, name, path) in own_fonts(loader_dir) {
         out.extend(name.as_bytes());
-        out.extend(std::fs::read(path)?);
+        out.extend(digest(&path)?);
     }
-    out.extend(full_table(loader_dir, comp)?.to_string().as_bytes());
+    // The table the loader gets, with its texts as the digests of the files they come from: parsing
+    // the catalogs every time cost more than everything else here.
+    let locales = loader_dir.join("..").join("..").join("locales");
+    for lang in LANGUAGES {
+        let path = locales.join(format!("{lang}.json"));
+        if path.is_file() {
+            out.extend(lang.as_bytes());
+            out.extend(digest(&path)?);
+        }
+    }
+    out.extend(table_with(comp, Value::Null, texts_digests)?.to_string().as_bytes());
     Ok(out)
 }
 

@@ -78,6 +78,7 @@
   "app.error.BadImage": "That file is not an image Obsidian can use: PNG, JPG or WebP, up to 4 MB.",
   "app.error.GameFilesChanged": "The game files don't match a build Obsidian knows, so it can't tell what this mod changes. If you copied a mod into the game folder by hand, verify the game files in Steam and import it again.",
   "app.error.GameNotFound": "The game was not found. Choose the game folder in Settings.",
+  "app.error.Busy": "Another deploy or purge is running. Try again when it ends.",
   "app.error.GameRunning": "Close the game first.",
   "app.error.LastProfile": "The last profile cannot be deleted.",
   "app.error.NoRelease": "That repository has no release with a version number.",

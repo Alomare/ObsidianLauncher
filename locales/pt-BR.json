@@ -78,6 +78,7 @@
   "app.error.BadImage": "Esse arquivo não é uma imagem que o Obsidian aceita: PNG, JPG ou WebP, até 4 MB.",
   "app.error.GameFilesChanged": "Os arquivos do jogo não batem com uma versão que o Obsidian conhece, então ele não consegue saber o que este mod muda. Se você copiou um mod para a pasta do jogo à mão, verifique os arquivos do jogo na Steam e importe de novo.",
   "app.error.GameNotFound": "O jogo não foi encontrado. Escolha a pasta do jogo nas Configurações.",
+  "app.error.Busy": "Já há um Aplicar ou Limpar em andamento. Tente de novo quando terminar.",
   "app.error.GameRunning": "Feche o jogo primeiro.",
   "app.error.LastProfile": "O último perfil não pode ser apagado.",
   "app.error.NoRelease": "Esse repositório não tem nenhum lançamento com número de versão.",
