@@ -66,6 +66,21 @@ button.bare:hover { color: var(--tx); }
 /* Home: the logo fills the tab, with a margin. */
 .tab.cur { color: var(--tx); background: linear-gradient(0deg, rgba(240, 180, 41, 0.18), transparent); box-shadow: inset 0 -3px 0 var(--gold); }
 .nav-end { margin-left: auto; display: flex; align-items: center; gap: 0.7rem; }
+/* A small window at a big scale: the tabs keep their icons, then the warning and Play theirs. Their tooltips
+   still say what they are. */
+.nav { container: nav / inline-size; }
+@container nav (max-width: 62rem) {
+  .tabs .tab { padding: 0 0.8rem; }
+  .tabs .tab .cap { display: none; }
+}
+@container nav (max-width: 48rem) {
+  .nav-warn { font-size: 0; }
+  .nav .btn.play { min-width: 0; padding: 0 1.1rem; }
+  .nav .btn.play span { display: none; }
+  .nav .btn.icon { width: 2.7rem; }
+  .nav-end { gap: 0.4rem; }
+  .actions { gap: 0.3rem; }
+}
 /* Guardrails: a shield that fills, with how many of the account's guardrails are on */
 .btn.guard { gap: 0.2rem; background: linear-gradient(180deg, #dfe2e5, #9ea4aa); color: #1b1d20; border: 0; }
 .btn.guard svg { width: 26px; height: 26px; stroke-width: 1.9; }
@@ -494,7 +509,23 @@ button.thumb:hover { border-color: var(--gold); }
 .profile-btn .thumb { border: 0; }
 
 /* Home */
-.home { position: relative; height: 100%; overflow: hidden; background: #0b0c0e center / cover no-repeat; color: #f2f1ed; }
+.home { position: relative; height: 100%; overflow: hidden; background: #0b0c0e; color: #f2f1ed; }
+.home-art { position: absolute; inset: 0; overflow: hidden; }
+.home-art-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; user-select: none;
+  animation: art-in 1800ms ease-out both, art-zoom calc(var(--art-time, 20s) + 2s) linear both; }
+:root[data-motion="off"] .home-art-img { animation: none; }
+@keyframes art-in { from { opacity: 0; } }
+@keyframes art-zoom { from { transform: scale(1); } to { transform: scale(1.02); } }
+.home-foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 0.6rem; }
+.home-steps { flex: none; display: flex; align-items: center; height: 2rem; color: #f2f1ed; background: rgba(255, 255, 255, 0.12); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); backdrop-filter: blur(6px); }
+.home-steps button { align-self: stretch; display: flex; align-items: center; padding: 0 0.3rem; border: 0; background: none; color: inherit; cursor: pointer; transition: background var(--fast); }
+.home-steps button:hover { background: rgba(255, 255, 255, 0.16); }
+.home-steps svg { width: 0.9rem; height: 0.9rem; }
+.home-steps button:first-child svg { transform: rotate(90deg); }
+.home-steps button:last-child svg { transform: rotate(-90deg); }
+.art-time { width: 2.6rem; height: 2px; margin: 0 0.15rem; background: rgba(255, 255, 255, 0.2); overflow: hidden; }
+.art-time i { display: block; height: 100%; background: #f2f1ed; transform-origin: left; animation: art-left var(--art-time, 20s) linear both; }
+@keyframes art-left { from { transform: scaleX(0); } }
 .home-blur, .home-blur i, .home-shade { position: absolute; inset: 0; }
 .home-blur i:nth-child(1) { backdrop-filter: blur(2px); -webkit-mask-image: linear-gradient(to bottom right, #000, transparent); mask-image: linear-gradient(to bottom right, #000, transparent); }
 .home-blur i:nth-child(2) { backdrop-filter: blur(6px); -webkit-mask-image: linear-gradient(to bottom right, #000, rgba(0, 0, 0, 0.5) 40%, transparent 90%); mask-image: linear-gradient(to bottom right, #000, rgba(0, 0, 0, 0.5) 40%, transparent 90%); }

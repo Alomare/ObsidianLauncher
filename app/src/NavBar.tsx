@@ -53,7 +53,7 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
       {wave && <span key={wave.n} ref={waveRef} className={`nav-wave ${wave.tone}`} aria-hidden="true" onAnimationEnd={onWaveEnd} />}
       <div className="tabs" role="tablist" ref={tabsRef}>
         {TABS.map(([id, Icon]) => (
-          <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? "tab cur" : "tab"} onClick={() => onTab(id)}>
+          <button key={id} role="tab" aria-selected={tab === id} aria-label={t(`app.nav.${id}`)} data-tip={t(`app.nav.${id}`)} className={tab === id ? "tab cur" : "tab"} onClick={() => onTab(id)}>
             <Icon />
             <span className="cap">{t(`app.nav.${id}`)}</span>
           </button>

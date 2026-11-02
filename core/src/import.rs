@@ -361,11 +361,22 @@ fn nexus_file(stem: &str) -> Option<NexusFile> {
         return None;
     }
     let mod_id = id.parse().ok()?;
-    let looks_like_version = |w: &&str| {
-        let w = w.trim_start_matches(['v', 'V']);
-        w.contains('.') && w.split('.').all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()))
-    };
-    let name: Vec<&str> = head.iter().copied().filter(|w| !looks_like_version(w)).collect();
+    // "1.2", "V1.2" and "V8" are versions; a bare "4" is part of the name ("Tusk Act 4").
+    fn looks_like_version(w: &str) -> bool {
+        let n = w.trim_start_matches(['v', 'V']);
+        (n.len() < w.len() || n.contains('.')) && n.split('.').all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()))
+    }
+    // A version can also hang off the last word: "Saber Unlock.v4", "SUPER EARTH.V8".
+    fn without_version(w: &str) -> Option<&str> {
+        if looks_like_version(w) {
+            return None;
+        }
+        match w.to_ascii_lowercase().find(".v") {
+            Some(i) if i > 0 && looks_like_version(&w[i + 1..]) => Some(&w[..i]),
+            _ => Some(w),
+        }
+    }
+    let name: Vec<&str> = head.iter().copied().filter_map(without_version).collect();
     Some(NexusFile { name: if name.is_empty() { head.join(" ") } else { name.join(" ") }, mod_id, version: lenient_version(version) })
 }
 
@@ -425,6 +436,13 @@ mod tests {
         let rip = nexus_file("RIP THEM APART FOR SUPER EARTH 11 1 2026-10-28T18-46Z ym1oMPKH7").unwrap();
         assert_eq!((rip.name.as_str(), rip.mod_id, rip.version.to_string()), ("RIP THEM APART FOR SUPER EARTH", 11, "1.0.0".to_string()));
         assert_eq!(nexus_file("Odd 3 1.0.4b 2026-01-02T03-04Z abc").unwrap().version.to_string(), "1.0.4");
+        // A version stuck to the last word, or a "V8" with no dot, is not part of the name; a bare number is.
+        let rip8 = nexus_file("RIP THEM APART FOR SUPER EARTH.V8 11 8 2026-11-02T04-52Z ym1oMPKVd").unwrap();
+        assert_eq!((rip8.name.as_str(), rip8.version.to_string()), ("RIP THEM APART FOR SUPER EARTH", "8.0.0".to_string()));
+        assert_eq!(nexus_file("More enemys-exp.v4 14 4 2026-11-01T21-59Z tvTxZDkH6").unwrap().name, "More enemys-exp");
+        assert_eq!(nexus_file("Odd V8 3 8 2026-01-02T03-04Z abc").unwrap().name, "Odd");
+        assert_eq!(nexus_file("Tusk Act 4 and Automaton Trooper 25 1.0 2026-11-02T04-44Z AgGVhMvuG").unwrap().name, "Tusk Act 4 and Automaton Trooper");
+        assert_eq!(nexus_file("Odd.vent 3 1 2026-01-02T03-04Z abc").unwrap().name, "Odd.vent");
         // One Nexus page can hold several files that are separate mods; versions of one file share the id.
         let id = |n: &str| nexus_file(n).unwrap().id();
         assert_eq!(id("ThirdPersonCamera V1.2 Manual 12 1.2 2026-10-28T10-41Z 6ZKn90ihp"), "legacy.nexus-12-thirdpersoncamera-manual");
@@ -434,6 +452,9 @@ mod tests {
         assert_eq!(id("ThirdPersonCamera V2.1 Manual 12 2.1 2026-10-31T03-40Z 2wl9CLqaU"), "legacy.nexus-12-thirdpersoncamera-manual");
         assert_eq!(id("Ultrawide Standalone Patch 15 1 2026-10-30T16-35Z AgGVhMvu6"), "legacy.nexus-15-ultrawide-standalone-patch");
         assert_eq!(id("Ultrawide Third Person Patch 15 1.1 2026-10-31T02-28Z xNtc1Ee3u"), "legacy.nexus-15-ultrawide-third-person-patch");
+        // So a newer upload named "Saber Unlock.v4" updates "Saber Unlock".
+        assert_eq!(id("Saber Unlock.v4 14 4 2026-11-01T21-59Z JSWvXlL68"), "legacy.nexus-14-saber-unlock");
+        assert_eq!(id("RIP THEM APART FOR SUPER EARTH.V8 11 8 2026-11-02T04-52Z ym1oMPKVd"), id("RIP THEM APART FOR SUPER EARTH 11 1 2026-10-28T18-46Z ym1oMPKH7"));
     }
 
     #[test]

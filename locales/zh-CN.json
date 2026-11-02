@@ -128,6 +128,8 @@
   "app.home.github": "源代码",
   "app.home.hideLinks": "隐藏链接",
   "app.home.nexus": "Nexus",
+  "app.home.prevPicture": "上一张图片",
+  "app.home.nextPicture": "下一张图片",
   "app.home.showLinks": "显示链接",
   "app.home.sponsor": "赞助项目",
   "app.home.subtitle": "模组管理器",

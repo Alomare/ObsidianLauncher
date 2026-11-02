@@ -128,6 +128,8 @@
   "app.home.github": "Source Code",
   "app.home.hideLinks": "Hide the links",
   "app.home.nexus": "Nexus",
+  "app.home.prevPicture": "Previous picture",
+  "app.home.nextPicture": "Next picture",
   "app.home.showLinks": "Show the links",
   "app.home.sponsor": "Sponsor the Project",
   "app.home.subtitle": "Mod Manager",
