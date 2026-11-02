@@ -77,6 +77,7 @@ const EXTRA_NAMES: &[&str] = &[
     "lua/boot/boot",
     "lua/components/inventory_component",
     "lua/menu/menu_screen_campaign_multiplayer",
+    "lua/generated/unit_path_to_network_object",
 ];
 
 fn known_names() -> &'static std::collections::HashMap<u64, &'static str> {
@@ -114,6 +115,7 @@ mod tests {
     fn scripts_the_bundles_dont_spell_out_have_names_too() {
         assert_eq!(display_name(0x520e79e14b304a44), "lua/components/inventory_component");
         assert_eq!(display_name(0x54ca95ed20705469), "lua/menu/menu_screen_campaign_multiplayer");
+        assert_eq!(display_name(0xb04000fc3086bd36), "lua/generated/unit_path_to_network_object");
     }
 
     #[test]
