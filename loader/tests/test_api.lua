@@ -2828,7 +2828,7 @@ test("a_bare_bot_wears_its_name_as_a_player_does_and_it_needs_the_input_hook_to_
 	function gui:set_current_font(f) self.font = f end
 	function gui:set_ignore_position_scale() end
 	function gui:text(text, pos) texts[#texts + 1] = { text = text, pos = pos, font = self.font } end
-	local hud = { hd_gui = gui, gui_metrics_cacher = { get_text_extents = function() return 60, 20 end } }
+	local hud = { hd_gui = gui, plugins_enabled = true, gui_metrics_cacher = { get_text_extents = function() return 60, 20 end } }
 	rawget(_G, "CameraManager").get_viewport = function() return { world_to_viewport = function(_, p) return { x = p.x * 10, y = 7, z = p.y * 10 } end } end
 	rawget(_G, "Hud").update(hud, 0.016)
 	E.eq(#texts, 1, "the players with a record have the game's")
@@ -2836,6 +2836,12 @@ test("a_bare_bot_wears_its_name_as_a_player_does_and_it_needs_the_input_hook_to_
 	E.eq(texts[1].font, "body")
 	E.eq(texts[1].pos.x, 40 + -30 + 6, "centred and a little above, as the HUD puts a name")
 	E.eq(texts[1].pos.y, 40 + -10 - 21, "the screen's height is the projection's z; its y is the depth")
+	-- With the HUD's plugins off (hide_hud, a mod's full-screen menu), the names go with the game's.
+	hud.plugins_enabled = false
+	texts = {}
+	rawget(_G, "Hud").update(hud, 0.016)
+	E.eq(#texts, 0, "hidden with the HUD")
+	hud.plugins_enabled = true
 	-- Off the screen, no name.
 	game.bare.pos = { x = -5, y = 1, z = 0 }
 	texts = {}
