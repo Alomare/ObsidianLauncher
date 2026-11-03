@@ -41,7 +41,7 @@ The menu blocks your character while it's open, and it closes by itself when the
 
 - **Player:** god mode, infinite sprint, speed, teleporting, respawning, and helmets, armor and capes you own.
 - **Weapons:** infinite ammo, instant reload, refills, the fire rate, damage, magazine, reload, spread and armor piercing of each of your own weapons, and giving yourself any weapon, backpack or perk from the base game or a DLC you own, with the upgrades you choose.
-- **Stratagems:** no cooldowns, unlimited uses, instant call-ins, ignoring no-stratagem zones, any stratagem from the base game or a DLC you own dropped at the cursor, and real flares, Reinforce included.
+- **Stratagems:** no cooldowns, unlimited uses, instant call-ins, ignoring no-stratagem zones, any stratagem from the base game or a DLC you own dropped at the cursor, and real flares, Reinforce included. **Make a stratagem** builds your own from one of the game's: a name, code, icon, cooldown, uses and call-in time, and what happens when it lands. Other players see the one you started from, and it comes back at the next launch.
 - **Vehicles:** speed, turning, armor, no damage and endless exosuit rockets for the vehicle you're driving, plus repairs and refills.
 - **Bots:** Helldivers your machine plays, with a HUD slot or as bare bodies past four players. Order every bot or each one to follow you, hold, walk to the cursor, come to you, fight, face the cursor, shoot, throw, reload and call stratagems, and give them weapons, backpacks, perks and stratagems. Host only, in a mission.
 - **Spawn:** ammunition, supply crates and pickups on the spot, and flares at the cursor.

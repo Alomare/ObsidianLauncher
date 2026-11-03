@@ -471,4 +471,26 @@ test("the_texts_the_trainer_shows_keep_the_writing_rules", function()
 	assert_plain(read_file("app/src/wiki/20-trainer.md"):gsub("`[^`]*`", ""), "the wiki")
 end)
 
+test("a_kept_custom_stratagem_is_made_again_at_the_next_launch", function()
+	local e = start()
+	local core = e:core()
+	core.current = core.mods_by_id["obsidian.trainer"]
+	obsidian.storage.set("custom.trainer_custom_1", "trainer_custom_1|stratagem_resupply|Big Drop|d d u|stratagem_airstrike|30|2|1.5|also|stratagem_airstrike|1")
+	obsidian.storage.set("custom.broken", "nothing here")
+	local custom = e.loaded["obsidian/mods/obsidian.trainer/pages/custom"]
+	E.eq(custom.load(), true)
+	local s = rawget(_G, "LoadoutSettings")
+	local made = s.stratagems[#s.stratagems]
+	E.eq(made.name, "trainer_custom_1")
+	E.eq(made.combo[3], "up")
+	E.eq(made.icon, "stratagem_airstrike")
+	E.eq(made.cooldown_time, 30)
+	E.eq(made.num_uses, 2)
+	E.eq(made.activation_time, 1.5)
+	E.eq(rawget(_G, "LocalizationManager"):string("trainer_custom_1"), "Big Drop")
+	E.eq(custom.load(), true, "once")
+	E.eq(#s.stratagems, made.id)
+	core.current = nil
+end)
+
 return T

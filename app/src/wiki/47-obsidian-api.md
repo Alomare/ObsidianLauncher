@@ -129,7 +129,7 @@ end)
 | `api.catalog` | Weapons, stratagems, perks, enemies and groups by name: the base game, plus the DLC the player owns. `usable(name)` checks that, `unowned_path(path)` checks a weapon's path, and `unlocked(name)` says whether the player has unlocked an item by playing. Also `backpacks`, `crates`, `pickups`, `vehicles`, `by_subtype(name)` and `max_upgrade(path)` |
 | `api.player` | `heal`, `heal_by(amount)`, `set_health(n)`, `respawn`, `teleport`, `set_cosmetic`, `set_outline(r, g, b)`, `clear_status(name)`, `immune(name, on)`, `knockdown`, `drop_carried`, and more |
 | `api.gear` | `refill`, `give_weapon(slot, path, upgrade, unit)`, `give_backpack(path, upgrade, unit)`, `give_perk(name, unit)`, `remove_perk(unit)`, `add_perk(name, unit)`, `remove_extra_perk(name, unit)`, `extra_perks(unit)`, `refresh`, `weapons_of(owner)`, `tune(unit, component, changes)`, `add_drone(path, unit, upgrade)` |
-| `api.stratagems` | `reset_cooldowns`, `refill_uses`, `give`, `drop`, `call(name, pos, delay)`, `edit(name, field, value)` |
+| `api.stratagems` | `reset_cooldowns`, `refill_uses`, `give`, `drop`, `call(name, pos, delay)`, `edit(name, field, value)`, `define(def)`, `custom()` |
 | `api.enemies` | `spawn`, `spawn_group`, `spawn_entity(path, pos)`, `kill_all`, `kill(unit)`, `list`, `info(unit)`, `nearest(pos)`, `apply_status(unit, template)`, `stun_near(radius)`, `near(radius, pos)`, `damage(unit, power, statuses)`, `set_hitpoints(unit, n)`, `despawn(unit)`, `load_faction(name)`, `set_pressure(t)`, `waves()`, `force_wave(name, pos)`, `carried()`, the enemies on the map with corpses and the spawn queue, and `room()`, how many more fit under `MAX_SAFE` |
 | `api.mission` | `finish_objectives`, `objectives()`, `mutator(name)`, `win`, `abort`, `practice` |
 | `api.vehicles` | `current()`, `driving()`, `repair()`, `refill()` |
@@ -205,6 +205,38 @@ api.stratagems.call("stratagem_resupply", api.world.cursor(), 15)   -- 15 s on t
 `api.stratagems.drop` is the quick one: no flare and no wait, and no Reinforce.
 
 The effect `ignore_jammers` lets stratagems work inside no-stratagem zones.
+
+### Custom stratagems
+
+`api.stratagems.define(def)` adds a stratagem to the game's list, made from one of the game's own, its base. It answers `{ name, id }`, or `nil` and a reason. Make it as your mod starts, so a saved loadout that has it still finds it.
+
+```lua
+api.stratagems.define({
+  name = "mymod_pitchfork",                 -- new, letters, digits and _
+  base = "stratagem_lasercannon",           -- copied, and what other players see
+  title = { en = "Pitchfork", fr = "Fourche" },
+  description = "Three barrels.",
+  code = { "down", "left", "up", "down", "left", "right" },
+  icon = "stratagem_lasercannon",           -- any icon the HUD has
+  type = "supply",                          -- supply, offensive, defensive or special
+  stats = { cooldown_time = 60, num_uses = 2, activation_time = 2 },
+  upgrades = {
+    { title = "Pitchfork Light", description = "Move while firing.", cost = 3, stats = { cooldown_time = 45 } },
+  },
+  on_activate = function(ctx)               -- on the thrower's machine, as it's called down
+    api.world.explode(ctx.position, 2000, 8)
+    return false                            -- false: drop nothing else
+  end,
+})
+```
+
+- Every field but `name`, `base` and `title` is optional, and leaves the base's. Without `upgrades`, the base's levels stay, named after yours: "Pitchfork Mk2".
+- `unit` sets what lands, and `subtypes` and `attributes` what the Loadout screen shows. Anything it calls down has to be a unit every game has.
+- `ctx` has `name`, `position` (the game's vector, good for that frame), `owner` (the thrower's unit) and `upgrade`.
+- Other players always see and hear the base. The ids in the game's messages, and in the fields it copies to other machines, go out as the base's, so a player without your mod is never sent one their game doesn't have. That holds in any lobby. In a lobby that isn't cleared, the stratagem is its base: the base's numbers and call-in, and no `on_activate`.
+- The Loadout screen offers it to a player who has its base, by rank, reward or a DLC they own, and only in a cleared session.
+- The save keeps its upgrades under its name. A saved loadout that names a stratagem the game doesn't have gets the default instead, so a player can take your mod off and keep a save that works.
+- `api.stratagems.custom()` lists the ones made so far, as `{ name, base, id }`.
 
 ## Enemies {#enemies}
 

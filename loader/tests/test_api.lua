@@ -3058,4 +3058,168 @@ test("a_bot_is_given_gear_and_help_as_the_player_is", function()
 	no_tampering(game)
 end)
 
+-- Custom stratagems: a copy of a base in the game's list, with its own words, and the base on the wire.
+local function wire_world(game)
+	game.sent = {}
+	rawset(_G, "NetworkRouter", {
+		write_message_params = function(_, name, ...) game.sent[#game.sent + 1] = { name = name, args = { ... } } end,
+		transmit_to = function(self, peer, name, ...)
+			game.sent_to = peer
+			self:write_message_params(name, ...)
+		end,
+		transmit_to_all_others = function(self, name, ...) self:write_message_params(name, ...) end,
+		transmit_to_all = function(self, name, ...) self:write_message_params(name, ...) end,
+	})
+	local fields = {}
+	rawset(_G, "GameObject", {
+		set = function(self, field, value) fields[field] = value end,
+		get = function(self, field) return fields[field] end,
+	})
+	rawget(_G, "LoadoutSettings").get_upgraded_stratagem = function(id) return rawget(_G, "LoadoutSettings").stratagems[id] end
+	return fields
+end
+
+local PITCHFORK = { name = "test_pitchfork", base = "stratagem_machinegun", title = { en = "Pitchfork", fr = "Fourche" },
+	description = "Three barrels.", code = { "down", "left", "up" }, icon = "stratagem_lasercannon", stats = { cooldown_time = 30 },
+	upgrades = { { title = "Pitchfork Light", description = "Move while firing.", cost = 3, stats = { cooldown_time = 20 } } } }
+
+test("a_custom_stratagem_is_a_copy_of_its_base_with_its_own_words", function()
+	local api, game = start()
+	wire_world(game)
+	local s = rawget(_G, "LoadoutSettings")
+	local count = #s.stratagems
+	local made = api.stratagems.define(PITCHFORK)
+	E.eq(made.id, count + 1)
+	local e = s.stratagems[made.id]
+	E.eq(e.id, made.id)
+	E.eq(e.name, "test_pitchfork")
+	E.eq(e.unit, "gameobjects/crate", "the base's")
+	E.eq(e.icon, "stratagem_lasercannon")
+	E.eq(e.combo[2], "left")
+	E.eq(e.cooldown_time, 30)
+	E.eq(e.stratagem_subtypes[1], "support_weapon")
+	E.eq(e.upgrades[1].cooldown_time, 20)
+	E.eq(e.upgrades[1].cost, 3)
+	E.eq(s.stratagems[2].cooldown_time, 0, "the base is left alone")
+	local lm = rawget(_G, "LocalizationManager")
+	E.eq(lm:string("test_pitchfork"), "Pitchfork")
+	E.eq(lm:string(e.description), "Three barrels.")
+	E.eq(lm:string(e.upgrades[1].upgrade_name), "Pitchfork Light")
+	lm.current_language = "fr"
+	E.eq(lm:string("test_pitchfork"), "Fourche")
+	E.eq(api.catalog.text("test_pitchfork"), "Fourche")
+	E.eq(lm:string("weapon_rifle"), "Rifle", "other texts are the game's")
+	E.eq(api.stratagems.custom()[1].base, "stratagem_machinegun")
+	E.eq(api.catalog.stratagem("test_pitchfork") ~= nil, true, "listed with the rest")
+end)
+
+test("a_custom_stratagem_without_upgrades_takes_the_bases_renamed", function()
+	local api, game = start()
+	wire_world(game)
+	local made = api.stratagems.define({ name = "test_supply", base = "stratagem_resupply", title = "Big Supply" })
+	local e = rawget(_G, "LoadoutSettings").stratagems[made.id]
+	E.eq(#e.upgrades, 3)
+	E.eq(e.upgrades[1].cooldown_time, 90)
+	E.eq(rawget(_G, "LocalizationManager"):string(e.upgrades[2].upgrade_name), "Big Supply Mk3")
+	E.eq(e.combo, nil, "the base's code, which this one has none of")
+end)
+
+test("a_definition_is_checked", function()
+	local api, game = start()
+	wire_world(game)
+	E.eq(select(2, api.stratagems.define({ name = "stratagem_resupply", base = "stratagem_resupply", title = "x" })), "taken")
+	E.eq(select(2, api.stratagems.define({ name = "test_a", base = "stratagem_nothing", title = "x" })), "not_available")
+	E.eq(select(2, api.stratagems.define({ name = "test a", base = "stratagem_resupply", title = "x" })), "bad_name")
+	E.eq(select(2, api.stratagems.define({ name = "test_a", base = "stratagem_resupply" })), "bad_type", "no title")
+	E.eq(select(2, api.stratagems.define({ name = "test_a", base = "stratagem_resupply", title = "x", code = { "up", "sideways" } })), "bad_code")
+	E.eq(select(2, api.stratagems.define({ name = "test_a", base = "stratagem_resupply", title = "x", stats = { cooldown_time = "slow" } })), "bad_type")
+	E.eq(select(2, api.stratagems.define({ name = "test_a", base = "stratagem_resupply", title = "x", stats = { unit = "gameobjects/other" } })), "bad_type", "unit has its own field")
+	E.eq(select(2, api.stratagems.define({ name = "test_a", base = "stratagem_resupply", title = "x", type = "weird" })), "bad_type")
+	E.eq(api.stratagems.define({ name = "test_a", base = "stratagem_resupply", title = "x" }) ~= nil, true)
+	E.eq(select(2, api.stratagems.define({ name = "test_a", base = "stratagem_resupply", title = "x" })), "taken", "once")
+end)
+
+test("on_the_wire_a_custom_stratagem_is_its_base", function()
+	local api, game = start()
+	local fields = wire_world(game)
+	local made = api.stratagems.define(PITCHFORK)
+	local router = rawget(_G, "NetworkRouter")
+	router:transmit_to("friend", "rpc_activate_stratagem", "pos", made.id, 0, "unit")
+	E.eq(game.sent[1].args[2], 2, "the machine gun's id")
+	router:transmit_to("me", "rpc_activate_stratagem", "pos", made.id, 0, "unit")
+	E.eq(game.sent[2].args[2], made.id, "this machine keeps the real one")
+	router:transmit_to_all("rpc_stratagem_info", "unit", 1, made.id, 0, 0)
+	E.eq(game.sent[3].args[3], 2, "to the others")
+	E.eq(game.sent[4].args[3], made.id, "and to itself")
+	router:transmit_to("friend", "rpc_activate_stratagem", "pos", 5, 0, "unit")
+	E.eq(game.sent[5].args[2], 5, "a stratagem of the game's goes as it is")
+	local go = rawget(_G, "GameObject")
+	go.set({}, "stratagem3_index", made.id)
+	E.eq(fields.stratagem3_index, 2)
+	local mine = {}
+	go.set(mine, "stratagem4_index", made.id)
+	E.eq(go.get(mine, "stratagem4_index"), made.id, "its own reads get the real one")
+	go.set(mine, "stratagem4_index", 2)
+	E.eq(go.get(mine, "stratagem4_index"), 2, "and the base when it's the base")
+	go.set(mine, "hitpoints", made.id)
+	E.eq(fields.hitpoints, made.id, "other fields are left alone")
+end)
+
+test("a_custom_stratagem_runs_its_mods_function_when_called_down", function()
+	local spawned = 0
+	rawset(_G, "StratagemComponent", { spawn_stratagem_hellpod = function() spawned = spawned + 1 end })
+	local api, game = start()
+	wire_world(game)
+	rawget(_G, "require")("lua/network/network_global")
+	local seen
+	local def = {}
+	for k, v in pairs(PITCHFORK) do def[k] = v end
+	def.on_activate = function(ctx)
+		seen = ctx
+		return ctx.upgrade ~= 1
+	end
+	local made = api.stratagems.define(def)
+	local c = rawget(_G, "StratagemComponent")
+	c.spawn_stratagem_hellpod(c, "me", { x = 1, y = 2, z = 3 }, nil, made.id, 0, "thrower")
+	E.eq(seen.name, "test_pitchfork")
+	E.eq(seen.position.y, 2)
+	E.eq(seen.owner, "thrower")
+	E.eq(spawned, 1, "the base's drop too")
+	c.spawn_stratagem_hellpod(c, "me", { x = 1, y = 2, z = 3 }, nil, made.id, 1, "thrower")
+	E.eq(spawned, 1, "false drops nothing")
+	c.spawn_stratagem_hellpod(c, "me", { x = 1, y = 2, z = 3 }, nil, 2, 0, "thrower")
+	E.eq(spawned, 2)
+end)
+
+test("a_custom_stratagem_follows_its_base_for_packs_and_ranks", function()
+	local api, game = start()
+	wire_world(game)
+	api.stratagems.define({ name = "test_paid", base = "stratagem_dlc", title = "Paid" })
+	rawget(_G, "require")("lua/network/network_global")
+	E.eq(api.catalog.usable("test_paid"), false, "a paid base stays paid")
+	api.stratagems.define({ name = "test_free", base = "stratagem_resupply", title = "Free" })
+	local progression = rawget(_G, "ProgressionSettings")
+	progression.can_use = function(name) return name == "stratagem_resupply" end
+	rawget(_G, "require")("lua/network/network_global")
+	E.eq(progression.can_use("test_free", "stratagems", 0), true)
+end)
+
+test("in_a_lobby_that_isnt_cleared_a_custom_stratagem_is_its_base", function()
+	local lobby = { my_id = "me", members = { "me" }, data = {} }
+	local api, game, e = start({ lobby = lobby })
+	wire_world(game)
+	local made = api.stratagems.define(PITCHFORK)
+	local s = rawget(_G, "LoadoutSettings")
+	E.eq(s.get_upgraded_stratagem(made.id, 0).name, "test_pitchfork")
+	e:frames(31)
+	lobby.members = { "me", "stranger" }
+	e:frames(31)
+	E.eq(s.get_upgraded_stratagem(made.id, 0).name, "stratagem_machinegun")
+end)
+
+test("a_client_mod_cant_make_one", function()
+	local api = start({ scope = "client" })
+	E.eq(select(2, api.stratagems.define(PITCHFORK)), "needs_session")
+end)
+
 return T
