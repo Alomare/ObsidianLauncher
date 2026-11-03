@@ -3,7 +3,7 @@
 #
 # Needs the repository secret DISCORD_RELEASE_WEBHOOK (the channel's webhook URL). DISCORD_RELEASE_TEST is a second
 # webhook for trying the post out: a run by hand from the Actions tab goes there unless "live" is picked. Without the
-# secret the run says so and posts nothing. The repository variable NEXUS_URL, when set, adds a Nexus Mods link.
+# secret the run says so and posts nothing. NEXUS_URL (a repository variable or secret), when set, adds a Nexus Mods link.
 name: Discord
 
 on:
@@ -37,7 +37,7 @@ jobs:
           LIVE: ${{ github.event_name == 'release' || inputs.target == 'live' }}
           LIVE_HOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
           TEST_HOOK: ${{ secrets.DISCORD_RELEASE_TEST }}
-          NEXUS_URL: ${{ vars.NEXUS_URL }}
+          NEXUS_URL: ${{ vars.NEXUS_URL || secrets.NEXUS_URL }}
         run: |
           if [ "$LIVE" = true ]; then name=DISCORD_RELEASE_WEBHOOK; hook="$LIVE_HOOK"; else name=DISCORD_RELEASE_TEST; hook="$TEST_HOOK"; fi
           if [ -z "$hook" ]; then
