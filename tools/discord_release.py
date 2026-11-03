@@ -79,9 +79,25 @@ def highlights(body):
     return items
 
 
+def entries(body):
+    """The list entries of the other sections, for a release with no highlights (a patch, mostly)."""
+    out, inside = [], False
+    for line in body.replace("\r", "").split("\n"):
+        s = line.strip()
+        if s.startswith("### "):
+            inside = s[4:].strip().lower() != "highlights"
+            continue
+        m = re.match(r"^[-*]\s+(.*)", s)
+        if inside and m and not re.match(r"^Updated\s+" + KIT.pattern[1:], m.group(1), re.I):
+            out.append(f"- {m.group(1)}")
+    return out
+
+
 def payload(rel):
     version = rel["tagName"].lstrip("v")
-    lines = [f"**{t}**\n{s}" for t, s in highlights(rel["body"])]
+    found = highlights(rel["body"])
+    lines = [f"**{t}**\n{s}" for t, s in found] if found else entries(rel["body"])
+    sep = "\n\n" if found else "\n"
     links = f"[Full changelog]({rel['url']})"
     nexus = os.environ.get("NEXUS_URL", "").strip()
     if nexus:
@@ -91,8 +107,8 @@ def payload(rel):
     for line in lines:
         if len(desc) + len(line) + len(links) + 4 > LIMIT:
             break
-        desc += line + "\n\n"
-    desc += links
+        desc += line + sep
+    desc = (desc.rstrip("\n") + "\n\n" if desc else "") + links
 
     embed = {
         "title": rel.get("name") or f"Obsidian {version}",
