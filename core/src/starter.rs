@@ -159,7 +159,7 @@ mod tests {
         folders_ok(&p);
         let values = qol_values(&lib, &p);
         let toggled: Vec<&str> = values.iter().filter(|(_, v)| *v == json!(true)).map(|(k, _)| k.as_str()).collect();
-        assert_eq!(toggled, ["recoil_fix", "skip_intro", "skip_login", "skip_planet_scanning", "solo_pause", "widescreen"], "the manifest's defaults");
+        assert_eq!(toggled, ["dive_sprint_fix", "recoil_fix", "skip_intro", "skip_login", "skip_planet_scanning", "solo_pause", "widescreen"], "the manifest's defaults");
         assert!(values.contains(&("expedite_mission_end".to_string(), json!("faster"))));
         for id in MODS {
             assert!(crate::updates::source_of(&load_manifest(&lib.mod_dir(id)).unwrap()).is_some(), "{id} updates from its repository");

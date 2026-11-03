@@ -62,7 +62,7 @@ Three mods come with Obsidian, in the Obsidian Kit folder. Obsidian Patches star
 
 #### [Obsidian Patches](https://github.com/Alomare/ObsidianPatches)
 
-Skips the intro, the login screen, war briefs and planet scanning, removes the black bars on screens wider than 16:9, and can speed up or skip the results screens after a mission. It can also keep the aim cursor visible, make the minimap stay open with one press, and bring back the weapon recoil a stratagem throw can leave out. Each fix is an option.
+Skips the intro, the login screen, war briefs and planet scanning, removes the black bars on screens wider than 16:9, and can speed up or skip the results screens after a mission. It can also keep the aim cursor visible, make the minimap stay open with one press, and fix two animation faults of the game: weapon recoil lost after a stratagem throw, and a stuck upper body when sprinting out of a dive. Each fix is an option.
 
 #### [Obsidian Trainer](https://github.com/Alomare/ObsidianTrainer)
 

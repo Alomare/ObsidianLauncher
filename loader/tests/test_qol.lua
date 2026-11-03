@@ -3,7 +3,7 @@ local E = require "fake_engine"
 local T = {}
 local function test(name, fn) T[#T + 1] = { name, fn } end
 
-local IDS = { "skip_intro", "skip_login", "skip_war_briefs", "skip_planet_scanning", "solo_pause", "widescreen", "aim_cursor", "toggle_map", "recoil_fix" }
+local IDS = { "skip_intro", "skip_login", "skip_war_briefs", "skip_planet_scanning", "solo_pause", "widescreen", "aim_cursor", "toggle_map", "recoil_fix", "dive_sprint_fix" }
 
 -- off: option ids switched off in settings.txt; every other option keeps the default (on).
 -- expedite: the mission end choice, off when not given.
@@ -478,6 +478,46 @@ test("recoil_fix_off_leaves_the_pose", function()
 	g.cs.current_state = rawget(_G, "CharacterStateIdle")
 	e:frames(30)
 	E.eq(g.set, 0)
+end)
+
+-- The dive and crawl states, and the animation events a unit gets.
+local function dive_game()
+	local g = { unit = {}, events = {} }
+	rawset(_G, "Unit", { animation_event = function(u, name) g.events[#g.events + 1] = name end })
+	for _, n in ipairs({ "CharacterStateIdle", "CharacterStateSprint", "CharacterStateWalk", "CharacterStateDownedKnockedDown" }) do rawset(_G, n, { name = n }) end
+	for _, n in ipairs({ "CharacterStateDodge", "CharacterStateCrawl" }) do rawset(_G, n, { on_enter = function() end, on_exit = function() end }) end
+	return g
+end
+
+test("dive_sprint_fix_stops_the_sprint_a_dive_cut_short", function()
+	local g = dive_game()
+	local e = engine()
+	local dodge, crawl = rawget(_G, "CharacterStateDodge"), rawget(_G, "CharacterStateCrawl")
+	local idle, sprint = rawget(_G, "CharacterStateIdle"), rawget(_G, "CharacterStateSprint")
+	dodge.on_enter(g.unit, {}, sprint)
+	dodge.on_exit(g.unit, {}, idle)
+	E.eq(table.concat(g.events, ","), "sprint_stop", "a dive out of a sprint, back on foot")
+	-- Through a crawl: the stop comes when the crawl stands up.
+	dodge.on_enter(g.unit, {}, sprint)
+	dodge.on_exit(g.unit, {}, crawl)
+	E.eq(#g.events, 1, "not while crawling")
+	crawl.on_exit(g.unit, {}, idle)
+	E.eq(#g.events, 2)
+	-- A dive from a walk, and one that ends downed, get nothing.
+	dodge.on_enter(g.unit, {}, rawget(_G, "CharacterStateWalk"))
+	dodge.on_exit(g.unit, {}, idle)
+	dodge.on_enter(g.unit, {}, sprint)
+	dodge.on_exit(g.unit, {}, rawget(_G, "CharacterStateDownedKnockedDown"))
+	crawl.on_exit(g.unit, {}, idle)
+	E.eq(#g.events, 2)
+end)
+
+test("dive_sprint_fix_off_sends_nothing", function()
+	local g = dive_game()
+	engine({ "dive_sprint_fix" })
+	rawget(_G, "CharacterStateDodge").on_enter(g.unit, {}, rawget(_G, "CharacterStateSprint"))
+	rawget(_G, "CharacterStateDodge").on_exit(g.unit, {}, rawget(_G, "CharacterStateIdle"))
+	E.eq(#g.events, 0)
 end)
 
 test("options_off_change_nothing", function()

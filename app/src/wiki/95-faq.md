@@ -42,7 +42,7 @@ No. Obsidian Patches removes the black bars on wide screens, and that option sta
 
 ### What is Obsidian Patches?
 
-A client mod that comes with Obsidian: it skips the intro, the login screen, war briefs and planet scanning, removes the black bars on wide screens, can speed up or skip the results screens after a mission, and brings back the weapon recoil a stratagem throw can leave out. Each fix is an option. It starts on with most of the fixes enabled; find it in the Obsidian Kit folder at the top of the list.
+A client mod that comes with Obsidian: it skips the intro, the login screen, war briefs and planet scanning, removes the black bars on wide screens, can speed up or skip the results screens after a mission, and fixes two animation faults of the game, after stratagem throws and dives. Each fix is an option. It starts on with most of the fixes enabled; find it in the Obsidian Kit folder at the top of the list.
 
 ## Making mods
 
