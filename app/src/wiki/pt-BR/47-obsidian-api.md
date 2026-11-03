@@ -6,6 +6,8 @@ summary: "Uma biblioteca para mods: os dados do jogo por nome, mudanças verific
 
 O Obsidian API é um mod sobre o qual outros mods são construídos. Ele sabe onde as coisas ficam no jogo, faz mudanças do jeito que o jogo aceita e as desfaz quando precisa. É assim que o Obsidian Trainer funciona, e o trainer não usa nada que você não possa usar.
 
+Esta página é a versão curta. O guia completo, com cada chamada, efeito e receita, é o [REFERENCE.md](https://github.com/Alomare/ObsidianAPI/blob/main/REFERENCE.md), em inglês, que também vem dentro da pasta da API no Kit do Obsidian, onde uma ferramenta de IA trabalhando no seu mod pode lê-lo.
+
 ## Como usar {#using-it}
 
 Coloque-o em `requires`. O Obsidian liga o API junto com o seu mod e o inicia primeiro:

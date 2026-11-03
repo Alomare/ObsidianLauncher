@@ -6,6 +6,8 @@ summary: "模组库：按名称访问游戏数据、受检查的修改和现成�
 
 Obsidian API 是供其他模组使用的模组。它知道游戏中各项内容的位置，以游戏接受的方式进行修改，并在需要时撤销。Obsidian Trainer 就是这样工作的，它没有使用任何你用不到的功能。
 
+本页是简短版本。完整指南（包含每个调用、效果和示例）见 [REFERENCE.md](https://github.com/Alomare/ObsidianAPI/blob/main/REFERENCE.md)（英文）。它也随 Obsidian 套件放在 API 的文件夹里，为你的模组工作的 AI 工具可以在那里读取它。
+
 ## 使用方法 {#using-it}
 
 把它写进 `requires`，Obsidian 会随你的模组一同启用它，并先启动它：
