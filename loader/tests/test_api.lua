@@ -3262,4 +3262,109 @@ test("calls_from_another_mod_find_the_apis_own_files", function()
 	E.eq(ok, true, tostring(err))
 end)
 
+-- The pause menu and the game's Settings screen, as far as Mod Settings uses them.
+local function fake_menus()
+	local lm = rawget(_G, "LocalizationManager")
+	local Base = { was_option_selected = function(_, input) return input.select == true end }
+	local Options = setmetatable({}, { __call = function(cls, parent) return setmetatable({ parent = parent }, { __index = cls }) end })
+	function Options.update(self)
+		self.title, self.drawn = lm:string("menu_options_title"), {}
+		for i, o in ipairs(self.options) do
+			local v = o.options and o.options[o.options.selected_index]
+			self.drawn[i] = lm:string(o.name) .. (v and (" = " .. (o.ignore_loc_option_names and v.name or lm:string(v.name))) or "")
+		end
+	end
+	function Options.handle_input(self, input)
+		local row = self.options[self.selected_option]
+		if input.down then self.selected_option = self.selected_option % #self.options + 1 end
+		if input.right and row.options then row.options.selected_index = row.options.selected_index % #row.options + 1 end
+		if Base.was_option_selected(self, input) and row.on_pressed then row.on_pressed() end
+		if input.back then self.parent:pop_menu() end
+	end
+	function Options.play_sound_accept() end
+	local Main = {}
+	function Main.on_enter(self)
+		self.options = { { name = "menu_keybindings" }, { name = "menu_settings" }, { name = "menu_exit_to_menu" } }
+		self.selected_option, self.states, self.state_stack = 1, self.states or {}, {}
+	end
+	function Main.update(self)
+		self.drawn = {}
+		for i, o in ipairs(self.options) do self.drawn[i] = lm:string(o.name) end
+		local top = self.state_stack[#self.state_stack]
+		if top then top:update(0, 0) end
+	end
+	function Main.handle_input(self, input)
+		local top = self.state_stack[#self.state_stack]
+		if top then return top:handle_input(input) end
+		if Base.was_option_selected(self, input) then self.chose = self.options[self.selected_option].name end
+	end
+	function Main.push_menu(self, name, args)
+		local s = assert(self.states[name], name)
+		self.state_stack[#self.state_stack + 1] = s
+		s:on_enter(args)
+	end
+	function Main.pop_menu(self)
+		local gone = table.remove(self.state_stack)
+		local top = self.state_stack[#self.state_stack]
+		if top then top:on_enter(gone) end
+	end
+	function Main.play_sound_accept() end
+	rawset(_G, "MenuScreenBase", Base)
+	rawset(_G, "MenuScreenOptions", Options)
+	rawset(_G, "MenuScreenMain", Main)
+	return Main
+end
+
+test("mod_settings_opens_from_the_pause_menu_and_keeps_its_values", function()
+	local api, _, e = start()
+	local Main = fake_menus()
+	-- Hooks on classes defined after boot go in at the next require.
+	rawget(_G, "require")("lua/network/network_global")
+	local core = e:core()
+	local own = core.current
+	-- Another mod's page, made from its own code.
+	core.current = { id = "dev.hud", mod = { options = {} } }
+	local changes = {}
+	local page = api.mod_settings.page("Better HUD")
+	E.eq(page:toggle("ammo", { label = "Ammo counter", default = true, on_change = function(v) changes[#changes + 1] = v end }), true)
+	page:choice("size", { label = "Bar size", choices = { { id = "small", label = "Small" }, { id = "large", label = "Large" } }, default = "large" })
+	page:number("scale", { label = "Scale", min = 0.5, max = 2, step = 0.5, default = 1 })
+	E.eq(page:set("scale", 1.5), true)
+	E.eq(page:set("scale", 9), false, "out of range")
+	core.current = own
+	e:frames(1)
+	E.eq(rawget(_G, "obsidian").storage.get("mod_settings/dev.hud/scale"), 1.5, "a mod's own change is kept from the frame")
+
+	local main = setmetatable({}, { __index = Main })
+	main:on_enter()
+	E.eq(main.options[3].name, "obsidian_mod_settings", "under the game's Settings")
+	main:update()
+	E.eq(main.drawn[3], "Mod Settings")
+	E.eq(main.drawn[4], "LOC:menu_exit_to_menu", "the game's own words stay")
+	main.selected_option = 3
+	main:handle_input({ select = true })
+	E.eq(main.chose, nil, "the pause menu didn't act on it")
+	main:update()
+	local list = main.state_stack[1]
+	E.eq(list.title, "Mod Settings")
+	E.eq(list.drawn[1], "Better HUD")
+	main:handle_input({ select = true })
+	main:update()
+	local screen = main.state_stack[2]
+	E.eq(screen.title, "Better HUD")
+	E.eq(screen.drawn[1], "Ammo counter = LOC:options_yes")
+	E.eq(screen.drawn[2], "Bar size = Large")
+	E.eq(screen.drawn[3], "Scale = 1.5")
+	main:handle_input({ right = true })
+	E.eq(page:get("ammo"), false)
+	E.eq(changes[1], false)
+	E.eq(rawget(_G, "obsidian").storage.get("mod_settings/dev.hud/ammo"), false, "a change in the menu is kept at once")
+	main:handle_input({ back = true })
+	E.eq(#main.state_stack, 1, "back to the list")
+	-- With no rows anywhere, the pause menu has no Mod Settings.
+	page.rows = {}
+	main:on_enter()
+	E.eq(#main.options, 3)
+end)
+
 return T
