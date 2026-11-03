@@ -38,11 +38,11 @@ Obsidian 在每次部署前备份存档文件夹，并保留最近 10 份（[部
 
 ### 我需要超宽屏模组吗？ {#do-i-need-an-ultrawide-mod}
 
-不需要。Obsidian 便利改进会去掉宽屏上的黑边，这个选项默认开启。导入的超宽屏补丁效果相同。
+不需要。Obsidian Patches 会去掉宽屏上的黑边，这个选项默认开启。导入的超宽屏补丁效果相同。
 
-### Obsidian 便利改进是什么？ {#what-is-obsidian-quality-of-life}
+### Obsidian Patches 是什么？ {#what-is-obsidian-patches}
 
-Obsidian 自带的客户端模组：跳过开场、登录界面、战争简报和行星扫描，去掉宽屏上的黑边，还可以加快或跳过任务结束后的结算画面。每项改进都是一个选项。它默认启用，且只开启宽屏修正；位于列表顶部的 Obsidian Kit 文件夹中。
+Obsidian 自带的客户端模组：跳过开场、登录界面、战争简报和行星扫描，去掉宽屏上的黑边，还可以加快或跳过任务结束后的结算画面，并恢复投掷战略配备后可能消失的武器后坐力。每项改进都是一个选项。它默认启用，并开启大部分修正；位于列表顶部的 Obsidian Kit 文件夹中。
 
 ## 制作模组 {#making-mods}
 

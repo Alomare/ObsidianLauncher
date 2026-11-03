@@ -10,7 +10,7 @@ HELLDIVERS is a co-op game. A mod that changes enemies, weapons or missions chan
 
 A client mod changes only what you see, hear or press: the camera, the HUD, input, menus, local visuals and sound. Nothing it does reaches the other players. Client mods run everywhere, in any lobby, with anyone.
 
-Obsidian Quality of Life is a client mod.
+Obsidian Patches is a client mod.
 
 ## Session mods
 

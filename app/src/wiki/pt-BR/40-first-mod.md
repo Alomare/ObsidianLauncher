@@ -63,7 +63,7 @@ O loader dá a cada mod uma tabela global chamada `obsidian`, com as funções d
 Para mudar o mod, edite os arquivos e importe a pasta de novo: um mod com o mesmo id substitui a cópia antiga. Aumente o `version` quando compartilhar uma versão nova.
 
 > [!TIP]
-> Os mods que vêm com o Obsidian também são mods normais. O Obsidian Qualidade de Vida é um bom exemplo de mod de cliente com opções; os arquivos estão no [repositório dele](https://github.com/Alomare/ObsidianQoL).
+> Os mods que vêm com o Obsidian também são mods normais. O Obsidian Patches é um bom exemplo de mod de cliente com opções; os arquivos estão no [repositório dele](https://github.com/Alomare/ObsidianPatches).
 
 ## Próximos passos {#next-steps}
 

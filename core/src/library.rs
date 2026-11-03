@@ -286,7 +286,7 @@ impl Profile {
             }
         }
         // A mod that gained a requirement in an update brings it on, as switching it on would: a deploy
-        // refuses an enabled mod whose requirement is off (Obsidian QoL 1.4.0 began to require the API).
+        // refuses an enabled mod whose requirement is off (Obsidian Patches, then Obsidian QoL, began to require the API in 1.4.0).
         let mut todo: Vec<String> = self.mods.iter().filter(|e| e.enabled).map(|e| e.id.clone()).collect();
         while let Some(id) = todo.pop() {
             let needs = installed.iter().find(|m| m.id == id).map(|m| m.requires.clone()).unwrap_or_default();
@@ -446,7 +446,7 @@ mod tests {
         p.set_enabled("top", true).unwrap();
         let on = |p: &Profile, id: &str| p.mods.iter().find(|m| m.id == id).unwrap().enabled;
         assert!(!on(&p, "base"));
-        // The update: top now needs base, as Obsidian QoL 1.4.0 began to need Obsidian API.
+        // The update: top now needs base, as Obsidian Patches (then Obsidian QoL) 1.4.0 began to need Obsidian API.
         lib.install(&needing(t.path(), "top", "base")).unwrap();
         p.sync(&lib).unwrap();
         assert!(on(&p, "base"), "a deploy would refuse top with base off");

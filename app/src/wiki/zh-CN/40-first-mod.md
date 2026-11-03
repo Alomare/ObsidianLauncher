@@ -63,7 +63,7 @@ end)
 要修改模组，编辑文件后重新导入文件夹即可：相同 id 的模组会替换旧副本。分享新版本时请提高 `version`。
 
 > [!TIP]
-> Obsidian 自带的模组也是普通模组。Obsidian 便利改进是带选项的客户端模组的好例子；文件位于[它的仓库](https://github.com/Alomare/ObsidianQoL)中。
+> Obsidian 自带的模组也是普通模组。Obsidian Patches 是带选项的客户端模组的好例子；文件位于[它的仓库](https://github.com/Alomare/ObsidianPatches)中。
 
 ## 下一步 {#next-steps}
 

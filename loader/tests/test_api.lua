@@ -3947,18 +3947,19 @@ test("mod_settings_rows_bound_to_options_start_from_obsidian_and_keep_changes_fo
 	core.current = own
 end)
 
--- Obsidian QoL's page: the four options that can change in game, each bound to its option.
-test("obsidian_qol_binds_four_of_its_options_to_the_mods_page", function()
+-- Obsidian Patches' page: the five options that can change in game, each bound to its option.
+test("obsidian_patches_binds_five_of_its_options_to_the_mods_page", function()
 	local e = G.start({ "obsidian.api", "obsidian.qol" }, { scope = "client" })
 	e:core().current = e:core().mods_by_id["obsidian.api"]
 	local page = rawget(_G, "obsidian").import("obsidian.api").mod_settings.pages["obsidian.qol"]
-	E.eq(page ~= nil, true, "QoL made its page")
+	E.eq(page ~= nil, true, "Patches made its page")
 	local ids = {}
 	for _, row in ipairs(page.rows) do
 		E.eq(row.option, true, row.id)
 		ids[#ids + 1] = row.id
 	end
-	E.eq(table.concat(ids, ","), "expedite_mission_end,solo_pause,aim_cursor,toggle_map")
+	E.eq(table.concat(ids, ","), "expedite_mission_end,solo_pause,aim_cursor,toggle_map,recoil_fix")
+	E.eq(page.title, "Obsidian Patches", "the name in full")
 	E.eq(page.rows[1].kind, "choice")
 	E.eq(type(page.rows[2].label), "table", "words by language")
 end)

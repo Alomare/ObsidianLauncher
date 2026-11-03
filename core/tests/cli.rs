@@ -84,7 +84,7 @@ fn consent_and_set_write_settings_for_a_starter_mod() {
         c
     };
     let list = String::from_utf8(run(&["list"]).assert().success().get_output().stdout.clone()).unwrap();
-    assert!(list.contains("[on ] obsidian.qol") && list.contains("[off] obsidian.trainer"), "only Quality of Life starts on: {list}");
+    assert!(list.contains("[on ] obsidian.qol") && list.contains("[off] obsidian.trainer"), "only Obsidian Patches starts on: {list}");
     run(&["consent", "on"]).assert().success();
     run(&["set", "obsidian.qol", "skip_intro", "false"]).assert().success();
     let s = std::fs::read_to_string(settings_path(&appdata)).unwrap();
@@ -156,7 +156,7 @@ fn the_starter_pack_stays_deleted_until_it_is_restored() {
         c
     };
     let list = || String::from_utf8(run(&["list"]).assert().success().get_output().stdout.clone()).unwrap();
-    assert!(list().contains("1. [on ] obsidian.api"), "first in the load order, on for Quality of Life");
+    assert!(list().contains("1. [on ] obsidian.api"), "first in the load order, on for Obsidian Patches");
     run(&["remove", "obsidian.qol"]).assert().success();
     assert!(!list().contains("obsidian.qol"), "and it stays gone at the next start");
     run(&["restore-starter"]).assert().success();

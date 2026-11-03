@@ -4,7 +4,7 @@
     python tools/nexus_release.py files               # the current title and description of the Setup and Portable files
 
 changelog: one line per manager change. A highlight becomes "Title: paragraph" on one line, a list entry its own line;
-the section headings, list marks, bold and link targets go. Obsidian Kit updates (the Obsidian API, Trainer and QoL
+the section headings, list marks, bold and link targets go. Obsidian Kit updates (the Obsidian API, Trainer and Patches
 highlights, and list entries that update one) stay out: the kit has its own pages.
 
 files: the upload action always sends a title (the file name, when none is given), so the workflow passes back what
@@ -20,7 +20,7 @@ import urllib.request
 
 GAME_ID = 3552   # helldivers
 MOD_ID = 16      # nexusmods.com/helldivers/mods/16
-KIT = re.compile(r"^(Updated\s+)?Obsidian\s+(API|Trainer|QoL|Quality of Life)\b", re.I)
+KIT = re.compile(r"^(Updated\s+)?Obsidian\s+(API|Trainer|Patches|QoL|Quality of Life)\b", re.I)
 
 
 def changelog(body):

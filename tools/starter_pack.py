@@ -19,7 +19,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-REPOS = {"ObsidianAPI": "obsidian.api", "ObsidianTrainer": "obsidian.trainer", "ObsidianQoL": "obsidian.qol"}
+REPOS = {"ObsidianAPI": "obsidian.api", "ObsidianTrainer": "obsidian.trainer", "ObsidianPatches": "obsidian.qol"}
 
 
 def get(url, accept):

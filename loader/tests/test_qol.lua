@@ -1,9 +1,9 @@
--- The bundled Obsidian Quality of Life mod, run from bundled/obsidian.qol/main.lua as a client mod.
+-- The bundled Obsidian Patches mod (id obsidian.qol), run from bundled/obsidian.qol/main.lua as a client mod.
 local E = require "fake_engine"
 local T = {}
 local function test(name, fn) T[#T + 1] = { name, fn } end
 
-local IDS = { "skip_intro", "skip_login", "skip_war_briefs", "skip_planet_scanning", "solo_pause", "widescreen", "aim_cursor", "toggle_map" }
+local IDS = { "skip_intro", "skip_login", "skip_war_briefs", "skip_planet_scanning", "solo_pause", "widescreen", "aim_cursor", "toggle_map", "recoil_fix" }
 
 -- off: option ids switched off in settings.txt; every other option keeps the default (on).
 -- expedite: the mission end choice, off when not given.
@@ -416,6 +416,68 @@ test("toggle_map_makes_the_map_binding_sticky_on_a_copy", function()
 	E.eq(map.input.start_sticky, false, "the player's saved binding stays")
 	E.eq(other.input.start_sticky, false)
 	E.eq(#list, 3)
+end)
+
+-- A unit whose animation state is a list of numbers, and the character and inventory states the fix reads.
+local function recoil_game()
+	local g = { unit = { alive = true, pose = { 1, 2, 3, 4, 5, 7, 9 } }, set = 0, cs = {}, inv = { current_weapon = "rifle" } }
+	rawset(_G, "Unit", {
+		alive = function(u) return u.alive end,
+		animation_get_state = function(u) return unpack(u.pose) end,
+		animation_set_state = function(u, ...)
+			u.pose = { ... }
+			g.set = g.set + 1
+		end,
+	})
+	rawset(_G, "EntityAux", { state = function(_, component) return component == "inventory" and g.inv or g.cs end })
+	for _, n in ipairs({ "CharacterStateIdle", "CharacterStateWalk", "CharacterStateFire", "CharacterStateStratagemsThrow" }) do rawset(_G, n, { name = n }) end
+	rawset(_G, "CharacterStateStratagems", { on_enter = function() end })
+	return g
+end
+
+test("recoil_fix_puts_the_weapon_pose_back_after_a_stratagem", function()
+	local g = recoil_game()
+	local e = engine()
+	local S, idle = rawget(_G, "CharacterStateStratagems"), rawget(_G, "CharacterStateIdle")
+	S.on_enter(g.unit, {}, idle)
+	g.unit.pose[6] = 12
+	g.cs.current_state = rawget(_G, "CharacterStateStratagemsThrow")
+	e:frames(30)
+	E.eq(g.set, 0, "nothing while throwing")
+	g.cs.current_state = idle
+	e:frames(19)
+	E.eq(g.set, 0, "the weapon comes back up first")
+	e:frames(2)
+	E.eq(g.set, 1)
+	E.eq(g.unit.pose[6], 7, "the weapon layer from before the menu")
+	E.eq(g.unit.pose[5], 5, "every other layer as it was")
+	E.eq(#g.unit.pose, 7)
+	e:frames(30)
+	E.eq(g.set, 1, "once")
+	-- A layer the throw left alone stays alone, and so does one after a weapon switch.
+	S.on_enter(g.unit, {}, idle)
+	e:frames(30)
+	E.eq(g.set, 1, "nothing to put back")
+	S.on_enter(g.unit, {}, idle)
+	g.unit.pose[6], g.inv.current_weapon = 12, "pistol"
+	e:frames(30)
+	E.eq(g.set, 1, "another weapon in hand")
+	-- A pose kept mid-shot would fire the weapon again.
+	g.inv.current_weapon = "rifle"
+	S.on_enter(g.unit, {}, rawget(_G, "CharacterStateFire"))
+	e:frames(30)
+	E.eq(g.set, 1, "opened while firing")
+	E.eq(E.count(e:log("obsidianqol"), "recoil fix: weapon pose put back"), 1)
+end)
+
+test("recoil_fix_off_leaves_the_pose", function()
+	local g = recoil_game()
+	local e = engine({ "recoil_fix" })
+	rawget(_G, "CharacterStateStratagems").on_enter(g.unit, {}, rawget(_G, "CharacterStateIdle"))
+	g.unit.pose[6] = 12
+	g.cs.current_state = rawget(_G, "CharacterStateIdle")
+	e:frames(30)
+	E.eq(g.set, 0)
 end)
 
 test("options_off_change_nothing", function()

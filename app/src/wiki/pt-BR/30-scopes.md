@@ -10,7 +10,7 @@ HELLDIVERS é um jogo cooperativo. Um mod que muda inimigos, armas ou missões m
 
 Um mod de cliente muda só o que o jogador vê, ouve ou aperta: a câmera, o HUD, os controles, os menus, o visual e o som locais. Nada do que ele faz chega aos outros jogadores. Mods de cliente rodam em qualquer lugar, em qualquer lobby, com qualquer pessoa.
 
-O Obsidian Qualidade de Vida é um mod de cliente.
+O Obsidian Patches é um mod de cliente.
 
 ## Mods de sessão {#session-mods}
 

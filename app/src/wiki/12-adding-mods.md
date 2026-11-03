@@ -43,7 +43,7 @@ Right-click a mod and choose **Remove**, or use the bin under the close button i
 
 ## Obsidian Kit
 
-Three mods come with Obsidian, in the **Obsidian Kit** folder at the top of the list: Obsidian API, [Obsidian Trainer](wiki:trainer) and Obsidian Quality of Life. Quality of Life starts on, with only the widescreen fixes and **Dynamic solo pause** enabled. The other two stay off until you turn them on.
+Three mods come with Obsidian, in the **Obsidian Kit** folder at the top of the list: Obsidian API, [Obsidian Trainer](wiki:trainer) and Obsidian Patches. Obsidian Patches starts on, with most of the fixes enabled. The other two stay off until you turn them on.
 
 They're mods like any other: you can turn them on or off, remove them and update them from GitHub. The folder starts locked, so it stays where it is. Click its padlock to unlock it, and then you can move the mods, or rename or delete the folder. To put everything back, use **Restore Obsidian Kit** in [Settings](app:settings). It brings back deleted mods and the folder, and resets their settings in the active profile.
 

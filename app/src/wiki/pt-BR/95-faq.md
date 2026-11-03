@@ -38,11 +38,11 @@ O que está mais abaixo na lista ([Ordem de carregamento](wiki:load-order)).
 
 ### Preciso de um mod para ultrawide? {#do-i-need-an-ultrawide-mod}
 
-Não. O Obsidian Qualidade de Vida tira as barras pretas em telas largas, e essa opção começa ligada. Um patch de ultrawide importado faz o mesmo.
+Não. O Obsidian Patches tira as barras pretas em telas largas, e essa opção começa ligada. Um patch de ultrawide importado faz o mesmo.
 
-### O que é o Obsidian Qualidade de Vida? {#what-is-obsidian-quality-of-life}
+### O que é o Obsidian Patches? {#what-is-obsidian-patches}
 
-Um mod de cliente que vem com o Obsidian: ele pula a abertura, a tela de login, os resumos da guerra e a varredura de planetas, tira as barras pretas em telas largas e pode acelerar ou pular as telas de resultado depois de uma missão. Cada correção é uma opção. Ele começa ligado, só com as correções para tela larga ativas; fica na pasta Obsidian Kit, no topo da lista.
+Um mod de cliente que vem com o Obsidian: ele pula a abertura, a tela de login, os resumos da guerra e a varredura de planetas, tira as barras pretas em telas largas pode acelerar ou pular as telas de resultado depois de uma missão e devolve o recuo da arma que o lançamento de um estratagema pode tirar. Cada correção é uma opção. Ele começa ligado, com a maioria das correções ativas; fica na pasta Obsidian Kit, no topo da lista.
 
 ## Criar mods {#making-mods}
 

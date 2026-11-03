@@ -65,7 +65,7 @@ body:
       label: What happened
       description: What you did, step by step, what you expected, and what happened instead. Screenshots help.
       placeholder: |
-        1. Turned on Obsidian Quality of Life
+        1. Turned on Obsidian Patches
         2. Clicked Deploy, then Play
         3. Expected the game to skip the intro, but it played as usual
     validations:

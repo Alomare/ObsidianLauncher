@@ -43,7 +43,7 @@ Obsidian 会在启动时和你点击时联系 GitHub，并且只会提供同一�
 
 ## Obsidian Kit
 
-Obsidian 自带三个模组，位于列表顶部的 **Obsidian Kit** 文件夹中：Obsidian API、[Obsidian 修改器](wiki:trainer)和 Obsidian 便利改进。便利改进默认启用，且只开启宽屏修正和**单人动态暂停**。另外两个在你启用前保持停用。
+Obsidian 自带三个模组，位于列表顶部的 **Obsidian Kit** 文件夹中：Obsidian API、[Obsidian 修改器](wiki:trainer)和 Obsidian Patches。Obsidian Patches 默认启用，并开启大部分修正。另外两个在你启用前保持停用。
 
 它们和其他模组一样：你可以启用、停用或移除它们，也可以从 GitHub 更新它们。文件夹默认处于锁定状态，因此会保持原位。点击它的挂锁即可解锁，之后就能移动这些模组，或重命名、删除文件夹。要恢复原样，请在[设置](app:settings)中使用 **恢复 Obsidian Kit**。它会恢复已删除的模组和文件夹，并在当前配置中重置它们的设置。
 
