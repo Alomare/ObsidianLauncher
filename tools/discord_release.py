@@ -7,7 +7,7 @@ the embed links to.
     python tools/discord_release.py v1.2.0             # posts to the webhook in DISCORD_WEBHOOK
     python tools/discord_release.py v1.2.0 --dry-run   # prints the payload instead
 
-Reads the release through the gh CLI (GH_TOKEN in Actions). NEXUS_URL, when set, adds a Nexus Mods link.
+Reads the release through the gh CLI (GH_TOKEN in Actions). NEXUS_URL, when set, adds a Nexus link.
 """
 
 import argparse
@@ -23,7 +23,10 @@ REPO = os.environ.get("GITHUB_REPOSITORY", "Alomare/ObsidianModManager")
 GOLD = 0xF0B429  # --gold in app/src/styles.css
 # The app icon on a dark square with room around it, so the round avatar frame doesn't cut it. Taken from the commit
 # that runs, so a run from dev shows the same picture as one from main.
-AVATAR = f"https://raw.githubusercontent.com/{REPO}/{os.environ.get('GITHUB_SHA', 'main')}/assets/discord-avatar.png"
+RAW = f"https://raw.githubusercontent.com/{REPO}/{os.environ.get('GITHUB_SHA', 'main')}"
+AVATAR = f"{RAW}/assets/discord-avatar.png"
+# The banner (a smaller copy of branding/banner.jpg) goes under the text of a feature release, x.y.0, not a patch.
+BANNER = f"{RAW}/assets/discord-banner.jpg"
 LIMIT = 4096  # Discord's cap on an embed description
 
 
@@ -80,7 +83,7 @@ def payload(rel):
     links = f"[Full changelog]({rel['url']})"
     nexus = os.environ.get("NEXUS_URL", "").strip()
     if nexus:
-        links += f" · [Nexus Mods]({nexus})"
+        links += f" · [Nexus]({nexus})"
     links += " · Obsidian updates itself from within the app."
 
     desc = ""
@@ -97,6 +100,8 @@ def payload(rel):
         "color": GOLD,
         "footer": {"text": "Obsidian Mod Manager"},
     }
+    if re.fullmatch(r"\d+\.\d+\.0", version):
+        embed["image"] = {"url": BANNER}
     if rel.get("publishedAt"):
         embed["timestamp"] = rel["publishedAt"]
     return {"username": "Obsidian", "avatar_url": AVATAR, "embeds": [embed], "allowed_mentions": {"parse": []}}

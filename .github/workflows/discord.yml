@@ -3,7 +3,7 @@
 #
 # Needs the repository secret DISCORD_RELEASE_WEBHOOK (the channel's webhook URL). DISCORD_RELEASE_TEST is a second
 # webhook for trying the post out: a run by hand from the Actions tab goes there unless "live" is picked. Without the
-# secret the run says so and posts nothing. NEXUS_URL (a repository variable or secret), when set, adds a Nexus Mods link.
+# secret the run says so and posts nothing. NEXUS_URL (a repository variable or secret), when set, adds a Nexus link.
 name: Discord
 
 on:
