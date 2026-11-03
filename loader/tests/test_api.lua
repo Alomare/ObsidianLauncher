@@ -3621,6 +3621,74 @@ test("a_pending_stratagem_is_made_on_a_frame_when_nothing_reads_the_loadout", fu
 	E.eq(#api.stratagems.custom(), 1, "a base the game hasn't got is logged, not made")
 end)
 
+local function joined(list)
+	local out = {}
+	for i, item in ipairs(list) do out[i] = item.name end
+	return table.concat(out, ",")
+end
+
+test("a_custom_stratagems_own_icon_comes_with_its_material_on_every_gui_that_lists_hud_hud", function()
+	local api, game, e, ui = start({ font_files = { "m/icons" } })
+	wire_world(game)
+	local made = api.stratagems.define({ name = "test_tower", base = "stratagem_resupply", title = "Tower", icon = "test_tower_icon", icon_material = "m/icons" })
+	E.eq(rawget(_G, "LoadoutSettings").stratagems[made.id].icon, "test_tower_icon")
+	hooked(e)
+	local world = rawget(_G, "World")
+	world.create_screen_gui("w", "immediate", "material", "menu/menu", "material", "hud/hud", "material", "fonts/fonts")
+	E.eq(table.concat(ui.gui_args, " ", 2), "immediate material menu/menu material hud/hud material m/icons material fonts/fonts")
+	world.create_screen_gui("w", "material", "hud/hud", "material", "m/icons", "immediate")
+	E.eq(table.concat(ui.gui_args, " ", 2), "material hud/hud material m/icons immediate", "listed once")
+	world.create_screen_gui("w", "material", "foundation/gui/gui", "immediate")
+	E.eq(table.concat(ui.gui_args, " ", 2), "material foundation/gui/gui immediate", "a gui without the game's icons is left alone")
+	E.eq(select(2, api.stratagems.define({ name = "test_x", base = "stratagem_resupply", title = "x", icon_material = "m/icons" })), "bad_type", "a material needs its icon's name")
+end)
+
+test("a_custom_stratagem_whose_material_isnt_deployed_takes_its_bases_icon", function()
+	local api, game, e, ui = start()
+	wire_world(game)
+	local made = api.stratagems.define({ name = "test_tower", base = "stratagem_resupply", title = "Tower", icon = "test_tower_icon", icon_material = "m/icons" })
+	E.eq(rawget(_G, "LoadoutSettings").stratagems[made.id].icon, api.catalog.stratagem("stratagem_resupply").icon)
+	hooked(e)
+	rawget(_G, "World").create_screen_gui("w", "material", "hud/hud", "immediate")
+	E.eq(table.concat(ui.gui_args, " ", 2), "material hud/hud immediate", "nothing to add")
+end)
+
+test("the_arsenal_and_the_loadout_list_a_custom_stratagem_right_after_its_base", function()
+	local api, game, e = start()
+	wire_world(game)
+	api.stratagems.define({ name = "test_a", base = "stratagem_resupply", title = "A" })
+	api.stratagems.define({ name = "test_b", base = "stratagem_resupply", title = "B" })
+	api.stratagems.define({ name = "test_c", base = "stratagem_machinegun", title = "C" })
+	local function items(...)
+		local out = {}
+		for i, name in ipairs({ ... }) do out[i] = { name = name } end
+		return out
+	end
+	local function groups(...)
+		local out = {}
+		for i, name in ipairs({ ... }) do out[i] = { name = name, item_index = 1, items = { { name = name } } } end
+		return out
+	end
+	rawset(_G, "MenuScreenArmoryUnlocks", { on_enter = function(self)
+		self.available_items = { stratagems = { groups = {
+			{ name = "supply", items = items("stratagem_resupply", "stratagem_machinegun", "test_a", "test_b") },
+			{ name = "locked", items = items("stratagem_mortar", "test_c") },
+		} } }
+	end })
+	rawset(_G, "MenuScreenLoadout", { setup_loadout = function(self, slot)
+		self.parent.players[slot].available_items = { stratagems = { groups = groups("stratagem_resupply", "stratagem_mortar", "test_a", "test_c", "test_b") } }
+	end })
+	hooked(e)
+	local arsenal = {}
+	rawget(_G, "MenuScreenArmoryUnlocks").on_enter(arsenal, {})
+	local g = arsenal.available_items.stratagems.groups
+	E.eq(joined(g[1].items), "stratagem_resupply,test_a,test_b,stratagem_machinegun")
+	E.eq(joined(g[2].items), "stratagem_mortar,test_c", "its base is in another group")
+	local loadout = { parent = { players = { {}, {} } } }
+	rawget(_G, "MenuScreenLoadout").setup_loadout(loadout, 2)
+	E.eq(joined(loadout.parent.players[2].available_items.stratagems.groups), "stratagem_resupply,test_a,test_b,stratagem_mortar,test_c", "a base not offered leaves it be")
+end)
+
 test("on_the_wire_a_custom_stratagem_is_its_base", function()
 	local api, game = start()
 	local fields = wire_world(game)

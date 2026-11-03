@@ -94,7 +94,8 @@ function G.bundled(id, mods)
 	return { texts = texts, keybinds = keybinds, name = { en = manifest:match('"name":%s*{[^}]-"en":%s*"([^"]+)"') } }
 end
 
--- Starts the engine with the bundled mods given, then a mission. opts: lobby, state, host, dlc.
+-- Starts the engine with the bundled mods given, then a mission. opts: lobby, state, host, dlc,
+-- font_files (the deploy's boot-bundle materials).
 function G.start(ids, opts)
 	opts = opts or {}
 	local mods, deploy_mods = {}, {}
@@ -105,7 +106,7 @@ function G.start(ids, opts)
 			options = { { id = "keep_edits", type = "toggle", default = false } },
 			keybinds = b.keybinds })
 	end
-	local e = E.new({ deploy = E.deploy({ mods = deploy_mods, has_session = opts.scope ~= "client" }), mods = mods, lobby = opts.lobby })
+	local e = E.new({ deploy = E.deploy({ mods = deploy_mods, has_session = opts.scope ~= "client", font_files = opts.font_files }), mods = mods, lobby = opts.lobby })
 
 	-- string and table helpers the game adds, then the rest of the game.
 	local game = { commands = {}, tampered = {}, protected = {}, sent = {}, rpc = {}, spawned = {}, saved = 0 }
