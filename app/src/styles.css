@@ -13,7 +13,7 @@
   --tx: #ecebe7; --mu: #b4b5b2; --ln: rgba(255, 255, 255, 0.1); --row: rgba(255, 255, 255, 0.05);
   --gold: #f0b429; --goldtx: #f0b429; --on: #1b1b1b;
   --warn: #ff9b5e; --go: #2fb889;
-  /* The scopes (the user, 2026-11-03): unspecified black, client green, session red, library white,
+  /* The scopes (the user, 2026-11-03): unspecified black, client green, session red, library white (grey on the light theme),
      expansion yellow. --scope-edge rings a color too close to the theme's panels to read alone. */
   --client: #2fb889; --session: #f2574b; --library: #f2f2f0; --unspecified: #0b0c0d; --expansion: #f2d01e;
   --scope-edge: rgba(255, 255, 255, 0.6);
@@ -37,7 +37,7 @@
   --bar: rgba(255, 255, 255, 0.55);
   --tx: #1d1f22; --mu: #53575c; --ln: rgba(0, 0, 0, 0.1); --row: rgba(0, 0, 0, 0.035);
   --goldtx: #8a5d00; --warn: #a54300; --go: #1d8a64; --well: rgba(0, 0, 0, 0.04);
-  --client: #1d9a6c; --session: #dc3f33; --library: #ffffff; --unspecified: #111214; --expansion: #e0bb00;
+  --client: #1d9a6c; --session: #dc3f33; --library: #9aa0a6; --unspecified: #111214; --expansion: #e0bb00;
   --scope-edge: rgba(0, 0, 0, 0.55);
   color-scheme: light;
 }
@@ -205,9 +205,10 @@ button.bare:hover { color: var(--tx); }
 .scope.library i { background-color: var(--library); }
 .scope.unspecified i { background-color: var(--unspecified); }
 .scope.expansion i { background-color: var(--expansion); }
-/* Black on the dark theme, and white or yellow on the light one, get an edge to stand out. */
+/* Black on the dark theme, and yellow on the light one, get an edge to stand out. Library is grey
+   on the light theme (the user, 2026-11-03), which reads without one. */
 :root:not([data-theme="light"]) .scope.unspecified i,
-:root[data-theme="light"] .scope.library i, :root[data-theme="light"] .scope.expansion i { box-shadow: 0 0 0 1px var(--scope-edge); }
+:root[data-theme="light"] .scope.expansion i { box-shadow: 0 0 0 1px var(--scope-edge); }
 /* The update check beside the switches: one mod, a folder, or the whole list in the header */
 .bare.up-ck { padding: 0.1rem; justify-self: center; }
 .up-ck svg { width: 1rem; height: 1rem; }
@@ -358,7 +359,7 @@ button.link:hover { filter: brightness(1.2); }
 .drawer.conflicts { border-top-color: var(--conflict); }
 /* The same edge as the diamonds, as a line under the band. */
 :root:not([data-theme="light"]) .drawer.unspecified,
-:root[data-theme="light"] .drawer.library, :root[data-theme="light"] .drawer.expansion { box-shadow: inset 0 1px 0 var(--scope-edge), 0 10px 30px rgba(0, 0, 0, 0.2); }
+:root[data-theme="light"] .drawer.expansion { box-shadow: inset 0 1px 0 var(--scope-edge), 0 10px 30px rgba(0, 0, 0, 0.2); }
 .drawer.idle { border-top-color: var(--ln); justify-content: center; padding: 1.5rem; text-align: center; }
 @keyframes drawer-in { from { opacity: 0; transform: translateX(0.75rem); } }
 .dh { display: flex; align-items: flex-start; gap: 0.65rem; padding: 0.6rem 0.8rem 0.5rem; border-bottom: 1px solid var(--ln); }
