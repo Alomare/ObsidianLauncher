@@ -3530,4 +3530,67 @@ test("mod_settings_opens_from_the_pause_menu_and_keeps_its_values", function()
 	E.eq(#main.options, 3)
 end)
 
+-- A row bound to one of the mod's obsidian.json options starts from the value set in Obsidian, and a
+-- change is kept as the pending option Obsidian takes; that pending value wins until it's taken.
+-- Words by language follow the game's language ("bp" is pt-BR), in capitals with the accents.
+test("mod_settings_rows_bound_to_options_start_from_obsidian_and_keep_changes_for_it", function()
+	local api, _, e = start()
+	local Main = fake_menus()
+	rawget(_G, "require")("lua/network/network_global")
+	local core = e:core()
+	local own = core.current
+	local options = { { id = "pause", type = "toggle", default = true }, { id = "speed", type = "choice", default = "off", choices = { "off", "fast" } } }
+	local qol = { id = "dev.qol", mod = { options = options } }
+	core.current = qol
+	e.loaded["obsidian/loader/settings"].values["dev.qol"] = { speed = "fast" }
+	E.eq(api.mod_settings.BINDS, true)
+	local page = api.mod_settings.page({ en = "Quality", ["pt-BR"] = "Qualidade" })
+	local pause = { option = true, label = { en = "Pause", fr = "Pause", ["pt-BR"] = "Pausa" } }
+	E.eq(page:toggle("pause", pause), true, "the option's default")
+	E.eq(page:choice("speed", { option = true, label = "Speed", choices = { { id = "off", label = { en = "Off", ["pt-BR"] = "Desligado" } }, { id = "fast", label = { en = "Fast", ["pt-BR"] = "Rápido" } } } }), "fast", "the value set in Obsidian")
+	E.eq(page:set("pause", false), true)
+	core.current = own
+	e:frames(1)
+	local storage = rawget(_G, "obsidian").storage
+	E.eq(storage.get("option/dev.qol/pause"), false, "kept for Obsidian to take")
+	E.eq(storage.get("mod_settings/dev.qol/pause"), nil, "not as an in-game setting")
+
+	local lm = rawget(_G, "LocalizationManager")
+	local was = lm.current_language
+	lm.current_language = "bp"
+	local main = setmetatable({}, { __index = Main })
+	main:on_enter()
+	main.selected_option = 3
+	main:handle_input({ select = true })
+	main:update()
+	E.eq(main.state_stack[1].drawn[1], "QUALIDADE")
+	main:handle_input({ select = true })
+	main:update()
+	local screen = main.state_stack[2]
+	E.eq(screen.drawn[1], "PAUSA = LOC:options_no")
+	E.eq(screen.drawn[2], "SPEED = RÁPIDO")
+	main:handle_input({ right = true })
+	lm.current_language = was
+	E.eq(storage.get("option/dev.qol/pause"), true, "a change in the menu is kept at once")
+	core.current = qol
+	E.eq(page:toggle("pause", pause), true, "made again, the row starts from the pending value")
+	core.current = own
+end)
+
+-- Obsidian QoL's page: the four options that can change in game, each bound to its option.
+test("obsidian_qol_binds_four_of_its_options_to_the_mods_page", function()
+	local e = G.start({ "obsidian.api", "obsidian.qol" }, { scope = "client" })
+	e:core().current = e:core().mods_by_id["obsidian.api"]
+	local page = rawget(_G, "obsidian").import("obsidian.api").mod_settings.pages["obsidian.qol"]
+	E.eq(page ~= nil, true, "QoL made its page")
+	local ids = {}
+	for _, row in ipairs(page.rows) do
+		E.eq(row.option, true, row.id)
+		ids[#ids + 1] = row.id
+	end
+	E.eq(table.concat(ids, ","), "expedite_mission_end,solo_pause,aim_cursor,toggle_map")
+	E.eq(page.rows[1].kind, "choice")
+	E.eq(type(page.rows[2].label), "table", "words by language")
+end)
+
 return T
