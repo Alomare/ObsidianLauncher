@@ -3202,6 +3202,8 @@ test("a_custom_stratagem_follows_its_base_for_packs_and_ranks", function()
 	progression.can_use = function(name) return name == "stratagem_resupply" end
 	rawget(_G, "require")("lua/network/network_global")
 	E.eq(progression.can_use("test_free", "stratagems", 0), true)
+	E.eq(api.catalog.unlocked("test_free"), api.catalog.unlocked("stratagem_resupply"), "unlocked with its base")
+	E.eq(api.catalog.unlocked("test_paid"), false)
 end)
 
 test("in_a_lobby_that_isnt_cleared_a_custom_stratagem_is_its_base", function()
@@ -3220,6 +3222,27 @@ end)
 test("a_client_mod_cant_make_one", function()
 	local api = start({ scope = "client" })
 	E.eq(select(2, api.stratagems.define(PITCHFORK)), "needs_session")
+end)
+
+-- Another mod calling: obsidian.module looks in the mod that's running, so the API mustn't load its own
+-- files during a call (found live: a bot's gear looked for lib/gear.lua in the caller).
+test("calls_from_another_mod_find_the_apis_own_files", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add()
+	local u = game.land(2)
+	u.master.health, u.master.status = {}, {}
+	api.stratagems.define({ name = "test_other", base = "stratagem_resupply", title = "Other" })
+	local core = e:core()
+	core.current = { id = "someone.else", mod = { scope = "session" }, errors = 0 }
+	local ok, err = pcall(function()
+		E.eq(bot:give_weapon("primary_weapon", "equipment/wep_assaultrifle_01"), true)
+		E.eq(bot:heal(), true)
+		E.eq(type(bot:weapons()), "table")
+		E.eq(api.catalog.unlocked("test_other"), api.catalog.unlocked("stratagem_resupply"))
+	end)
+	core.current = core.mods_by_id["obsidian.api"]
+	E.eq(ok, true, tostring(err))
 end)
 
 return T
