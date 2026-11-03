@@ -3234,6 +3234,55 @@ test("a_custom_stratagem_without_upgrades_takes_the_bases_renamed", function()
 	E.eq(e.combo, nil, "the base's code, which this one has none of")
 end)
 
+test("a_custom_stratagem_unlocks_by_its_own_rule_or_its_base", function()
+	local api, game, e = start_locked()
+	wire_world(game)
+	local P = rawget(_G, "ProgressionSettings")
+	-- The game's answer by its rank lists: none of these is on one.
+	P.can_use = function() return false end
+	hooked(e)
+	-- The machine gun is locked in this save.
+	api.stratagems.define({ name = "test_base", base = "stratagem_machinegun", title = "Base" })
+	api.stratagems.define({ name = "test_free", base = "stratagem_machinegun", title = "Free", unlock = "free" })
+	api.stratagems.define({ name = "test_rank", base = "stratagem_machinegun", title = "Rank", unlock = { rank = 2 } })
+	api.stratagems.define({ name = "test_manual", base = "stratagem_machinegun", title = "Manual", unlock = "manual" })
+	E.eq(api.catalog.unlocked("test_base"), false, "as the base")
+	E.eq(api.catalog.unlocked("test_free"), true)
+	E.eq(api.catalog.unlocked("test_rank"), false, "rank 1")
+	E.eq(api.catalog.unlocked("test_manual"), false)
+	E.eq(P.can_use("test_free", "stratagems", 0), true, "the Loadout screen's question")
+	E.eq(P.can_use("test_rank", "stratagems", 4999), false)
+	E.eq(P.can_use("test_rank", "stratagems", 5000), true, "rank 2's XP")
+	game.save.user.player_xp = 5000
+	E.eq(api.catalog.unlocked("test_rank"), true)
+	E.eq(api.stratagems.unlock("test_manual"), true)
+	E.eq(api.stratagems.is_unlocked("test_manual"), true)
+	E.eq(P.can_use("test_manual", "stratagems", 0), true)
+	E.eq(api.stratagems.unlock("stratagem_resupply"), false, "only a custom one")
+	E.eq(select(2, api.stratagems.define({ name = "test_bad", base = "stratagem_machinegun", title = "x", unlock = { rank = 0 } })), "bad_type")
+	E.eq(select(2, api.stratagems.define({ name = "test_bad", base = "stratagem_machinegun", title = "x", unlock = "sometime" })), "bad_type")
+end)
+
+test("an_unlock_from_a_mod_is_kept_by_the_library_and_never_in_the_save", function()
+	local api, game, e = start_locked()
+	wire_world(game)
+	hooked(e)
+	api.stratagems.define({ name = "test_manual", base = "stratagem_machinegun", title = "Manual", unlock = "manual" })
+	local core = e:core()
+	local own = core.current
+	core.current = { id = "dev.remix", mod = { options = {} } }
+	E.eq(api.stratagems.unlock("test_manual"), true)
+	core.current = own
+	local storage = rawget(_G, "obsidian").storage
+	E.eq(storage.get("stratagem_unlocks"), nil, "not yet: the running mod's storage isn't the library's")
+	e:frames(1)
+	E.eq(storage.get("stratagem_unlocks"), "test_manual", "kept from the library's frame")
+	for _, name in ipairs(game.save.user.item_unlocks) do E.eq(name ~= "test_manual", true, "the save is left alone") end
+	E.eq(api.stratagems.lock("test_manual"), true)
+	E.eq(storage.get("stratagem_unlocks"), "", "the library's own call is kept at once")
+	E.eq(api.catalog.unlocked("test_manual"), false)
+end)
+
 test("a_definition_is_checked", function()
 	local api, game = start()
 	wire_world(game)
