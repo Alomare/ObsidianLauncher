@@ -202,6 +202,7 @@
   "app.mods.removeNTitle": "Remover %s mods",
   "app.mods.reorderOff": "Limpe a busca para reordenar.",
   "app.mods.resize": "Redimensionar os painéis",
+  "app.mods.resizeColumn": "Resize the %s column",
   "app.mods.resizeHint": "Arraste para redimensionar. Clique duas vezes para restaurar.",
   "app.mods.search": "Buscar mods",
   "app.mods.selection": "Mods marcados",
