@@ -33,6 +33,17 @@ local NAV_KEYS = {
 	up = { "up", "w" }, down = { "down", "s" }, left = { "left", "a" }, right = { "right", "d" },
 	select = { "enter", "e" }, back = { "esc", "q" }, filter = { "tab" }, reset = { "r" },
 }
+-- The key guide at the foot: keycaps, then what they do. An arrow is drawn, a name is written.
+local GUIDE = {
+	{ keys = { "Enter" }, text = "menu_key_select" },
+	{ keys = { "Esc" }, text = "menu_key_back" },
+	{ keys = { "up", "down" }, text = "menu_key_move" },
+	{ keys = { "left", "right" }, text = "menu_key_change" },
+	{ keys = { "Tab" }, text = "menu_key_filter" },
+	{ keys = { "R" }, text = "menu_key_reset" },
+}
+local TYPING_GUIDE = { { keys = { "Enter" }, text = "menu_key_confirm" }, { keys = { "Esc" }, text = "menu_key_cancel" } }
+local ARROWS = { up = true, down = true, left = true, right = true }
 local REPEATS = { up = true, down = true, left = true, right = true }
 local ADJUSTABLE = { number = true, choice = true, toggle = true }
 
@@ -390,7 +401,7 @@ end
 
 local function begin_number_entry(frame, it)
 	if not global("GuiItems") then return end
-	M.field = { text = "", state = {}, max = 16, prompt = text_of(frame.state, it.label, "label"), numeric = true,
+	M.field = { text = "", state = {}, max = 16, prompt = text_of(frame.state, it.label, "label"), numeric = true, item = it,
 		done = function(text)
 			local n = B.tonumber(text)
 			if not n then return end
@@ -402,7 +413,7 @@ end
 
 local function begin_text_entry(frame, it)
 	if not global("GuiItems") then return end
-	M.field = { text = "", state = {}, max = 48, prompt = text_of(frame.state, it.label, "label"),
+	M.field = { text = "", state = {}, max = 48, prompt = text_of(frame.state, it.label, "label"), item = it,
 		done = function(text)
 			local ok, result = run(frame.state, "input", it.run, text)
 			if not ok then
@@ -866,6 +877,60 @@ local function draw_scroll(frame, list, shown, right, top, mx, my)
 	kit:rect(track_x, thumb_y, TRACK_W, thumb, lit and GOLD or GREY)
 end
 
+local KEYCAP_H = 17
+
+local function keycap_w(key)
+	if ARROWS[key] then return KEYCAP_H end
+	return B.max(width_of(key, SMALL) + 10, KEYCAP_H)
+end
+
+-- A keycap at x, y: a box with the key's name, or an arrow for an arrow key. Answers its width.
+local function keycap(x, y, key)
+	local kit, w = M.kit, keycap_w(key)
+	kit.z = LAYER_MARK
+	kit:panel({ x, y, w, KEYCAP_H, cut = 3, corners = "br", fill = HEADER })
+	kit.z = LAYER_MARK + 1
+	if ARROWS[key] then
+		local cx, cy, r = x + w / 2, y + KEYCAP_H / 2, 4
+		local points = {
+			up = { cx - r, cy - r / 2, cx + r, cy - r / 2, cx, cy + r },
+			down = { cx - r, cy + r / 2, cx, cy - r, cx + r, cy + r / 2 },
+			left = { cx + r / 2, cy - r, cx + r / 2, cy + r, cx - r, cy },
+			right = { cx - r / 2, cy - r, cx + r, cy, cx - r / 2, cy + r },
+		}
+		kit:poly(points[key], WHITE)
+	else
+		put(key, x + w / 2, mid(y, KEYCAP_H, SMALL), SMALL, WHITE, "center")
+	end
+	return w
+end
+
+-- The guide from x, as many entries as fit before `right`. Answers where it stopped.
+local function draw_guide(guide, x, y, right)
+	for _, entry in B.ipairs(guide) do
+		local label = M.core.text(entry.text)
+		local need = width_of(label, SMALL) + 3
+		for _, key in B.ipairs(entry.keys) do need = need + keycap_w(key) + 3 end
+		if x + need > right then break end
+		for _, key in B.ipairs(entry.keys) do x = x + keycap(x, y, key) + 3 end
+		put(label, x + 2, mid(y, KEYCAP_H, SMALL), SMALL, FAINT)
+		x = x + width_of(label, SMALL) + 18
+	end
+	return x
+end
+
+-- What a row being typed into shows on its right: the text so far and a caret. Answers how wide.
+local function draw_field(row, right, left)
+	local kit = M.kit
+	local w = B.max(STEPPER_W, B.min(260, B.floor((right - left) * 0.55)))
+	kit.z = LAYER_MARK
+	kit:panel({ right - w, row.y + 3, w, ROW_H - 6, cut = 4, corners = "br", fill = FIELD })
+	kit:rect(right - w, row.y + 3, 2, ROW_H - 6, GOLD)
+	kit.z = LAYER_MARK + 1
+	put(fit(M.field.text .. "_", w - 14, BODY), right - w + 8, mid(row.y, ROW_H, BODY), BODY, GOLD)
+	return w
+end
+
 local function draw_foot(frame, list, shown, left, right, bottom)
 	local kit, hits = M.kit, M.hits
 	local foot_y = bottom + FOOT_H
@@ -882,11 +947,17 @@ local function draw_foot(frame, list, shown, left, right, bottom)
 			y = y - SMALL.size - 1
 		end
 	end
-	if M.field then
+	local guide_y = bottom + 4
+	if M.field and M.field.item then
+		-- The row shows what's typed; the foot, the keys that end it.
+		draw_guide(TYPING_GUIDE, left + PAD, guide_y, right - CUT - PAD)
+	elseif M.field then
 		put(fit(M.field.prompt .. ": " .. M.field.text .. "_", width - CUT, SMALL), left + PAD, bottom + 7, SMALL, GOLD)
 	else
-		local more = #list > shown and B.format(" (%d/%d)", frame.selected, #list) or ""
-		put(fit(M.core.text("menu_keys") .. more, width - CUT, SMALL), left + PAD, bottom + 7, SMALL, FAINT)
+		local more = #list > shown and B.format("%d/%d", frame.selected, #list) or ""
+		local count_w = more ~= "" and width_of(more, SMALL) + 8 or 0
+		draw_guide(GUIDE, left + PAD, guide_y, right - CUT - PAD - count_w)
+		if more ~= "" then put(more, right - CUT - PAD, bottom + 7, SMALL, FAINT, "right") end
 	end
 
 	-- The grip that resizes the window, along the folded corner.
@@ -937,9 +1008,17 @@ local function draw_rows(frame, list, shown, left, right, top, mx, my)
 		elseif it.kind == "label" then
 			put(fit(label, row.w - PAD * 2, BODY), left + PAD, mid(y, ROW_H, BODY), BODY, GREY)
 		else
-			local used = draw_control(frame, row, control_right, mx, my, active or over)
+			local typing = M.field and M.field.item == it
+			local used = typing and draw_field(row, control_right, left + INDENT) or draw_control(frame, row, control_right, mx, my, active or over)
 			draw_reset(frame, row, row_right, mx, my)
-			put(fit(label, control_right - used - 12 - (left + INDENT), BODY), left + INDENT, mid(y, ROW_H, BODY), BODY, WHITE)
+			-- An icon of the game's HUD before the words, such as a stratagem's.
+			local text_x = left + INDENT
+			if it.icon then
+				kit.z = LAYER_MARK
+				local size = ROW_H - 6
+				if kit:icon(it.icon, text_x, y + 3, size, size, { 255, 255, 255 }) ~= false then text_x = text_x + size + 7 end
+			end
+			put(fit(label, control_right - used - 12 - text_x, BODY), text_x, mid(y, ROW_H, BODY), BODY, typing and GOLD or WHITE)
 		end
 	end
 end

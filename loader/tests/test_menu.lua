@@ -6,7 +6,8 @@ local function test(name, fn) T[#T + 1] = { name, fn } end
 
 local TEXTS = { en = {
 	menu_title = "Obsidian", menu_empty = "No pages", menu_failed = "Failed", menu_unavailable = "Not now",
-	menu_filter = "Filter", menu_keys = "Keys",
+	menu_filter = "Filter", menu_keys = "Keys", menu_key_select = "Select", menu_key_back = "Back", menu_key_move = "Move",
+	menu_key_change = "Change", menu_key_filter = "Filter by", menu_key_reset = "Reset", menu_key_confirm = "Confirm", menu_key_cancel = "Cancel",
 } }
 
 -- Runs a mod that adds a page through `source`, with the menu's game side in place.
@@ -445,6 +446,21 @@ test("the_arrows_of_a_number_step_and_holding_repeats", function()
 	E.eq(values().speed, 3, "the right arrow adds a step")
 end)
 
+test("the_foot_guides_with_keycaps_and_typing_changes_the_guide", function()
+	local e, ui = start(PAGE)
+	open_root(ui)
+	click_on(ui, "Player")
+	ui.frame()
+	E.eq(ui.shown("Enter"), true, "a keycap")
+	E.eq(ui.shown("Select"), true, "and what it does")
+	E.eq(ui.shown("Back"), true)
+	E.eq(ui.shown("Keys"), false, "no sentence of keys")
+	click_on(ui, "5", true)
+	ui.frame()
+	E.eq(ui.shown("Confirm"), true, "typing: the keys that end it")
+	E.eq(ui.shown("Select"), false)
+end)
+
 test("clicking_the_value_of_a_number_types_it_and_a_click_elsewhere_keeps_it", function()
 	local e, ui = start(PAGE)
 	open_root(ui)
@@ -453,7 +469,8 @@ test("clicking_the_value_of_a_number_types_it_and_a_click_elsewhere_keeps_it", f
 	E.eq(values().speed, 5, "nothing changes yet")
 	ui.typed = { "7" }
 	ui.frame()
-	E.eq(ui.shown("Speed: 7_"), true, "the line being typed shows")
+	E.eq(ui.shown("7_"), true, "what's typed shows in the row itself")
+	E.eq(ui.shown("Speed: 7_"), false, "not at the foot")
 	ui.click(5, 5)
 	E.eq(values().speed, 7, "a click ends typing, as Enter does")
 end)
