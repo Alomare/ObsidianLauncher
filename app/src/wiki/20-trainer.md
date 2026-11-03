@@ -8,7 +8,7 @@ Obsidian Trainer is an in-game menu for the character, weapons, stratagems, enem
 
 ## Turning it on
 
-Switch on **Obsidian Trainer** in the Mods list and deploy. Obsidian API, the mod it's built on, turns on with it. In the game, **F6** opens the menu. The Keys tab of the mod changes the key.
+Switch on **Obsidian Trainer** in the Mods list and deploy. Obsidian API, the mod it's built on, turns on with it. In the game, **F6** opens the menu, and the Trainer's pages are in the **Obsidian Trainer** folder on the left. The window and the key belong to Obsidian API, so other mods' pages show there too, each mod in a separate folder, and the Keys tab of Obsidian API changes the key.
 
 | Key | What it does |
 |---|---|
@@ -35,7 +35,7 @@ The menu also works with the mouse, with the normal system cursor.
 | Title bar | Drag to move the window |
 | Bottom right corner | Drag to resize the window |
 
-The window opens where it was last left, at the same size.
+The window opens where it was last left, at the same size. On the list, Enter or a click opens and closes a folder, and each folder stays as it was left.
 
 The menu blocks the character while it's open, and it closes by itself when the game changes screens, such as at the start of a mission. A gamepad can move around the menu, but F6 opens it.
 
@@ -67,7 +67,7 @@ Every option has a description at the bottom of the menu while it's selected. Sp
 
 ## Playing with others
 
-The Trainer is a session mod, so everyone in the lobby has to run the same mods or allow session mods ([Playing online](wiki:multiplayer)). When someone joins who hasn't, every change is undone and the menu stops until they leave. Then the changes come back.
+The Trainer is a session mod, so everyone in the lobby has to run the same mods or allow session mods ([Playing online](wiki:multiplayer)). When someone joins who hasn't, every change is undone and the Trainer's pages close until that player leaves. Then the changes come back.
 
 Numbers from the Editor and the two damage rows run on each player's game, so they work best when everyone uses the same ones.
 

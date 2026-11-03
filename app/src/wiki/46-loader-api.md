@@ -47,9 +47,9 @@ Calls `fn` once every mod has started, so mods can work together without dependi
 
 The value of option `id` of this mod: the one the player chose in the app, or the default ([Options and keys](wiki:options-and-keys)).
 
-### obsidian.keybind(id, fn)
+### obsidian.keybind(id, fn, opts)
 
-Calls `fn` each time the key bound to `id` goes down. The key comes from the app, or from the default in `obsidian.json`.
+Calls `fn` each time the key bound to `id` goes down. The key comes from the app, or from the default in `obsidian.json`. A session mod's keys wait for a cleared lobby, as the mod's hooks do. `opts.always` leaves the key alone, as `obsidian.wrap` does a hook, for a key that only acts on this player's screen.
 
 ## Multiplayer
 
@@ -107,11 +107,17 @@ How the calling mod runs in this deploy: `"client"` or `"session"`. A library ge
 
 The id of the mod whose code is running, so a shared mod can record who asked for something.
 
+### obsidian.info(id)
+
+What a running mod is: `{ id, name, version, scope }`. `name` comes from the mod's `obsidian.json`, in the game's language, else English, and `scope` is `"client"` or `"session"`. With no `id`, the calling mod. `nil` for a mod that isn't running.
+
 ## In-game menu {#menu}
+
+The in-game window belongs to Obsidian API, so it changes with the API's releases, and new mods use `api.menu` ([Obsidian API](wiki:obsidian-api)). **F6** opens it, a key of Obsidian API's, which players change in the Keys tab of Obsidian API, and each mod's pages sit in a folder named after the mod. `obsidian.menu` stays for mods written before, and hands every call to Obsidian API's window, as the mod that made it. List `obsidian.api` in `requires`: with no Obsidian API running there's no window, and `open()` answers `false`.
 
 ### obsidian.menu.add(title, build, opts)
 
-Adds a page to the list down the left of the in-game menu. `title` is text, or a function that returns it. `build(page)` runs each time the page opens. `opts.icon` is one of `obsidian.ui.glyphs()`:
+Adds a page to the list down the left of the in-game menu, in your mod's folder. `title` is text, or a function that returns it. `build(page)` runs each time the page opens. `opts.icon` is one of `obsidian.ui.glyphs()`:
 
 ```lua
 obsidian.menu.add("My mod", function(page)
@@ -133,11 +139,7 @@ A session mod's pages aren't listed, and close, while the lobby isn't cleared.
 
 ### obsidian.menu.open(), close(), toggle(), is_open()
 
-Nothing opens the menu by itself, so bind a key to it:
-
-```lua
-obsidian.keybind("open", function() obsidian.menu.toggle() end)
-```
+Obsidian API's key opens the window once a page is listed, so your mod needs no key for it. These are for a mod that opens the window at a moment it picks.
 
 ### obsidian.menu.overlay(fn)
 
@@ -145,7 +147,7 @@ Calls `fn(draw, width, height)` every frame, to put something on screen outside 
 
 ### obsidian.toast(text, seconds)
 
-Shows a short message at the top left of the screen, or beside the in-game menu while it's open.
+Shows a short message at the top left of the screen, or beside the in-game menu while it's open. With Obsidian API running, the API's window draws it.
 
 ### obsidian.notify(text, seconds) {#obsidian-notify-text-seconds}
 
@@ -325,7 +327,7 @@ Strings, numbers and booleans this mod keeps between launches. `set` with `nil` 
 
 `obsidian.version` is the API version, `1` today. A mod that needs a newer API sets `loader_api` in `obsidian.json`, and older loaders refuse to start it.
 
-`obsidian.capabilities` is a read-only table of what the running loader supports, one entry per feature: `hook`, `on_require`, `on_frame`, `on_session`, `after_startup`, `settings`, `keybind`, `session`, `text`, `log`, `module`, `import`, `caller`, `menu`, `toast`, `notify`, `storage`, `ui`. Test a feature by name before using one that came later:
+`obsidian.capabilities` is a read-only table of what the running loader supports, one entry per feature: `hook`, `on_require`, `on_frame`, `on_session`, `after_startup`, `settings`, `keybind`, `session`, `text`, `log`, `module`, `import`, `caller`, `info`, `menu`, `toast`, `notify`, `storage`, `ui`. Test a feature by name before using one that came later:
 
 ```lua
 if obsidian.capabilities.on_frame then

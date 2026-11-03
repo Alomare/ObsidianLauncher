@@ -138,6 +138,7 @@ end)
 | `api.combat` | `scale{ players, enemies }` |
 | `api.events` | `on(name, fn)`, `off(name, fn)` |
 | `api.ui` | `hint(text, seconds)`, `ping(pos)`, `open(name, opts)`, `close()`, `menus()`, `with_texts(texts, fn, ...)` |
+| `api.menu` | The in-game window (F6): `add(title, build, opts)`, `open()`, `close()`, `toggle()`, `is_open()`, `toast(text, seconds)`. Each mod's pages sit in a folder named after the mod |
 | `api.map` | `is_open(unit)`, `open()`, `close()`, `zoom()`, `set_zoom(z)`, `view()`, `cursor()`, `look_at(pos)`, `pings()`, `to_map(pos)`, `to_world(x, y)`, `marker(pos, opts)`, `clear_markers()` |
 | `api.bots` | `add(opts)`, `all()`, `remove_all()`, and on a bot its orders, gear and help |
 | `api.lobby` | `players()`, `share(name, value)`, `shared(name)` |
