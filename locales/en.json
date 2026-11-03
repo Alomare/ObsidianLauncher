@@ -115,7 +115,7 @@
   "app.guardrails.always": "Galactic War results and leaderboards are never sent while session mods are deployed, and Proving Grounds stays closed. That protects other players, so it isn't a choice here.",
   "app.guardrails.button": "Guardrails (profile %s)",
   "app.guardrails.consent": "Allow other players' session mods in my game",
-  "app.guardrails.consentHint": "When you play together, their session mods keep running and can change your game, such as enemies, damage and missions. You only matchmake with other Obsidian players. Off: their session mods switch off while you share a lobby.",
+  "app.guardrails.consentHint": "When you play together, their session mods keep running and can change your game, such as enemies, damage and missions. You still find every lobby, but your own shows only for other Obsidian players. Off: their session mods switch off while you share a lobby.",
   "app.guardrails.freeze": "Freeze my account's progression",
   "app.guardrails.freezeHint": "Your XP, rank, samples, unlocks, upgrades and stats stay as they were when the game started. Nothing you earn or spend is saved, so you can try anything without changing your account.",
   "app.guardrails.lead": "For the current profile. Changes apply the next time the game launches.",

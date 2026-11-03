@@ -17,15 +17,16 @@ Obsidian changes which public lobbies you can find, so a vanilla player never en
 | Your setup | Who you find in matchmaking |
 |---|---|
 | No session mods, switch off | Everyone. This is normal play. Expansions don't change this |
-| Session mods deployed, or switch on | Only other Obsidian players with session mods or the switch on |
+| No session mods, switch on | Everyone. Your own lobby shows only for other Obsidian players with session mods or the switch on |
+| Session mods deployed | Only other Obsidian players with session mods or the switch on |
 | A mod every player needs deployed | Only players who run that same mod, at the same version |
 | Hosting the content of an expansion | Your lobby shows only for players who run that expansion, at the same version |
 
-So with the switch on, your lobby shows up for players who run session mods, and you no longer see vanilla lobbies. Turn it off when you want normal matchmaking back.
+So with the switch on and no session mods of your own, you still find every lobby, vanilla ones included, and join them as a vanilla player would. Your own lobby moves to the Obsidian pool, where players who run session mods find it and vanilla players don't. Turn the switch off to host for everyone.
 
 With an expansion deployed, you also see the lobbies of players running the content of that same expansion, wherever your own matchmaking puts you.
 
-The lobby filters in the multiplayer terminal say **(Obsidian Only)** while you are in the Obsidian pool, so an empty list doesn't look like a broken one.
+The lobby filters in the multiplayer terminal say **(Obsidian Only)** while the list shows only Obsidian players, so an empty list doesn't look like a broken one.
 
 ## When session mods run
 

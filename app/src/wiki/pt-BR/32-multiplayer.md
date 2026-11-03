@@ -17,15 +17,16 @@ O Obsidian muda quais lobbies públicos você encontra, para que um jogador sem 
 | A sua configuração | Quem você encontra no matchmaking |
 |---|---|
 | Sem mods de sessão, interruptor desligado | Todo mundo. É o jogo normal. Expansões não mudam isso |
-| Mods de sessão aplicados, ou interruptor ligado | Só outros jogadores do Obsidian com mods de sessão ou com o interruptor ligado |
+| Sem mods de sessão, interruptor ligado | Todo mundo. O seu próprio lobby só aparece para outros jogadores do Obsidian com mods de sessão ou com o interruptor ligado |
+| Mods de sessão aplicados | Só outros jogadores do Obsidian com mods de sessão ou com o interruptor ligado |
 | Um mod que todos os jogadores precisam ter aplicado | Só jogadores que rodam esse mesmo mod, na mesma versão |
 | Hospedando o conteúdo de uma expansão | O lobby só aparece para jogadores que rodam essa expansão, na mesma versão |
 
-Ou seja: com o interruptor ligado, o seu lobby aparece para quem roda mods de sessão, e você deixa de ver os lobbies sem mods. Desligue quando quiser o matchmaking normal de volta.
+Ou seja: com o interruptor ligado e sem mods de sessão próprios, você continua encontrando todos os lobbies, inclusive os sem mods, e entra neles como um jogador sem mods entraria. O seu próprio lobby vai para o grupo do Obsidian, onde quem roda mods de sessão o encontra e jogadores sem mods não. Desligue o interruptor para hospedar para todo mundo.
 
 Com uma expansão aplicada, a lista também mostra os lobbies de jogadores que estão no conteúdo dessa mesma expansão, qualquer que seja o grupo de matchmaking do jogador.
 
-Os filtros de lobby do terminal de multijogador mostram **(só Obsidian)** enquanto você está no grupo do Obsidian, para que uma lista vazia não pareça defeito.
+Os filtros de lobby do terminal de multijogador mostram **(só Obsidian)** enquanto a lista mostra só jogadores do Obsidian, para que uma lista vazia não pareça defeito.
 
 ## Quando os mods de sessão rodam {#when-session-mods-run}
 
