@@ -3260,6 +3260,194 @@ test("a_bot_is_given_gear_and_help_as_the_player_is", function()
 	no_tampering(game)
 end)
 
+-- The game's side of a stratagem call, as CharacterStateStratagems and CharacterStateStratagemsThrow
+-- run it: the menu while the button is held, one arrow a frame into the queue, the stratagem the queue
+-- makes, then a charge while the throw is held and the throw on release.
+local function stratagem_world(api, game, e, u)
+	local S = {}
+	for _, n in ipairs({ "CharacterStateIdle", "CharacterStateStratagems", "CharacterStateStratagemsThrow" }) do
+		S[n] = { name = n }
+		rawset(_G, n, S[n])
+	end
+	local settings = rawget(_G, "LoadoutSettings")
+	settings.stratagems[1].combo = { "down", "down", "up", "right" }
+	settings.stratagems[2].combo = { "down", "left", "down", "up", "right" }
+	u.master.inventory.stratagems = { { id = 1, cooldown_timer = 0 }, { id = 2, cooldown_timer = 0, uses_left = 1 } }
+	local cs = u.master.character
+	cs.current_state, cs.stratagems_queue = S.CharacterStateIdle, {}
+	local function match(queue)
+		for _, s in ipairs(settings.stratagems) do
+			if s.combo and #s.combo == #queue then
+				local same = true
+				for i = 1, #queue do
+					if s.combo[i] ~= queue[i] then same = false end
+				end
+				if same then return s.id end
+			end
+		end
+	end
+	game.thrown = {}
+	local function character()
+		local t = u.master.input.input_data
+		if not t then return end
+		if cs.current_state == S.CharacterStateIdle then
+			if t.stratagems_pressed then
+				cs.current_state = S.CharacterStateStratagems
+				cs.stratagems_disabled = game.jammed
+				for i = #cs.stratagems_queue, 1, -1 do cs.stratagems_queue[i] = nil end
+			end
+		elseif cs.current_state == S.CharacterStateStratagems then
+			for _, d in ipairs({ "down", "right", "up", "left" }) do
+				if t["stratagem_" .. d] and not cs.stratagems_disabled then
+					cs.stratagems_queue[#cs.stratagems_queue + 1] = d
+					-- An arrow the game counted twice.
+					if game.doubled == d then
+						cs.stratagems_queue[#cs.stratagems_queue + 1] = d
+						game.doubled = nil
+					end
+				end
+			end
+			local id = api.stratagems.find(match, cs.stratagems_queue)
+			local entry
+			for _, s in ipairs(u.master.inventory.stratagems) do
+				if s.id == id then entry = s end
+			end
+			if entry and entry.cooldown_timer <= 0 then
+				cs.current_stratagem = id
+				cs.current_state = S.CharacterStateStratagemsThrow
+				cs.has_thrown, cs.throw_started, cs.throw_done, cs.throw_timer, cs.grenade_charge = false, false, false, 0, 0
+			elseif not t.stratagems_pressed then
+				cs.current_state = S.CharacterStateIdle
+			end
+		elseif cs.current_state == S.CharacterStateStratagemsThrow then
+			if cs.throw_done and t.throw == 0 and t.fire_button == 0 then
+				cs.current_state = S.CharacterStateIdle
+				return
+			end
+			if cs.throw_started then
+				cs.throw_timer = cs.throw_timer + 0.016
+			elseif t.melee then
+				game.cancelled = true
+				cs.current_state = S.CharacterStateIdle
+				return
+			end
+			if cs.has_thrown then
+				cs.throw_done = true
+			elseif t.throw > 0.1 or t.fire_button > 0.05 then
+				cs.grenade_charge = math.min(cs.throw_timer, 1)
+				cs.throw_started = true
+			elseif cs.throw_started then
+				cs.has_thrown = true
+				game.thrown[#game.thrown + 1] = { id = cs.current_stratagem, charge = cs.grenade_charge, aim = { x = t.aim.x, y = t.aim.y } }
+			end
+		end
+	end
+	game.step = function(n)
+		for _ = 1, n do
+			e:frames(1)
+			rawget(_G, "InputComponent").update_masters({}, 0.016)
+			character()
+		end
+	end
+	return S, cs
+end
+
+test("a_bot_calls_a_stratagem_with_the_button_held_the_code_entered_and_a_throw", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add()
+	E.eq(select(2, bot:use_stratagem("stratagem_resupply", { x = 1, y = 7 })), "no_avatar")
+	local u = game.land(2)
+	local S, cs = stratagem_world(api, game, e, u)
+	local held = bot:stratagems()
+	E.eq(#held, 2)
+	E.eq(held[1].name, "stratagem_resupply")
+	E.eq(held[1].ready, true)
+	E.eq(held[2].uses_left, 1)
+	E.eq(select(2, bot:use_stratagem("stratagem_mortar", { x = 1, y = 7 })), "not_held")
+	E.eq(select(2, bot:use_stratagem("stratagem_nothing", { x = 1, y = 7 })), "not_available")
+	E.eq(select(2, bot:use_stratagem("stratagem_resupply")), "no_position")
+	-- The player's any-arrow shortcut is the player's: the bot's code still makes its own stratagem.
+	api.stratagems.select(2)
+	api.effects.set("any_arrow", true)
+	bot:fight(25)
+	local done
+	E.eq(bot:use_stratagem("stratagem_resupply", { x = 1, y = 7 }, function(ok, why) done = { ok, why } end), true)
+	E.eq(select(2, bot:use_stratagem("stratagem_resupply", { x = 1, y = 7 })), "busy")
+	E.eq((bot:using_stratagem()), "stratagem_resupply")
+	game.step(1)
+	E.eq(cs.current_state, S.CharacterStateStratagems, "the held button opens the menu")
+	local t = u.master.input.input_data
+	local pressed = 0
+	for _ = 1, 60 do
+		E.eq(t.fire_button, 0, "no shooting while entering")
+		E.eq(t.stratagems_button, 1, "the button stays held")
+		game.step(1)
+		for _, d in ipairs({ "up", "down", "left", "right" }) do
+			if t["stratagem_" .. d] then pressed = pressed + 1 end
+		end
+		if cs.current_state ~= S.CharacterStateStratagems then break end
+	end
+	E.eq(pressed, 4, "one press an arrow")
+	E.eq(cs.current_state, S.CharacterStateStratagemsThrow, "the code calls it")
+	E.eq(cs.current_stratagem, 1)
+	game.step(120)
+	E.eq(#game.thrown, 1)
+	-- 6 metres away: the charge a mouse player aiming there gets, 6 * 6 * 0.015.
+	E.eq(math.abs(game.thrown[1].charge - 0.54) < 0.04, true, "as far as the point: " .. game.thrown[1].charge)
+	E.eq(game.thrown[1].aim.y, 1, "toward it")
+	E.eq(done[1], true)
+	E.eq(bot:using_stratagem(), false)
+	E.eq(cs.current_state, S.CharacterStateIdle)
+	game.step(1)
+	E.eq(bot:fighting(), 25, "the orders are kept")
+	u.master.inventory.stratagems[1].cooldown_timer = 30
+	E.eq(select(2, bot:use_stratagem("stratagem_resupply", { x = 1, y = 7 })), "cooling_down")
+end)
+
+test("a_bot_enters_the_code_again_when_an_arrow_counts_twice_and_hears_how_a_call_ended", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add()
+	local u = game.land(2)
+	local S, cs = stratagem_world(api, game, e, u)
+	local done
+	local function on_done(ok, why) done = { ok, why } end
+	game.doubled = "left"
+	E.eq(bot:use_stratagem("stratagem_machinegun", { x = 4, y = 1 }, on_done), true)
+	game.step(200)
+	E.eq(#game.thrown, 1, "thrown on the second try")
+	E.eq(game.thrown[1].id, 2)
+	E.eq(game.thrown[1].aim.x, 1)
+	E.eq(done[1], true)
+	-- A no-stratagem zone: the arrows do nothing, and the call gives up at once.
+	game.jammed = true
+	E.eq(bot:use_stratagem("stratagem_resupply", { x = 4, y = 1 }, on_done), true)
+	game.step(10)
+	E.eq(done[2], "jammed")
+	E.eq(cs.current_state, S.CharacterStateIdle, "the button let go")
+	game.jammed = nil
+	-- Cancelled with the beacon in hand: a melee press puts it back.
+	E.eq(bot:use_stratagem("stratagem_resupply", { x = 4, y = 1 }, on_done), true)
+	for _ = 1, 60 do
+		if cs.current_state == S.CharacterStateStratagemsThrow then break end
+		game.step(1)
+	end
+	E.eq(bot:cancel_stratagem(), true)
+	game.step(3)
+	E.eq(done[2], "cancelled")
+	E.eq(game.cancelled, true)
+	E.eq(#game.thrown, 1, "nothing more thrown")
+	-- A bot that goes down with no body mid-call hears it too.
+	E.eq(bot:use_stratagem("stratagem_resupply", { x = 4, y = 1 }, on_done), true)
+	game.step(1)
+	u.alive = false
+	game.state.players[2].player_go.avatar_unit = nil
+	game.step(1)
+	E.eq(done[2], "no_avatar")
+	E.eq(bot:using_stratagem(), false)
+end)
+
 -- Custom stratagems: a copy of a base in the game's list, with its own words, and the base on the wire.
 local function wire_world(game)
 	game.sent = {}

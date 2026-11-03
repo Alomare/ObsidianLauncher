@@ -444,6 +444,8 @@ Orders: `follow(unit, distance)`, `go_to(pos, distance)`, `hold()`, `aim_at(pos)
 
 Gear and help go to the bot as `api.gear`, `api.stratagems` and `api.player` give them to the main player, and answer `true` or `false` and a reason, `"no_avatar"` while the bot has no body: `give_weapon(slot, path, upgrade)`, `give_backpack(path, upgrade)`, `give_perk(name)`, `remove_perk()`, `refill()`, `give_stratagem(name)`, `call(name, pos, delay)` for a real call-in of the bot's, `heal()`, `teleport(pos)`, and `weapons()`.
 
+`use_stratagem(name, pos, on_done)` calls a stratagem from the bot's slots the way a player does: the stratagem button held, the code entered, the flare thrown at `pos`. It spends the cooldown and a use, and `on_done(ok, reason)` hears how it ended. `stratagems()` lists what the bot carries, and `cancel_stratagem()` stops a call.
+
 To drive one yourself: `move(dir)`, `aim(dir)`, `fire(on)`, `sprint(on)`, `reload()`, `dodge()`, `melee()`, `interact()`, `throw()` and `switch()`. Directions are world directions as `{ x, y }`. `unit()`, `alive()` and `remove()` do what they say. Bots walk straight at a goal with no pathfinding, and the game keeps local players on screen, so a player bot stops at the edge of the view.
 
 Bots go before a mission's results, so they never reach the end screens or anyone's save.
