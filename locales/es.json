@@ -10,10 +10,10 @@
   "uploads_blocked": "Los resultados de la Guerra Galáctica y de las clasificaciones no se envían mientras haya mods de sesión desplegados.",
   "every_player_off": "%s está desactivado, porque no todos los jugadores de aquí lo usan.",
   "proving_grounds_blocked": "%s es clasificatorio, así que está cerrado mientras haya mods de sesión en juego.",
-  "expansion_refused": "%s can't start. These players don't run it at the same version and settings: %s",
-  "expansion_turned_away": "%s couldn't join: %s needs every player to run it.",
-  "expansion_missing_here": "This lobby is playing %s, which isn't deployed here at the same version and settings.",
-  "expansion_unknown_player": "unknown player",
-  "expansion_proving_grounds": "%s is ranked, so it's closed while %s runs.",
-  "campaign_not_uploaded_expansion": "Progress was not uploaded to Galactic Campaign due to %s"
+  "expansion_refused": "%s no puede empezar. Estos jugadores no lo usan con la misma versión y los mismos ajustes: %s",
+  "expansion_turned_away": "%s no pudo unirse: %s necesita que todos los jugadores lo usen.",
+  "expansion_missing_here": "Esta partida usa %s, que no está desplegado aquí con la misma versión y los mismos ajustes.",
+  "expansion_unknown_player": "jugador desconocido",
+  "expansion_proving_grounds": "%s es clasificatorio, así que está cerrado mientras %s esté en marcha.",
+  "campaign_not_uploaded_expansion": "El progreso no se subió a la Campaña Galáctica debido a %s"
 }
