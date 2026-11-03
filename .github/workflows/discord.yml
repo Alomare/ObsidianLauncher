@@ -1,0 +1,39 @@
+# Posts a published release to the Discord updates channel as an embed: the version, a link to the release, and the
+# release's highlights (tools/discord_release.py). Pre-releases are never posted.
+#
+# Needs the repository secret DISCORD_RELEASE_WEBHOOK (the channel's webhook URL); without it the run says so and posts
+# nothing. A run by hand from the Actions tab posts a release that's already out, for one that was missed.
+# NEXUS_URL (a repository variable or secret), when set, adds a Nexus link.
+name: Discord
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to post (for example v1.2.0)
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  discord:
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Post the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
+          NEXUS_URL: ${{ vars.NEXUS_URL || secrets.NEXUS_URL }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK" ]; then
+            echo "::warning::The secret DISCORD_RELEASE_WEBHOOK isn't set: nothing posted."
+            exit 0
+          fi
+          python3 tools/discord_release.py "$TAG"
