@@ -19,10 +19,6 @@ on:
         type: choice
         options: [test, live]
         default: test
-  # Temporary, for a test from dev.
-  push:
-    branches: [dev]
-    paths: [.github/workflows/discord.yml]
 
 permissions:
   contents: read
@@ -37,7 +33,7 @@ jobs:
       - name: Post the release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.release.tag_name || inputs.tag || 'v1.2.2' }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
           LIVE: ${{ github.event_name == 'release' || inputs.target == 'live' }}
           LIVE_HOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
           TEST_HOOK: ${{ secrets.DISCORD_RELEASE_TEST }}
