@@ -24,7 +24,7 @@ local M = {
 local capabilities = {
 	after_startup = true, log = true, hook = true, wrap = true, on_require = true, on_session = true, session = true,
 	settings = true, keybind = true, text = true, on_frame = true, module = true, import = true, menu = true, toast = true, notify = true, storage = true, caller = true,
-	ui = true, scope = true, guardrails = true,
+	ui = true, scope = true, guardrails = true, info = true,
 }
 local api = {
 	version = API_VERSION,
@@ -261,6 +261,20 @@ function api.caller()
 	return M.current and M.current.id or nil
 end
 
+-- What a running mod is: id, name (from its obsidian.json, in the game's language, else English),
+-- version and scope ("client" or "session"). id: nil for the calling mod. nil for a mod that isn't
+-- running.
+function api.info(id)
+	local state
+	if id == nil then state = M.current else state = M.mods_by_id[B.tostring(id)] end
+	if not state or state.off then return nil end
+	local mod = state.mod
+	local names = B.type(mod.name) == "table" and mod.name or {}
+	local name = names[M.language()] or names.en
+	return { id = state.id, name = B.type(name) == "string" and name or state.id, version = B.tostring(mod.version),
+		scope = mod.scope == "client" and "client" or "session" }
+end
+
 -- Loads a script of the calling mod, named like the file in `modules` without `.lua`.
 function api.module(name)
 	local state = M.current
@@ -366,6 +380,8 @@ function M.boot()
 	for _, mod in B.ipairs(deploy.mods or {}) do
 		start(mod)
 	end
+	-- Pages added before Obsidian API started go to its window now.
+	menu.flush()
 	for _, cb in B.ipairs(M.after) do
 		M.call(cb.state, "after_startup", cb.fn)
 	end

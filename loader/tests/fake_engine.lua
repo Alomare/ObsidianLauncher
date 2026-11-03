@@ -138,7 +138,13 @@ function E.new(opts)
 		rawset(_G, "FRAMES", 0)
 		rawset(_G, "SHUTDOWNS", 0)
 		rawset(_G, "shutdown", function() rawset(_G, "SHUTDOWNS", rawget(_G, "SHUTDOWNS") + 1) end)
-		rawset(_G, "update", function() rawset(_G, "FRAMES", rawget(_G, "FRAMES") + 1) end)
+		rawset(_G, "update", function(dt)
+			rawset(_G, "FRAMES", rawget(_G, "FRAMES") + 1)
+			-- The game's update ends with the state machine's post_update, in every state.
+			local boot = rawget(_G, "Boot")
+			local machine = type(boot) == "table" and rawget(boot, "state_machine")
+			if type(machine) == "table" and type(machine.post_update) == "function" then machine:post_update(dt) end
+		end)
 		opts.modules = opts.modules or {}
 		opts.modules["lua/network/network_global"] = true
 		rawget(_G, "require")("lua/network/network_global")

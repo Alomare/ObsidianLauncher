@@ -56,10 +56,13 @@ function F.install(e, opts)
 
 	local boot = rawget(_G, "Boot")
 	boot.brightness_world = "brightness"
-	boot.state_machine = {
+	-- The game's StateMachine class, whose post_update the boot script calls at the end of every frame.
+	local machine_class = { post_update = function() end }
+	rawset(_G, "StateMachine", machine_class)
+	boot.state_machine = setmetatable({
 		get_current_state_name = function() return ui.state end,
 		get_current_state = function() return ui.state_object or {} end,
-	}
+	}, { __index = machine_class })
 
 	rawset(_G, "InputManager", {
 		has_interface = function(_, user, name) return ui.interfaces[user .. "/" .. name] == true end,
@@ -197,6 +200,9 @@ function F.install(e, opts)
 			end,
 		},
 	})
+	-- The game requires modules all the time, and the loader puts waiting hooks in at each, such as one on
+	-- the StateMachine just made.
+	pcall(rawget(_G, "require"), "lua/network/network_global")
 	return ui
 end
 

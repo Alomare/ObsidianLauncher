@@ -69,34 +69,43 @@ local function component(game, name, plugin)
 	}
 end
 
+-- A bundled mod as a deploy carries it: its scripts by resource name (added to `mods`), and the texts,
+-- keys and name of its manifest.
+function G.bundled(id, mods)
+	local manifest = E.read("bundled/" .. id .. "/obsidian.json")
+	mods["obsidian/mods/" .. id .. "/main"] = E.read("bundled/" .. id .. "/main.lua")
+	local list = manifest:match('"modules":%s*%[(.-)%]') or ""
+	for path in list:gmatch('"([^"]+)%.lua"') do
+		mods["obsidian/mods/" .. id .. "/" .. path] = assert(E.read("bundled/" .. id .. "/" .. path .. ".lua"), path)
+	end
+	local texts = {}
+	for _, lang in ipairs({ "en", "fr", "es", "pt-BR" }) do
+		local raw = E.read("bundled/" .. id .. "/locales/" .. lang .. ".json")
+		if raw then
+			texts[lang] = {}
+			for k, v in raw:gmatch('"([^"]+)": "(.-)",?\r?\n') do texts[lang][k] = v end
+		end
+	end
+	local keybinds = {}
+	for block in (manifest:match('"keybinds":%s*(%b[])') or ""):gmatch("%b{}") do
+		local key_id, default = block:match('"id":%s*"([^"]+)"'), block:match('"default":%s*"([^"]+)"')
+		if key_id then keybinds[#keybinds + 1] = { id = key_id, default = default } end
+	end
+	return { texts = texts, keybinds = keybinds, name = { en = manifest:match('"name":%s*{[^}]-"en":%s*"([^"]+)"') } }
+end
+
 -- Starts the engine with the bundled mods given, then a mission. opts: lobby, state, host, dlc.
 function G.start(ids, opts)
 	opts = opts or {}
 	local mods, deploy_mods = {}, {}
 	for _, id in ipairs(ids) do
-		local manifest = E.read("bundled/" .. id .. "/obsidian.json")
-		mods["obsidian/mods/" .. id .. "/main"] = E.read("bundled/" .. id .. "/main.lua")
-		local list = manifest:match('"modules":%s*%[(.-)%]') or ""
-		for path in list:gmatch('"([^"]+)%.lua"') do
-			mods["obsidian/mods/" .. id .. "/" .. path] = assert(E.read("bundled/" .. id .. "/" .. path .. ".lua"), path)
-		end
-		local texts = {}
-		for _, lang in ipairs({ "en", "fr", "es", "pt-BR" }) do
-			local raw = E.read("bundled/" .. id .. "/locales/" .. lang .. ".json")
-			if raw then
-				texts[lang] = {}
-				for k, v in raw:gmatch('"([^"]+)": "(.-)",?\r?\n') do texts[lang][k] = v end
-			end
-		end
-		deploy_mods[#deploy_mods + 1] = E.mod(id, { scope = opts.scope or "session", texts = texts,
+		local b = G.bundled(id, mods)
+		deploy_mods[#deploy_mods + 1] = E.mod(id, { scope = opts.scope or "session", texts = b.texts, name = b.name,
 			requires = id == "obsidian.trainer" and { "obsidian.api" } or nil,
 			options = { { id = "keep_edits", type = "toggle", default = false } },
-			keybinds = { { id = "open", default = "f6" } } })
+			keybinds = b.keybinds })
 	end
-	local e = E.new({ deploy = E.deploy({ mods = deploy_mods, has_session = opts.scope ~= "client", texts = { en = {
-		menu_title = "Obsidian", menu_empty = "No pages", menu_failed = "Page failed", menu_unavailable = "Not now",
-		menu_filter = "Filter", menu_keys = "Keys",
-	} } }), mods = mods, lobby = opts.lobby })
+	local e = E.new({ deploy = E.deploy({ mods = deploy_mods, has_session = opts.scope ~= "client" }), mods = mods, lobby = opts.lobby })
 
 	-- string and table helpers the game adds, then the rest of the game.
 	local game = { commands = {}, tampered = {}, protected = {}, sent = {}, rpc = {}, spawned = {}, saved = 0 }

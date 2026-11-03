@@ -128,4 +128,25 @@ test("session_mod_keybind_waits_for_a_cleared_session", function()
 	E.eq(rawget(_G, "PRESSES"), 0, "not cleared")
 end)
 
+test("a_keybind_with_always_fires_in_a_lobby_that_isnt_cleared", function()
+	local e = engine(nil, { scope = "session" }, [[
+		rawset(_G, "PRESSES", 0)
+		obsidian.keybind("toggle", function() rawset(_G, "PRESSES", rawget(_G, "PRESSES") + 1) end, { always = true })
+	]])
+	e:core().deploy.has_session = true
+	rawset(_G, "NetworkGlobal", { lobby = {
+		my_id = "me",
+		lobby = {},
+		state = function() return "joined" end,
+		members = function() return { "me", "p2" } end,
+		member_data = function() return nil end,
+		set_member_data = function() end,
+	} })
+	e:frames(31)
+	E.eq(e:core().session.cleared(), false, "the lobby isn't cleared")
+	e.held.f8 = true
+	e:frames(1)
+	E.eq(rawget(_G, "PRESSES"), 1, "the session gate leaves it alone, as with obsidian.wrap")
+end)
+
 return T

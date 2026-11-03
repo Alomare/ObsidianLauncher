@@ -293,6 +293,8 @@ fn table_with(comp: &Composition, texts: Value, mod_texts: fn(&Path) -> Result<V
             crate::options::parse_keybinds(&m.keybinds)?.into_iter().map(|k| json!({ "id": k.id, "default": k.default })).collect();
         mods.push(json!({
             "id": m.id,
+            // By language, for obsidian.info: Obsidian API names each mod's folder of the in-game window with it.
+            "name": m.name,
             "version": m.version.to_string(),
             "scope": scope_text(&scope),
             "entry": entry_name(&m.id),
@@ -534,6 +536,7 @@ mod tests {
         let ids: Vec<&str> = table["mods"].as_array().unwrap().iter().map(|m| m["id"].as_str().unwrap()).collect();
         assert_eq!(ids, ["b", "a"]);
         assert_eq!(table["mods"][0]["entry"], "obsidian/mods/b/main");
+        assert_eq!(table["mods"][0]["name"], json!({ "en": "b" }), "the name, by language, for obsidian.info");
         assert_eq!(table["has_session"], true);
         assert_eq!(table["has_static_session"], false, "an entry can stop when the session isn't cleared");
         assert_eq!(table["modset"].as_str().unwrap().len(), 64);
@@ -738,7 +741,9 @@ mod tests {
         assert_eq!(ids, ["obsidian.api", "obsidian.trainer", "obsidian.qol"]);
         assert_eq!(table["has_session"], true, "session mods, so the shared war stays out of it");
         assert_eq!(table["has_static_session"], false, "both can switch off live");
-        assert_eq!(table["mods"][1]["keybinds"][0]["default"], "f6");
+        assert_eq!(table["mods"][0]["keybinds"][0]["default"], "f6", "the in-game window's key is Obsidian API's");
+        assert_eq!(table["mods"][1]["keybinds"], json!([]), "the Trainer's pages open with it");
+        assert_eq!(table["mods"][1]["name"]["en"], "Obsidian Trainer", "the name of the Trainer's folder");
         assert!(table["mods"][1]["texts"]["pt-BR"]["god"].is_string());
         let planned = build(&find_loader_dir().unwrap(), &comp).unwrap();
         for name in ["obsidian/loader/menu", "obsidian/loader/storage", "obsidian/mods/obsidian.api/lib/game", "obsidian/mods/obsidian.api/lib/data", "obsidian/mods/obsidian.trainer/pages/player"] {
