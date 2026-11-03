@@ -16,7 +16,7 @@ end
 
 test("every_module_loads_and_the_api_is_exported", function()
 	local api = start()
-	for _, name in ipairs({ "game", "effects", "edits", "console", "catalog", "world", "player", "gear", "stratagems", "enemies", "mission", "progress", "events", "combat", "vehicles", "lobby", "ui", "audio", "map", "bots" }) do
+	for _, name in ipairs({ "game", "effects", "edits", "console", "catalog", "world", "player", "gear", "stratagems", "enemies", "mission", "progress", "events", "combat", "vehicles", "lobby", "ui", "audio", "map", "bots", "music" }) do
 		E.eq(type(api[name]), "table", name)
 	end
 end)
@@ -2867,6 +2867,149 @@ test("only_the_host_in_a_mission_makes_bots", function()
 	bot_world(game2, e2)
 	ui2.state = "menu"
 	E.eq(select(2, api2.bots.add()), "not_in_mission")
+end)
+
+-- The soundtrack: the ship and the main menu swap their one music id, a mission's machine is muted.
+local function ship(game, ui)
+	local st = { music_timpani_world = "music world" }
+	st.menu_music_id = rawget(_G, "TimpaniWorld").trigger_event("music world", "music_bridge")
+	ui.state, ui.state_object = "menu", st
+	return st
+end
+
+local function mission_machine(game)
+	local T = rawget(_G, "TimpaniWorld")
+	local machine = game.state.audio_state_machine
+	machine.timpani_world = "sound world"
+	machine.music_threat = T.trigger_event("sound world", "music_threat")
+	T.set_parameter("sound world", machine.music_threat, "volume", 1)
+	return machine
+end
+
+test("a_held_track_takes_the_ships_slot_and_the_ship_gets_its_own_back", function()
+	local api, game, e, ui = start()
+	local st = ship(game, ui)
+	local bridge = st.menu_music_id
+	E.eq(api.music.now().place, "ship")
+	E.eq(api.music.play("music_credits"), true)
+	E.eq(game.playing[bridge], nil, "the bridge music stopped")
+	E.eq(game.played[st.menu_music_id].name, "music_credits", "the ship's own fades work on it")
+	E.eq(api.music.now().track, "music_credits")
+	E.eq(api.music.release(), true)
+	E.eq(game.played[st.menu_music_id].name, "music_bridge")
+	E.eq(game.playing[st.menu_music_id], true)
+	E.eq(api.music.now().held, false)
+end)
+
+test("a_held_track_loops_and_comes_back_when_the_screen_swaps_its_own_in", function()
+	local api, game, e, ui = start()
+	local st = ship(game, ui)
+	api.music.play("music_credits")
+	local first = st.menu_music_id
+	game.playing[first] = nil
+	e:frames(1)
+	E.eq(game.played[st.menu_music_id].name, "music_credits")
+	E.eq(st.menu_music_id ~= first, true, "started again")
+	-- As the credits screen does: it stops everything and starts its own.
+	st.menu_music_id = rawget(_G, "TimpaniWorld").trigger_event("music world", "music_theme")
+	local theirs = st.menu_music_id
+	e:frames(1)
+	E.eq(game.playing[theirs], nil)
+	E.eq(game.played[st.menu_music_id].name, "music_credits")
+end)
+
+test("silence_leaves_a_stopped_id_in_the_slot", function()
+	local api, game, e, ui = start()
+	local st = ship(game, ui)
+	local bridge = st.menu_music_id
+	E.eq(api.music.stop(), true)
+	E.eq(st.menu_music_id, bridge, "the ship sets its volume each frame and never checks for nil")
+	E.eq(game.playing[bridge], nil)
+	e:frames(3)
+	E.eq(st.menu_music_id, bridge)
+	E.eq(api.music.now().held, true)
+	E.eq(api.music.now().track, nil)
+	api.music.release()
+	E.eq(game.played[st.menu_music_id].name, "music_bridge")
+end)
+
+test("in_a_mission_the_machines_music_goes_quiet_beside_the_held_track", function()
+	local api, game, e = start()
+	local machine = mission_machine(game)
+	E.eq(api.music.now().place, "mission")
+	E.eq(api.music.play("music_theme"), true)
+	E.eq(game.params[machine.music_threat].volume, 0)
+	local mine
+	for id, p in pairs(game.played) do
+		if p.name == "music_theme" and game.playing[id] then mine = id end
+	end
+	E.eq(mine ~= nil, true, "the held track plays in the mission's world")
+	E.eq(game.params[mine].volume, 1)
+	-- The machine starts its action music: quiet from the first frame, through the hook.
+	rawset(_G, "AudioStateMachine", { on_enter_state = function(self, name)
+		self.music_action = rawget(_G, "TimpaniWorld").trigger_event("sound world", "music_action_bugs")
+		rawget(_G, "TimpaniWorld").set_parameter("sound world", self.music_action, "volume", 1)
+	end })
+	rawget(_G, "require")("lua/network/network_global")
+	rawget(_G, "AudioStateMachine").on_enter_state(machine, "action")
+	E.eq(game.params[machine.music_action].volume, 0)
+	api.music.release()
+	E.eq(game.playing[mine], nil)
+	E.eq(game.params[machine.music_threat].volume, 1)
+	E.eq(game.params[machine.music_action].volume, 1)
+end)
+
+test("a_pause_is_real_where_music_has_its_own_world_and_silence_elsewhere", function()
+	local api, game, e, ui = start()
+	local machine = mission_machine(game)
+	api.music.pause()
+	E.eq(game.params[machine.music_threat].volume, 0)
+	game.params[machine.music_threat].volume = 0.7
+	e:frames(1)
+	E.eq(game.params[machine.music_threat].volume, 0, "held against the machine's fade")
+	E.eq(api.music.now().paused, true)
+	-- The pause goes with the player to the ship, where its world pauses.
+	ship(game, ui)
+	e:frames(1)
+	E.eq(game.paused_worlds["music world"], true)
+	api.music.resume()
+	E.eq(game.paused_worlds["music world"], nil)
+end)
+
+test("a_hold_follows_to_the_next_screen", function()
+	local api, game, e, ui = start()
+	local st = ship(game, ui)
+	api.music.play("music_theme")
+	ui.state, ui.state_object = "game", game.state
+	local machine = mission_machine(game)
+	e:frames(1)
+	E.eq(game.params[machine.music_threat].volume, 0)
+	local found = false
+	for id, p in pairs(game.played) do
+		if p.name == "music_theme" and p.world == "sound world" and game.playing[id] then found = true end
+	end
+	E.eq(found, true)
+end)
+
+test("only_a_track_the_screen_has_plays", function()
+	local api, game, e, ui = start()
+	E.eq(select(2, api.music.play("music_bridge")), "no_music", "no music in this state")
+	ship(game, ui)
+	local list = api.music.tracks()
+	E.eq(#list, 3)
+	E.eq(list[1], "music_theme")
+	E.eq(select(2, api.music.play("music_threat")), "unknown_event")
+	E.eq(select(2, api.music.play(5)), "unknown_event")
+	E.eq(api.music.volume(-12), true)
+	e:frames(1)
+	E.eq(game.buses.music_master, -12)
+end)
+
+test("a_client_mod_holds_its_own_music", function()
+	local api, game, e, ui = start({ scope = "client" })
+	ship(game, ui)
+	E.eq(api.music.play("music_credits"), true)
+	E.eq(api.music.pause(), true)
 end)
 
 return T

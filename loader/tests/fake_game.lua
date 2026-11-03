@@ -141,11 +141,29 @@ function G.start(ids, opts)
 		game.bus = { bus, v }
 		game.buses[bus] = v
 	end })
-	-- The sounds this mission has, and what it was asked to play.
+	-- The sounds each world has, and what it was asked to play: an id per event, which plays until it's
+	-- stopped or the test ends it. Parameters and pauses are kept by id and by world.
 	game.played = {}
+	game.events = { ["sound world"] = { ui_select = true, music_objective_found = true, music_threat = true, music_action_bugs = true, music_theme = true },
+		["music world"] = { music_bridge = true, music_theme = true, music_credits = true } }
+	game.playing, game.params, game.paused_worlds = {}, {}, {}
 	rawset(_G, "TimpaniWorld", {
-		has_event = function(world, name) return world == "sound world" and (name == "ui_select" or name == "music_objective_found") end,
-		trigger_event = function(_, name, pos) game.played[#game.played + 1] = { name = name, pos = pos } end,
+		has_event = function(world, name) return game.events[world] ~= nil and game.events[world][name] == true end,
+		trigger_event = function(world, name, pos)
+			local id = #game.played + 1
+			game.played[id] = { name = name, pos = pos, world = world }
+			game.playing[id] = true
+			return id
+		end,
+		stop = function(_, id) game.playing[id] = nil end,
+		is_playing = function(_, id) return game.playing[id] == true end,
+		set_parameter = function(_, id, name, value)
+			assert(id ~= nil, "no event id")
+			game.params[id] = game.params[id] or {}
+			game.params[id][name] = value
+		end,
+		pause_all = function(world) game.paused_worlds[world] = true end,
+		resume_all = function(world) game.paused_worlds[world] = nil end,
 	})
 	rawset(_G, "Network", { peer_id = function() return "me" end, ping = function(peer)
 		if peer == "lost" then error("no connection") end

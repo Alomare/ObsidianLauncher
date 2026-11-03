@@ -46,7 +46,7 @@ The menu blocks your character while it's open, and it closes by itself when the
 - **Spawn:** ammunition, supply crates and pickups on the spot, and flares at the cursor.
 - **Enemies:** stopping spawns, freezing, blinding or stunning enemies, killing them, spawning more, and setting how hard encounters and patrols push.
 - **Mission:** the objective list, finishing objectives, protecting convoys and escorts, fast extraction, skipping waits, proving ground modifiers in any mission, who's in the lobby, research samples, and practice missions of any kind from the ship.
-- **World:** game speed, camera, HUD, fog, time of day and gravity.
+- **World:** game speed, camera, HUD, fog, time of day and gravity, and the sound: volumes, and a **Soundtrack** page that plays any music track the screen has, silences or pauses it, and gives it back to the game.
 - **Editor:** the numbers of every weapon, grenade, backpack, stratagem, sentry, mine, strike, vehicle, enemy and status effect.
 - **Console:** the developer commands.
 - **Changes:** everything switched on or edited, with a way to undo it all at once.

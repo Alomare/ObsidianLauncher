@@ -141,6 +141,7 @@ end)
 | `api.lobby` | `players()`, `share(name, value)`, `shared(name)` |
 | `api.world` | `cursor`, `ahead`, `to_screen(pos)`, `prop(unit, pos, opts)`, `explode`, `camera`, `shading(name, kind, value)`, `flash(seconds)` |
 | `api.audio` | `bus(name, db)`, `play(event, pos)`, `stinger(name)` |
+| `api.music` | `now()`, `tracks()`, `play(track)`, `stop()`, `release()`, `pause()`, `resume()`, `volume(db)` |
 | `api.progress` | `set_samples`, `unlock_items`, `upgrade_all`, `loadout()`, `set_loadout(t)`, `upgrades()`, `set_upgrade(name, value)`, `upgrade_limit(name)` |
 | `api.console` | `run(line)`, `commands()` |
 
@@ -325,6 +326,25 @@ api.audio.stinger("music_objective_found")
 - `api.audio.BUSES` lists the buses. A volume repeats every frame, because the game's mix states write them as they blend.
 - `play` and `stinger` answer `"unknown_event"` for a sound this mission hasn't loaded.
 - `stinger` goes through the game's own cooldown of 5 seconds.
+
+### The soundtrack
+
+`api.music` picks what plays. A track you play holds on this screen and the next ones, and loops, until `release()` gives the music back to the game.
+
+```lua
+api.music.tracks()              -- the music events this screen has
+api.music.play("music_credits") -- in place of the game's music
+api.music.stop()                -- silence, held the same way
+api.music.pause()
+api.music.resume()
+api.music.release()             -- the game picks again
+api.music.volume(-12)           -- decibels, as api.audio.bus("music_master", ...)
+api.music.now()                 -- { place, track, held, paused }
+```
+
+- `api.music.TRACKS` lists every music event the game's scripts start. A screen has only some of them, so `play` answers `"unknown_event"` for one it hasn't loaded, and `"no_music"` where there's no music at all. A held track that the next screen hasn't loaded leaves that screen silent.
+- On the main menu and the ship the music has a sound world of its own, so a pause stops it where it is. In a mission and on the mission's start and end screens, a pause mutes it and it keeps its time.
+- In a mission, the game's own threat and combat music go quiet while a track is held, and come back when it's released.
 
 ## Loadouts {#loadouts}
 
