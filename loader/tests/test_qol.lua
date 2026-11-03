@@ -420,7 +420,7 @@ end)
 
 -- A unit whose animation state is a list of numbers, and the character and inventory states the fix reads.
 local function recoil_game()
-	local g = { unit = { alive = true, pose = { 1, 2, 3, 4, 5, 7, 9 } }, set = 0, cs = {}, inv = { current_weapon = "rifle" } }
+	local g = { unit = { alive = true, pose = { 1, 2, 3, 4, 5, 7, 9 } }, set = 0, flows = {}, cs = {}, inv = { current_weapon = "rifle" } }
 	rawset(_G, "Unit", {
 		alive = function(u) return u.alive end,
 		animation_get_state = function(u) return unpack(u.pose) end,
@@ -428,10 +428,12 @@ local function recoil_game()
 			u.pose = { ... }
 			g.set = g.set + 1
 		end,
+		flow_event = function(u, name) g.flows[#g.flows + 1] = { u, name } end,
 	})
 	rawset(_G, "EntityAux", { state = function(_, component) return component == "inventory" and g.inv or g.cs end })
-	for _, n in ipairs({ "CharacterStateIdle", "CharacterStateWalk", "CharacterStateFire", "CharacterStateStratagemsThrow" }) do rawset(_G, n, { name = n }) end
+	for _, n in ipairs({ "CharacterStateIdle", "CharacterStateWalk", "CharacterStateFire", "CharacterStateStratagemsThrow", "CharacterStateSwitchWeapon" }) do rawset(_G, n, { name = n }) end
 	rawset(_G, "CharacterStateStratagems", { on_enter = function() end })
+	rawset(_G, "CharacterStateInteract", { on_enter = function() end })
 	return g
 end
 
@@ -454,20 +456,49 @@ test("recoil_fix_puts_the_weapon_pose_back_after_a_stratagem", function()
 	E.eq(#g.unit.pose, 7)
 	e:frames(30)
 	E.eq(g.set, 1, "once")
-	-- A layer the throw left alone stays alone, and so does one after a weapon switch.
+	-- A layer the throw left alone stays alone, and a weapon switch on the way drops the check.
 	S.on_enter(g.unit, {}, idle)
 	e:frames(30)
 	E.eq(g.set, 1, "nothing to put back")
 	S.on_enter(g.unit, {}, idle)
 	g.unit.pose[6], g.inv.current_weapon = 12, "pistol"
+	g.cs.current_state = rawget(_G, "CharacterStateSwitchWeapon")
+	e:frames(2)
+	g.cs.current_state = idle
 	e:frames(30)
-	E.eq(g.set, 1, "another weapon in hand")
+	E.eq(g.set, 1, "switched by the player")
+	E.eq(#g.flows, 0)
 	-- A pose kept mid-shot would fire the weapon again.
 	g.inv.current_weapon = "rifle"
 	S.on_enter(g.unit, {}, rawget(_G, "CharacterStateFire"))
 	e:frames(30)
 	E.eq(g.set, 1, "opened while firing")
 	E.eq(E.count(e:log("obsidianqol"), "recoil fix: weapon pose put back"), 1)
+end)
+
+test("recoil_fix_sets_up_a_weapon_picked_up_from_the_ground", function()
+	local g = recoil_game()
+	local e = engine()
+	local idle = rawget(_G, "CharacterStateIdle")
+	g.cs.current_state = idle
+	rawget(_G, "CharacterStateInteract").on_enter(g.unit, {}, idle)
+	g.cs.current_state = nil
+	g.inv.current_weapon = "machinegun"
+	e:frames(10)
+	E.eq(#g.flows, 0, "not while picking it up")
+	g.cs.current_state = idle
+	e:frames(21)
+	E.eq(#g.flows, 1)
+	E.eq(g.flows[1][1], "machinegun", "the weapon picked up")
+	E.eq(g.flows[1][2], "on_wielded")
+	E.eq(g.set, 0, "no pose of another weapon put on it")
+	-- An interaction that keeps the weapon puts the pose back, as after a stratagem.
+	rawget(_G, "CharacterStateInteract").on_enter(g.unit, {}, idle)
+	g.unit.pose[6] = 12
+	e:frames(25)
+	E.eq(g.set, 1)
+	E.eq(g.unit.pose[6], 7)
+	E.eq(#g.flows, 1)
 end)
 
 test("recoil_fix_off_leaves_the_pose", function()
