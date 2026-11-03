@@ -31,6 +31,6 @@ Um perfil que você compartilha ou importa mantém esses dois, e o Obsidian avis
 
 ## Sempre ligado {#always-on}
 
-Resultados da Guerra Galáctica e placares nunca são enviados enquanto houver mods de sessão aplicados, e Proving Grounds fica fechado ([A Guerra Galáctica](wiki:galactic-war)). Isso protege os outros jogadores, então não é uma escolha. [O que as proteções não fazem](wiki:honest-limits) explica os limites de tudo isso.
+Resultados da Guerra Galáctica e placares nunca são enviados enquanto houver mods de sessão aplicados, nem de uma missão em que o conteúdo de uma expansão rodou, e Proving Grounds fica fechado nesses casos ([A Guerra Galáctica](wiki:galactic-war)). Isso protege os outros jogadores, então não é uma escolha. [O que as proteções não fazem](wiki:honest-limits) explica os limites de tudo isso.
 
 Autores de mods podem ler as escolhas do jogador com `obsidian.guardrails()` ([API do loader](wiki:loader-api#obsidian-guardrails)).

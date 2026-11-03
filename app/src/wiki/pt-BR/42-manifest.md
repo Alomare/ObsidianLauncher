@@ -43,8 +43,8 @@ O `obsidian.json` fica no topo da pasta do mod, ou no topo do `.zip`. O Obsidian
 | `authors` | não | Uma lista de nomes. |
 | `image` | não | Uma imagem quadrada PNG, JPG ou WebP dentro da pasta do mod, até 4 MB. |
 | `source` | não | O endereço do mod, mostrado nos detalhes dele. Um repositório do GitHub como `https://github.com/you/mod` também permite que os jogadores atualizem o mod pelo app ([Compartilhar um mod](wiki:sharing#updates)). |
-| `scope` | não | `client`, `session` ou `library` ([Escopos](wiki:scopes)). Sem o campo, ou com valor desconhecido, o mod fica não especificado e roda como mod de cliente, ou como mod de sessão com `every_player`. |
-| `every_player` | não | `true` para um mod que só funciona quando todos os jogadores do lobby o rodam ([Mods que todos os jogadores precisam ter](wiki:session-mods#every-player)). Não vale para mods de cliente. |
+| `scope` | não | `client`, `session`, `expansion` ou `library` ([Escopos](wiki:scopes)). Sem o campo, ou com valor desconhecido, o mod fica não especificado e roda como mod de cliente, ou como mod de sessão com `every_player`. |
+| `every_player` | não | `true` para um mod que só funciona quando todos os jogadores do lobby o rodam ([Mods que todos os jogadores precisam ter](wiki:session-mods#every-player)). Não vale para mods de cliente nem para expansões. |
 | `entry` | não | O script Lua que o loader inicia. Mods que só substituem arquivos do jogo não usam. |
 | `modules` | não | Mais arquivos `.lua` além do `entry`, que o mod carrega com `obsidian.module`. Caminhos dentro da pasta do mod. |
 | `requires` | não | Ids dos mods de que este precisa. Ligar o mod liga esses também, e eles iniciam primeiro. Os jogadores os veem na aba Dependências do mod. A aplicação para com uma mensagem se faltar algum. |

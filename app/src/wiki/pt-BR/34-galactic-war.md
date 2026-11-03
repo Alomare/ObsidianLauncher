@@ -18,3 +18,7 @@ Proving Grounds é ranqueado, com placares e capas para os melhores tempos. Enqu
 
 > [!NOTE]
 > O bloqueio vale enquanto houver conteúdo de sessão aplicado, mesmo numa missão em que os seus mods de sessão estejam desligados. Use Limpar, ou aplique sem mods de sessão, para voltar a participar da guerra.
+
+## Expansões {#expansions}
+
+Uma expansão aplicada não muda nada aqui até o conteúdo começar. Enquanto o conteúdo roda, Proving Grounds fica fechado, e os resultados de cada missão em que o conteúdo roda ficam fora da guerra. Esses resultados esperam na nave depois que o conteúdo termina e são descartados quando a próxima missão começa. Essa próxima missão, sem o conteúdo, conta normalmente.

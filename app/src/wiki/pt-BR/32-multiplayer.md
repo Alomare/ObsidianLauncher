@@ -16,11 +16,14 @@ O Obsidian muda quais lobbies públicos você encontra, para que um jogador sem 
 
 | A sua configuração | Quem você encontra no matchmaking |
 |---|---|
-| Sem mods de sessão, interruptor desligado | Todo mundo. É o jogo normal. |
+| Sem mods de sessão, interruptor desligado | Todo mundo. É o jogo normal. Expansões não mudam isso |
 | Mods de sessão aplicados, ou interruptor ligado | Só outros jogadores do Obsidian com mods de sessão ou com o interruptor ligado |
 | Um mod que todos os jogadores precisam ter aplicado | Só jogadores que rodam esse mesmo mod, na mesma versão |
+| Hospedando o conteúdo de uma expansão | O lobby só aparece para jogadores que rodam essa expansão, na mesma versão |
 
 Ou seja: com o interruptor ligado, o seu lobby aparece para quem roda mods de sessão, e você deixa de ver os lobbies sem mods. Desligue quando quiser o matchmaking normal de volta.
+
+Com uma expansão aplicada, a lista também mostra os lobbies de jogadores que estão no conteúdo dessa mesma expansão, qualquer que seja o grupo de matchmaking do jogador.
 
 Os filtros de lobby do terminal de multijogador mostram **(só Obsidian)** enquanto você está no grupo do Obsidian, para que uma lista vazia não pareça defeito.
 
@@ -57,6 +60,12 @@ Esses mods também têm um grupo de matchmaking próprio, então você só encon
 
 > [!TIP]
 > Valores de opção que o autor marca como pessoais, como a distância da câmera, não contam quando o Obsidian compara os conjuntos. Um amigo pode escolher outra distância de câmera e ainda combinar com você.
+
+## Expansões {#expansions}
+
+Uma [expansão](wiki:scopes#expansions) roda como mod de cliente até o host iniciar o conteúdo. O início confere todos os jogadores do lobby: cada um precisa rodar a mesma expansão, na mesma versão e com os mesmos valores de opção. Se alguém não roda, nada começa e o host fica sabendo quem. O interruptor de multijogador não conta aqui.
+
+Depois que o conteúdo começa, todos os jogos do lobby seguem o host. Um jogador que tenta entrar sem a expansão é recusado, e o host vê o nome. Ninguém que entra ou sai desliga o conteúdo para quem já está nele. Quando o host para o conteúdo, ou quando o jogador sai do lobby, a expansão volta a ser um mod de cliente.
 
 ## Mods que não desligam na hora {#mods-that-can-t-switch-off-live}
 

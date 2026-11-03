@@ -31,6 +31,6 @@ summary: 顶部的盾牌：其他玩家的会话模组、成就和你账号的�
 
 ## 始终开启 {#always-on}
 
-部署了会话模组时，银河战争结果和排行榜永远不会发送，试炼场也会保持关闭（[银河战争](wiki:galactic-war)）。这是为了保护其他玩家，因此不提供选择。[防护措施做不到的事](wiki:honest-limits)说明了这一切的局限。
+部署了会话模组时，或任务中运行过扩展模组的内容时，银河战争结果和排行榜永远不会发送，此时试炼场也保持关闭（[银河战争](wiki:galactic-war)）。这是为了保护其他玩家，因此不提供选择。[防护措施做不到的事](wiki:honest-limits)说明了这一切的局限。
 
 模组作者可以用 `obsidian.guardrails()` 读取玩家的选择（[加载器 API](wiki:loader-api#obsidian-guardrails)）。

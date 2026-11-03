@@ -18,7 +18,7 @@ Obsidian API 是供其他模组使用的模组。它知道游戏中各项内容�
 "requires": ["obsidian.api"]
 ```
 
-Obsidian API 是一个[库](wiki:session-mods#libraries)。客户端模组可以依赖它并保持客户端身份，不影响匹配和银河战争。这种情况下，它可以读取游戏数据并使用 `api.ui`、`api.audio` 和 `api.events`，而任何会改变共享游戏的操作都返回 `false, "needs_session"`。要使用这些操作，请把你的模组设为会话模组。
+Obsidian API 是一个[库](wiki:session-mods#libraries)。客户端模组可以依赖它并保持客户端身份，不影响匹配和银河战争。这种情况下，它可以读取游戏数据并使用 `api.ui`、`api.audio` 和 `api.events`，而任何会改变共享游戏的操作都返回 `false, "needs_session"`。要使用这些操作，模组需要是会话模组，或者是扩展模组：扩展模组在内容运行期间可以使用 Obsidian API 的全部功能，在内容之外得到 `false, "not_started"`（[编写扩展模组](wiki:session-mods#expansions)）。扩展模组在部署时不会改变 Obsidian API 的客户端模组身份。
 
 然后获取它：
 
@@ -130,19 +130,21 @@ end)
 | `api.game` | 当前状态、本地玩家、`is_host()` 和安全写入 |
 | `api.catalog` | 按名称列出武器、战略配备、技能、敌人和敌群：基础游戏，加上玩家拥有的 DLC。`usable(name)` 检查这一点，`unowned_path(path)` 检查武器的路径，`unlocked(name)` 说明玩家是否通过游玩解锁了某个物品。还有 `backpacks`、`crates`、`pickups`、`vehicles`、`by_subtype(name)` 和 `max_upgrade(path)` |
 | `api.player` | `heal`、`heal_by(amount)`、`set_health(n)`、`respawn`、`teleport`、`set_cosmetic`、`set_outline(r, g, b)`、`clear_status(name)`、`immune(name, on)`、`knockdown`、`drop_carried` 等 |
-| `api.gear` | `refill`、`give_weapon(slot, path, upgrade)`、`give_backpack(path, upgrade)`、`give_perk`、`remove_perk`、`add_perk(name, unit)`、`remove_extra_perk(name, unit)`、`extra_perks(unit)`、`refresh`、`weapons_of(owner)`、`tune(unit, component, changes)`、`add_drone(path, unit, upgrade)` |
-| `api.stratagems` | `reset_cooldowns`、`refill_uses`、`give`、`drop`、`call(name, pos, delay)`、`edit(name, field, value)` |
+| `api.gear` | `refill`、`give_weapon(slot, path, upgrade, unit)`、`give_backpack(path, upgrade, unit)`、`give_perk(name, unit)`、`remove_perk(unit)`、`add_perk(name, unit)`、`remove_extra_perk(name, unit)`、`extra_perks(unit)`、`refresh`、`weapons_of(owner)`、`tune(unit, component, changes)`、`add_drone(path, unit, upgrade)` |
+| `api.stratagems` | `reset_cooldowns`、`refill_uses`、`give`、`drop`、`call(name, pos, delay)`、`edit(name, field, value)`、`define(def)`、`custom()` |
 | `api.enemies` | `spawn`、`spawn_group`、`spawn_entity(path, pos)`、`kill_all`、`kill(unit)`、`list`、`info(unit)`、`nearest(pos)`、`apply_status(unit, template)`、`stun_near(radius)`、`near(radius, pos)`、`damage(unit, power, statuses)`、`set_hitpoints(unit, n)`、`despawn(unit)`、`load_faction(name)`、`set_pressure(t)`、`waves()`、`force_wave(name, pos)`、`carried()`（地图上的敌人，含尸体和生成队列）、`room()`（低于 `MAX_SAFE` 还能容纳的数量） |
 | `api.mission` | `finish_objectives`、`objectives()`、`mutator(name)`、`win`、`abort`、`practice` |
 | `api.vehicles` | `current()`、`driving()`、`repair()`、`refill()` |
 | `api.combat` | `scale{ players, enemies }` |
 | `api.events` | `on(name, fn)`、`off(name, fn)` |
 | `api.ui` | `hint(text, seconds)`、`ping(pos)`、`open(name, opts)`、`close()`、`menus()`、`with_texts(texts, fn, ...)` |
+| `api.menu` | 游戏内窗口（F6）：`add(title, build, opts)`、`open()`、`close()`、`toggle()`、`is_open()`、`toast(text, seconds)`。每个模组的页面位于以该模组命名的文件夹中 |
 | `api.map` | `is_open(unit)`, `open()`, `close()`, `zoom()`, `set_zoom(z)`, `view()`, `cursor()`, `look_at(pos)`, `pings()`, `to_map(pos)`, `to_world(x, y)`, `marker(pos, opts)`, `clear_markers()` |
-| `api.bots` | `add(opts)`, `all()`, `remove_all()` |
+| `api.bots` | `add(opts)`、`all()`、`remove_all()`，以及每个机器人的命令、装备和协助 |
 | `api.lobby` | `players()`、`share(name, value)`、`shared(name)` |
 | `api.world` | `cursor`、`ahead`、`to_screen(pos)`、`prop(unit, pos, opts)`、`explode`、`camera`、`shading(name, kind, value)`、`flash(seconds)` |
 | `api.audio` | `bus(name, db)`、`play(event, pos)`、`stinger(name)` |
+| `api.music` | `now()`、`tracks()`、`play(track)`、`stop()`、`release()`、`pause()`、`resume()`、`volume(db)` |
 | `api.progress` | `set_samples`、`unlock_items`、`upgrade_all`、`loadout()`、`set_loadout(t)`、`upgrades()`、`set_upgrade(name, value)`、`upgrade_limit(name)` |
 | `api.console` | `run(line)`、`commands()` |
 
@@ -206,6 +208,38 @@ api.stratagems.call("stratagem_resupply", api.world.cursor(), 15)   -- 在原有
 `api.stratagems.drop` 是快速方式：没有信标，没有等待，不能用于增援。
 
 效果 `ignore_jammers` 让战略配备可以在禁用区域内使用。
+
+### 自定义战略配备 {#custom-stratagems}
+
+`api.stratagems.define(def)` 向游戏的列表中添加一个战略配备，它以游戏自带的某个战略配备为基础（base）制作。返回 `{ name, id }`，或者返回 `nil` 和原因。应在模组启动时定义它，这样包含它的已保存配装仍能找到它。
+
+```lua
+api.stratagems.define({
+  name = "mymod_pitchfork",                 -- 新名称，字母、数字和 _
+  base = "stratagem_lasercannon",           -- 被复制的对象，也是其他玩家看到的样子
+  title = { en = "Pitchfork", fr = "Fourche" },
+  description = "Three barrels.",
+  code = { "down", "left", "up", "down", "left", "right" },
+  icon = "stratagem_lasercannon",           -- HUD 拥有的任意图标
+  type = "supply",                          -- supply、offensive、defensive 或 special
+  stats = { cooldown_time = 60, num_uses = 2, activation_time = 2 },
+  upgrades = {
+    { title = "Pitchfork Light", description = "Move while firing.", cost = 3, stats = { cooldown_time = 45 } },
+  },
+  on_activate = function(ctx)               -- 呼叫时在投掷者的机器上运行
+    api.world.explode(ctx.position, 2000, 8)
+    return false                            -- false：不再投放其他东西
+  end,
+})
+```
+
+- 除 `name`、`base` 和 `title` 外，每个字段都是可选的，省略时沿用基础的值。没有 `upgrades` 时，保留基础的等级，并以新名称命名："Pitchfork Mk2"。
+- `unit` 决定落下的东西，`subtypes` 和 `attributes` 决定配装界面显示的内容。它呼叫的任何东西都必须是每个游戏都有的单位。
+- `ctx` 包含 `name`、`position`（游戏的向量，仅在该帧有效）、`owner`（投掷者的单位）和 `upgrade`。
+- 其他玩家始终看到和听到的是基础。游戏消息中的 id，以及游戏复制到其他机器的字段，都以基础的身份发出，因此没有该模组的玩家永远不会收到其游戏中不存在的 id。这在任何大厅中都成立。在未获许可的大厅中，该战略配备就是它的基础：使用基础的数值和呼叫方式，没有 `on_activate`。
+- 配装界面只会在获许可的会话中，把它提供给拥有其基础（通过等级、奖励或拥有的 DLC）的玩家。
+- 存档按名称保存它的升级。已保存配装中如果有游戏中不存在的战略配备，会改为默认值，因此玩家可以移除该模组，存档依然可用。
+- `api.stratagems.custom()` 以 `{ name, base, id }` 列出目前已创建的战略配备。
 
 ## 敌人 {#enemies}
 
@@ -334,6 +368,25 @@ api.audio.stinger("music_objective_found")
 - 对本任务未加载的声音，`play` 和 `stinger` 返回 `"unknown_event"`。
 - `stinger` 受游戏自身 5 秒冷却的限制。
 
+### 背景音乐 {#the-soundtrack}
+
+`api.music` 决定播放什么。用 `play` 播放的曲目会在当前及之后的画面中保持并循环，直到 `release()` 把音乐交还给游戏。
+
+```lua
+api.music.tracks()              -- 当前画面拥有的音乐事件
+api.music.play("music_credits") -- 替换游戏的音乐
+api.music.stop()                -- 静音，同样保持
+api.music.pause()
+api.music.resume()
+api.music.release()             -- 由游戏重新选择
+api.music.volume(-12)           -- 分贝，等同于 api.audio.bus("music_master", ...)
+api.music.now()                 -- { place, track, held, paused }
+```
+
+- `api.music.TRACKS` 列出游戏脚本会启动的所有音乐事件。每个画面只有其中一部分，因此对该画面未加载的曲目，`play` 返回 `"unknown_event"`，在完全没有音乐的地方返回 `"no_music"`。如果下一个画面没有加载保持中的曲目，该画面会没有音乐。
+- 在主菜单和飞船上，音乐有自己的声音世界，因此暂停会让它停在原处。在任务中以及任务的开始和结束画面上，暂停只是把它静音，播放进度继续前进。
+- 在任务中，保持曲目期间游戏自身的威胁音乐和战斗音乐会安静下来，释放后恢复。
+
 ## 配装 {#loadouts}
 
 ```lua
@@ -382,7 +435,14 @@ m:remove()
 local bot = api.bots.add({ name = "Dummy" })
 bot:follow(nil, 6)   -- 与玩家保持 6 米以内
 bot:fight(25)        -- 瞄准并射击 25 米内最近的敌人
+bot:go_to(api.world.cursor())  -- 走到那里并停下
+bot:hold()           -- 原地不动
+bot:aim_at(pos)      -- 没有可战斗的目标时一直朝向某个位置
 ```
+
+命令：`follow(unit, distance)`、`go_to(pos, distance)`、`hold()`、`aim_at(pos)`、`fight(radius)`，以及用于读回命令的 `fighting()` 和 `firing()`。新的移动命令会替换上一个，`go_to` 在机器人到达后结束。
+
+装备和协助会像 `api.gear`、`api.stratagems` 和 `api.player` 给主玩家时那样给机器人，返回 `true`，或者返回 `false` 和原因，机器人没有身体时为 `"no_avatar"`：`give_weapon(slot, path, upgrade)`、`give_backpack(path, upgrade)`、`give_perk(name)`、`remove_perk()`、`refill()`、`give_stratagem(name)`、`call(name, pos, delay)`（由机器人发出的真实呼叫）、`heal()`、`teleport(pos)` 和 `weapons()`。
 
 自行操控时可用：`move(dir)`、`aim(dir)`、`fire(on)`、`sprint(on)`、`reload()`、`dodge()`、`melee()`、`interact()`、`throw()` 和 `switch()`。方向是 `{ x, y }` 形式的世界方向。`unit()`、`alive()` 和 `remove()` 如其名。机器人直线走向目标，没有寻路，而且游戏会把本地玩家留在屏幕内，因此玩家机器人会停在视野边缘。
 

@@ -34,7 +34,7 @@ Cada opção tem um `id` (letras minúsculas, dígitos e `_`), um `type`, um `de
 
 ### Opções pessoais em mods de sessão {#personal-options-in-session-mods}
 
-Os valores de opção de um mod de sessão contam quando o Obsidian compara os mods de dois jogadores, porque um controle de balanceamento muda o jogo compartilhado. Marque uma opção com `"scope": "client"` quando o valor só mudar o que este jogador vê, como uma cor ou a distância da câmera. Assim os jogadores podem escolher valores diferentes e ainda bater ([Jogar online](wiki:multiplayer)).
+Os valores de opção de um mod de sessão ou de uma expansão contam quando o Obsidian compara os mods de dois jogadores, porque um controle de balanceamento muda o jogo compartilhado. Marque uma opção com `"scope": "client"` quando o valor só mudar o que este jogador vê, como uma cor ou a distância da câmera. Assim os jogadores podem escolher valores diferentes e ainda bater ([Jogar online](wiki:multiplayer)).
 
 ## Ler opções no Lua {#reading-options-in-lua}
 

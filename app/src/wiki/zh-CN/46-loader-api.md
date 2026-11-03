@@ -23,11 +23,11 @@ end)
 
 如果该全局还不存在，挂钩会等待，在游戏定义它后立即生效。如果 `fn` 出错，则改为运行原函数。
 
-在会话模组中，大厅未获许可时挂钩只会调用原函数（[编写会话模组](wiki:session-mods)）。
+在会话模组中，大厅未获许可时挂钩只会调用原函数（[编写会话模组](wiki:session-mods)）。在扩展模组中，内容开始之前挂钩只会调用原函数（[编写扩展模组](wiki:session-mods#expansions)）。
 
 ### obsidian.wrap(target, method, fn) {#obsidian-wrap-target-method-fn}
 
-与 `obsidian.hook` 相同，`fn` 失败时同样安全，但在大厅未获许可时也会继续运行。它用于替换的文件同样无法关闭的模组，否则关闭钩子会让游戏只修改了一半。其他情况都应使用 `obsidian.hook`。在较旧的加载器上请检查 `obsidian.capabilities.wrap`。
+与 `obsidian.hook` 相同，`fn` 失败时同样安全，但在大厅未获许可时以及扩展模组的内容之外也会继续运行。它用于进入扩展模组内容的入口，以及替换的文件同样无法关闭的模组，否则关闭钩子会让游戏只修改了一半。其他情况都应使用 `obsidian.hook`。在较旧的加载器上请检查 `obsidian.capabilities.wrap`。
 
 ### obsidian.on_require(name, fn) {#obsidian-on-require-name-fn}
 
@@ -35,7 +35,7 @@ end)
 
 ### obsidian.on_frame(fn) {#obsidian-on-frame-fn}
 
-每帧调用一次 `fn`。返回 `true` 即停止调用。会话模组的每帧函数只在获许可的大厅中运行。
+每帧调用一次 `fn`。返回 `true` 即停止调用。会话模组的每帧函数只在获许可的大厅中运行，扩展模组的每帧函数只在内容运行期间运行。
 
 ### obsidian.after_startup(fn) {#obsidian-after-startup-fn}
 
@@ -47,19 +47,19 @@ end)
 
 本模组选项 `id` 的值：玩家在应用中所选的值，或默认值（[选项和按键](wiki:options-and-keys)）。
 
-### obsidian.keybind(id, fn) {#obsidian-keybind-id-fn}
+### obsidian.keybind(id, fn, opts) {#obsidian-keybind-id-fn-opts}
 
-每次绑定到 `id` 的按键按下时调用 `fn`。按键来自应用，或来自 `obsidian.json` 中的默认值。
+每次绑定到 `id` 的按键按下时调用 `fn`。按键来自应用，或来自 `obsidian.json` 中的默认值。与模组的挂钩一样，会话模组的按键要等大厅获许可才生效，扩展模组的按键要等内容开始。`opts.always` 让按键始终有效，就像 `obsidian.wrap` 之于挂钩，适用于只作用于本玩家屏幕的按键。
 
 ## 多人游戏 {#multiplayer}
 
 ### obsidian.session.cleared() {#obsidian-session-cleared}
 
-发出询问的模组可以运行时为 `true`：会话已获许可，并且对于标记了 `every_player` 的模组，其他每位玩家也在运行它（[每位玩家都需要的模组](wiki:session-mods#every-player)）。客户端模组很少需要它。
+发出询问的模组可以运行时为 `true`：会话已获许可，并且对于标记了 `every_player` 的模组，其他每位玩家也在运行它（[每位玩家都需要的模组](wiki:session-mods#every-player)）。对于扩展模组，内容运行期间为 `true`。客户端模组很少需要它。
 
 ### obsidian.session.guard(t, free) {#obsidian-session-guard}
 
-返回表 `t` 的一个视图，用于提供给其他模组。列表 `free` 中的函数照常工作。其他函数在模组作为客户端模组运行时返回 `false, "needs_session"`，在会话未获许可时返回 `false, "not_cleared"`（[编写库](wiki:session-mods#libraries)）。
+返回表 `t` 的一个视图，用于提供给其他模组。列表 `free` 中的函数照常工作。其他函数在模组作为客户端模组运行时返回 `false, "needs_session"`，在会话未获许可时返回 `false, "not_cleared"`（[编写库](wiki:session-mods#libraries)）。扩展模组调用这些函数时，在内容之外得到 `false, "not_started"`；内容运行期间，无论大厅中还有谁，它都可以完整使用自己依赖的库。
 
 ### obsidian.session.members() {#obsidian-session-members}
 
@@ -69,7 +69,7 @@ end)
 
 ### obsidian.session.forfeit_progress()、release_progress(key) 和 hold_progress() {#obsidian-session-forfeit-progress-release-progress-key-and-hold-progress}
 
-这些函数不起任何作用。玩家自己的存档归玩家所有，因此无论模组做什么，Obsidian 都不会扣留任务的任何进度。保留它们是为了让调用它们的模组继续正常工作。部署了会话内容时，只有银河战争和排行榜的报告仍会被拦截（[银河战争](wiki:galactic-war)）。要在不计入进度的情况下游戏，玩家可以在[防护](wiki:guardrails)中打开 **冻结我账号的进度**。
+这些函数不起任何作用。玩家自己的存档归玩家所有，因此无论模组做什么，Obsidian 都不会扣留任务的任何进度。保留它们是为了让调用它们的模组继续正常工作。只有银河战争和排行榜的报告仍会被拦截：部署了会话内容时，以及运行过扩展模组内容的任务（[银河战争](wiki:galactic-war)）。要在不计入进度的情况下游戏，玩家可以在[防护](wiki:guardrails)中打开 **冻结我账号的进度**。
 
 ### obsidian.guardrails() {#obsidian-guardrails}
 
@@ -77,7 +77,23 @@ end)
 
 ### obsidian.on_session(fn) {#obsidian-on-session-fn}
 
-每当加载器开启或关闭本模组时调用 `fn(on)`，让模组可以撤销其他玩家会看到的更改。标记了 `every_player` 的模组还会在没有运行它的玩家加入或离开时收到通知。
+每当加载器开启或关闭本模组时调用 `fn(on)`，让模组可以撤销其他玩家会看到的更改。标记了 `every_player` 的模组还会在没有运行它的玩家加入或离开时收到通知。扩展模组在内容开始时收到 `true`，结束时收到 `false`，大厅中的每个游戏都是如此；只被扩展模组依赖的库也一样。
+
+## 扩展模组 {#expansions}
+
+用于带有 `"scope": "expansion"` 的模组（[编写扩展模组](wiki:session-mods#expansions)）。请先检查 `obsidian.capabilities.expansion`：较旧的加载器没有这些函数。
+
+### obsidian.expansion.start() {#obsidian-expansion-start}
+
+在主机的游戏中启动发出调用的扩展模组的内容。大厅中其他每位玩家都必须运行同一个扩展模组，且版本和共享选项值都相同。返回 `true`，或者返回 `false` 和原因：`"players_missing"`（第三个返回值是未运行它的玩家名字列表）、`"not_host"`、`"busy"`（另一个扩展模组的内容正在运行）或 `"not_expansion"`。启动被拒绝时，主机还会看到一条列出这些名字的通知。
+
+### obsidian.expansion.stop() {#obsidian-expansion-stop}
+
+在主机的游戏中结束内容。返回 `true`，或者返回 `false` 和 `"not_running"` 或 `"not_host"`。离开大厅也会结束内容。
+
+### obsidian.expansion.running(id) {#obsidian-expansion-running-id}
+
+扩展模组 `id` 的内容在本游戏中运行时为 `true`。省略 `id` 时指发出调用的模组。
 
 ## 文本和日志 {#text-and-logs}
 
@@ -101,17 +117,23 @@ end)
 
 ### obsidian.scope() {#obsidian-scope}
 
-模组在本次部署中的运行方式：`"client"` 或 `"session"`。库会得到其中之一（[编写库](wiki:session-mods#libraries)）。
+模组在本次部署中的运行方式：`"client"`、`"session"` 或 `"expansion"`。库会得到 `"client"` 或 `"session"`；有扩展模组依赖它时得到 `"session"`，以便库准备好扩展模组可以使用的内容（[编写库](wiki:session-mods#libraries)）。
 
 ### obsidian.caller() {#obsidian-caller}
 
 正在运行其代码的模组 id，便于共享模组记录请求者。
 
+### obsidian.info(id) {#obsidian-info-id}
+
+正在运行的模组的信息：`{ id, name, version, scope }`。`name` 来自该模组的 `obsidian.json`，使用游戏语言，没有时使用英文；`scope` 是 `obsidian.scope()` 在该模组中的返回值。省略 `id` 时指发出调用的模组。模组未运行时为 `nil`。
+
 ## 游戏内菜单 {#menu}
+
+游戏内窗口属于 Obsidian API，因此会随 API 的版本而变化，新模组应使用 `api.menu`（[Obsidian 运行时 API](wiki:obsidian-api)）。**F6** 打开窗口，这是 Obsidian API 的按键，玩家可以在 Obsidian API 的“按键”标签页中更改；每个模组的页面位于以该模组命名的文件夹中。`obsidian.menu` 为以前编写的模组保留，它会以发起调用的模组的身份，把每个调用交给 Obsidian API 的窗口。模组需要把 `obsidian.api` 写进 `requires`：没有运行 Obsidian API 时就没有窗口，`open()` 返回 `false`。
 
 ### obsidian.menu.add(title, build, opts) {#obsidian-menu-add-title-build-opts}
 
-在游戏内菜单左侧的列表中添加一个页面。`title` 是文本或返回文本的函数。每次打开页面时都会运行 `build(page)`。`opts.icon` 是 `obsidian.ui.glyphs()` 中的一个：
+在游戏内菜单左侧的列表中添加一个页面，位于本模组的文件夹中。`title` 是文本或返回文本的函数。每次打开页面时都会运行 `build(page)`。`opts.icon` 是 `obsidian.ui.glyphs()` 中的一个：
 
 ```lua
 obsidian.menu.add("我的模组", function(page)
@@ -129,15 +151,11 @@ end, { icon = "player" })
 
 `toggle`、`number` 和 `choice` 行可以设置 `default`（初始值）。这样行末会出现重置按钮，数值改变后亮起，按 R 效果相同。如果写入数值无法还原，请提供 `reset`（执行撤销的函数）和 `changed`（判断是否有内容可撤销的函数）。
 
-大厅未处于许可状态时，会话模组的页面不会列出，已打开的也会关闭。
+大厅未处于许可状态时，会话模组的页面不会列出，已打开的也会关闭。扩展模组的页面始终列出，以便从其中一个页面启动内容。
 
 ### obsidian.menu.open(), close(), toggle(), is_open() {#obsidian-menu-open}
 
-菜单不会自行打开，因此请绑定按键：
-
-```lua
-obsidian.keybind("open", function() obsidian.menu.toggle() end)
-```
+列出页面后，Obsidian API 的按键就能打开窗口，因此模组不需要为此设置按键。这些函数供需要在自选时机打开窗口的模组使用。
 
 ### obsidian.menu.overlay(fn) {#obsidian-menu-overlay-fn}
 
@@ -145,7 +163,7 @@ obsidian.keybind("open", function() obsidian.menu.toggle() end)
 
 ### obsidian.toast(text, seconds) {#obsidian-toast-text-seconds}
 
-在屏幕左上角显示一条简短消息；游戏内菜单打开时，则显示在菜单旁边。
+在屏幕左上角显示一条简短消息；游戏内菜单打开时，则显示在菜单旁边。运行 Obsidian API 时，由 API 的窗口绘制。
 
 ### obsidian.notify(text, seconds) {#obsidian-notify-text-seconds}
 
@@ -199,7 +217,7 @@ ui.on("loadout", {
 | `exit()` | 界面消失 |
 | `mute` | 不是函数：`true` 表示此界面，或一个 id 列表，只在界面显示期间有效 |
 
-大厅未处于许可状态时，会话模组的处理器会停止，其静音也会解除。`off(id)` 移除本模组的处理器。
+大厅未处于许可状态时，会话模组的处理器会停止，其静音也会解除。扩展模组的处理器在内容之外继续运行。`off(id)` 移除发出调用的模组的处理器。
 
 ### obsidian.ui.mute(id), unmute(id) {#obsidian-ui-mute-id-unmute-id}
 
@@ -325,7 +343,7 @@ kit:text("HELLDIVERS", 100, 200, { font = "title" })
 
 `obsidian.version` 是 API 版本，目前为 `1`。需要更新 API 的模组在 `obsidian.json` 中设置 `loader_api`，较旧的加载器会拒绝启动它。
 
-`obsidian.capabilities` 是一个只读表，列出当前加载器支持的功能，每项一个条目：`hook`、`on_require`、`on_frame`、`on_session`、`after_startup`、`settings`、`keybind`、`session`、`text`、`log`、`module`、`import`、`caller`、`menu`、`toast`、`notify`、`storage`、`ui`。使用较晚加入的功能前，先按名称检查：
+`obsidian.capabilities` 是一个只读表，列出当前加载器支持的功能，每项一个条目：`hook`、`on_require`、`on_frame`、`on_session`、`after_startup`、`settings`、`keybind`、`session`、`text`、`log`、`module`、`import`、`caller`、`info`、`menu`、`toast`、`notify`、`storage`、`ui`、`expansion`。使用较晚加入的功能前，先按名称检查：
 
 ```lua
 if obsidian.capabilities.on_frame then
