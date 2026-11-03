@@ -797,7 +797,9 @@ mod tests {
         let before = build_inputs(&dir, &comp).unwrap();
         put(&root, "loader/fonts/body.font", b"one");
         let with_font = build_inputs(&dir, &comp).unwrap();
-        put(&root, "loader/fonts/body.font", b"two");
+        // Another size: the digest cache knows a file by its time and size, and two writes in a row
+        // can share a time on a fast machine.
+        put(&root, "loader/fonts/body.font", b"three");
         assert_ne!(before, with_font);
         assert_ne!(with_font, build_inputs(&dir, &comp).unwrap());
     }
