@@ -3390,6 +3390,49 @@ test("a_definition_is_checked", function()
 	E.eq(select(2, api.stratagems.define({ name = "test_a", base = "stratagem_resupply", title = "x" })), "taken", "once")
 end)
 
+-- Before the game has its stratagem list, as in a mod's main chunk.
+local function no_list_yet()
+	local s = rawget(_G, "LoadoutSettings")
+	local list = s.stratagems
+	s.stratagems = nil
+	return function() s.stratagems = list end, list
+end
+
+test("a_stratagem_defined_before_the_game_has_its_list_is_made_before_the_loadout_is_read", function()
+	local api, game, e = start()
+	wire_world(game)
+	local ready, list = no_list_yet()
+	local made = api.stratagems.define(PITCHFORK)
+	E.eq(made.pending, true)
+	E.eq(made.name, "test_pitchfork")
+	E.eq(made.id, nil)
+	E.eq(select(2, api.stratagems.define(PITCHFORK)), "taken", "once, while it waits")
+	E.eq(select(2, api.stratagems.define({ name = "test_a", base = "stratagem_resupply" })), "bad_type", "checked at once")
+	E.eq(api.stratagems.custom()[1], nil, "not made yet")
+	ready()
+	hooked(e)
+	rawget(_G, "Boot").ensure_loadout(1, {})
+	local c = api.stratagems.custom()[1]
+	E.eq(c.name, "test_pitchfork")
+	E.eq(list[c.id].icon, "stratagem_lasercannon")
+	E.eq(rawget(_G, "LocalizationManager"):string("test_pitchfork"), "Pitchfork")
+	E.eq(#api.stratagems.custom(), 1, "made once")
+end)
+
+test("a_pending_stratagem_is_made_on_a_frame_when_nothing_reads_the_loadout", function()
+	local api, game, e = start()
+	wire_world(game)
+	local ready = no_list_yet()
+	api.stratagems.define(PITCHFORK)
+	api.stratagems.define({ name = "test_gone", base = "stratagem_nothing", title = "x" })
+	e:frames(1)
+	E.eq(api.stratagems.custom()[1], nil, "still no list")
+	ready()
+	e:frames(1)
+	E.eq(api.stratagems.custom()[1].name, "test_pitchfork")
+	E.eq(#api.stratagems.custom(), 1, "a base the game hasn't got is logged, not made")
+end)
+
 test("on_the_wire_a_custom_stratagem_is_its_base", function()
 	local api, game = start()
 	local fields = wire_world(game)
