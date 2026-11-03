@@ -244,9 +244,13 @@ button.link:hover { filter: brightness(1.2); }
 .about p { margin: 0; }
 .about h2 { margin: 0.3rem 0 0; font-size: 0.8rem; color: var(--mu); }
 .row-btns { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-.facts { display: grid; grid-template-columns: auto 1fr; gap: 0.3rem 1rem; margin: 0; font-size: 0.9rem; }
+.facts { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0.3rem 1rem; margin: 0; font-size: 0.9rem; }
 .facts dt { color: var(--mu); }
 .facts dd { margin: 0; }
+/* The source: only the icon, the link itself is in the tooltip. */
+.facts dd.src { display: flex; }
+.src-link { display: inline-flex; text-decoration: none; }
+.src-link svg { width: 1.2rem; height: 1.2rem; }
 .credits { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.55rem; }
 .credits li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 0.4rem; font-size: 0.9rem; }
 .credit-license { font-size: 0.7rem; color: var(--mu); border: 1px solid var(--ln); padding: 0 0.3rem; }
@@ -381,7 +385,7 @@ button.link:hover { filter: brightness(1.2); }
 .bare.cf-ico.lose { color: var(--mu); }
 .bare.cf-ico:hover { filter: brightness(1.25); }
 .cf-ico svg { width: 1.15rem; height: 1.15rem; }
-.tip span { white-space: pre-line; }
+.tip span { white-space: pre-line; overflow-wrap: anywhere; }
 .ov { padding: 0.45rem 0.8rem; border-bottom: 1px solid var(--ln); transition: background var(--fast); }
 .ov.focus { background: var(--row); box-shadow: inset 3px 0 0 var(--session); }
 .ov-line { display: flex; align-items: center; gap: 0.6rem; font-size: 0.9rem; }

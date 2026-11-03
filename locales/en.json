@@ -53,7 +53,7 @@
   "app.drawer.files": "Files",
   "app.drawer.files_n": "%s files",
   "app.drawer.hint": "Select a mod to see the options, keys and files. Drop a mod folder or .zip on the mod list to add one.",
-  "app.drawer.id": "Mod id",
+  "app.drawer.id": "Mod ID",
   "app.drawer.imported": "Imported",
   "app.drawer.keyClash": "Same key in %s",
   "app.drawer.keyHint": "Click, then press the new key. Esc cancels.",
