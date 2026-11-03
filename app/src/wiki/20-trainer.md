@@ -43,6 +43,7 @@ The menu blocks your character while it's open, and it closes by itself when the
 - **Weapons:** infinite ammo, instant reload, refills, the fire rate, damage, magazine, reload, spread and armor piercing of each of your own weapons, and giving yourself any weapon, backpack or perk from the base game or a DLC you own, with the upgrades you choose.
 - **Stratagems:** no cooldowns, unlimited uses, instant call-ins, ignoring no-stratagem zones, any stratagem from the base game or a DLC you own dropped at the cursor, and real flares, Reinforce included.
 - **Vehicles:** speed, turning, armor, no damage and endless exosuit rockets for the vehicle you're driving, plus repairs and refills.
+- **Bots:** Helldivers your machine plays, with a HUD slot or as bare bodies past four players. Order every bot or each one to follow you, hold, walk to the cursor, come to you, fight, face the cursor, shoot, throw, reload and call stratagems, and give them weapons, backpacks, perks and stratagems. Host only, in a mission.
 - **Spawn:** ammunition, supply crates and pickups on the spot, and flares at the cursor.
 - **Enemies:** stopping spawns, freezing, blinding or stunning enemies, killing them, spawning more, and setting how hard encounters and patrols push.
 - **Mission:** the objective list, finishing objectives, protecting convoys and escorts, fast extraction, skipping waits, proving ground modifiers in any mission, who's in the lobby, research samples, and practice missions of any kind from the ship.

@@ -128,7 +128,7 @@ end)
 | `api.game` | The current state, the local player, `is_host()`, and safe writes |
 | `api.catalog` | Weapons, stratagems, perks, enemies and groups by name: the base game, plus the DLC the player owns. `usable(name)` checks that, `unowned_path(path)` checks a weapon's path, and `unlocked(name)` says whether the player has unlocked an item by playing. Also `backpacks`, `crates`, `pickups`, `vehicles`, `by_subtype(name)` and `max_upgrade(path)` |
 | `api.player` | `heal`, `heal_by(amount)`, `set_health(n)`, `respawn`, `teleport`, `set_cosmetic`, `set_outline(r, g, b)`, `clear_status(name)`, `immune(name, on)`, `knockdown`, `drop_carried`, and more |
-| `api.gear` | `refill`, `give_weapon(slot, path, upgrade)`, `give_backpack(path, upgrade)`, `give_perk`, `remove_perk`, `add_perk(name, unit)`, `remove_extra_perk(name, unit)`, `extra_perks(unit)`, `refresh`, `weapons_of(owner)`, `tune(unit, component, changes)`, `add_drone(path, unit, upgrade)` |
+| `api.gear` | `refill`, `give_weapon(slot, path, upgrade, unit)`, `give_backpack(path, upgrade, unit)`, `give_perk(name, unit)`, `remove_perk(unit)`, `add_perk(name, unit)`, `remove_extra_perk(name, unit)`, `extra_perks(unit)`, `refresh`, `weapons_of(owner)`, `tune(unit, component, changes)`, `add_drone(path, unit, upgrade)` |
 | `api.stratagems` | `reset_cooldowns`, `refill_uses`, `give`, `drop`, `call(name, pos, delay)`, `edit(name, field, value)` |
 | `api.enemies` | `spawn`, `spawn_group`, `spawn_entity(path, pos)`, `kill_all`, `kill(unit)`, `list`, `info(unit)`, `nearest(pos)`, `apply_status(unit, template)`, `stun_near(radius)`, `near(radius, pos)`, `damage(unit, power, statuses)`, `set_hitpoints(unit, n)`, `despawn(unit)`, `load_faction(name)`, `set_pressure(t)`, `waves()`, `force_wave(name, pos)`, `carried()`, the enemies on the map with corpses and the spawn queue, and `room()`, how many more fit under `MAX_SAFE` |
 | `api.mission` | `finish_objectives`, `objectives()`, `mutator(name)`, `win`, `abort`, `practice` |
@@ -137,7 +137,7 @@ end)
 | `api.events` | `on(name, fn)`, `off(name, fn)` |
 | `api.ui` | `hint(text, seconds)`, `ping(pos)`, `open(name, opts)`, `close()`, `menus()`, `with_texts(texts, fn, ...)` |
 | `api.map` | `is_open(unit)`, `open()`, `close()`, `zoom()`, `set_zoom(z)`, `view()`, `cursor()`, `look_at(pos)`, `pings()`, `to_map(pos)`, `to_world(x, y)`, `marker(pos, opts)`, `clear_markers()` |
-| `api.bots` | `add(opts)`, `all()`, `remove_all()` |
+| `api.bots` | `add(opts)`, `all()`, `remove_all()`, and on a bot its orders, gear and help |
 | `api.lobby` | `players()`, `share(name, value)`, `shared(name)` |
 | `api.world` | `cursor`, `ahead`, `to_screen(pos)`, `prop(unit, pos, opts)`, `explode`, `camera`, `shading(name, kind, value)`, `flash(seconds)` |
 | `api.audio` | `bus(name, db)`, `play(event, pos)`, `stinger(name)` |
@@ -400,7 +400,14 @@ A bot is first a local player on a pad nobody holds, so it has a HUD slot, a nam
 local bot = api.bots.add({ name = "Dummy" })
 bot:follow(nil, 6)   -- keep within 6 metres of the player
 bot:fight(25)        -- aim at and shoot the nearest enemy within 25 metres
+bot:go_to(api.world.cursor())  -- walk there and stop
+bot:hold()           -- stay put
+bot:aim_at(pos)      -- keep facing a spot while there's nothing to fight
 ```
+
+Orders: `follow(unit, distance)`, `go_to(pos, distance)`, `hold()`, `aim_at(pos)`, `fight(radius)`, and `fighting()` and `firing()` to read them back. A new order to walk replaces the last one, and `go_to` ends when the bot gets there.
+
+Gear and help go to the bot as `api.gear`, `api.stratagems` and `api.player` give them to the main player, and answer `true` or `false` and a reason, `"no_avatar"` while the bot has no body: `give_weapon(slot, path, upgrade)`, `give_backpack(path, upgrade)`, `give_perk(name)`, `remove_perk()`, `refill()`, `give_stratagem(name)`, `call(name, pos, delay)` for a real call-in of the bot's, `heal()`, `teleport(pos)`, and `weapons()`.
 
 To drive one yourself: `move(dir)`, `aim(dir)`, `fire(on)`, `sprint(on)`, `reload()`, `dodge()`, `melee()`, `interact()`, `throw()` and `switch()`. Directions are world directions as `{ x, y }`. `unit()`, `alive()` and `remove()` do what they say. Bots walk straight at a goal with no pathfinding, and the game keeps local players on screen, so a player bot stops at the edge of the view.
 
