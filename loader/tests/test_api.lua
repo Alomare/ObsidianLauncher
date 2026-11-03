@@ -1099,6 +1099,27 @@ test("on_fatal_can_spare_a_player_once_per_hit_with_one_hitpoint", function()
 	E.eq(#asked, 3)
 end)
 
+test("a_client_mod_hears_hits_where_session_mods_are_off_and_nobody_is_spared_there", function()
+	local lobby = { my_id = "me", members = { "me" }, data = {} }
+	local api, game, e = start({ lobby = lobby })
+	local H = fake_hits(game)
+	hooked(e)
+	local core = e:core()
+	local own = core.current
+	core.current = { id = "dev.hud", state = {}, mod = { options = {}, scope = "client" } }
+	local heard = {}
+	E.eq(api.combat.on_hit(function(_, hit) heard[#heard + 1] = hit end), true, "open to a client mod")
+	core.current = own
+	local asked = 0
+	api.combat.on_fatal(function() asked = asked + 1 return true end)
+	lobby.members = { "me", "stranger" }
+	e:frames(31)
+	H:command_master(game.enemies[1], nil, "do_damage", { power = 5, owner_unit = game.me, attacker_unit = game.weapon })
+	E.eq(#heard, 1, "hearing a hit changes nothing")
+	H:command_master(game.me, nil, "do_damage", { power = 500, owner_unit = game.enemies[1] })
+	E.eq(asked, 0, "sparing a player changes the game")
+end)
+
 test("a_downed_player_spared_stays_as_they_were", function()
 	local api, game, e = start()
 	local H = fake_hits(game)
@@ -3481,14 +3502,14 @@ test("mod_settings_opens_from_the_pause_menu_and_keeps_its_values", function()
 	main:on_enter()
 	E.eq(main.options[3].name, "obsidian_mod_settings", "under the game's Settings")
 	main:update()
-	E.eq(main.drawn[3], "MOD SETTINGS", "in capitals, as the game's rows")
+	E.eq(main.drawn[3], "MODS", "in capitals, as the game's rows")
 	E.eq(main.drawn[4], "LOC:menu_exit_to_menu", "the game's own words stay")
 	main.selected_option = 3
 	main:handle_input({ select = true })
 	E.eq(main.chose, nil, "the pause menu didn't act on it")
 	main:update()
 	local list = main.state_stack[1]
-	E.eq(list.title, "MOD SETTINGS")
+	E.eq(list.title, "MODS")
 	E.eq(list.drawn[1], "BETTER HUD")
 	main:handle_input({ select = true })
 	main:update()
