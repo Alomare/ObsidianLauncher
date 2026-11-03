@@ -156,7 +156,7 @@ fn the_starter_pack_stays_deleted_until_it_is_restored() {
         c
     };
     let list = || String::from_utf8(run(&["list"]).assert().success().get_output().stdout.clone()).unwrap();
-    assert!(list().contains("1. [off] obsidian.api"), "first in the load order");
+    assert!(list().contains("1. [on ] obsidian.api"), "first in the load order, on for Quality of Life");
     run(&["remove", "obsidian.qol"]).assert().success();
     assert!(!list().contains("obsidian.qol"), "and it stays gone at the next start");
     run(&["restore-starter"]).assert().success();

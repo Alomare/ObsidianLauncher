@@ -853,7 +853,8 @@ mod tests {
         let lib = Library::open(&t.path().join("data")).unwrap();
         let mut profile = Profile::default();
         crate::starter::restore(&lib, &mut profile).unwrap();
-        assert_eq!(profile.switch(&lib, "obsidian.trainer", true).unwrap(), ["obsidian.api"]);
+        assert!(profile.mods.iter().any(|m| m.id == "obsidian.api" && m.enabled), "Quality of Life brings the API");
+        assert_eq!(profile.switch(&lib, "obsidian.trainer", true).unwrap(), Vec::<String>::new());
         let comp = compose(&lib, &profile).unwrap();
         let table = deploy_table(&comp, json!({})).unwrap();
         let ids: Vec<&str> = table["mods"].as_array().unwrap().iter().map(|m| m["id"].as_str().unwrap()).collect();

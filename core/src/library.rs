@@ -285,6 +285,18 @@ impl Profile {
                 self.mods.insert(at, ProfileEntry { id: m.id.clone(), enabled: false, folder: None });
             }
         }
+        // A mod that gained a requirement in an update brings it on, as switching it on would: a deploy
+        // refuses an enabled mod whose requirement is off (Obsidian QoL 1.4.0 began to require the API).
+        let mut todo: Vec<String> = self.mods.iter().filter(|e| e.enabled).map(|e| e.id.clone()).collect();
+        while let Some(id) = todo.pop() {
+            let needs = installed.iter().find(|m| m.id == id).map(|m| m.requires.clone()).unwrap_or_default();
+            for r in needs {
+                if let Some(e) = self.mods.iter_mut().find(|e| e.id == r && !e.enabled) {
+                    e.enabled = true;
+                    todo.push(r);
+                }
+            }
+        }
         self.tidy_folders();
         Ok(())
     }
@@ -421,6 +433,23 @@ mod tests {
         let changed = p.switch(&lib, "middle", false).unwrap();
         assert_eq!(changed, ["top"], "mods that need it go off too, and the base stays on");
         assert!(on(&p, "base") && !on(&p, "middle") && !on(&p, "top"));
+    }
+
+    #[test]
+    fn an_update_that_adds_a_requirement_brings_it_on() {
+        let t = spaced_tempdir();
+        let lib = Library::open(&t.path().join("data")).unwrap();
+        lib.install(&staged(t.path(), "base", "1.0.0")).unwrap();
+        lib.install(&staged(t.path(), "top", "1.0.0")).unwrap();
+        let mut p = Profile::default();
+        p.sync(&lib).unwrap();
+        p.set_enabled("top", true).unwrap();
+        let on = |p: &Profile, id: &str| p.mods.iter().find(|m| m.id == id).unwrap().enabled;
+        assert!(!on(&p, "base"));
+        // The update: top now needs base, as Obsidian QoL 1.4.0 began to need Obsidian API.
+        lib.install(&needing(t.path(), "top", "base")).unwrap();
+        p.sync(&lib).unwrap();
+        assert!(on(&p, "base"), "a deploy would refuse top with base off");
     }
 
     #[test]
