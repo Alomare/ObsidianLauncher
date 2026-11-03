@@ -40,7 +40,7 @@ export function GuardrailsDialog({ snap, onClose }: { snap: Snapshot; onClose: (
           <h2 className="cap"><ShieldIcon filled={guardsOn(snap) > 0} />{t("app.guardrails.title")}</h2>
           <button className="bare close" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /></button>
         </div>
-        <p className="muted lead">{t("app.guardrails.lead", snap.profile)}</p>
+        <p className="muted lead">{t("app.guardrails.lead")}</p>
         <ul className="guard-list">
           {GUARDRAILS.map((r) => {
             const on = snap[r.key];

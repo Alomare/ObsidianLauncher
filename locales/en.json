@@ -118,7 +118,7 @@
   "app.guardrails.consentHint": "When you play together, their session mods keep running and can change your game, such as enemies, damage and missions. You only matchmake with other Obsidian players. Off: their session mods switch off while you share a lobby.",
   "app.guardrails.freeze": "Freeze my account's progression",
   "app.guardrails.freezeHint": "Your XP, rank, samples, unlocks, upgrades and stats stay as they were when the game started. Nothing you earn or spend is saved, so you can try anything without changing your account.",
-  "app.guardrails.lead": "For the profile %s. Changes apply the next time you launch the game.",
+  "app.guardrails.lead": "For the current profile. Changes apply the next time the game launches.",
   "app.guardrails.stateAchievementsOff": "Achievements: unlock as usual",
   "app.guardrails.stateAchievementsOn": "Achievements: kept from unlocking",
   "app.guardrails.stateConsentOff": "Other players' session mods: not allowed",

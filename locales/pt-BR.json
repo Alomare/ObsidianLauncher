@@ -118,7 +118,7 @@
   "app.guardrails.consentHint": "Quando vocês jogam juntos, os mods de sessão deles continuam rodando e podem mudar o seu jogo, como inimigos, dano e missões. Você só encontra outros jogadores do Obsidian. Desligado: os mods de sessão deles são desligados enquanto vocês estiverem no mesmo lobby.",
   "app.guardrails.freeze": "Congelar a progressão da minha conta",
   "app.guardrails.freezeHint": "Seu XP, patente, amostras, desbloqueios, melhorias e estatísticas ficam como estavam quando o jogo abriu. Nada do que você ganhar ou gastar é salvo, então você pode testar qualquer coisa sem mudar sua conta.",
-  "app.guardrails.lead": "Para o perfil %s. As mudanças valem a partir da próxima vez que você abrir o jogo.",
+  "app.guardrails.lead": "Para o perfil atual. As mudanças valem na próxima vez que o jogo for aberto.",
   "app.guardrails.stateAchievementsOff": "Conquistas: desbloqueiam normalmente",
   "app.guardrails.stateAchievementsOn": "Conquistas: impedidas",
   "app.guardrails.stateConsentOff": "Mods de sessão de outros jogadores: não permitidos",

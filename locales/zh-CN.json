@@ -118,7 +118,7 @@
   "app.guardrails.consentHint": "你们一起游戏时，他们的会话模组会继续运行，并可能改变你的游戏，例如敌人、伤害和任务。匹配时只会遇到其他 Obsidian 玩家。关闭：你们在同一大厅时，他们的会话模组会关闭。",
   "app.guardrails.freeze": "冻结我账号的进度",
   "app.guardrails.freezeHint": "你的经验值、军衔、样本、解锁、升级和统计数据会保持游戏启动时的状态。获得或花费的任何东西都不会保存，因此你可以随意尝试而不改变账号。",
-  "app.guardrails.lead": "适用于配置 %s。更改会在下次启动游戏时生效。",
+  "app.guardrails.lead": "适用于当前配置。更改会在下次启动游戏时生效。",
   "app.guardrails.stateAchievementsOff": "成就：正常解锁",
   "app.guardrails.stateAchievementsOn": "成就：阻止解锁",
   "app.guardrails.stateConsentOff": "其他玩家的会话模组：不允许",
