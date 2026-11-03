@@ -685,6 +685,34 @@ test("practice_starts_only_from_the_ship_and_pays_nothing", function()
 	E.eq(game.seed_parts[1], 1, "time, zero based")
 	E.eq(game.seed_parts[3], 2, "environment")
 	E.eq(game.seed_parts[7], 7, "difficulty")
+	local layout = game.seed_parts[8]
+	E.eq(layout % 10000000, 0, "the layout sits above the seven digits of parts, where the game keeps it")
+	E.eq(layout >= 0 and layout <= 214 * 10000000, true)
+end)
+
+test("a_seed_takes_a_look_and_a_layout", function()
+	local api, game = start()
+	local base = { time = 4, environment = 1, enemy = 1, kind = 1, difficulty = 9 }
+	local function with(extra)
+		local c = {}
+		for k, v in pairs(base) do c[k] = v end
+		for k, v in pairs(extra) do c[k] = v end
+		return c
+	end
+	E.eq(api.mission.seed(with({ look = 2, layout = 215 })), 777)
+	E.eq(game.seed_parts[4], 1, "the second terrain set")
+	E.eq(game.seed_parts[8], 214 * 10000000, "the last layout")
+	api.mission.seed(with({ look = 4, layout = 1 }))
+	E.eq(game.seed_parts[2], 3, "the bug world's light")
+	E.eq(game.seed_parts[4], 3, "and terrain")
+	E.eq(game.seed_parts[8], 0, "the first layout")
+	local ok, why = api.mission.seed(with({ look = 5 }))
+	E.eq(ok, false)
+	E.eq(why, "look_not_here", "the cyborg world is snow only")
+	E.eq(select(2, api.mission.seed(with({ environment = 5, look = 3 }))), "look_not_here", "city has two terrain sets")
+	E.eq(select(2, api.mission.seed(with({ layout = 216 }))), "bad_choice")
+	E.eq(select(2, api.mission.seed(with({ difficulty = 0 }))), "bad_choice")
+	E.eq(select(2, api.mission.seed(with({ look = 7 }))), "bad_choice")
 end)
 
 local LOCKED = { locked = { "weapon_rifle", "perk_cardio", "stratagem_machinegun", "stratagem_exosuit", "stratagem_jumppack", "cus_helmet_a" } }
