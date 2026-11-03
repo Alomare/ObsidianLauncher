@@ -1814,8 +1814,25 @@ test("a_hidden_model_stays_hidden_after_a_seat_shows_it", function()
 	E.eq(G.command(game, "customization", "set_visible").data, true)
 end)
 
+test("the_heavy_armor_look_waits_for_a_mission_where_its_model_is_loaded", function()
+	local api, game, e = start()
+	-- On the ship: the model isn't loaded, and spawning it takes the game down.
+	E.eq(api.effects.set("heavy_armor_look", true), true)
+	E.eq(G.command(game, "customization", "enable_heavy_armor"), nil)
+	e:frames(1)
+	E.eq(G.command(game, "customization", "enable_heavy_armor"), nil)
+	-- The mission's body, with mission_common loaded.
+	game.packages["resource_packages/mission_common"] = true
+	game.state.players[1].player_go.avatar_unit = game.enemies[1]
+	e:frames(1)
+	game.state.players[1].player_go.avatar_unit = game.me
+	e:frames(1)
+	E.eq(G.command(game, "customization", "enable_heavy_armor") ~= nil, true)
+end)
+
 test("the_heavy_armor_look_leaves_the_perks_own_alone", function()
 	local api, game = start()
+	game.packages["resource_packages/mission_common"] = true
 	api.effects.set("heavy_armor_look", true)
 	E.eq(G.command(game, "customization", "enable_heavy_armor") ~= nil, true)
 	game.commands = {}
