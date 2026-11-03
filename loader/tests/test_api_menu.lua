@@ -13,14 +13,22 @@ local function start_mods(list, opts)
 	opts = opts or {}
 	local mods = {}
 	local api = G.bundled("obsidian.api", mods)
-	local session = false
-	for _, m in ipairs(list) do session = session or m.scope == "session" end
-	local deploy = { E.mod("obsidian.api", { scope = session and "session" or "client", texts = api.texts, keybinds = api.keybinds, name = api.name }) }
+	local session, served = false, {}
+	for _, m in ipairs(list) do
+		session = session or m.scope == "session"
+		if m.scope == "expansion" then served[#served + 1] = m.id end
+	end
+	-- A library only expansions require is an expansion library, listing them (core/src/loader.rs).
+	local api_scope = session and "session" or (#served > 0 and "expansion") or "client"
+	local deploy = { E.mod("obsidian.api", { scope = api_scope, expansions = #served > 0 and served or nil, texts = api.texts, keybinds = api.keybinds, name = api.name }) }
 	for _, m in ipairs(list) do
 		mods["obsidian/mods/" .. m.id .. "/main"] = m.source
-		deploy[#deploy + 1] = E.mod(m.id, { scope = m.scope or "client", requires = { "obsidian.api" }, name = { en = m.name or m.id }, texts = m.texts })
+		deploy[#deploy + 1] = E.mod(m.id, { scope = m.scope or "client", expansions = m.scope == "expansion" and { m.id } or nil,
+			requires = { "obsidian.api" }, name = { en = m.name or m.id }, texts = m.texts })
 	end
-	local e = E.new({ deploy = E.deploy({ mods = deploy, has_session = session }), mods = mods, lobby = opts.lobby })
+	local own = {}
+	for _, id in ipairs(served) do own[id] = "abcdef012345" end
+	local e = E.new({ deploy = E.deploy({ mods = deploy, has_session = session, expansions = own }), mods = mods, lobby = opts.lobby })
 	e:boot()
 	e:start_frames()
 	local ui = F.install(e, opts)
@@ -350,6 +358,16 @@ test("a_client_page_stays_open_beside_players_who_havent_agreed", function()
 	ui.frame()
 	E.eq(menu().is_open(), true, "a client mod doesn't need them to")
 	E.eq(ui.shown("God mode"), true)
+end)
+
+-- An expansion's pages are its way in, so they show before its content starts, beside anyone.
+test("an_expansion_page_shows_outside_its_content", function()
+	local e, ui = start(PAGE, { scope = "expansion" })
+	open_root(ui)
+	require("obsidian/loader/session").state = false
+	ui.frame()
+	E.eq(menu().is_open(), true)
+	E.eq(ui.shown("God mode"), true, "listed with the content not started")
 end)
 
 test("chat_stays_shut_while_the_menu_is_open", function()
