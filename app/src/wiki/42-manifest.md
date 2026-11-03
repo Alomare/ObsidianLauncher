@@ -43,8 +43,8 @@ summary: Every field of the file that describes a mod.
 | `authors` | no | A list of names. |
 | `image` | no | A square PNG, JPG or WebP inside the mod folder, up to 4 MB. |
 | `source` | no | The mod's address, shown in its details. A GitHub repository such as `https://github.com/you/mod` also lets players update the mod from the app ([Sharing a mod](wiki:sharing#updates)). |
-| `scope` | no | `client`, `session` or `library` ([Scopes](wiki:scopes)). Missing or unknown makes the mod unspecified, which runs as a client mod, or as a session mod with `every_player`. |
-| `every_player` | no | `true` for a mod that only works when every player in the lobby runs it ([Mods every player needs](wiki:session-mods#every-player)). Not for client mods. |
+| `scope` | no | `client`, `session`, `expansion` or `library` ([Scopes](wiki:scopes)). Missing or unknown makes the mod unspecified, which runs as a client mod, or as a session mod with `every_player`. |
+| `every_player` | no | `true` for a mod that only works when every player in the lobby runs it ([Mods every player needs](wiki:session-mods#every-player)). Not for client mods or expansions. |
 | `entry` | no | The Lua script the loader starts. Mods that only replace game files leave it out. |
 | `modules` | no | More `.lua` files beside `entry`, which the mod loads with `obsidian.module`. Paths inside the mod folder. |
 | `requires` | no | Ids of mods this one needs. Switching the mod on switches them on, and they start first. Players see them in the mod's Dependencies tab. A deploy stops with a message if one is missing. |

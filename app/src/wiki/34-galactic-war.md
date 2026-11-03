@@ -18,3 +18,7 @@ Proving Grounds is ranked, with leaderboards and capes for the best times. While
 
 > [!NOTE]
 > The block applies as long as session content is deployed, even in a mission where your session mods are switched off. Purge or deploy without session mods to take part in the war again.
+
+## Expansions
+
+An expansion deployed changes nothing here until the content starts. While the content runs, Proving Grounds is closed, and the results of every mission the content runs in stay out of the war. Those results wait on the ship after the content ends, and are dropped when the next mission starts. That next mission, without the content, counts as normal.

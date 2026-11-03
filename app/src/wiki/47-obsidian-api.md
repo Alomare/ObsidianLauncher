@@ -18,7 +18,7 @@ List it in `requires`, and Obsidian switches it on with your mod and starts it f
 "requires": ["obsidian.api"]
 ```
 
-Obsidian API is a [library](wiki:session-mods#libraries). A client mod can require it and stay a client mod, with no effect on matchmaking or the Galactic War. In that case it can read the game's data and use `api.ui`, `api.audio` and `api.events`, and anything that changes the shared game answers `false, "needs_session"`. To use those, make your mod a session mod.
+Obsidian API is a [library](wiki:session-mods#libraries). A client mod can require it and stay a client mod, with no effect on matchmaking or the Galactic War. In that case it can read the game's data and use `api.ui`, `api.audio` and `api.events`, and anything that changes the shared game answers `false, "needs_session"`. To use those, make your mod a session mod, or an expansion, which gets all of Obsidian API while the content runs and `false, "not_started"` outside it ([Writing an expansion](wiki:session-mods#expansions)). An expansion leaves Obsidian API a client mod at deploy.
 
 Then ask for it:
 

@@ -16,11 +16,14 @@ Obsidian changes which public lobbies you can find, so a vanilla player never en
 
 | Your setup | Who you find in matchmaking |
 |---|---|
-| No session mods, switch off | Everyone. This is normal play. |
+| No session mods, switch off | Everyone. This is normal play. Expansions don't change this |
 | Session mods deployed, or switch on | Only other Obsidian players with session mods or the switch on |
 | A mod every player needs deployed | Only players who run that same mod, at the same version |
+| Hosting the content of an expansion | Your lobby shows only for players who run that expansion, at the same version |
 
 So with the switch on, your lobby shows up for players who run session mods, and you no longer see vanilla lobbies. Turn it off when you want normal matchmaking back.
+
+With an expansion deployed, you also see the lobbies of players running the content of that same expansion, wherever your own matchmaking puts you.
 
 The lobby filters in the multiplayer terminal say **(Obsidian Only)** while you are in the Obsidian pool, so an empty list doesn't look like a broken one.
 
@@ -54,6 +57,12 @@ These mods also get a matchmaking pool of their own, so you only find players wh
 
 > [!TIP]
 > Option values marked as personal by the author, such as a camera distance, don't count when Obsidian compares sets. A friend can pick a different camera distance and still match you.
+
+## Expansions
+
+An [expansion](wiki:scopes#expansions) runs as a client mod until the host starts the content. The start checks every player in the lobby: each has to run the same expansion, at the same version and with the same option values. If someone doesn't, nothing starts and the host is told who. The multiplayer switch doesn't count here.
+
+Once the content starts, every game in the lobby follows the host. A player who tries to join without the expansion is turned away, and the host sees the name. Nobody joining or leaving switches the content off for the players already in it. When the host stops the content, or you leave the lobby, the expansion is a client mod again.
 
 ## Mods that can't switch off live
 

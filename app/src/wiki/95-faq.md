@@ -20,7 +20,7 @@ Session mods run when every other player has the same set or has the switch on. 
 
 ### Do my missions count for the Galactic War?
 
-Not while session content is deployed. With only client mods they count as normal ([The Galactic War](wiki:galactic-war)).
+Not while session content is deployed, and not when the content of an expansion runs in them. With only client mods and expansions they count as normal ([The Galactic War](wiki:galactic-war)).
 
 ### Is my save safe?
 
@@ -52,4 +52,4 @@ A text editor. Obsidian compiles Lua when it deploys ([Your first mod](wiki:firs
 
 ### Client or session?
 
-If other players could notice the change, session. When in doubt, session ([Scopes](wiki:scopes)).
+If other players could notice the change, session. If every change happens inside content that stands apart from the normal game, such as a new mode, expansion. When in doubt, session ([Scopes](wiki:scopes)).
