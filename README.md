@@ -83,8 +83,8 @@ English, Portuguese (Brazil) and Simplified Chinese, for the window, the message
 - Next to each content bundle, the game also loads patch files. Obsidian reads every enabled mod, finds what each one really changes, and writes one patch per bundle, so two mods only clash when they change the same resource.
 - Game files are never edited. **Purge** deletes the patches, and the install is byte for byte vanilla again.
 - Mods that run code start through Obsidian Loader, a small script added to the game at every deploy.
-- Every mod has a scope. Client mods change only what you see, hear or press, and run in any lobby. Session mods can change the shared game, so they run alone, or in a lobby where every other player has agreed to them. Mods that don't say, such as older imported ones, run as client mods.
-- Missions played with session content aren't reported to the Galactic War, and vanilla players don't find modded lobbies in matchmaking. These rules stop well-behaved mods from harming anyone by accident. They aren't anti-cheat.
+- Every mod has a scope. Client mods change only what you see, hear or press, and run in any lobby. Session mods can change the shared game, so they run alone, or in a lobby where every other player has agreed to them. Expansions add content that stands apart from the normal game, such as a new mode, and run as client mods until the host starts that content with every player in the lobby running the same expansion. Mods that don't say, such as older imported ones, run as client mods.
+- Missions played with session content or the content of an expansion aren't reported to the Galactic War, and vanilla players don't find modded lobbies in matchmaking. These rules stop well-behaved mods from harming anyone by accident. They aren't anti-cheat.
 - Saves are backed up before every deploy, including the ones in Steam Cloud.
 - A Rust core does the work, and the window is Tauri 2 with React.
 
