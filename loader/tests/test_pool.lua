@@ -150,6 +150,23 @@ test("consent_alone_joins_a_vanilla_lobby_with_the_vanilla_hash", function()
 	E.eq(rawget(_G, "BUILD_GAME_HASH"), OPEN, "the hash is back after the call")
 end)
 
+-- The lobby's room data may not be readable while joining: the room picked in the list decides.
+test("a_vanilla_room_picked_in_the_list_is_joined_with_the_vanilla_hash", function()
+	local t, e = terminal({ has_session = false }, "consent\t1\n")
+	t.browser:add_room({ build_game_hash = VANILLA, address = 1001 })
+	t.browser:add_room({ build_game_hash = OPEN, address = 1002 })
+	t.browser.join_address = 1001
+	t.browser:update_join()
+	t.browser.join_address = 1002
+	t.browser:update_join()
+	t.browser.join_address, t.lobby.host = 1001, true
+	t.browser:update_join()
+	E.eq(t.sent[1], VANILLA, "the vanilla room")
+	E.eq(t.sent[2], OPEN, "the Obsidian room")
+	E.eq(t.sent[3], OPEN, "a lobby the player hosts now")
+	E.has(e:log(), "pool: joining a vanilla lobby, with the vanilla hash")
+end)
+
 test("the_hash_comes_back_when_the_join_fails", function()
 	local t = terminal({ has_session = false }, "consent\t1\n")
 	t.lobby.room_data = VANILLA .. "|2"
