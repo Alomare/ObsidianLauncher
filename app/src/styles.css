@@ -12,7 +12,13 @@
   --bar: rgba(0, 0, 0, 0.32);
   --tx: #ecebe7; --mu: #b4b5b2; --ln: rgba(255, 255, 255, 0.1); --row: rgba(255, 255, 255, 0.05);
   --gold: #f0b429; --goldtx: #f0b429; --on: #1b1b1b;
-  --warn: #ff9b5e; --client: #2fb889; --session: #e8891c; --library: #4a90d9; --unspecified: #8a8f98; --go: #2fb889;
+  --warn: #ff9b5e; --go: #2fb889;
+  /* The scopes (the user, 2026-11-03): unspecified black, client green, session red, library white,
+     expansion yellow. --scope-edge rings a color too close to the theme's panels to read alone. */
+  --client: #2fb889; --session: #e0443a; --library: #f2f2f0; --unspecified: #0b0c0d; --expansion: #f2d01e;
+  --scope-edge: rgba(255, 255, 255, 0.6);
+  /* Load order conflicts, in the orange the session color used to be. */
+  --conflict: #e8891c;
   /* A step below the panels, for content set into them. */
   --well: rgba(0, 0, 0, 0.17);
   --scale: 1; --text: 1;
@@ -31,6 +37,8 @@
   --bar: rgba(255, 255, 255, 0.55);
   --tx: #1d1f22; --mu: #53575c; --ln: rgba(0, 0, 0, 0.1); --row: rgba(0, 0, 0, 0.035);
   --goldtx: #8a5d00; --warn: #a54300; --go: #1d8a64; --well: rgba(0, 0, 0, 0.04);
+  --client: #1d9a6c; --session: #c8352b; --library: #ffffff; --unspecified: #111214; --expansion: #e0bb00;
+  --scope-edge: rgba(0, 0, 0, 0.55);
   color-scheme: light;
 }
 :root[data-motion="off"] *, :root[data-motion="off"] *::before, :root[data-motion="off"] *::after {
@@ -156,7 +164,10 @@ button.bare:hover { color: var(--tx); }
 .list { position: relative; flex: 1; min-width: 30rem; display: flex; flex-direction: column; background: linear-gradient(160deg, var(--p1), var(--p2)); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); }
 .table { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .tbody { overflow: auto; min-height: 0; position: relative; }
-.th, .tr { --lead: 1.3rem 1.25rem 2.9rem 1.2rem; display: grid; grid-template-columns: var(--lead) minmax(0, 1fr) 1.8rem 3.7rem 3.2rem; gap: 0.5rem; align-items: center; padding: 0 0.8rem; }
+/* In a narrow list Version gives way first, down to its minimum, so the Mod column keeps 11rem, enough
+   for a name beside the badges in the same cell: 22.95rem is the lead columns, the update check, the
+   seven gaps and those 11rem. */
+.th, .tr { --lead: 1.3rem 1.25rem 2.9rem 1.2rem; display: grid; grid-template-columns: var(--lead) minmax(0, 1fr) 1.8rem clamp(3.7rem, min(30%, 100% - 22.95rem - var(--col-scope)), var(--col-ver)) var(--col-scope); gap: 0.5rem; align-items: center; padding: 0 0.8rem; }
 .th { padding-top: 0.35rem; padding-bottom: 0.35rem; font-size: 0.7rem; color: var(--mu); border-bottom: 1px solid var(--ln); }
 .tr { padding-top: 0.2rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--ln); cursor: pointer; outline-offset: -2px; touch-action: none; }
 .tr { transition: background var(--fast), transform 160ms ease-out; }
@@ -173,17 +184,26 @@ button.bare:hover { color: var(--tx); }
 .sub { font-size: 0.8rem; color: var(--mu); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sub.warn, .warn { color: var(--warn); }
 .tag { font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.1rem 0.45rem; background: var(--gold); color: var(--on); font-weight: 660; margin-left: 0.5rem; vertical-align: 0.1rem; }
-.ver-up { display: flex; align-items: center; justify-content: center; gap: 0.2rem; max-width: 100%; padding: 0.12rem 0.3rem; border: 0; cursor: pointer; color: var(--on); background: var(--gold); }
+.ver-up { display: flex; align-items: center; justify-content: center; justify-self: start; gap: 0.2rem; max-width: 100%; padding: 0.12rem 0.3rem; border: 0; cursor: pointer; color: var(--on); background: var(--gold); }
 .ver-up:hover { filter: brightness(1.12); }
 .ver-up span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ver-up svg { flex: none; width: 0.8rem; height: 0.8rem; }
 .link-row { align-self: flex-start; display: inline-flex; align-items: center; gap: 0.3rem; }
 .scope { justify-self: center; display: flex; padding: 0.35rem; }
-.th-scope { justify-self: center; }
+/* A header cell the column's width wide, so the line at its left edge sits in the gap before it. */
+.th-col { position: relative; align-self: stretch; display: flex; align-items: center; white-space: nowrap; }
+.th-scope { justify-content: center; }
+.col-grip { position: absolute; top: -0.35rem; bottom: -0.35rem; left: -0.55rem; width: 0.6rem; cursor: col-resize; touch-action: none; }
+.col-grip::after { content: ""; position: absolute; top: 0.2rem; bottom: 0.2rem; left: 50%; width: 1px; margin-left: -0.5px; background: transparent; transition: background var(--fast); }
+.col-grip:hover::after, .col-grip:active::after { background: var(--mu); }
 .scope i { width: 0.6rem; height: 0.6rem; transform: rotate(45deg); display: inline-block; background: var(--client); }
 .scope.session i { background: var(--session); }
 .scope.library i { background: var(--library); }
 .scope.unspecified i { background: var(--unspecified); }
+.scope.expansion i { background: var(--expansion); }
+/* Black on the dark theme, and white or yellow on the light one, get an edge to stand out. */
+:root:not([data-theme="light"]) .scope.unspecified i,
+:root[data-theme="light"] .scope.library i, :root[data-theme="light"] .scope.expansion i { box-shadow: 0 0 0 1px var(--scope-edge); }
 /* The update check beside the switches: one mod, a folder, or the whole list in the header */
 .bare.up-ck { padding: 0.1rem; justify-self: center; }
 .up-ck svg { width: 1rem; height: 1rem; }
@@ -239,9 +259,13 @@ button.link:hover { filter: brightness(1.2); }
 .about p { margin: 0; }
 .about h2 { margin: 0.3rem 0 0; font-size: 0.8rem; color: var(--mu); }
 .row-btns { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-.facts { display: grid; grid-template-columns: auto 1fr; gap: 0.3rem 1rem; margin: 0; font-size: 0.9rem; }
+.facts { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0.3rem 1rem; margin: 0; font-size: 0.9rem; }
 .facts dt { color: var(--mu); }
 .facts dd { margin: 0; }
+/* The source: only the icon, the link itself is in the tooltip. */
+.facts dd.src { display: flex; }
+.src-link { display: inline-flex; text-decoration: none; }
+.src-link svg { width: 1.2rem; height: 1.2rem; }
 .credits { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.55rem; }
 .credits li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 0.4rem; font-size: 0.9rem; }
 .credit-license { font-size: 0.7rem; color: var(--mu); border: 1px solid var(--ln); padding: 0 0.3rem; }
@@ -324,7 +348,13 @@ button.link:hover { filter: brightness(1.2); }
 .drawer { width: var(--drawer-w, 25rem); flex: 0 1 auto; min-width: 13rem; display: flex; flex-direction: column; min-height: 0; background: linear-gradient(160deg, var(--p1), var(--p2)); border-top: 4px solid var(--gold); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); animation: drawer-in var(--enter) ease-out; }
 .drawer.client { border-top-color: var(--client); }
 .drawer.library { border-top-color: var(--library); }
-.drawer.session, .drawer.conflicts { border-top-color: var(--session); }
+.drawer.session { border-top-color: var(--session); }
+.drawer.expansion { border-top-color: var(--expansion); }
+.drawer.unspecified { border-top-color: var(--unspecified); }
+.drawer.conflicts { border-top-color: var(--conflict); }
+/* The same edge as the diamonds, as a line under the band. */
+:root:not([data-theme="light"]) .drawer.unspecified,
+:root[data-theme="light"] .drawer.library, :root[data-theme="light"] .drawer.expansion { box-shadow: inset 0 1px 0 var(--scope-edge), 0 10px 30px rgba(0, 0, 0, 0.2); }
 .drawer.idle { border-top-color: var(--ln); justify-content: center; padding: 1.5rem; text-align: center; }
 @keyframes drawer-in { from { opacity: 0; transform: translateX(0.75rem); } }
 .dh { display: flex; align-items: flex-start; gap: 0.65rem; padding: 0.6rem 0.8rem 0.5rem; border-bottom: 1px solid var(--ln); }
@@ -376,14 +406,14 @@ button.link:hover { filter: brightness(1.2); }
 .bare.cf-ico.lose { color: var(--mu); }
 .bare.cf-ico:hover { filter: brightness(1.25); }
 .cf-ico svg { width: 1.15rem; height: 1.15rem; }
-.tip span { white-space: pre-line; }
+.tip span { white-space: pre-line; overflow-wrap: anywhere; }
 .ov { padding: 0.45rem 0.8rem; border-bottom: 1px solid var(--ln); transition: background var(--fast); }
-.ov.focus { background: var(--row); box-shadow: inset 3px 0 0 var(--session); }
+.ov.focus { background: var(--row); box-shadow: inset 3px 0 0 var(--conflict); }
 .ov-line { display: flex; align-items: center; gap: 0.6rem; font-size: 0.9rem; }
 .ov-mod { flex: 0 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 0.4rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--mu); }
 .ov-mod.win { color: var(--tx); font-weight: 600; }
 .ov-mod .num { flex: none; font-weight: 500; }
-.ov-arrow { flex: none; display: inline-flex; color: var(--session); }
+.ov-arrow { flex: none; display: inline-flex; color: var(--conflict); }
 button.link.small { font-size: 0.8rem; margin-top: 0.45rem; }
 .ov .files { padding: 0.3rem 0 0; }
 .ov .files li { padding: 0.15rem 0; }

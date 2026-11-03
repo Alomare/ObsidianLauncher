@@ -6,7 +6,22 @@ use std::path::PathBuf;
 
 const LOADER_LANGUAGES: [&str; 4] = ["en", "fr", "es", "pt-BR"];
 const APP_LANGUAGES: [&str; 3] = ["en", "pt-BR", "zh-CN"];
-const LOADER_KEYS: [&str; 8] = ["mod_failed", "build_unknown", "session_not_cleared", "uploads_blocked", "every_player_off", "proving_grounds_blocked", "progress_frozen", "achievements_blocked"];
+const LOADER_KEYS: [&str; 14] = [
+    "mod_failed",
+    "build_unknown",
+    "session_not_cleared",
+    "uploads_blocked",
+    "every_player_off",
+    "proving_grounds_blocked",
+    "progress_frozen",
+    "achievements_blocked",
+    "expansion_refused",
+    "expansion_turned_away",
+    "expansion_missing_here",
+    "expansion_unknown_player",
+    "expansion_proving_grounds",
+    "campaign_not_uploaded_expansion",
+];
 
 fn catalog(lang: &str) -> BTreeMap<String, String> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../locales").join(format!("{lang}.json"));

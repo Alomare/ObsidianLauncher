@@ -31,6 +31,6 @@ A profile you share or import keeps those two, and Obsidian tells you when an im
 
 ## Always on
 
-Galactic War results and leaderboards are never sent while session mods are deployed, and Proving Grounds stays closed ([The Galactic War](wiki:galactic-war)). That protects other players, so it isn't a choice. [What the guardrails can't do](wiki:honest-limits) covers the limits of all of this.
+Galactic War results and leaderboards are never sent while session mods are deployed, or from a mission the content of an expansion ran in, and Proving Grounds stays closed then ([The Galactic War](wiki:galactic-war)). That protects other players, so it isn't a choice. [What the guardrails can't do](wiki:honest-limits) covers the limits of all of this.
 
 Mod authors can read the player's choices with `obsidian.guardrails()` ([Loader API](wiki:loader-api#obsidian-guardrails)).

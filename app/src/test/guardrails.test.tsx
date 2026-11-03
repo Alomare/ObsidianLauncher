@@ -33,6 +33,13 @@ describe("guardrails", () => {
     expect(switches.map((b) => b.getAttribute("aria-checked"))).toEqual(["true", "false", "true"]);
   });
 
+  it("the_lead_says_the_current_profile_without_naming_it", () => {
+    show(snap(true, false, true));
+    const lead = document.querySelector(".lead")!.textContent!;
+    expect(lead).toContain("current profile");
+    expect(lead).not.toContain("Fun");
+  });
+
   it("a_switch_sends_its_own_command_with_the_opposite_value", () => {
     const switches = show(snap(false, false, true));
     act(() => switches[1].click());

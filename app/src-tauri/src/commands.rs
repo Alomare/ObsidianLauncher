@@ -128,9 +128,21 @@ pub fn import_all(data: &Path, game: Option<&GameInstall>, paths: &[PathBuf]) ->
     results
 }
 
+/// Takes the option values the player changed in the game's pause menu into the active profile,
+/// unless the game runs. The caller holds the turn. A failure leaves them for the next try and
+/// stops nothing.
+fn take_game_options(data: &Path, game: Option<&GameInstall>) {
+    if let Some(g) = game {
+        let _ = obsidian_core::game_options::take(data, &g.saves_dir, obsidian_core::game::is_running);
+    }
+}
+
+/// The window asks at startup and whenever the game starts or stops, so values changed in the game
+/// show in the mod details once it closes.
 #[tauri::command]
 pub async fn snapshot(ctx: State<'_, Ctx>) -> CmdResult<Snapshot> {
     let _turn = ctx.turn();
+    take_game_options(&ctx.data, find(&AppSettings::load(&ctx.data)).as_ref());
     fresh(&ctx)
 }
 
@@ -536,6 +548,8 @@ pub async fn deploy(app: tauri::AppHandle, ctx: State<'_, Ctx>) -> CmdResult<Dep
     let _turn = ctx.turn();
     let game = game_of(&ctx)?;
     ensure_closed()?;
+    // An option changed in the game can pick resources, so it goes into this deploy.
+    take_game_options(&ctx.data, Some(&game));
     // A deploy that's over in a moment needs no window. Mods that rebuild sound banks can take a minute.
     let started = std::time::Instant::now();
     let shown = AtomicU32::new(u32::MAX);

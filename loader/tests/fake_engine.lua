@@ -97,21 +97,26 @@ function E.new(opts)
 		__index = function(_, k) error("Undeclared global " .. tostring(k), 2) end,
 	})
 
-	-- opts.lobby: { my_id = "me", members = { "me", "p2" }, data = { p2 = "1;..." } }
+	-- opts.lobby: { my_id = "me", members = { "me", "p2" }, data = { p2 = "1;..." } }, and optionally
+	-- host (the lobby host's peer, my_id when left out) and extra ({ [peer] = { [key] = value } }).
+	-- What this machine publishes lands in published, and room data the host sets in room.
 	if opts.lobby then
 		local l = opts.lobby
-		l.published = {}
+		l.published, l.room = {}, {}
 		rawset(_G, "NetworkGlobal", {
 			lobby = {
 				my_id = l.my_id,
 				lobby = {},
 				state = function() return l.state or "joined" end,
 				members = function() return l.members end,
+				lobby_host = function() return l.host or l.my_id end,
 				member_data = function(_, peer, key)
 					if key == "obsidian" then return l.data[peer] end
+					if peer == l.my_id and l.published[key] ~= nil then return l.published[key] end
 					return l.extra and l.extra[peer] and l.extra[peer][key]
 				end,
 				set_member_data = function(_, key, value) l.published[key] = value end,
+				set_data = function(_, key, value) l.room[key] = value end,
 			},
 		})
 	end
@@ -138,7 +143,13 @@ function E.new(opts)
 		rawset(_G, "FRAMES", 0)
 		rawset(_G, "SHUTDOWNS", 0)
 		rawset(_G, "shutdown", function() rawset(_G, "SHUTDOWNS", rawget(_G, "SHUTDOWNS") + 1) end)
-		rawset(_G, "update", function() rawset(_G, "FRAMES", rawget(_G, "FRAMES") + 1) end)
+		rawset(_G, "update", function(dt)
+			rawset(_G, "FRAMES", rawget(_G, "FRAMES") + 1)
+			-- The game's update ends with the state machine's post_update, in every state.
+			local boot = rawget(_G, "Boot")
+			local machine = type(boot) == "table" and rawget(boot, "state_machine")
+			if type(machine) == "table" and type(machine.post_update) == "function" then machine:post_update(dt) end
+		end)
 		opts.modules = opts.modules or {}
 		opts.modules["lua/network/network_global"] = true
 		rawget(_G, "require")("lua/network/network_global")

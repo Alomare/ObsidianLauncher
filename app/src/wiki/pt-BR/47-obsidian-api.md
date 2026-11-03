@@ -6,6 +6,8 @@ summary: "Uma biblioteca para mods: os dados do jogo por nome, mudanças verific
 
 O Obsidian API é um mod sobre o qual outros mods são construídos. Ele sabe onde as coisas ficam no jogo, faz mudanças do jeito que o jogo aceita e as desfaz quando precisa. É assim que o Obsidian Trainer funciona, e o trainer não usa nada que você não possa usar.
 
+Esta página é a versão curta. O guia completo, com cada chamada, efeito e receita, é o [REFERENCE.md](https://github.com/Alomare/ObsidianAPI/blob/main/REFERENCE.md), em inglês, que também vem dentro da pasta da API no Kit do Obsidian, onde uma ferramenta de IA trabalhando no seu mod pode lê-lo.
+
 ## Como usar {#using-it}
 
 Coloque-o em `requires`. O Obsidian liga o API junto com o seu mod e o inicia primeiro:
@@ -16,7 +18,7 @@ Coloque-o em `requires`. O Obsidian liga o API junto com o seu mod e o inicia pr
 "requires": ["obsidian.api"]
 ```
 
-O Obsidian API é uma [biblioteca](wiki:session-mods#libraries). Um mod de cliente pode exigi-lo e continuar sendo de cliente, sem efeito na busca de partidas nem na Guerra Galáctica. Nesse caso, ele pode ler os dados do jogo e usar `api.ui`, `api.audio` e `api.events`, e tudo que muda o jogo compartilhado responde `false, "needs_session"`. Para usar essas funções, faça do seu mod um mod de sessão.
+O Obsidian API é uma [biblioteca](wiki:session-mods#libraries). Um mod de cliente pode exigi-lo e continuar sendo de cliente, sem efeito na busca de partidas nem na Guerra Galáctica. Nesse caso, ele pode ler os dados do jogo e usar `api.ui`, `api.audio` e `api.events`, e tudo que muda o jogo compartilhado responde `false, "needs_session"`. Para usar essas funções, o mod precisa ser um mod de sessão, ou uma expansão, que recebe todo o Obsidian API enquanto o conteúdo roda e `false, "not_started"` fora dele ([Escrever uma expansão](wiki:session-mods#expansions)). Uma expansão deixa o Obsidian API como mod de cliente na aplicação.
 
 Depois peça por ele:
 
@@ -128,19 +130,21 @@ end)
 | `api.game` | O estado atual, o jogador local, `is_host()` e escritas seguras |
 | `api.catalog` | Armas, estratagemas, vantagens, inimigos e grupos por nome: o jogo base, mais as DLCs que o jogador tem. `usable(name)` verifica isso, `unowned_path(path)` verifica o caminho de uma arma, e `unlocked(name)` diz se o jogador desbloqueou um item jogando. Também `backpacks`, `crates`, `pickups`, `vehicles`, `by_subtype(name)` e `max_upgrade(path)` |
 | `api.player` | `heal`, `heal_by(amount)`, `set_health(n)`, `respawn`, `teleport`, `set_cosmetic`, `set_outline(r, g, b)`, `clear_status(name)`, `immune(name, on)`, `knockdown`, `drop_carried` e mais |
-| `api.gear` | `refill`, `give_weapon(slot, path, upgrade)`, `give_backpack(path, upgrade)`, `give_perk`, `remove_perk`, `add_perk(name, unit)`, `remove_extra_perk(name, unit)`, `extra_perks(unit)`, `refresh`, `weapons_of(owner)`, `tune(unit, component, changes)`, `add_drone(path, unit, upgrade)` |
-| `api.stratagems` | `reset_cooldowns`, `refill_uses`, `give`, `drop`, `call(name, pos, delay)`, `edit(name, field, value)` |
+| `api.gear` | `refill`, `give_weapon(slot, path, upgrade, unit)`, `give_backpack(path, upgrade, unit)`, `give_perk(name, unit)`, `remove_perk(unit)`, `add_perk(name, unit)`, `remove_extra_perk(name, unit)`, `extra_perks(unit)`, `refresh`, `weapons_of(owner)`, `tune(unit, component, changes)`, `add_drone(path, unit, upgrade)` |
+| `api.stratagems` | `reset_cooldowns`, `refill_uses`, `give`, `drop`, `call(name, pos, delay)`, `edit(name, field, value)`, `define(def)`, `custom()` |
 | `api.enemies` | `spawn`, `spawn_group`, `spawn_entity(path, pos)`, `kill_all`, `kill(unit)`, `list`, `info(unit)`, `nearest(pos)`, `apply_status(unit, template)`, `stun_near(radius)`, `near(radius, pos)`, `damage(unit, power, statuses)`, `set_hitpoints(unit, n)`, `despawn(unit)`, `load_faction(name)`, `set_pressure(t)`, `waves()`, `force_wave(name, pos)`, `carried()`, os inimigos no mapa com cadáveres e a fila de surgimento, e `room()`, quantos mais cabem abaixo de `MAX_SAFE` |
 | `api.mission` | `finish_objectives`, `objectives()`, `mutator(name)`, `win`, `abort`, `practice` |
 | `api.vehicles` | `current()`, `driving()`, `repair()`, `refill()` |
 | `api.combat` | `scale{ players, enemies }` |
 | `api.events` | `on(name, fn)`, `off(name, fn)` |
 | `api.ui` | `hint(text, seconds)`, `ping(pos)`, `open(name, opts)`, `close()`, `menus()`, `with_texts(texts, fn, ...)` |
+| `api.menu` | A janela dentro do jogo (F6): `add(title, build, opts)`, `open()`, `close()`, `toggle()`, `is_open()`, `toast(text, seconds)`. As páginas de cada mod ficam numa pasta com o nome do mod |
 | `api.map` | `is_open(unit)`, `open()`, `close()`, `zoom()`, `set_zoom(z)`, `view()`, `cursor()`, `look_at(pos)`, `pings()`, `to_map(pos)`, `to_world(x, y)`, `marker(pos, opts)`, `clear_markers()` |
-| `api.bots` | `add(opts)`, `all()`, `remove_all()` |
+| `api.bots` | `add(opts)`, `all()`, `remove_all()` e, em cada bot, ordens, equipamento e ajuda |
 | `api.lobby` | `players()`, `share(name, value)`, `shared(name)` |
 | `api.world` | `cursor`, `ahead`, `to_screen(pos)`, `prop(unit, pos, opts)`, `explode`, `camera`, `shading(name, kind, value)`, `flash(seconds)` |
 | `api.audio` | `bus(name, db)`, `play(event, pos)`, `stinger(name)` |
+| `api.music` | `now()`, `tracks()`, `play(track)`, `stop()`, `release()`, `pause()`, `resume()`, `volume(db)` |
 | `api.progress` | `set_samples`, `unlock_items`, `upgrade_all`, `loadout()`, `set_loadout(t)`, `upgrades()`, `set_upgrade(name, value)`, `upgrade_limit(name)` |
 | `api.console` | `run(line)`, `commands()` |
 
@@ -204,6 +208,38 @@ api.stratagems.call("stratagem_resupply", api.world.cursor(), 15)   -- 15 s alé
 `api.stratagems.drop` é o rápido: sem sinalizador, sem espera e sem Reforço.
 
 O efeito `ignore_jammers` deixa estratagemas funcionarem dentro de zonas sem estratagemas.
+
+### Estratagemas próprios {#custom-stratagems}
+
+`api.stratagems.define(def)` adiciona um estratagema à lista do jogo, feito a partir de um dos estratagemas do próprio jogo, a base. Responde `{ name, id }`, ou `nil` e um motivo. O estratagema deve ser criado quando o mod inicia, para que um equipamento salvo que o tenha ainda o encontre.
+
+```lua
+api.stratagems.define({
+  name = "mymod_pitchfork",                 -- novo, letras, dígitos e _
+  base = "stratagem_lasercannon",           -- copiado, e o que os outros jogadores veem
+  title = { en = "Pitchfork", fr = "Fourche" },
+  description = "Three barrels.",
+  code = { "down", "left", "up", "down", "left", "right" },
+  icon = "stratagem_lasercannon",           -- qualquer ícone que o HUD tenha
+  type = "supply",                          -- supply, offensive, defensive ou special
+  stats = { cooldown_time = 60, num_uses = 2, activation_time = 2 },
+  upgrades = {
+    { title = "Pitchfork Light", description = "Move while firing.", cost = 3, stats = { cooldown_time = 45 } },
+  },
+  on_activate = function(ctx)               -- na máquina de quem arremessa, quando é chamado
+    api.world.explode(ctx.position, 2000, 8)
+    return false                            -- false: não solta mais nada
+  end,
+})
+```
+
+- Todo campo, exceto `name`, `base` e `title`, é opcional e, quando fica de fora, mantém o valor da base. Sem `upgrades`, os níveis da base continuam, com o nome do novo estratagema: "Pitchfork Mk2".
+- `unit` define o que cai, e `subtypes` e `attributes` o que a tela de equipamento mostra. Tudo o que ele chama precisa ser uma unidade que todo jogo tem.
+- `ctx` tem `name`, `position` (o vetor do jogo, válido naquele quadro), `owner` (a unidade de quem arremessou) e `upgrade`.
+- Os outros jogadores sempre veem e ouvem a base. Os ids nas mensagens do jogo, e nos campos que ele copia para outras máquinas, saem como os da base, então um jogador sem o mod nunca recebe um id que o jogo dele não tem. Isso vale em qualquer lobby. Num lobby que não está liberado, o estratagema é a base: os números e a chamada da base, e nenhum `on_activate`.
+- A tela de equipamento o oferece a um jogador que tem a base, por patente, recompensa ou uma DLC que ele tenha, e só numa sessão liberada.
+- O save guarda as melhorias dele pelo nome. Um equipamento salvo que cita um estratagema que o jogo não tem recebe o padrão no lugar, então um jogador pode tirar o mod e manter um save que funciona.
+- `api.stratagems.custom()` lista os criados até agora, como `{ name, base, id }`.
 
 ## Inimigos {#enemies}
 
@@ -332,6 +368,25 @@ api.audio.stinger("music_objective_found")
 - `play` e `stinger` respondem `"unknown_event"` para um som que esta missão não carregou.
 - `stinger` passa pela recarga de 5 segundos do próprio jogo.
 
+### A trilha sonora {#the-soundtrack}
+
+`api.music` escolhe o que toca. Uma faixa tocada por `play` fica mantida nesta tela e nas próximas, em loop, até `release()` devolver a música ao jogo.
+
+```lua
+api.music.tracks()              -- os eventos de música que esta tela tem
+api.music.play("music_credits") -- no lugar da música do jogo
+api.music.stop()                -- silêncio, mantido do mesmo jeito
+api.music.pause()
+api.music.resume()
+api.music.release()             -- o jogo volta a escolher
+api.music.volume(-12)           -- decibéis, como api.audio.bus("music_master", ...)
+api.music.now()                 -- { place, track, held, paused }
+```
+
+- `api.music.TRACKS` lista todos os eventos de música que os scripts do jogo iniciam. Uma tela tem só alguns deles, então `play` responde `"unknown_event"` para um que ela não carregou, e `"no_music"` onde não há música nenhuma. Uma faixa mantida que a próxima tela não carregou deixa essa tela em silêncio.
+- No menu principal e na nave, a música tem um mundo de som próprio, então uma pausa a para onde está. Numa missão e nas telas de início e fim da missão, uma pausa só tira o som, e a música continua correndo.
+- Numa missão, as músicas de ameaça e de combate do próprio jogo ficam quietas enquanto uma faixa está mantida, e voltam quando ela é liberada.
+
 ## Equipamentos salvos {#loadouts}
 
 ```lua
@@ -380,9 +435,16 @@ Um bot é primeiro um jogador local num controle que ninguém usa, então tem es
 local bot = api.bots.add({ name = "Dummy" })
 bot:follow(nil, 6)   -- fica a até 6 metros do jogador
 bot:fight(25)        -- mira e atira no inimigo mais próximo a até 25 metros
+bot:go_to(api.world.cursor())  -- anda até lá e para
+bot:hold()           -- fica parado
+bot:aim_at(pos)      -- fica virado para um ponto enquanto não há nada para combater
 ```
 
-Para controlar você mesmo: `move(dir)`, `aim(dir)`, `fire(on)`, `sprint(on)`, `reload()`, `dodge()`, `melee()`, `interact()`, `throw()` e `switch()`. Direções são direções do mundo como `{ x, y }`. `unit()`, `alive()` e `remove()` fazem o que dizem. Bots andam em linha reta até o objetivo, sem busca de caminho, e o jogo mantém jogadores locais na tela, então um bot jogador para na borda da visão.
+Ordens: `follow(unit, distance)`, `go_to(pos, distance)`, `hold()`, `aim_at(pos)`, `fight(radius)`, e `fighting()` e `firing()` para lê-las de volta. Uma nova ordem de andar substitui a anterior, e `go_to` termina quando o bot chega.
+
+Equipamento e ajuda vão para o bot do jeito que `api.gear`, `api.stratagems` e `api.player` os dão ao jogador principal, e respondem `true` ou `false` e um motivo, `"no_avatar"` enquanto o bot não tem corpo: `give_weapon(slot, path, upgrade)`, `give_backpack(path, upgrade)`, `give_perk(name)`, `remove_perk()`, `refill()`, `give_stratagem(name)`, `call(name, pos, delay)` para uma chamada real do próprio bot, `heal()`, `teleport(pos)` e `weapons()`.
+
+Para controlar um bot diretamente: `move(dir)`, `aim(dir)`, `fire(on)`, `sprint(on)`, `reload()`, `dodge()`, `melee()`, `interact()`, `throw()` e `switch()`. Direções são direções do mundo como `{ x, y }`. `unit()`, `alive()` e `remove()` fazem o que dizem. Bots andam em linha reta até o objetivo, sem busca de caminho, e o jogo mantém jogadores locais na tela, então um bot jogador para na borda da visão.
 
 Os bots saem antes dos resultados da missão, então nunca chegam às telas finais nem ao save de ninguém.
 

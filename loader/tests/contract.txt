@@ -3,9 +3,11 @@ obsidian.caller function
 obsidian.capabilities table
 obsidian.capabilities.after_startup boolean
 obsidian.capabilities.caller boolean
+obsidian.capabilities.expansion boolean
 obsidian.capabilities.guardrails boolean
 obsidian.capabilities.hook boolean
 obsidian.capabilities.import boolean
+obsidian.capabilities.info boolean
 obsidian.capabilities.keybind boolean
 obsidian.capabilities.log boolean
 obsidian.capabilities.menu boolean
@@ -22,9 +24,14 @@ obsidian.capabilities.text boolean
 obsidian.capabilities.toast boolean
 obsidian.capabilities.ui boolean
 obsidian.capabilities.wrap boolean
+obsidian.expansion table
+obsidian.expansion.running function
+obsidian.expansion.start function
+obsidian.expansion.stop function
 obsidian.guardrails function
 obsidian.hook function
 obsidian.import function
+obsidian.info function
 obsidian.keybind function
 obsidian.log function
 obsidian.menu table

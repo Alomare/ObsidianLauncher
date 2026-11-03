@@ -5,12 +5,14 @@ local T = {}
 local function test(name, fn) T[#T + 1] = { name, fn } end
 
 local IDS = { "obsidian.api", "obsidian.trainer" }
+local current_e
 
 local function start(opts)
 	local e, game, ui = G.start(IDS, opts)
+	current_e = e
 	rawset(math, "create_weak_unique_identifier", function() return "id" end)
 	game.state.active_screens = {}
-	return e, game, ui, e.loaded["obsidian/loader/menu"]
+	return e, game, ui, e.loaded["obsidian/mods/obsidian.api/lib/menu"]
 end
 
 local function raw_key(text)
@@ -27,9 +29,9 @@ local function walk(M, ui, seen, press, path)
 		if it.kind ~= "header" and it.kind ~= "label" then
 			frame.selected = i
 			ui.frame()
-			local core = M.core
+			local core = current_e:core()
 			local previous = core.current
-			core.current = it.owner or frame.state
+			core.current = core.mods_by_id[it.owner or frame.owner]
 			local label = type(it.label) == "function" and it.label() or it.label
 			core.current = previous
 			seen[#seen + 1] = path .. " / " .. tostring(label)
@@ -57,7 +59,7 @@ local function walk(M, ui, seen, press, path)
 				end
 				ui.tap("right")
 				ui.tap("left")
-				if not M.is_open then M.open() end
+				if not M.shown then M.open() end
 				if M.stack[#M.stack] ~= frame then return end
 			end
 		end
@@ -67,10 +69,10 @@ end
 -- Every page down the left, reached with the keys.
 local function walk_all(M, ui, seen, press)
 	for i = 1, #M.roots do
-		if not M.is_open then M.open() end
+		if not M.shown then M.open() end
 		while #M.stack > 1 do ui.tap("esc") end
 		M.nav = true
-		for _ = 1, #M.roots do
+		for _ = 1, #M.roots + #M.owners + 1 do
 			if M.root == M.roots[i] then break end
 			ui.tap("down")
 		end
@@ -469,6 +471,28 @@ test("the_texts_the_trainer_shows_keep_the_writing_rules", function()
 	for value in data:gmatch('label="([^"]*)"') do assert_plain(value, "a field label") end
 	assert_plain(read_file("bundled/obsidian.trainer/obsidian.json"):match('"en": "An in%-game menu.-"\n') or "", "the description")
 	assert_plain(read_file("app/src/wiki/20-trainer.md"):gsub("`[^`]*`", ""), "the wiki")
+end)
+
+test("a_kept_custom_stratagem_is_made_again_at_the_next_launch", function()
+	local e = start()
+	local core = e:core()
+	core.current = core.mods_by_id["obsidian.trainer"]
+	obsidian.storage.set("custom.trainer_custom_1", "trainer_custom_1|stratagem_resupply|Big Drop|d d u|stratagem_airstrike|30|2|1.5|also|stratagem_airstrike|1")
+	obsidian.storage.set("custom.broken", "nothing here")
+	local custom = e.loaded["obsidian/mods/obsidian.trainer/pages/custom"]
+	E.eq(custom.load(), true)
+	local s = rawget(_G, "LoadoutSettings")
+	local made = s.stratagems[#s.stratagems]
+	E.eq(made.name, "trainer_custom_1")
+	E.eq(made.combo[3], "up")
+	E.eq(made.icon, "stratagem_airstrike")
+	E.eq(made.cooldown_time, 30)
+	E.eq(made.num_uses, 2)
+	E.eq(made.activation_time, 1.5)
+	E.eq(rawget(_G, "LocalizationManager"):string("trainer_custom_1"), "Big Drop")
+	E.eq(custom.load(), true, "once")
+	E.eq(#s.stratagems, made.id)
+	core.current = nil
 end)
 
 return T

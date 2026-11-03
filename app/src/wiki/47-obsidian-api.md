@@ -6,6 +6,8 @@ summary: A library for mods: the game's data by name, checked changes, and ready
 
 Obsidian API is a mod other mods build on. It knows where things are in the game, makes changes in ways the game accepts, and undoes them when it has to. It's how Obsidian Trainer works, and the trainer uses nothing you can't use.
 
+This page is the short version. The full guide, with every call, effect and recipe, is [REFERENCE.md](https://github.com/Alomare/ObsidianAPI/blob/main/REFERENCE.md), which also comes inside the API's folder in the Obsidian Kit, where an AI tool working on your mod can read it.
+
 ## Using it
 
 List it in `requires`, and Obsidian switches it on with your mod and starts it first:
@@ -16,7 +18,7 @@ List it in `requires`, and Obsidian switches it on with your mod and starts it f
 "requires": ["obsidian.api"]
 ```
 
-Obsidian API is a [library](wiki:session-mods#libraries). A client mod can require it and stay a client mod, with no effect on matchmaking or the Galactic War. In that case it can read the game's data and use `api.ui`, `api.audio` and `api.events`, and anything that changes the shared game answers `false, "needs_session"`. To use those, make your mod a session mod.
+Obsidian API is a [library](wiki:session-mods#libraries). A client mod can require it and stay a client mod, with no effect on matchmaking or the Galactic War. In that case it can read the game's data and use `api.ui`, `api.audio` and `api.events`, and anything that changes the shared game answers `false, "needs_session"`. To use those, make your mod a session mod, or an expansion, which gets all of Obsidian API while the content runs and `false, "not_started"` outside it ([Writing an expansion](wiki:session-mods#expansions)). An expansion leaves Obsidian API a client mod at deploy.
 
 Then ask for it:
 
@@ -128,19 +130,21 @@ end)
 | `api.game` | The current state, the local player, `is_host()`, and safe writes |
 | `api.catalog` | Weapons, stratagems, perks, enemies and groups by name: the base game, plus the DLC the player owns. `usable(name)` checks that, `unowned_path(path)` checks a weapon's path, and `unlocked(name)` says whether the player has unlocked an item by playing. Also `backpacks`, `crates`, `pickups`, `vehicles`, `by_subtype(name)` and `max_upgrade(path)` |
 | `api.player` | `heal`, `heal_by(amount)`, `set_health(n)`, `respawn`, `teleport`, `set_cosmetic`, `set_outline(r, g, b)`, `clear_status(name)`, `immune(name, on)`, `knockdown`, `drop_carried`, and more |
-| `api.gear` | `refill`, `give_weapon(slot, path, upgrade)`, `give_backpack(path, upgrade)`, `give_perk`, `remove_perk`, `add_perk(name, unit)`, `remove_extra_perk(name, unit)`, `extra_perks(unit)`, `refresh`, `weapons_of(owner)`, `tune(unit, component, changes)`, `add_drone(path, unit, upgrade)` |
-| `api.stratagems` | `reset_cooldowns`, `refill_uses`, `give`, `drop`, `call(name, pos, delay)`, `edit(name, field, value)` |
+| `api.gear` | `refill`, `give_weapon(slot, path, upgrade, unit)`, `give_backpack(path, upgrade, unit)`, `give_perk(name, unit)`, `remove_perk(unit)`, `add_perk(name, unit)`, `remove_extra_perk(name, unit)`, `extra_perks(unit)`, `refresh`, `weapons_of(owner)`, `tune(unit, component, changes)`, `add_drone(path, unit, upgrade)` |
+| `api.stratagems` | `reset_cooldowns`, `refill_uses`, `give`, `drop`, `call(name, pos, delay)`, `edit(name, field, value)`, `define(def)`, `custom()` |
 | `api.enemies` | `spawn`, `spawn_group`, `spawn_entity(path, pos)`, `kill_all`, `kill(unit)`, `list`, `info(unit)`, `nearest(pos)`, `apply_status(unit, template)`, `stun_near(radius)`, `near(radius, pos)`, `damage(unit, power, statuses)`, `set_hitpoints(unit, n)`, `despawn(unit)`, `load_faction(name)`, `set_pressure(t)`, `waves()`, `force_wave(name, pos)`, `carried()`, the enemies on the map with corpses and the spawn queue, and `room()`, how many more fit under `MAX_SAFE` |
 | `api.mission` | `finish_objectives`, `objectives()`, `mutator(name)`, `win`, `abort`, `practice` |
 | `api.vehicles` | `current()`, `driving()`, `repair()`, `refill()` |
 | `api.combat` | `scale{ players, enemies }` |
 | `api.events` | `on(name, fn)`, `off(name, fn)` |
 | `api.ui` | `hint(text, seconds)`, `ping(pos)`, `open(name, opts)`, `close()`, `menus()`, `with_texts(texts, fn, ...)` |
+| `api.menu` | The in-game window (F6): `add(title, build, opts)`, `open()`, `close()`, `toggle()`, `is_open()`, `toast(text, seconds)`. Each mod's pages sit in a folder named after the mod |
 | `api.map` | `is_open(unit)`, `open()`, `close()`, `zoom()`, `set_zoom(z)`, `view()`, `cursor()`, `look_at(pos)`, `pings()`, `to_map(pos)`, `to_world(x, y)`, `marker(pos, opts)`, `clear_markers()` |
-| `api.bots` | `add(opts)`, `all()`, `remove_all()` |
+| `api.bots` | `add(opts)`, `all()`, `remove_all()`, and on a bot its orders, gear and help |
 | `api.lobby` | `players()`, `share(name, value)`, `shared(name)` |
 | `api.world` | `cursor`, `ahead`, `to_screen(pos)`, `prop(unit, pos, opts)`, `explode`, `camera`, `shading(name, kind, value)`, `flash(seconds)` |
 | `api.audio` | `bus(name, db)`, `play(event, pos)`, `stinger(name)` |
+| `api.music` | `now()`, `tracks()`, `play(track)`, `stop()`, `release()`, `pause()`, `resume()`, `volume(db)` |
 | `api.progress` | `set_samples`, `unlock_items`, `upgrade_all`, `loadout()`, `set_loadout(t)`, `upgrades()`, `set_upgrade(name, value)`, `upgrade_limit(name)` |
 | `api.console` | `run(line)`, `commands()` |
 
@@ -204,6 +208,38 @@ api.stratagems.call("stratagem_resupply", api.world.cursor(), 15)   -- 15 s on t
 `api.stratagems.drop` is the quick one: no flare and no wait, and no Reinforce.
 
 The effect `ignore_jammers` lets stratagems work inside no-stratagem zones.
+
+### Custom stratagems
+
+`api.stratagems.define(def)` adds a stratagem to the game's list, made from one of the game's own, its base. It answers `{ name, id }`, or `nil` and a reason. Make it as your mod starts, so a saved loadout that has it still finds it.
+
+```lua
+api.stratagems.define({
+  name = "mymod_pitchfork",                 -- new, letters, digits and _
+  base = "stratagem_lasercannon",           -- copied, and what other players see
+  title = { en = "Pitchfork", fr = "Fourche" },
+  description = "Three barrels.",
+  code = { "down", "left", "up", "down", "left", "right" },
+  icon = "stratagem_lasercannon",           -- any icon the HUD has
+  type = "supply",                          -- supply, offensive, defensive or special
+  stats = { cooldown_time = 60, num_uses = 2, activation_time = 2 },
+  upgrades = {
+    { title = "Pitchfork Light", description = "Move while firing.", cost = 3, stats = { cooldown_time = 45 } },
+  },
+  on_activate = function(ctx)               -- on the thrower's machine, as it's called down
+    api.world.explode(ctx.position, 2000, 8)
+    return false                            -- false: drop nothing else
+  end,
+})
+```
+
+- Every field but `name`, `base` and `title` is optional, and leaves the base's. Without `upgrades`, the base's levels stay, named after yours: "Pitchfork Mk2".
+- `unit` sets what lands, and `subtypes` and `attributes` what the Loadout screen shows. Anything it calls down has to be a unit every game has.
+- `ctx` has `name`, `position` (the game's vector, good for that frame), `owner` (the thrower's unit) and `upgrade`.
+- Other players always see and hear the base. The ids in the game's messages, and in the fields it copies to other machines, go out as the base's, so a player without your mod is never sent one their game doesn't have. That holds in any lobby. In a lobby that isn't cleared, the stratagem is its base: the base's numbers and call-in, and no `on_activate`.
+- The Loadout screen offers it to a player who has its base, by rank, reward or a DLC they own, and only in a cleared session.
+- The save keeps its upgrades under its name. A saved loadout that names a stratagem the game doesn't have gets the default instead, so a player can take your mod off and keep a save that works.
+- `api.stratagems.custom()` lists the ones made so far, as `{ name, base, id }`.
 
 ## Enemies {#enemies}
 
@@ -326,6 +362,25 @@ api.audio.stinger("music_objective_found")
 - `play` and `stinger` answer `"unknown_event"` for a sound this mission hasn't loaded.
 - `stinger` goes through the game's own cooldown of 5 seconds.
 
+### The soundtrack
+
+`api.music` picks what plays. A track you play holds on this screen and the next ones, and loops, until `release()` gives the music back to the game.
+
+```lua
+api.music.tracks()              -- the music events this screen has
+api.music.play("music_credits") -- in place of the game's music
+api.music.stop()                -- silence, held the same way
+api.music.pause()
+api.music.resume()
+api.music.release()             -- the game picks again
+api.music.volume(-12)           -- decibels, as api.audio.bus("music_master", ...)
+api.music.now()                 -- { place, track, held, paused }
+```
+
+- `api.music.TRACKS` lists every music event the game's scripts start. A screen has only some of them, so `play` answers `"unknown_event"` for one it hasn't loaded, and `"no_music"` where there's no music at all. A held track that the next screen hasn't loaded leaves that screen silent.
+- On the main menu and the ship the music has a sound world of its own, so a pause stops it where it is. In a mission and on the mission's start and end screens, a pause mutes it and it keeps its time.
+- In a mission, the game's own threat and combat music go quiet while a track is held, and come back when it's released.
+
 ## Loadouts {#loadouts}
 
 ```lua
@@ -380,7 +435,14 @@ A bot is first a local player on a pad nobody holds, so it has a HUD slot, a nam
 local bot = api.bots.add({ name = "Dummy" })
 bot:follow(nil, 6)   -- keep within 6 metres of the player
 bot:fight(25)        -- aim at and shoot the nearest enemy within 25 metres
+bot:go_to(api.world.cursor())  -- walk there and stop
+bot:hold()           -- stay put
+bot:aim_at(pos)      -- keep facing a spot while there's nothing to fight
 ```
+
+Orders: `follow(unit, distance)`, `go_to(pos, distance)`, `hold()`, `aim_at(pos)`, `fight(radius)`, and `fighting()` and `firing()` to read them back. A new order to walk replaces the last one, and `go_to` ends when the bot gets there.
+
+Gear and help go to the bot as `api.gear`, `api.stratagems` and `api.player` give them to the main player, and answer `true` or `false` and a reason, `"no_avatar"` while the bot has no body: `give_weapon(slot, path, upgrade)`, `give_backpack(path, upgrade)`, `give_perk(name)`, `remove_perk()`, `refill()`, `give_stratagem(name)`, `call(name, pos, delay)` for a real call-in of the bot's, `heal()`, `teleport(pos)`, and `weapons()`.
 
 To drive one yourself: `move(dir)`, `aim(dir)`, `fire(on)`, `sprint(on)`, `reload()`, `dodge()`, `melee()`, `interact()`, `throw()` and `switch()`. Directions are world directions as `{ x, y }`. `unit()`, `alive()` and `remove()` do what they say. Bots walk straight at a goal with no pathfinding, and the game keeps local players on screen, so a player bot stops at the edge of the view.
 

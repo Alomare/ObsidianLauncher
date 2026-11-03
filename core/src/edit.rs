@@ -30,7 +30,12 @@ pub fn needs_deploy(m: &Manifest, option: &str, client: bool) -> bool {
 
 /// Sets an option to `value`, or back to the default when `value` is `None`.
 pub fn set_option(lib: &Library, profile: &mut Profile, id: &str, option: &str, value: Option<&Value>) -> Result<Applies> {
-    let m = manifest(lib, id)?;
+    set_option_of(&manifest(lib, id)?, profile, option, value)
+}
+
+/// `set_option` with the mod's manifest already read.
+pub fn set_option_of(m: &Manifest, profile: &mut Profile, option: &str, value: Option<&Value>) -> Result<Applies> {
+    let id = m.id.as_str();
     let specs = m.option_specs()?;
     let spec = specs.iter().find(|s| s.id == option).ok_or_else(|| ObsidianError::UnknownOption { mod_id: id.into(), option: option.into() })?;
     match value {
@@ -47,7 +52,7 @@ pub fn set_option(lib: &Library, profile: &mut Profile, id: &str, option: &str, 
             }
         }
     }
-    Ok(if needs_deploy(&m, option, spec.client) { Applies::AfterDeploy } else { Applies::NextLaunch })
+    Ok(if needs_deploy(m, option, spec.client) { Applies::AfterDeploy } else { Applies::NextLaunch })
 }
 
 /// Binds a keybind to `key`, or back to the mod's default when `key` is `None`.

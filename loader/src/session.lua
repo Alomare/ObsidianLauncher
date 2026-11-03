@@ -1,8 +1,10 @@
 -- When a session is cleared for session mods (spec 6.2), and the lobby handshake (spec 6.3, layer 2).
 -- Every Obsidian player publishes lobby member data "obsidian" = "1;<mod-set hash>;<consent 0|1>",
--- and "obsidian_every" = "<id>:<hash>,..." for the mods every player has to run.
+-- and "obsidian_every" = "<id>:<hash>,..." for the mods every player has to run. Expansions follow
+-- their content instead (expansion.lua).
 local B = require("obsidian/loader/builtins")
 local log = require("obsidian/loader/log")
+local expansion = require("obsidian/loader/expansion")
 
 local EVERY = 30
 local EVERY_KEY = "obsidian_every"
@@ -27,6 +29,7 @@ local function lobby()
 	if B.type(network) == "table" and network.lobby and network.lobby.lobby then return network.lobby end
 	return nil
 end
+M.lobby = lobby
 
 -- Member data belongs to the engine's lobby. The game keeps one NetworkRoom when a player leaves
 -- their own lobby to join another and swaps the engine's lobby inside it, so that's what counts as
@@ -39,11 +42,39 @@ local function publish(l, key, value)
 	M.sent[key] = value
 	return true
 end
+M.publish = publish
 
 -- Whether a mod's gated code may run: a cleared session, and for a mod every player has to run,
--- every other player running it.
+-- every other player running it. An expansion's runs only while its content does. A library that
+-- only expansions require runs as a client library, and serves them while their content runs.
+-- A library a session mod requires runs while the session is cleared, and while the content of an
+-- expansion that requires it runs, whoever else is in the lobby.
 function M.allows(state)
+	local mod = state and state.mod
+	if mod and mod.scope == "expansion" then
+		return not expansion.is_own(state.id) or expansion.serves(mod.expansions)
+	end
+	if mod and mod.expansions and expansion.serves(mod.expansions) then return true end
 	return M.state and not (state and M.missing[state.id])
+end
+
+-- What obsidian.on_session reports: whether the loader has the mod on. For a library that only
+-- expansions require, that's their content, so it can undo what an expansion changed once it ends.
+local function switched(state)
+	local mod = state and state.mod
+	if mod and mod.scope == "expansion" then return expansion.serves(mod.expansions) end
+	return M.allows(state)
+end
+
+-- Tells each on_session listener whose answer changed.
+function M.refresh()
+	for _, l in B.ipairs(M.listeners) do
+		local now = switched(l.state)
+		if now ~= l.on then
+			l.on = now
+			M.core.call(l.state, "on_session", l.fn, now)
+		end
+	end
 end
 
 -- The mods every player has to run, as "<id>:<hash>", sorted.
@@ -68,13 +99,7 @@ local function set_cleared(on, missing)
 		if not missing[id] then log.line("session: every player here runs " .. id) end
 	end
 	M.state, M.missing = on, missing
-	for _, l in B.ipairs(M.listeners) do
-		local now = M.allows(l.state)
-		if now ~= l.on then
-			l.on = now
-			M.core.call(l.state, "on_session", l.fn, now)
-		end
-	end
+	M.refresh()
 end
 
 function M.evaluate()
@@ -147,7 +172,34 @@ end
 
 function M.on_session(fn)
 	local state = M.core.current
-	B.insert(M.listeners, { state = state, fn = fn, on = M.allows(state) })
+	B.insert(M.listeners, { state = state, fn = fn, on = switched(state) })
+end
+
+-- A guarded function of the mod `state`, called by another mod. An expansion gets full use of the
+-- libraries it requires while its content runs, whatever the lobby, and none of anyone's outside it.
+local function guarded(state, v)
+	return function(...)
+		local caller, mod = M.core.current, state.mod
+		if caller and caller ~= state and expansion.is_own(caller.id) then
+			if not expansion.running(caller.id) then return false, "not_started" end
+			for _, id in B.ipairs(mod.expansions or {}) do
+				if id == caller.id then return v(...) end
+			end
+		end
+		if mod.scope == "client" then return false, "needs_session" end
+		if mod.scope == "expansion" then
+			-- An expansion's own table opens with its content. A library only expansions require
+			-- refuses everyone else, as a client library does.
+			if expansion.is_own(state.id) then
+				if expansion.serves(mod.expansions) then return v(...) end
+				return false, "not_started"
+			end
+			if caller == state and expansion.serves(mod.expansions) then return v(...) end
+			return false, "needs_session"
+		end
+		if not M.allows(state) then return false, "not_cleared" end
+		return v(...)
+	end
 end
 
 -- A view of a mod's table for other mods to call. Every function not named in `free` answers
@@ -166,13 +218,7 @@ function M.guard(t, free)
 		__index = function(_, k)
 			local v = t[k]
 			if B.type(v) ~= "function" or open[k] then return v end
-			if not wrapped[v] then
-				wrapped[v] = function(...)
-					if state.mod.scope == "client" then return false, "needs_session" end
-					if not M.allows(state) then return false, "not_cleared" end
-					return v(...)
-				end
-			end
+			if not wrapped[v] then wrapped[v] = guarded(state, v) end
 			return wrapped[v]
 		end,
 		__newindex = t,

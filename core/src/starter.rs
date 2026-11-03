@@ -69,6 +69,10 @@ pub fn restore(lib: &Library, p: &mut Profile) -> Result<()> {
             e.enabled = id == ON;
         }
     }
+    // With what it requires (Obsidian QoL needs Obsidian API since 1.4.0).
+    if p.mods.iter().any(|m| m.id == ON) {
+        p.switch(lib, ON, true)?;
+    }
     // A mod of the player's that needs one of these keeps it on.
     let others: Vec<String> = p.mods.iter().filter(|m| m.enabled && !MODS.contains(&m.id.as_str())).map(|m| m.id.clone()).collect();
     for id in others {
@@ -151,7 +155,7 @@ mod tests {
         let lib = Library::open(t.path()).unwrap();
         let p = Profile::load(t.path()).unwrap();
         assert_eq!(order(&p), MODS);
-        assert_eq!(on(&p), [ON]);
+        assert_eq!(on(&p), ["obsidian.api", ON], "Quality of Life, with the API it requires");
         folders_ok(&p);
         let values = qol_values(&lib, &p);
         let toggled: Vec<&str> = values.iter().filter(|(_, v)| *v == json!(true)).map(|(k, _)| k.as_str()).collect();
@@ -175,6 +179,7 @@ mod tests {
         p.edit_folder(FOLDER, None, None, None, Some(false)).unwrap();
         assert_eq!(p.delete_folder(FOLDER), ["obsidian.api", "obsidian.qol"], "and unlocks like any other");
         p.set_enabled(ON, false).unwrap();
+        p.set_enabled("obsidian.api", false).unwrap();
         p.save(t.path()).unwrap();
 
         seed(t.path()).unwrap();
@@ -206,7 +211,7 @@ mod tests {
 
         restore(&lib, &mut p).unwrap();
         assert_eq!(order(&p), ["obsidian.api", "obsidian.trainer", "obsidian.qol", "my.mod", "my.other"]);
-        assert_eq!(on(&p), [ON, "my.mod"]);
+        assert_eq!(on(&p), ["obsidian.api", ON, "my.mod"]);
         folders_ok(&p);
         assert_eq!(p.mods[4].folder, None, "another mod leaves the folder");
         assert!(lib.mod_dir(ON).is_dir(), "a deleted mod returns");

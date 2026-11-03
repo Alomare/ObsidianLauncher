@@ -32,13 +32,23 @@ pub fn rename_retrying(from: &Path, to: &Path) -> std::io::Result<()> {
 /// Writes through a temporary file beside `path`, so a full disk or a power cut leaves the old file
 /// whole instead of half of the new one.
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    use std::io::Write;
+    write_through(path, &with_suffix(path, ".obsidian-tmp"), bytes)
+}
+
+/// `path` with `suffix` added to the file name, as in `settings.txt.tmp`.
+pub fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
     let mut name = path.as_os_str().to_os_string();
-    name.push(".obsidian-tmp");
-    let tmp = PathBuf::from(name);
-    let written = std::fs::File::create(&tmp).and_then(|mut f| f.write_all(bytes).and_then(|_| f.sync_all())).and_then(|_| rename_retrying(&tmp, path));
+    name.push(suffix);
+    PathBuf::from(name)
+}
+
+/// `write_atomic` through a temporary file of the caller's choosing, for files another program
+/// also writes that way.
+pub fn write_through(path: &Path, tmp: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    let written = std::fs::File::create(tmp).and_then(|mut f| f.write_all(bytes).and_then(|_| f.sync_all())).and_then(|_| rename_retrying(tmp, path));
     if written.is_err() {
-        let _ = std::fs::remove_file(&tmp);
+        let _ = std::fs::remove_file(tmp);
     }
     written
 }

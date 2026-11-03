@@ -105,7 +105,8 @@ mod tests {
         crate::starter::seed(t.path()).unwrap();
         let r = build(t.path(), None, &AppInfo { version: "9.9.9", portable: true }).unwrap();
         assert!(r.starts_with("Obsidian 9.9.9 (portable)"), "{r}");
-        assert!(r.contains("Mods on, in load order (1 of 3):\n  1. obsidian.qol"), "{r}");
+        assert!(r.contains("Mods on, in load order (2 of 3):\n  1. obsidian.api"), "{r}");
+        assert!(r.contains("obsidian.qol"), "{r}");
         assert!(r.contains("Game: not found"), "{r}");
     }
 }

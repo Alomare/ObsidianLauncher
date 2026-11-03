@@ -1,6 +1,6 @@
--- API version 1 as mods see it: every key of obsidian, obsidian.session, obsidian.settings and
--- obsidian.capabilities with the type of each value, and the loader log lines at boot. A change
--- here is a change to the mod API, so contract.txt changes only on purpose.
+-- API version 1 as mods see it: every key of obsidian, obsidian.session, obsidian.expansion,
+-- obsidian.settings and obsidian.capabilities with the type of each value, and the loader log lines
+-- at boot. A change here is a change to the mod API, so contract.txt changes only on purpose.
 local E = require "fake_engine"
 local T = {}
 local function test(name, fn) T[#T + 1] = { name, fn } end
@@ -19,6 +19,7 @@ local function current()
 	local out = {}
 	keys("obsidian", api, out)
 	keys("obsidian.session", api.session, out)
+	keys("obsidian.expansion", api.expansion, out)
 	keys("obsidian.settings", api.settings, out)
 	keys("obsidian.capabilities", e:core().capabilities, out)
 	table.sort(out)

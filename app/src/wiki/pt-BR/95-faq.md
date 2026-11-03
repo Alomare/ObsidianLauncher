@@ -20,7 +20,7 @@ Os mods de sessão rodam quando todos os outros jogadores têm o mesmo conjunto 
 
 ### As minhas missões contam para a Guerra Galáctica? {#do-my-missions-count-for-the-galactic-war}
 
-Não enquanto houver conteúdo de sessão aplicado. Só com mods de cliente, elas contam normalmente ([A Guerra Galáctica](wiki:galactic-war)).
+Não enquanto houver conteúdo de sessão aplicado, nem quando o conteúdo de uma expansão roda nelas. Só com mods de cliente e expansões, elas contam normalmente ([A Guerra Galáctica](wiki:galactic-war)).
 
 ### O meu save está seguro? {#is-my-save-safe}
 
@@ -52,4 +52,4 @@ Um editor de texto. O Obsidian compila o Lua quando aplica ([O seu primeiro mod]
 
 ### Cliente ou sessão? {#client-or-session}
 
-Se outros jogadores puderem perceber a mudança, sessão. Na dúvida, sessão ([Escopos](wiki:scopes)).
+Se outros jogadores puderem perceber a mudança, sessão. Se todas as mudanças acontecem dentro de um conteúdo separado do jogo normal, como um modo novo, expansão. Na dúvida, sessão ([Escopos](wiki:scopes)).

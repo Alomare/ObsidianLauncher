@@ -23,11 +23,11 @@ end)
 
 When the global doesn't exist yet, the hook waits and goes in as soon as the game defines it. If `fn` fails, the original runs instead.
 
-In a session mod, the hook calls only the original while the lobby isn't cleared ([Writing session mods](wiki:session-mods)).
+In a session mod, the hook calls only the original while the lobby isn't cleared ([Writing session mods](wiki:session-mods)). In an expansion, it calls only the original until the content starts ([Writing an expansion](wiki:session-mods#expansions)).
 
 ### obsidian.wrap(target, method, fn)
 
-The same as `obsidian.hook`, with the same safety if `fn` fails, except that it keeps running while the lobby isn't cleared. It's for a mod whose replaced files can't be switched off either, where a hook going off would leave one game half modded. Anything else should use `obsidian.hook`. Check `obsidian.capabilities.wrap` on an older loader.
+The same as `obsidian.hook`, with the same safety if `fn` fails, except that it keeps running while the lobby isn't cleared, and outside the content of an expansion. It's for the way into an expansion, and for a mod whose replaced files can't be switched off either, where a hook going off would leave one game half modded. Anything else should use `obsidian.hook`. Check `obsidian.capabilities.wrap` on an older loader.
 
 ### obsidian.on_require(name, fn)
 
@@ -35,7 +35,7 @@ Calls `fn(module)` when the game loads the script `name`, such as `"lua/settings
 
 ### obsidian.on_frame(fn)
 
-Calls `fn` once per frame. Return `true` to stop the calls. A session mod's frame functions only run in a cleared lobby.
+Calls `fn` once per frame. Return `true` to stop the calls. The frame functions of a session mod only run in a cleared lobby, and those of an expansion only while the content runs.
 
 ### obsidian.after_startup(fn)
 
@@ -47,19 +47,19 @@ Calls `fn` once every mod has started, so mods can work together without dependi
 
 The value of option `id` of this mod: the one the player chose in the app, or the default ([Options and keys](wiki:options-and-keys)).
 
-### obsidian.keybind(id, fn)
+### obsidian.keybind(id, fn, opts)
 
-Calls `fn` each time the key bound to `id` goes down. The key comes from the app, or from the default in `obsidian.json`.
+Calls `fn` each time the key bound to `id` goes down. The key comes from the app, or from the default in `obsidian.json`. The keys of a session mod wait for a cleared lobby, and those of an expansion for the content, as the hooks of the mod do. `opts.always` leaves the key alone, as `obsidian.wrap` does a hook, for a key that only acts on this player's screen.
 
 ## Multiplayer
 
 ### obsidian.session.cleared()
 
-`true` while the calling mod may run: the session is cleared, and for a mod marked `every_player`, every other player runs it too ([Mods every player needs](wiki:session-mods#every-player)). Client mods rarely need it.
+`true` while the calling mod may run: the session is cleared, and for a mod marked `every_player`, every other player runs it too ([Mods every player needs](wiki:session-mods#every-player)). For an expansion, `true` while the content runs. Client mods rarely need it.
 
 ### obsidian.session.guard(t, free)
 
-A view of table `t` to hand to other mods. The functions named in the list `free` work as usual. Every other function answers `false, "needs_session"` when the calling mod runs as a client mod, and `false, "not_cleared"` when the session isn't cleared ([Writing a library](wiki:session-mods#libraries)).
+A view of table `t` to hand to other mods. The functions named in the list `free` work as usual. Every other function answers `false, "needs_session"` when the calling mod runs as a client mod, and `false, "not_cleared"` when the session isn't cleared ([Writing a library](wiki:session-mods#libraries)). An expansion calling them gets `false, "not_started"` outside the content, and full use of the libraries it requires while the content runs, whoever else is in the lobby.
 
 ### obsidian.session.members()
 
@@ -69,7 +69,7 @@ To run only when every player has your mod, set [`every_player`](wiki:session-mo
 
 ### obsidian.session.forfeit_progress(), release_progress(key) and hold_progress()
 
-These do nothing. A player's own save is theirs, so Obsidian holds none of a mission's progress back, whatever the mods do. They stay so mods that call them keep working. Only Galactic War and leaderboard reports stay blocked while session content is deployed ([The Galactic War](wiki:galactic-war)). To play without a mission counting, a player switches on **Freeze my account's progression** in [Guardrails](wiki:guardrails).
+These do nothing. A player's own save is theirs, so Obsidian holds none of a mission's progress back, whatever the mods do. They stay so mods that call them keep working. Only Galactic War and leaderboard reports stay blocked, while session content is deployed and for missions the content of an expansion ran in ([The Galactic War](wiki:galactic-war)). To play without a mission counting, a player switches on **Freeze my account's progression** in [Guardrails](wiki:guardrails).
 
 ### obsidian.guardrails()
 
@@ -77,7 +77,23 @@ What the player chose in **Guardrails** for this launch, as `{ consent, block_ac
 
 ### obsidian.on_session(fn)
 
-Calls `fn(on)` whenever the loader switches this mod on or off, so the mod can undo what other players would see. A mod marked `every_player` also hears when a player who doesn't run it comes or goes.
+Calls `fn(on)` whenever the loader switches this mod on or off, so the mod can undo what other players would see. A mod marked `every_player` also hears when a player who doesn't run it comes or goes. An expansion hears `true` when the content starts and `false` when it ends, in every game in the lobby, and so does a library that only expansions require.
+
+## Expansions {#expansions}
+
+For a mod with `"scope": "expansion"` ([Writing an expansion](wiki:session-mods#expansions)). Check `obsidian.capabilities.expansion` first: an older loader doesn't have these.
+
+### obsidian.expansion.start()
+
+Starts the content of the calling expansion, on the host's game. Every other player in the lobby has to run the same expansion, at the same version and with the same shared option values. Answers `true`, or `false` and a reason: `"players_missing"` with a list of the names of the players who don't run it as a third value, `"not_host"`, `"busy"` while the content of another expansion runs, or `"not_expansion"`. A refused start also shows the host a notice with the names.
+
+### obsidian.expansion.stop()
+
+Ends the content, on the host's game. Answers `true`, or `false` and `"not_running"` or `"not_host"`. Leaving the lobby ends the content too.
+
+### obsidian.expansion.running(id)
+
+`true` while the content of the expansion `id` runs in this game. With no `id`, the calling mod.
 
 ## Text and logs
 
@@ -101,17 +117,23 @@ What the `entry` script of another mod returned, or `nil` when that mod isn't ru
 
 ### obsidian.scope()
 
-How the calling mod runs in this deploy: `"client"` or `"session"`. A library gets one of the two ([Writing a library](wiki:session-mods#libraries)).
+How the calling mod runs in this deploy: `"client"`, `"session"` or `"expansion"`. A library gets `"client"` or `"session"`, and `"session"` when an expansion requires it, so the library sets up what the expansion may use ([Writing a library](wiki:session-mods#libraries)).
 
 ### obsidian.caller()
 
 The id of the mod whose code is running, so a shared mod can record who asked for something.
 
+### obsidian.info(id)
+
+What a running mod is: `{ id, name, version, scope }`. `name` comes from the mod's `obsidian.json`, in the game's language, else English, and `scope` is what `obsidian.scope()` answers in that mod. With no `id`, the calling mod. `nil` for a mod that isn't running.
+
 ## In-game menu {#menu}
+
+The in-game window belongs to Obsidian API, so it changes with the API's releases, and new mods use `api.menu` ([Obsidian API](wiki:obsidian-api)). **F6** opens it, a key of Obsidian API's, which players change in the Keys tab of Obsidian API, and each mod's pages sit in a folder named after the mod. `obsidian.menu` stays for mods written before, and hands every call to Obsidian API's window, as the mod that made it. List `obsidian.api` in `requires`: with no Obsidian API running there's no window, and `open()` answers `false`.
 
 ### obsidian.menu.add(title, build, opts)
 
-Adds a page to the list down the left of the in-game menu. `title` is text, or a function that returns it. `build(page)` runs each time the page opens. `opts.icon` is one of `obsidian.ui.glyphs()`:
+Adds a page to the list down the left of the in-game menu, in your mod's folder. `title` is text, or a function that returns it. `build(page)` runs each time the page opens. `opts.icon` is one of `obsidian.ui.glyphs()`:
 
 ```lua
 obsidian.menu.add("My mod", function(page)
@@ -129,15 +151,11 @@ Any row takes `help`, a text shown while it's selected, and `enabled`, a functio
 
 A `toggle`, `number` or `choice` row takes `default`, the value it starts at. It then gets a reset button at the end of the row, lit once the value has moved, and R does the same from the keyboard. Where writing a value isn't the way back, give `reset`, a function that undoes it, and `changed`, one that says whether there's anything to undo.
 
-A session mod's pages aren't listed, and close, while the lobby isn't cleared.
+The pages of a session mod aren't listed, and close, while the lobby isn't cleared. The pages of an expansion stay listed, so the content can be started from one.
 
 ### obsidian.menu.open(), close(), toggle(), is_open()
 
-Nothing opens the menu by itself, so bind a key to it:
-
-```lua
-obsidian.keybind("open", function() obsidian.menu.toggle() end)
-```
+Obsidian API's key opens the window once a page is listed, so your mod needs no key for it. These are for a mod that opens the window at a moment it picks.
 
 ### obsidian.menu.overlay(fn)
 
@@ -145,7 +163,7 @@ Calls `fn(draw, width, height)` every frame, to put something on screen outside 
 
 ### obsidian.toast(text, seconds)
 
-Shows a short message at the top left of the screen, or beside the in-game menu while it's open.
+Shows a short message at the top left of the screen, or beside the in-game menu while it's open. With Obsidian API running, the API's window draws it.
 
 ### obsidian.notify(text, seconds) {#obsidian-notify-text-seconds}
 
@@ -199,7 +217,7 @@ Runs code while a screen is up. `id` is a value of `screen`, or `"*"` for all of
 | `exit()` | The screen went away |
 | `mute` | Not a function: `true` for this screen, or a list of ids, held only while it's up |
 
-A session mod's handlers stop, and its mutes lift, while the lobby isn't cleared. `off(id)` takes this mod's handlers away.
+The handlers of a session mod stop, and the mutes of that mod lift, while the lobby isn't cleared. Those of an expansion keep running outside the content. `off(id)` takes the handlers of the calling mod away.
 
 ### obsidian.ui.mute(id), unmute(id)
 
@@ -325,7 +343,7 @@ Strings, numbers and booleans this mod keeps between launches. `set` with `nil` 
 
 `obsidian.version` is the API version, `1` today. A mod that needs a newer API sets `loader_api` in `obsidian.json`, and older loaders refuse to start it.
 
-`obsidian.capabilities` is a read-only table of what the running loader supports, one entry per feature: `hook`, `on_require`, `on_frame`, `on_session`, `after_startup`, `settings`, `keybind`, `session`, `text`, `log`, `module`, `import`, `caller`, `menu`, `toast`, `notify`, `storage`, `ui`. Test a feature by name before using one that came later:
+`obsidian.capabilities` is a read-only table of what the running loader supports, one entry per feature: `hook`, `on_require`, `on_frame`, `on_session`, `after_startup`, `settings`, `keybind`, `session`, `text`, `log`, `module`, `import`, `caller`, `info`, `menu`, `toast`, `notify`, `storage`, `ui`, `expansion`. Test a feature by name before using one that came later:
 
 ```lua
 if obsidian.capabilities.on_frame then

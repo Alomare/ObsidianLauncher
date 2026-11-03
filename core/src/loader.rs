@@ -12,7 +12,7 @@ use crate::library::{Library, Profile};
 use crate::lua::{check_bytecode, unwrap_resource, wrap_resource};
 use crate::luajit::compile_all;
 use crate::manifest::{Scope, load_manifest};
-use crate::modset::{SessionMod, every_hash, every_pool_tag, modset_hash, open_pool_tag};
+use crate::modset::{SessionMod, every_hash, every_pool_tag, expansion_pool_tag, modset_hash, open_pool_tag};
 use crate::options::{effective_values, value_text};
 use crate::settings::Settings;
 use crate::{ObsidianError, Result};
@@ -179,15 +179,20 @@ fn read_texts(dir: &Path) -> Result<Value> {
     Ok(Value::Object(out))
 }
 
+/// What the loader gets for a scope, once libraries have taken one: an unspecified mod runs as a
+/// client mod.
 fn scope_text(s: &Scope) -> &'static str {
-    if s.is_client() { "client" } else { "session" }
+    match s {
+        Scope::Session => "session",
+        Scope::Expansion => "expansion",
+        _ => "client",
+    }
 }
 
-/// The ids of the libraries that run as session mods: those an enabled session mod requires,
-/// directly or through another library. Every other library runs as a client mod.
-fn session_libraries(mods: &[ComposedMod]) -> BTreeSet<&str> {
+/// The ids of the libraries `from` requires, directly or through another library.
+fn libraries_of<'a>(from: &'a ComposedMod, mods: &'a [ComposedMod]) -> BTreeSet<&'a str> {
     let mut found = BTreeSet::new();
-    let mut waiting: Vec<&ComposedMod> = mods.iter().filter(|c| c.manifest.scope == Scope::Session).collect();
+    let mut waiting = vec![from];
     while let Some(c) = waiting.pop() {
         for id in &c.manifest.requires {
             if let Some(required) = mods.iter().find(|m| m.manifest.id == *id && m.manifest.scope == Scope::Library) {
@@ -198,6 +203,25 @@ fn session_libraries(mods: &[ComposedMod]) -> BTreeSet<&str> {
         }
     }
     found
+}
+
+/// The ids of the libraries that run as session mods: those an enabled session mod requires,
+/// directly or through another library. Every other library runs as a client mod, or as part of
+/// the expansions that require it.
+fn session_libraries(mods: &[ComposedMod]) -> BTreeSet<&str> {
+    mods.iter().filter(|c| c.manifest.scope == Scope::Session).flat_map(|c| libraries_of(c, mods)).collect()
+}
+
+/// Each library an enabled expansion requires, directly or through another library, with the ids
+/// of those expansions: such a library gives them full use while their content runs.
+fn expansion_libraries(mods: &[ComposedMod]) -> BTreeMap<&str, BTreeSet<&str>> {
+    let mut out: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+    for c in mods.iter().filter(|c| c.manifest.scope == Scope::Expansion) {
+        for lib in libraries_of(c, mods) {
+            out.entry(lib).or_default().insert(c.manifest.id.as_str());
+        }
+    }
+    out
 }
 
 /// Load order, with each mod moved just far enough to start after the mods it requires.
@@ -244,30 +268,47 @@ fn texts_digests(dir: &Path) -> Result<Value> {
 fn table_with(comp: &Composition, texts: Value, mod_texts: fn(&Path) -> Result<Value>) -> Result<Value> {
     let mut session = Vec::new();
     let mut every = Map::new();
+    let mut expansions = Map::new();
+    let mut expansion_tags = Map::new();
     let mut mods = Vec::new();
     let (mut has_session, mut has_static_session) = (false, false);
     let libraries = session_libraries(&comp.mods);
+    let served = expansion_libraries(&comp.mods);
     for c in start_order(&comp.mods) {
         let m = &c.manifest;
         let specs = m.option_specs()?;
+        // A session mod's library is a session mod, and costs the deploy anyway. One only expansions
+        // need follows their content.
         let scope = match m.scope {
             Scope::Library if libraries.contains(m.id.as_str()) => Scope::Session,
+            Scope::Library if served.contains_key(m.id.as_str()) => Scope::Expansion,
             Scope::Library => Scope::Client,
             scope => scope,
+        };
+        let line = || SessionMod {
+            id: m.id.clone(),
+            version: m.version.clone(),
+            options: specs.iter().map(|s| (s.id.clone(), c.values[&s.id].clone(), s.client)).collect(),
         };
         if scope == Scope::Session {
             has_session = true;
             has_static_session |= c.resources > 0;
-            let sm = SessionMod {
-                id: m.id.clone(),
-                version: m.version.clone(),
-                options: specs.iter().map(|s| (s.id.clone(), c.values[&s.id].clone(), s.client)).collect(),
-            };
+            let sm = line();
             if m.every_player {
                 every.insert(m.id.clone(), Value::String(every_hash(&sm)));
             }
             session.push(sm);
         }
+        // What every player in the lobby has to run for the content to start: the same version and
+        // shared option values, as for a mod marked every_player.
+        let gate: Vec<&str> = if m.scope == Scope::Expansion {
+            let hash = every_hash(&line());
+            expansion_tags.insert(m.id.clone(), json!(expansion_pool_tag(&m.id, &hash)));
+            expansions.insert(m.id.clone(), Value::String(hash));
+            vec![m.id.as_str()]
+        } else {
+            served.get(m.id.as_str()).map(|ids| ids.iter().copied().collect()).unwrap_or_default()
+        };
         if m.entry.is_none() {
             continue;
         }
@@ -291,8 +332,10 @@ fn table_with(comp: &Composition, texts: Value, mod_texts: fn(&Path) -> Result<V
             .collect();
         let keybinds: Vec<Value> =
             crate::options::parse_keybinds(&m.keybinds)?.into_iter().map(|k| json!({ "id": k.id, "default": k.default })).collect();
-        mods.push(json!({
+        let mut entry = json!({
             "id": m.id,
+            // By language, for obsidian.info: Obsidian API names each mod's folder of the in-game window with it.
+            "name": m.name,
             "version": m.version.to_string(),
             "scope": scope_text(&scope),
             "entry": entry_name(&m.id),
@@ -301,12 +344,21 @@ fn table_with(comp: &Composition, texts: Value, mod_texts: fn(&Path) -> Result<V
             "options": options,
             "keybinds": keybinds,
             "texts": mod_texts(&c.dir.join("locales"))?,
-        }));
+        });
+        // The expansions whose content switches this mod's gated code on: an expansion's own id, or
+        // the expansions that require a library.
+        if !gate.is_empty() {
+            entry["expansions"] = json!(gate);
+        }
+        mods.push(entry);
     }
     let modset = modset_hash(&session);
     let mut hashes = json!({ "open": open_pool_tag() });
     if !every.is_empty() {
         hashes["every"] = json!(every_pool_tag(every.iter().map(|(id, h)| (id.as_str(), h.as_str().unwrap_or_default()))));
+    }
+    if !expansion_tags.is_empty() {
+        hashes["expansions"] = Value::Object(expansion_tags);
     }
     let (font_files, font_paths) = deployed_fonts(comp);
     Ok(json!({
@@ -315,6 +367,7 @@ fn table_with(comp: &Composition, texts: Value, mod_texts: fn(&Path) -> Result<V
         "modset": modset,
         "hashes": hashes,
         "every": every,
+        "expansions": expansions,
         "has_session": has_session,
         "has_static_session": has_static_session,
         "font_files": font_files,
@@ -534,6 +587,7 @@ mod tests {
         let ids: Vec<&str> = table["mods"].as_array().unwrap().iter().map(|m| m["id"].as_str().unwrap()).collect();
         assert_eq!(ids, ["b", "a"]);
         assert_eq!(table["mods"][0]["entry"], "obsidian/mods/b/main");
+        assert_eq!(table["mods"][0]["name"], json!({ "en": "b" }), "the name, by language, for obsidian.info");
         assert_eq!(table["has_session"], true);
         assert_eq!(table["has_static_session"], false, "an entry can stop when the session isn't cleared");
         assert_eq!(table["modset"].as_str().unwrap().len(), 64);
@@ -629,6 +683,74 @@ mod tests {
         assert_eq!(scope_in(&table, "mid"), "session");
         assert_eq!(scope_in(&table, "skin"), "client");
         assert_eq!(table["has_session"], true);
+    }
+
+    #[test]
+    fn an_expansion_deploys_as_a_client_mod_with_its_hash_and_pool_tag() {
+        let t = spaced_tempdir();
+        let lib = Library::open(&t.path().join("data")).unwrap();
+        let d = t.path().join("stage-arcade");
+        put(&d, "obsidian.json", br#"{"obsidian":1,"id":"arcade","version":"1.0.0","name":{"en":"Arcade"},"scope":"expansion","entry":"main.lua",
+            "options":[{"id":"waves","type":"number","default":5},{"id":"cam","type":"number","default":1,"scope":"client"}]}"#);
+        put(&d, "main.lua", b"return true\n");
+        lib.install(&d).unwrap();
+        add(t.path(), &lib, "skin", "client");
+        let vanilla = table_of(&lib, &[]);
+        let table = table_of(&lib, &["arcade", "skin"]);
+        assert_eq!(scope_in(&table, "arcade"), "expansion");
+        assert_eq!(table["has_session"], false, "it moves nobody out of the normal pool");
+        assert_eq!(table["modset"], vanilla["modset"], "and stays out of the sets session mods compare");
+        assert_eq!(table["every"], json!({}));
+        let hash = table["expansions"]["arcade"].as_str().unwrap();
+        assert_eq!(hash.len(), 16);
+        assert_eq!(table["hashes"]["expansions"]["arcade"], expansion_pool_tag("arcade", hash));
+        assert_eq!(table["mods"].as_array().unwrap().iter().find(|m| m["id"] == "arcade").unwrap()["expansions"], json!(["arcade"]));
+        assert!(table["mods"].as_array().unwrap().iter().find(|m| m["id"] == "skin").unwrap().get("expansions").is_none());
+        assert!(vanilla["hashes"].get("expansions").is_none());
+        assert_eq!(vanilla["expansions"], json!({}));
+    }
+
+    #[test]
+    fn an_expansion_hash_follows_the_version_and_shared_options_only() {
+        let hash = |version: &str, waves: u32, cam: u32| {
+            let t = spaced_tempdir();
+            let lib = Library::open(&t.path().join("data")).unwrap();
+            let d = t.path().join("stage-arcade");
+            let json = format!(
+                r#"{{"obsidian":1,"id":"arcade","version":"{version}","name":{{"en":"Arcade"}},"scope":"expansion","entry":"main.lua",
+                "options":[{{"id":"waves","type":"number","default":{waves}}},{{"id":"cam","type":"number","default":{cam},"scope":"client"}}]}}"#
+            );
+            put(&d, "obsidian.json", json.as_bytes());
+            put(&d, "main.lua", b"return true\n");
+            lib.install(&d).unwrap();
+            table_of(&lib, &["arcade"])["expansions"]["arcade"].clone()
+        };
+        assert_eq!(hash("1.0.0", 5, 1), hash("1.0.0", 5, 9), "a personal option doesn't count");
+        assert_ne!(hash("1.0.0", 5, 1), hash("1.0.0", 6, 1));
+        assert_ne!(hash("1.0.0", 5, 1), hash("1.0.1", 5, 1));
+    }
+
+    #[test]
+    fn a_library_only_expansions_need_follows_their_content() {
+        let t = spaced_tempdir();
+        let lib = Library::open(&t.path().join("data")).unwrap();
+        add(t.path(), &lib, "base", "library");
+        add_requiring(t.path(), &lib, "mid", "library", "base");
+        add_requiring(t.path(), &lib, "arcade", "expansion", "mid");
+        add_requiring(t.path(), &lib, "cheat", "session", "base");
+        let mods = |table: &Value, id: &str| table["mods"].as_array().unwrap().iter().find(|m| m["id"] == id).unwrap().clone();
+
+        let table = table_of(&lib, &["base", "mid", "arcade"]);
+        assert_eq!(scope_in(&table, "base"), "expansion", "through the other library");
+        assert_eq!(scope_in(&table, "mid"), "expansion");
+        assert_eq!(mods(&table, "base")["expansions"], json!(["arcade"]));
+        assert_eq!(table["has_session"], false);
+
+        let with_session = table_of(&lib, &["base", "mid", "arcade", "cheat"]);
+        assert_eq!(scope_in(&with_session, "base"), "session", "a session mod needs it too");
+        assert_eq!(mods(&with_session, "base")["expansions"], json!(["arcade"]), "and the expansion still gets full use");
+        assert_eq!(scope_in(&with_session, "mid"), "expansion");
+        assert_eq!(with_session["has_session"], true);
     }
 
     #[test]
@@ -731,14 +853,17 @@ mod tests {
         let lib = Library::open(&t.path().join("data")).unwrap();
         let mut profile = Profile::default();
         crate::starter::restore(&lib, &mut profile).unwrap();
-        assert_eq!(profile.switch(&lib, "obsidian.trainer", true).unwrap(), ["obsidian.api"]);
+        assert!(profile.mods.iter().any(|m| m.id == "obsidian.api" && m.enabled), "Quality of Life brings the API");
+        assert_eq!(profile.switch(&lib, "obsidian.trainer", true).unwrap(), Vec::<String>::new());
         let comp = compose(&lib, &profile).unwrap();
         let table = deploy_table(&comp, json!({})).unwrap();
         let ids: Vec<&str> = table["mods"].as_array().unwrap().iter().map(|m| m["id"].as_str().unwrap()).collect();
         assert_eq!(ids, ["obsidian.api", "obsidian.trainer", "obsidian.qol"]);
         assert_eq!(table["has_session"], true, "session mods, so the shared war stays out of it");
         assert_eq!(table["has_static_session"], false, "both can switch off live");
-        assert_eq!(table["mods"][1]["keybinds"][0]["default"], "f6");
+        assert_eq!(table["mods"][0]["keybinds"][0]["default"], "f6", "the in-game window's key is Obsidian API's");
+        assert_eq!(table["mods"][1]["keybinds"], json!([]), "the Trainer's pages open with it");
+        assert_eq!(table["mods"][1]["name"]["en"], "Obsidian Trainer", "the name of the Trainer's folder");
         assert!(table["mods"][1]["texts"]["pt-BR"]["god"].is_string());
         let planned = build(&find_loader_dir().unwrap(), &comp).unwrap();
         for name in ["obsidian/loader/menu", "obsidian/loader/storage", "obsidian/mods/obsidian.api/lib/game", "obsidian/mods/obsidian.api/lib/data", "obsidian/mods/obsidian.trainer/pages/player"] {

@@ -23,11 +23,11 @@ end)
 
 Quando a global ainda não existe, o hook espera e entra assim que o jogo a define. Se `fn` falhar, a original roda no lugar.
 
-Num mod de sessão, o hook só chama a original enquanto o lobby não estiver liberado ([Escrever mods de sessão](wiki:session-mods)).
+Num mod de sessão, o hook só chama a original enquanto o lobby não estiver liberado ([Escrever mods de sessão](wiki:session-mods)). Numa expansão, só chama a original até o conteúdo começar ([Escrever uma expansão](wiki:session-mods#expansions)).
 
 ### obsidian.wrap(target, method, fn) {#obsidian-wrap-target-method-fn}
 
-Igual a `obsidian.hook`, com a mesma segurança se `fn` falhar, só que continua rodando enquanto o lobby não está liberado. Serve para um mod cujos arquivos substituídos também não podem ser desligados, em que um hook desligado deixaria um jogo pela metade. Todo o resto deve usar `obsidian.hook`. Num loader mais antigo, confira `obsidian.capabilities.wrap`.
+Igual a `obsidian.hook`, com a mesma segurança se `fn` falhar, só que continua rodando enquanto o lobby não está liberado e fora do conteúdo de uma expansão. Serve para o caminho de entrada de uma expansão, e para um mod cujos arquivos substituídos também não podem ser desligados, em que um hook desligado deixaria um jogo pela metade. Todo o resto deve usar `obsidian.hook`. Num loader mais antigo, confira `obsidian.capabilities.wrap`.
 
 ### obsidian.on_require(name, fn) {#obsidian-on-require-name-fn}
 
@@ -35,7 +35,7 @@ Chama `fn(module)` quando o jogo carrega o script `name`, como `"lua/settings/pe
 
 ### obsidian.on_frame(fn) {#obsidian-on-frame-fn}
 
-Chama `fn` uma vez por quadro. Devolva `true` para parar as chamadas. As funções por quadro de um mod de sessão só rodam num lobby liberado.
+Chama `fn` uma vez por quadro. Quando `fn` devolve `true`, as chamadas param. As funções por quadro de um mod de sessão só rodam num lobby liberado, e as de uma expansão só enquanto o conteúdo roda.
 
 ### obsidian.after_startup(fn) {#obsidian-after-startup-fn}
 
@@ -47,19 +47,19 @@ Chama `fn` uma vez, depois que todos os mods iniciaram, para que mods possam tra
 
 O valor da opção `id` deste mod: o que o jogador escolheu no app, ou o padrão ([Opções e teclas](wiki:options-and-keys)).
 
-### obsidian.keybind(id, fn) {#obsidian-keybind-id-fn}
+### obsidian.keybind(id, fn, opts) {#obsidian-keybind-id-fn-opts}
 
-Chama `fn` toda vez que a tecla ligada a `id` desce. A tecla vem do app, ou do padrão no `obsidian.json`.
+Chama `fn` toda vez que a tecla ligada a `id` desce. A tecla vem do app, ou do padrão no `obsidian.json`. As teclas de um mod de sessão esperam um lobby liberado, e as de uma expansão esperam o conteúdo, como os hooks do mod. `opts.always` deixa a tecla sempre ativa, como `obsidian.wrap` faz com um hook, para uma tecla que só age na tela deste jogador.
 
 ## Multijogador {#multiplayer}
 
 ### obsidian.session.cleared() {#obsidian-session-cleared}
 
-`true` enquanto o mod que pergunta pode rodar: a sessão está liberada e, para um mod marcado com `every_player`, todos os outros jogadores também o rodam ([Mods que todos os jogadores precisam ter](wiki:session-mods#every-player)). Mods de cliente quase nunca precisam.
+`true` enquanto o mod que pergunta pode rodar: a sessão está liberada e, para um mod marcado com `every_player`, todos os outros jogadores também o rodam ([Mods que todos os jogadores precisam ter](wiki:session-mods#every-player)). Para uma expansão, `true` enquanto o conteúdo roda. Mods de cliente quase nunca precisam.
 
 ### obsidian.session.guard(t, free) {#obsidian-session-guard}
 
-Uma visão da tabela `t` para entregar a outros mods. As funções da lista `free` funcionam normalmente. Qualquer outra responde `false, "needs_session"` quando o mod roda como mod de cliente, e `false, "not_cleared"` quando a sessão não está liberada ([Escrever uma biblioteca](wiki:session-mods#libraries)).
+Uma visão da tabela `t` para entregar a outros mods. As funções da lista `free` funcionam normalmente. Qualquer outra responde `false, "needs_session"` quando o mod roda como mod de cliente, e `false, "not_cleared"` quando a sessão não está liberada ([Escrever uma biblioteca](wiki:session-mods#libraries)). Uma expansão que as chama recebe `false, "not_started"` fora do conteúdo e, enquanto o conteúdo roda, uso completo das bibliotecas que exige, seja quem for que esteja no lobby.
 
 ### obsidian.session.members() {#obsidian-session-members}
 
@@ -69,7 +69,7 @@ Para rodar só quando todos os jogadores têm o seu mod, defina [`every_player`]
 
 ### obsidian.session.forfeit_progress(), release_progress(key) e hold_progress() {#obsidian-session-forfeit-progress-release-progress-key-and-hold-progress}
 
-Estas não fazem nada. O save de um jogador é dele, então o Obsidian não retém nada do progresso de uma missão, seja o que for que os mods façam. Elas continuam existindo para que os mods que as chamam sigam funcionando. Só os relatórios da Guerra Galáctica e dos placares continuam bloqueados enquanto houver conteúdo de sessão aplicado ([A Guerra Galáctica](wiki:galactic-war)). Para jogar sem que uma missão conte, o jogador liga **Congelar a progressão da minha conta** em [Proteções](wiki:guardrails).
+Estas não fazem nada. O save de um jogador é dele, então o Obsidian não retém nada do progresso de uma missão, seja o que for que os mods façam. Elas continuam existindo para que os mods que as chamam sigam funcionando. Só os relatórios da Guerra Galáctica e dos placares continuam bloqueados, enquanto houver conteúdo de sessão aplicado e nas missões em que o conteúdo de uma expansão rodou ([A Guerra Galáctica](wiki:galactic-war)). Para jogar sem que uma missão conte, o jogador liga **Congelar a progressão da minha conta** em [Proteções](wiki:guardrails).
 
 ### obsidian.guardrails() {#obsidian-guardrails}
 
@@ -77,7 +77,23 @@ O que o jogador escolheu em **Proteções** para esta abertura do jogo, como `{ 
 
 ### obsidian.on_session(fn) {#obsidian-on-session-fn}
 
-Chama `fn(on)` sempre que o loader liga ou desliga este mod, para que o mod possa desfazer o que outros jogadores veriam. Um mod marcado com `every_player` também fica sabendo quando chega ou sai um jogador que não o roda.
+Chama `fn(on)` sempre que o loader liga ou desliga este mod, para que o mod possa desfazer o que outros jogadores veriam. Um mod marcado com `every_player` também fica sabendo quando chega ou sai um jogador que não o roda. Uma expansão recebe `true` quando o conteúdo começa e `false` quando ele termina, em todos os jogos do lobby, e o mesmo vale para uma biblioteca que só expansões exigem.
+
+## Expansões {#expansions}
+
+Para um mod com `"scope": "expansion"` ([Escrever uma expansão](wiki:session-mods#expansions)). Confira `obsidian.capabilities.expansion` antes: um loader mais antigo não tem estas funções.
+
+### obsidian.expansion.start() {#obsidian-expansion-start}
+
+Inicia o conteúdo da expansão que chama, no jogo do host. Todos os outros jogadores do lobby precisam rodar a mesma expansão, na mesma versão e com os mesmos valores de opção compartilhados. Responde `true`, ou `false` e um motivo: `"players_missing"`, com a lista dos nomes dos jogadores que não a rodam como terceiro valor, `"not_host"`, `"busy"` enquanto roda o conteúdo de outra expansão, ou `"not_expansion"`. Um início recusado também mostra ao host um aviso com os nomes.
+
+### obsidian.expansion.stop() {#obsidian-expansion-stop}
+
+Termina o conteúdo, no jogo do host. Responde `true`, ou `false` e `"not_running"` ou `"not_host"`. Sair do lobby também termina o conteúdo.
+
+### obsidian.expansion.running(id) {#obsidian-expansion-running-id}
+
+`true` enquanto o conteúdo da expansão `id` roda neste jogo. Sem `id`, vale para o mod que chama.
 
 ## Texto e logs {#text-and-logs}
 
@@ -101,17 +117,23 @@ O que o script `entry` de outro mod devolveu, ou `nil` quando esse mod não est�
 
 ### obsidian.scope() {#obsidian-scope}
 
-Como o mod roda nesta aplicação: `"client"` ou `"session"`. Uma biblioteca recebe um dos dois ([Escrever uma biblioteca](wiki:session-mods#libraries)).
+Como o mod roda nesta aplicação: `"client"`, `"session"` ou `"expansion"`. Uma biblioteca recebe `"client"` ou `"session"`, e `"session"` quando uma expansão a exige, para que a biblioteca prepare o que a expansão pode usar ([Escrever uma biblioteca](wiki:session-mods#libraries)).
 
 ### obsidian.caller() {#obsidian-caller}
 
 O id do mod cujo código está rodando, para um mod compartilhado registrar quem pediu algo.
 
+### obsidian.info(id) {#obsidian-info-id}
+
+O que é um mod em execução: `{ id, name, version, scope }`. `name` vem do `obsidian.json` do mod, no idioma do jogo, ou em inglês, e `scope` é o que `obsidian.scope()` responde nesse mod. Sem `id`, vale para o mod que chama. `nil` para um mod que não está rodando.
+
 ## Menu dentro do jogo {#menu}
+
+A janela dentro do jogo pertence ao Obsidian API, então muda com as versões da API, e mods novos usam `api.menu` ([API Obsidian](wiki:obsidian-api)). **F6** abre a janela, uma tecla do Obsidian API que os jogadores trocam na aba Teclas do Obsidian API, e as páginas de cada mod ficam numa pasta com o nome do mod. `obsidian.menu` continua existindo para mods escritos antes, e passa cada chamada para a janela do Obsidian API, em nome do mod que a fez. O mod precisa ter `obsidian.api` em `requires`: sem o Obsidian API rodando não há janela, e `open()` responde `false`.
 
 ### obsidian.menu.add(title, build, opts) {#obsidian-menu-add-title-build-opts}
 
-Adiciona uma página à lista à esquerda do menu dentro do jogo. `title` é um texto, ou uma função que o devolve. `build(page)` roda cada vez que a página abre. `opts.icon` é um dos valores de `obsidian.ui.glyphs()`:
+Adiciona uma página à lista à esquerda do menu dentro do jogo, na pasta do mod. `title` é um texto, ou uma função que o devolve. `build(page)` roda cada vez que a página abre. `opts.icon` é um dos valores de `obsidian.ui.glyphs()`:
 
 ```lua
 obsidian.menu.add("My mod", function(page)
@@ -129,15 +151,11 @@ Qualquer linha aceita `help`, um texto mostrado enquanto está selecionada, e `e
 
 Uma linha `toggle`, `number` ou `choice` aceita `default`, o valor inicial. Ela ganha um botão de redefinir no fim da linha, aceso quando o valor muda, e R faz o mesmo pelo teclado. Quando escrever um valor não é o caminho de volta, passe `reset`, uma função que desfaz, e `changed`, uma que diz se há algo para desfazer.
 
-As páginas de um mod de sessão não aparecem, e fecham, enquanto o lobby não estiver liberado.
+As páginas de um mod de sessão não aparecem, e fecham, enquanto o lobby não estiver liberado. As páginas de uma expansão continuam na lista, para que o conteúdo possa ser iniciado por uma delas.
 
 ### obsidian.menu.open(), close(), toggle(), is_open() {#obsidian-menu-open}
 
-Nada abre o menu sozinho, então associe uma tecla:
-
-```lua
-obsidian.keybind("open", function() obsidian.menu.toggle() end)
-```
+A tecla do Obsidian API abre a janela assim que uma página está na lista, então o mod não precisa de tecla para isso. Estas funções servem para um mod que abre a janela num momento que ele escolhe.
 
 ### obsidian.menu.overlay(fn) {#obsidian-menu-overlay-fn}
 
@@ -145,7 +163,7 @@ Chama `fn(draw, width, height)` a cada quadro, para mostrar algo na tela fora do
 
 ### obsidian.toast(text, seconds) {#obsidian-toast-text-seconds}
 
-Mostra uma mensagem curta no canto superior esquerdo da tela, ou ao lado do menu dentro do jogo enquanto ele está aberto.
+Mostra uma mensagem curta no canto superior esquerdo da tela, ou ao lado do menu dentro do jogo enquanto ele está aberto. Com o Obsidian API rodando, quem desenha a mensagem é a janela da API.
 
 ### obsidian.notify(text, seconds) {#obsidian-notify-text-seconds}
 
@@ -199,7 +217,7 @@ Roda código enquanto uma tela está aberta. `id` é um valor de `screen`, ou `"
 | `exit()` | A tela saiu |
 | `mute` | Não é função: `true` para esta tela, ou uma lista de ids, válidos só enquanto ela está aberta |
 
-Os handlers de um mod de sessão param, e os mutes dele saem, enquanto o lobby não estiver liberado. `off(id)` tira os handlers deste mod.
+Os handlers de um mod de sessão param, e os mutes desse mod saem, enquanto o lobby não estiver liberado. Os de uma expansão continuam rodando fora do conteúdo. `off(id)` tira os handlers do mod que chama.
 
 ### obsidian.ui.mute(id), unmute(id) {#obsidian-ui-mute-id-unmute-id}
 
@@ -325,7 +343,7 @@ Textos, números e booleanos que este mod guarda entre aberturas do jogo. `set` 
 
 `obsidian.version` é a versão da API, hoje `1`. Um mod que precisa de uma API mais nova define `loader_api` no `obsidian.json`, e loaders mais antigos se recusam a iniciá-lo.
 
-`obsidian.capabilities` é uma tabela, só de leitura, do que o loader em execução oferece, uma entrada por recurso: `hook`, `on_require`, `on_frame`, `on_session`, `after_startup`, `settings`, `keybind`, `session`, `text`, `log`, `module`, `import`, `caller`, `menu`, `toast`, `notify`, `storage`, `ui`. Teste um recurso pelo nome antes de usar um que chegou depois:
+`obsidian.capabilities` é uma tabela, só de leitura, do que o loader em execução oferece, uma entrada por recurso: `hook`, `on_require`, `on_frame`, `on_session`, `after_startup`, `settings`, `keybind`, `session`, `text`, `log`, `module`, `import`, `caller`, `info`, `menu`, `toast`, `notify`, `storage`, `ui`, `expansion`. Teste um recurso pelo nome antes de usar um que chegou depois:
 
 ```lua
 if obsidian.capabilities.on_frame then

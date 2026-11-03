@@ -16,7 +16,7 @@ end
 
 test("every_module_loads_and_the_api_is_exported", function()
 	local api = start()
-	for _, name in ipairs({ "game", "effects", "edits", "console", "catalog", "world", "player", "gear", "stratagems", "enemies", "mission", "progress", "events", "combat", "vehicles", "lobby", "ui", "audio", "map", "bots" }) do
+	for _, name in ipairs({ "game", "effects", "edits", "console", "catalog", "world", "player", "gear", "stratagems", "enemies", "mission", "progress", "events", "combat", "vehicles", "lobby", "ui", "audio", "map", "bots", "music" }) do
 		E.eq(type(api[name]), "table", name)
 	end
 end)
@@ -1018,6 +1018,120 @@ test("the_session_gate_takes_the_scale_off", function()
 	E.eq((rawget(_G, "HealthComponent").calculate_damage(game.enemies[1], 10)), 10)
 end)
 
+-- HealthComponent's two commands that work out a hit, as far as on_hit and on_fatal use them: each
+-- asks calculate_damage first, then takes the health off, the master's count through the setter.
+local function fake_hits(game)
+	local H = rawget(_G, "HealthComponent")
+	local function take(unit, data)
+		local damage = H.calculate_damage(unit, data.power)
+		local s = unit.slave.health
+		s.hitpoints = s.hitpoints - damage
+		if s.hitpoints_real then game.components.health:set_protected(s, "hitpoints_real", s.hitpoints_real - damage) end
+	end
+	H.command_master = function(_, unit, _, name, data) if name == "do_damage" then take(unit, data) end end
+	H.filter_slave_command = function(_, unit, _, name, data) if name == "do_damage" then take(unit, data) end end
+	return H
+end
+
+test("on_hit_hears_this_machines_hits_on_any_machines_enemies", function()
+	local api, game, e = start()
+	local H = fake_hits(game)
+	hooked(e)
+	local heard = {}
+	E.eq(api.combat.on_hit(function(victim, hit) heard[#heard + 1] = { victim, hit.damage, hit.slot, hit.owner_unit } end), true)
+	local mine, theirs = game.enemies[1], game.enemies[2]
+	H:command_master(mine, nil, "do_damage", { power = 12, owner_unit = game.me, attacker_unit = game.weapon })
+	H:filter_slave_command(theirs, nil, "do_damage", { power = 7, owner_unit = game.me, attacker_unit = game.weapon })
+	H:command_master(mine, nil, "do_damage", { power = 3, owner_unit = game.me, attacker_unit = game.arm })
+	E.eq(#heard, 3)
+	E.eq(heard[1][1] == mine and heard[1][2] == 12 and heard[1][3] == "primary_weapon" and heard[1][4] == game.me, true)
+	E.eq(heard[2][1] == theirs and heard[2][2] == 7, true, "an enemy another machine runs")
+	E.eq(heard[3][3], nil, "not a weapon the player holds")
+	-- Another player's hit, one that costs nothing, a heal and a sum asked for outside a hit.
+	H:filter_slave_command(mine, nil, "do_damage", { power = 5, owner_unit = theirs, attacker_unit = game.weapon })
+	H:command_master(mine, nil, "do_damage", { power = 0, owner_unit = game.me })
+	H:command_master(mine, nil, "do_heal", 10)
+	H.calculate_damage(mine, 4)
+	E.eq(#heard, 3)
+	E.eq(mine.slave.health.hitpoints, 30 - 12 - 3 - 5, "every hit still lands")
+end)
+
+test("on_hit_stops_with_off_hit_and_a_failing_listener_hurts_nothing", function()
+	local api, game, e = start()
+	local H = fake_hits(game)
+	hooked(e)
+	local count = 0
+	local function fn() count = count + 1 end
+	api.combat.on_hit(function() error("broken listener") end)
+	api.combat.on_hit(fn)
+	H:command_master(game.enemies[1], nil, "do_damage", { power = 5, owner_unit = game.me, attacker_unit = game.weapon })
+	E.eq(count, 1, "the next listener still runs")
+	E.eq(game.enemies[1].slave.health.hitpoints, 25)
+	E.eq(api.combat.off_hit(fn), true)
+	H:command_master(game.enemies[1], nil, "do_damage", { power = 5, owner_unit = game.me, attacker_unit = game.weapon })
+	E.eq(count, 1)
+	E.eq(api.combat.on_hit("not a function"), false)
+end)
+
+test("on_fatal_can_spare_a_player_once_per_hit_with_one_hitpoint", function()
+	local api, game, e = start()
+	local H = fake_hits(game)
+	hooked(e)
+	local asked, spare = {}, true
+	api.combat.on_fatal(function(unit, damage) asked[#asked + 1] = damage return spare end)
+	local health = game.me.slave.health
+	H:command_master(game.me, nil, "do_damage", { power = 40, owner_unit = game.enemies[1] })
+	E.eq(#asked, 0, "not a killing hit")
+	H:command_master(game.me, nil, "do_damage", { power = 500, owner_unit = game.enemies[1] })
+	E.eq(asked[1], 500)
+	E.eq(health.hitpoints_real, 1, "60 left, cut to 59")
+	-- A volley in one frame: hitpoints lags the master's own count, which is the one asked.
+	health.hitpoints = 60
+	H:command_master(game.me, nil, "do_damage", { power = 30, owner_unit = game.enemies[1] })
+	E.eq(asked[2], 30, "1 left by the master's count")
+	E.eq(health.hitpoints_real, 1)
+	spare = false
+	H:command_master(game.me, nil, "do_damage", { power = 30, owner_unit = game.enemies[1] })
+	E.eq(health.hitpoints_real, -29, "not spared")
+	-- Only a player of this machine, and only where this machine runs them.
+	H:command_master(game.enemies[1], nil, "do_damage", { power = 500, owner_unit = game.me })
+	H:filter_slave_command(game.me, nil, "do_damage", { power = 500, owner_unit = game.enemies[1] })
+	E.eq(#asked, 3)
+end)
+
+test("a_client_mod_hears_hits_where_session_mods_are_off_and_nobody_is_spared_there", function()
+	local lobby = { my_id = "me", members = { "me" }, data = {} }
+	local api, game, e = start({ lobby = lobby })
+	local H = fake_hits(game)
+	hooked(e)
+	local core = e:core()
+	local own = core.current
+	core.current = { id = "dev.hud", state = {}, mod = { options = {}, scope = "client" } }
+	local heard = {}
+	E.eq(api.combat.on_hit(function(_, hit) heard[#heard + 1] = hit end), true, "open to a client mod")
+	core.current = own
+	local asked = 0
+	api.combat.on_fatal(function() asked = asked + 1 return true end)
+	lobby.members = { "me", "stranger" }
+	e:frames(31)
+	H:command_master(game.enemies[1], nil, "do_damage", { power = 5, owner_unit = game.me, attacker_unit = game.weapon })
+	E.eq(#heard, 1, "hearing a hit changes nothing")
+	H:command_master(game.me, nil, "do_damage", { power = 500, owner_unit = game.enemies[1] })
+	E.eq(asked, 0, "sparing a player changes the game")
+end)
+
+test("a_downed_player_spared_stays_as_they_were", function()
+	local api, game, e = start()
+	local H = fake_hits(game)
+	hooked(e)
+	api.combat.on_fatal(function() return true end)
+	local health = game.me.slave.health
+	health.constitution, health.hitpoints = -50, -10
+	game.components.health:set_protected(health, "hitpoints_real", -10)
+	H:command_master(game.me, nil, "do_damage", { power = 100, owner_unit = game.enemies[1] })
+	E.eq(health.hitpoints_real, -10)
+end)
+
 local function drive(game, vehicle)
 	game.me.master.character.current_seat_unit = vehicle or game.mech
 end
@@ -1814,8 +1928,25 @@ test("a_hidden_model_stays_hidden_after_a_seat_shows_it", function()
 	E.eq(G.command(game, "customization", "set_visible").data, true)
 end)
 
+test("the_heavy_armor_look_waits_for_a_mission_where_its_model_is_loaded", function()
+	local api, game, e = start()
+	-- On the ship: the model isn't loaded, and spawning it takes the game down.
+	E.eq(api.effects.set("heavy_armor_look", true), true)
+	E.eq(G.command(game, "customization", "enable_heavy_armor"), nil)
+	e:frames(1)
+	E.eq(G.command(game, "customization", "enable_heavy_armor"), nil)
+	-- The mission's body, with mission_common loaded.
+	game.packages["resource_packages/mission_common"] = true
+	game.state.players[1].player_go.avatar_unit = game.enemies[1]
+	e:frames(1)
+	game.state.players[1].player_go.avatar_unit = game.me
+	e:frames(1)
+	E.eq(G.command(game, "customization", "enable_heavy_armor") ~= nil, true)
+end)
+
 test("the_heavy_armor_look_leaves_the_perks_own_alone", function()
 	local api, game = start()
+	game.packages["resource_packages/mission_common"] = true
 	api.effects.set("heavy_armor_look", true)
 	E.eq(G.command(game, "customization", "enable_heavy_armor") ~= nil, true)
 	game.commands = {}
@@ -2867,6 +2998,599 @@ test("only_the_host_in_a_mission_makes_bots", function()
 	bot_world(game2, e2)
 	ui2.state = "menu"
 	E.eq(select(2, api2.bots.add()), "not_in_mission")
+end)
+
+-- The soundtrack: the ship and the main menu swap their one music id, a mission's machine is muted.
+local function ship(game, ui)
+	local st = { music_timpani_world = "music world" }
+	st.menu_music_id = rawget(_G, "TimpaniWorld").trigger_event("music world", "music_bridge")
+	ui.state, ui.state_object = "menu", st
+	return st
+end
+
+local function mission_machine(game)
+	local T = rawget(_G, "TimpaniWorld")
+	local machine = game.state.audio_state_machine
+	machine.timpani_world = "sound world"
+	machine.music_threat = T.trigger_event("sound world", "music_threat")
+	T.set_parameter("sound world", machine.music_threat, "volume", 1)
+	return machine
+end
+
+test("a_held_track_takes_the_ships_slot_and_the_ship_gets_its_own_back", function()
+	local api, game, e, ui = start()
+	local st = ship(game, ui)
+	local bridge = st.menu_music_id
+	E.eq(api.music.now().place, "ship")
+	E.eq(api.music.play("music_credits"), true)
+	E.eq(game.playing[bridge], nil, "the bridge music stopped")
+	E.eq(game.played[st.menu_music_id].name, "music_credits", "the ship's own fades work on it")
+	E.eq(api.music.now().track, "music_credits")
+	E.eq(api.music.release(), true)
+	E.eq(game.played[st.menu_music_id].name, "music_bridge")
+	E.eq(game.playing[st.menu_music_id], true)
+	E.eq(api.music.now().held, false)
+end)
+
+test("a_held_track_loops_and_comes_back_when_the_screen_swaps_its_own_in", function()
+	local api, game, e, ui = start()
+	local st = ship(game, ui)
+	api.music.play("music_credits")
+	local first = st.menu_music_id
+	game.playing[first] = nil
+	e:frames(1)
+	E.eq(game.played[st.menu_music_id].name, "music_credits")
+	E.eq(st.menu_music_id ~= first, true, "started again")
+	-- As the credits screen does: it stops everything and starts its own.
+	st.menu_music_id = rawget(_G, "TimpaniWorld").trigger_event("music world", "music_theme")
+	local theirs = st.menu_music_id
+	e:frames(1)
+	E.eq(game.playing[theirs], nil)
+	E.eq(game.played[st.menu_music_id].name, "music_credits")
+end)
+
+test("silence_leaves_a_stopped_id_in_the_slot", function()
+	local api, game, e, ui = start()
+	local st = ship(game, ui)
+	local bridge = st.menu_music_id
+	E.eq(api.music.stop(), true)
+	E.eq(st.menu_music_id, bridge, "the ship sets its volume each frame and never checks for nil")
+	E.eq(game.playing[bridge], nil)
+	e:frames(3)
+	E.eq(st.menu_music_id, bridge)
+	E.eq(api.music.now().held, true)
+	E.eq(api.music.now().track, nil)
+	api.music.release()
+	E.eq(game.played[st.menu_music_id].name, "music_bridge")
+end)
+
+test("in_a_mission_the_machines_music_goes_quiet_beside_the_held_track", function()
+	local api, game, e = start()
+	local machine = mission_machine(game)
+	E.eq(api.music.now().place, "mission")
+	E.eq(api.music.play("music_theme"), true)
+	E.eq(game.params[machine.music_threat].volume, 0)
+	local mine
+	for id, p in pairs(game.played) do
+		if p.name == "music_theme" and game.playing[id] then mine = id end
+	end
+	E.eq(mine ~= nil, true, "the held track plays in the mission's world")
+	E.eq(game.params[mine].volume, 1)
+	-- The machine starts its action music: quiet from the first frame, through the hook.
+	rawset(_G, "AudioStateMachine", { on_enter_state = function(self, name)
+		self.music_action = rawget(_G, "TimpaniWorld").trigger_event("sound world", "music_action_bugs")
+		rawget(_G, "TimpaniWorld").set_parameter("sound world", self.music_action, "volume", 1)
+	end })
+	rawget(_G, "require")("lua/network/network_global")
+	rawget(_G, "AudioStateMachine").on_enter_state(machine, "action")
+	E.eq(game.params[machine.music_action].volume, 0)
+	api.music.release()
+	E.eq(game.playing[mine], nil)
+	E.eq(game.params[machine.music_threat].volume, 1)
+	E.eq(game.params[machine.music_action].volume, 1)
+end)
+
+test("a_pause_is_real_where_music_has_its_own_world_and_silence_elsewhere", function()
+	local api, game, e, ui = start()
+	local machine = mission_machine(game)
+	api.music.pause()
+	E.eq(game.params[machine.music_threat].volume, 0)
+	game.params[machine.music_threat].volume = 0.7
+	e:frames(1)
+	E.eq(game.params[machine.music_threat].volume, 0, "held against the machine's fade")
+	E.eq(api.music.now().paused, true)
+	-- The pause goes with the player to the ship, where its world pauses.
+	ship(game, ui)
+	e:frames(1)
+	E.eq(game.paused_worlds["music world"], true)
+	api.music.resume()
+	E.eq(game.paused_worlds["music world"], nil)
+end)
+
+test("a_hold_follows_to_the_next_screen", function()
+	local api, game, e, ui = start()
+	local st = ship(game, ui)
+	api.music.play("music_theme")
+	ui.state, ui.state_object = "game", game.state
+	local machine = mission_machine(game)
+	e:frames(1)
+	E.eq(game.params[machine.music_threat].volume, 0)
+	local found = false
+	for id, p in pairs(game.played) do
+		if p.name == "music_theme" and p.world == "sound world" and game.playing[id] then found = true end
+	end
+	E.eq(found, true)
+end)
+
+test("only_a_track_the_screen_has_plays", function()
+	local api, game, e, ui = start()
+	E.eq(select(2, api.music.play("music_bridge")), "no_music", "no music in this state")
+	ship(game, ui)
+	local list = api.music.tracks()
+	E.eq(#list, 3)
+	E.eq(list[1], "music_theme")
+	E.eq(select(2, api.music.play("music_threat")), "unknown_event")
+	E.eq(select(2, api.music.play(5)), "unknown_event")
+	E.eq(api.music.volume(-12), true)
+	e:frames(1)
+	E.eq(game.buses.music_master, -12)
+end)
+
+test("a_client_mod_holds_its_own_music", function()
+	local api, game, e, ui = start({ scope = "client" })
+	ship(game, ui)
+	E.eq(api.music.play("music_credits"), true)
+	E.eq(api.music.pause(), true)
+end)
+
+test("a_bot_goes_to_a_point_and_stops_there_and_faces_where_its_told", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 1, y = 1, z = 0 })
+	bot:go_to(rawget(_G, "Vector3")(11, 1, 0))
+	game.step(1)
+	local t = u.master.input.input_data
+	E.eq(t.move.x, 1, "walks there")
+	u.pos = { x = 10, y = 1, z = 0 }
+	game.step(1)
+	E.eq(t.move.x, 0, "and stops within 1.5 metres")
+	u.pos = { x = 1, y = 1, z = 0 }
+	game.step(1)
+	E.eq(t.move.x, 0, "arrived once, it stays")
+	bot:aim_at({ x = 1, y = 9 })
+	game.step(1)
+	E.eq(t.aim.y, 1)
+	bot:follow(nil, 6)
+	bot:go_to({ x = 30, y = 1 })
+	game.step(1)
+	E.eq(t.move.x, 1, "go_to takes over from follow")
+	bot:hold()
+	game.step(1)
+	E.eq(t.move.x, 0)
+end)
+
+test("a_bot_is_given_gear_and_help_as_the_player_is", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add()
+	E.eq(select(2, bot:give_weapon("primary_weapon", "equipment/wep_assaultrifle_01")), "no_avatar", "still in its hellpod")
+	local u = game.land(2)
+	game.commands = {}
+	E.eq(bot:give_weapon("primary_weapon", "equipment/wep_assaultrifle_01", 2), true)
+	local c = G.command(game, "inventory", "set_weapon")
+	E.eq(c.unit, u, "to the bot, not the player")
+	E.eq(c.data.upgrade_value, 2)
+	u.master.health, u.master.status = {}, {}
+	E.eq(bot:heal(), true)
+	E.eq(G.command(game, "health", "reset").unit, u)
+	E.eq(bot:refill() ~= nil, true)
+	E.eq(type(bot:weapons()), "table")
+	no_tampering(game)
+end)
+
+-- Custom stratagems: a copy of a base in the game's list, with its own words, and the base on the wire.
+local function wire_world(game)
+	game.sent = {}
+	rawset(_G, "NetworkRouter", {
+		write_message_params = function(_, name, ...) game.sent[#game.sent + 1] = { name = name, args = { ... } } end,
+		transmit_to = function(self, peer, name, ...)
+			game.sent_to = peer
+			self:write_message_params(name, ...)
+		end,
+		transmit_to_all_others = function(self, name, ...) self:write_message_params(name, ...) end,
+		transmit_to_all = function(self, name, ...) self:write_message_params(name, ...) end,
+	})
+	local fields = {}
+	rawset(_G, "GameObject", {
+		set = function(self, field, value) fields[field] = value end,
+		get = function(self, field) return fields[field] end,
+	})
+	rawget(_G, "LoadoutSettings").get_upgraded_stratagem = function(id) return rawget(_G, "LoadoutSettings").stratagems[id] end
+	return fields
+end
+
+local PITCHFORK = { name = "test_pitchfork", base = "stratagem_machinegun", title = { en = "Pitchfork", fr = "Fourche" },
+	description = "Three barrels.", code = { "down", "left", "up" }, icon = "stratagem_lasercannon", stats = { cooldown_time = 30 },
+	upgrades = { { title = "Pitchfork Light", description = "Move while firing.", cost = 3, stats = { cooldown_time = 20 } } } }
+
+test("a_custom_stratagem_is_a_copy_of_its_base_with_its_own_words", function()
+	local api, game = start()
+	wire_world(game)
+	local s = rawget(_G, "LoadoutSettings")
+	local count = #s.stratagems
+	local made = api.stratagems.define(PITCHFORK)
+	E.eq(made.id, count + 1)
+	local e = s.stratagems[made.id]
+	E.eq(e.id, made.id)
+	E.eq(e.name, "test_pitchfork")
+	E.eq(e.unit, "gameobjects/crate", "the base's")
+	E.eq(e.icon, "stratagem_lasercannon")
+	E.eq(e.combo[2], "left")
+	E.eq(e.cooldown_time, 30)
+	E.eq(e.stratagem_subtypes[1], "support_weapon")
+	E.eq(e.upgrades[1].cooldown_time, 20)
+	E.eq(e.upgrades[1].cost, 3)
+	E.eq(s.stratagems[2].cooldown_time, 0, "the base is left alone")
+	local lm = rawget(_G, "LocalizationManager")
+	E.eq(lm:string("test_pitchfork"), "Pitchfork")
+	E.eq(lm:string(e.description), "Three barrels.")
+	E.eq(lm:string(e.upgrades[1].upgrade_name), "Pitchfork Light")
+	lm.current_language = "fr"
+	E.eq(lm:string("test_pitchfork"), "Fourche")
+	E.eq(api.catalog.text("test_pitchfork"), "Fourche")
+	E.eq(lm:string("weapon_rifle"), "Rifle", "other texts are the game's")
+	E.eq(api.stratagems.custom()[1].base, "stratagem_machinegun")
+	E.eq(api.catalog.stratagem("test_pitchfork") ~= nil, true, "listed with the rest")
+end)
+
+test("a_custom_stratagem_without_upgrades_takes_the_bases_renamed", function()
+	local api, game = start()
+	wire_world(game)
+	local made = api.stratagems.define({ name = "test_supply", base = "stratagem_resupply", title = "Big Supply" })
+	local e = rawget(_G, "LoadoutSettings").stratagems[made.id]
+	E.eq(#e.upgrades, 3)
+	E.eq(e.upgrades[1].cooldown_time, 90)
+	E.eq(rawget(_G, "LocalizationManager"):string(e.upgrades[2].upgrade_name), "Big Supply Mk3")
+	E.eq(e.combo, nil, "the base's code, which this one has none of")
+end)
+
+test("a_custom_stratagem_unlocks_by_its_own_rule_or_its_base", function()
+	local api, game, e = start_locked()
+	wire_world(game)
+	local P = rawget(_G, "ProgressionSettings")
+	-- The game's answer by its rank lists: none of these is on one.
+	P.can_use = function() return false end
+	hooked(e)
+	-- The machine gun is locked in this save.
+	api.stratagems.define({ name = "test_base", base = "stratagem_machinegun", title = "Base" })
+	api.stratagems.define({ name = "test_free", base = "stratagem_machinegun", title = "Free", unlock = "free" })
+	api.stratagems.define({ name = "test_rank", base = "stratagem_machinegun", title = "Rank", unlock = { rank = 2 } })
+	api.stratagems.define({ name = "test_manual", base = "stratagem_machinegun", title = "Manual", unlock = "manual" })
+	E.eq(api.catalog.unlocked("test_base"), false, "as the base")
+	E.eq(api.catalog.unlocked("test_free"), true)
+	E.eq(api.catalog.unlocked("test_rank"), false, "rank 1")
+	E.eq(api.catalog.unlocked("test_manual"), false)
+	E.eq(P.can_use("test_free", "stratagems", 0), true, "the Loadout screen's question")
+	E.eq(P.can_use("test_rank", "stratagems", 4999), false)
+	E.eq(P.can_use("test_rank", "stratagems", 5000), true, "rank 2's XP")
+	game.save.user.player_xp = 5000
+	E.eq(api.catalog.unlocked("test_rank"), true)
+	E.eq(api.stratagems.unlock("test_manual"), true)
+	E.eq(api.stratagems.is_unlocked("test_manual"), true)
+	E.eq(P.can_use("test_manual", "stratagems", 0), true)
+	E.eq(api.stratagems.unlock("stratagem_resupply"), false, "only a custom one")
+	E.eq(select(2, api.stratagems.define({ name = "test_bad", base = "stratagem_machinegun", title = "x", unlock = { rank = 0 } })), "bad_type")
+	E.eq(select(2, api.stratagems.define({ name = "test_bad", base = "stratagem_machinegun", title = "x", unlock = "sometime" })), "bad_type")
+end)
+
+test("an_unlock_from_a_mod_is_kept_by_the_library_and_never_in_the_save", function()
+	local api, game, e = start_locked()
+	wire_world(game)
+	hooked(e)
+	api.stratagems.define({ name = "test_manual", base = "stratagem_machinegun", title = "Manual", unlock = "manual" })
+	local core = e:core()
+	local own = core.current
+	core.current = { id = "dev.remix", mod = { options = {} } }
+	E.eq(api.stratagems.unlock("test_manual"), true)
+	core.current = own
+	local storage = rawget(_G, "obsidian").storage
+	E.eq(storage.get("stratagem_unlocks"), nil, "not yet: the running mod's storage isn't the library's")
+	e:frames(1)
+	E.eq(storage.get("stratagem_unlocks"), "test_manual", "kept from the library's frame")
+	for _, name in ipairs(game.save.user.item_unlocks) do E.eq(name ~= "test_manual", true, "the save is left alone") end
+	E.eq(api.stratagems.lock("test_manual"), true)
+	E.eq(storage.get("stratagem_unlocks"), "", "the library's own call is kept at once")
+	E.eq(api.catalog.unlocked("test_manual"), false)
+end)
+
+test("a_definition_is_checked", function()
+	local api, game = start()
+	wire_world(game)
+	E.eq(select(2, api.stratagems.define({ name = "stratagem_resupply", base = "stratagem_resupply", title = "x" })), "taken")
+	E.eq(select(2, api.stratagems.define({ name = "test_a", base = "stratagem_nothing", title = "x" })), "not_available")
+	E.eq(select(2, api.stratagems.define({ name = "test a", base = "stratagem_resupply", title = "x" })), "bad_name")
+	E.eq(select(2, api.stratagems.define({ name = "test_a", base = "stratagem_resupply" })), "bad_type", "no title")
+	E.eq(select(2, api.stratagems.define({ name = "test_a", base = "stratagem_resupply", title = "x", code = { "up", "sideways" } })), "bad_code")
+	E.eq(select(2, api.stratagems.define({ name = "test_a", base = "stratagem_resupply", title = "x", stats = { cooldown_time = "slow" } })), "bad_type")
+	E.eq(select(2, api.stratagems.define({ name = "test_a", base = "stratagem_resupply", title = "x", stats = { unit = "gameobjects/other" } })), "bad_type", "unit has its own field")
+	E.eq(select(2, api.stratagems.define({ name = "test_a", base = "stratagem_resupply", title = "x", type = "weird" })), "bad_type")
+	E.eq(api.stratagems.define({ name = "test_a", base = "stratagem_resupply", title = "x" }) ~= nil, true)
+	E.eq(select(2, api.stratagems.define({ name = "test_a", base = "stratagem_resupply", title = "x" })), "taken", "once")
+end)
+
+test("on_the_wire_a_custom_stratagem_is_its_base", function()
+	local api, game = start()
+	local fields = wire_world(game)
+	local made = api.stratagems.define(PITCHFORK)
+	local router = rawget(_G, "NetworkRouter")
+	router:transmit_to("friend", "rpc_activate_stratagem", "pos", made.id, 0, "unit")
+	E.eq(game.sent[1].args[2], 2, "the machine gun's id")
+	router:transmit_to("me", "rpc_activate_stratagem", "pos", made.id, 0, "unit")
+	E.eq(game.sent[2].args[2], made.id, "this machine keeps the real one")
+	router:transmit_to_all("rpc_stratagem_info", "unit", 1, made.id, 0, 0)
+	E.eq(game.sent[3].args[3], 2, "to the others")
+	E.eq(game.sent[4].args[3], made.id, "and to itself")
+	router:transmit_to("friend", "rpc_activate_stratagem", "pos", 5, 0, "unit")
+	E.eq(game.sent[5].args[2], 5, "a stratagem of the game's goes as it is")
+	local go = rawget(_G, "GameObject")
+	go.set({}, "stratagem3_index", made.id)
+	E.eq(fields.stratagem3_index, 2)
+	local mine = {}
+	go.set(mine, "stratagem4_index", made.id)
+	E.eq(go.get(mine, "stratagem4_index"), made.id, "its own reads get the real one")
+	go.set(mine, "stratagem4_index", 2)
+	E.eq(go.get(mine, "stratagem4_index"), 2, "and the base when it's the base")
+	go.set(mine, "hitpoints", made.id)
+	E.eq(fields.hitpoints, made.id, "other fields are left alone")
+end)
+
+test("a_custom_stratagem_runs_its_mods_function_when_called_down", function()
+	local spawned = 0
+	rawset(_G, "StratagemComponent", { spawn_stratagem_hellpod = function() spawned = spawned + 1 end })
+	local api, game = start()
+	wire_world(game)
+	rawget(_G, "require")("lua/network/network_global")
+	local seen
+	local def = {}
+	for k, v in pairs(PITCHFORK) do def[k] = v end
+	def.on_activate = function(ctx)
+		seen = ctx
+		return ctx.upgrade ~= 1
+	end
+	local made = api.stratagems.define(def)
+	local c = rawget(_G, "StratagemComponent")
+	c.spawn_stratagem_hellpod(c, "me", { x = 1, y = 2, z = 3 }, nil, made.id, 0, "thrower")
+	E.eq(seen.name, "test_pitchfork")
+	E.eq(seen.position.y, 2)
+	E.eq(seen.owner, "thrower")
+	E.eq(spawned, 1, "the base's drop too")
+	c.spawn_stratagem_hellpod(c, "me", { x = 1, y = 2, z = 3 }, nil, made.id, 1, "thrower")
+	E.eq(spawned, 1, "false drops nothing")
+	c.spawn_stratagem_hellpod(c, "me", { x = 1, y = 2, z = 3 }, nil, 2, 0, "thrower")
+	E.eq(spawned, 2)
+end)
+
+test("a_custom_stratagem_follows_its_base_for_packs_and_ranks", function()
+	local api, game = start()
+	wire_world(game)
+	api.stratagems.define({ name = "test_paid", base = "stratagem_dlc", title = "Paid" })
+	rawget(_G, "require")("lua/network/network_global")
+	E.eq(api.catalog.usable("test_paid"), false, "a paid base stays paid")
+	api.stratagems.define({ name = "test_free", base = "stratagem_resupply", title = "Free" })
+	local progression = rawget(_G, "ProgressionSettings")
+	progression.can_use = function(name) return name == "stratagem_resupply" end
+	rawget(_G, "require")("lua/network/network_global")
+	E.eq(progression.can_use("test_free", "stratagems", 0), true)
+	E.eq(api.catalog.unlocked("test_free"), api.catalog.unlocked("stratagem_resupply"), "unlocked with its base")
+	E.eq(api.catalog.unlocked("test_paid"), false)
+end)
+
+test("in_a_lobby_that_isnt_cleared_a_custom_stratagem_is_its_base", function()
+	local lobby = { my_id = "me", members = { "me" }, data = {} }
+	local api, game, e = start({ lobby = lobby })
+	wire_world(game)
+	local made = api.stratagems.define(PITCHFORK)
+	local s = rawget(_G, "LoadoutSettings")
+	E.eq(s.get_upgraded_stratagem(made.id, 0).name, "test_pitchfork")
+	e:frames(31)
+	lobby.members = { "me", "stranger" }
+	e:frames(31)
+	E.eq(s.get_upgraded_stratagem(made.id, 0).name, "stratagem_machinegun")
+end)
+
+test("a_client_mod_cant_make_one", function()
+	local api = start({ scope = "client" })
+	E.eq(select(2, api.stratagems.define(PITCHFORK)), "needs_session")
+end)
+
+-- Another mod calling: obsidian.module looks in the mod that's running, so the API mustn't load its own
+-- files during a call (found live: a bot's gear looked for lib/gear.lua in the caller).
+test("calls_from_another_mod_find_the_apis_own_files", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add()
+	local u = game.land(2)
+	u.master.health, u.master.status = {}, {}
+	api.stratagems.define({ name = "test_other", base = "stratagem_resupply", title = "Other" })
+	local core = e:core()
+	core.current = { id = "someone.else", mod = { scope = "session" }, errors = 0 }
+	local ok, err = pcall(function()
+		E.eq(bot:give_weapon("primary_weapon", "equipment/wep_assaultrifle_01"), true)
+		E.eq(bot:heal(), true)
+		E.eq(type(bot:weapons()), "table")
+		E.eq(api.catalog.unlocked("test_other"), api.catalog.unlocked("stratagem_resupply"))
+	end)
+	core.current = core.mods_by_id["obsidian.api"]
+	E.eq(ok, true, tostring(err))
+end)
+
+-- The pause menu and the game's Settings screen, as far as Mod Settings uses them.
+local function fake_menus()
+	local lm = rawget(_G, "LocalizationManager")
+	local Base = { was_option_selected = function(_, input) return input.select == true end }
+	local Options = setmetatable({}, { __call = function(cls, parent) return setmetatable({ parent = parent }, { __index = cls }) end })
+	function Options.update(self)
+		self.title, self.drawn = lm:string("menu_options_title"), {}
+		for i, o in ipairs(self.options) do
+			local v = o.options and o.options[o.options.selected_index]
+			self.drawn[i] = lm:string(o.name) .. (v and (" = " .. (o.ignore_loc_option_names and v.name or lm:string(v.name))) or "")
+		end
+	end
+	function Options.handle_input(self, input)
+		local row = self.options[self.selected_option]
+		if input.down then self.selected_option = self.selected_option % #self.options + 1 end
+		if input.right and row.options then row.options.selected_index = row.options.selected_index % #row.options + 1 end
+		if Base.was_option_selected(self, input) and row.on_pressed then row.on_pressed() end
+		if input.back then self.parent:pop_menu() end
+	end
+	function Options.play_sound_accept() end
+	local Main = {}
+	function Main.on_enter(self)
+		self.options = { { name = "menu_keybindings" }, { name = "menu_settings" }, { name = "menu_exit_to_menu" } }
+		self.selected_option, self.states, self.state_stack = 1, self.states or {}, {}
+	end
+	function Main.update(self)
+		self.drawn = {}
+		for i, o in ipairs(self.options) do self.drawn[i] = lm:string(o.name) end
+		local top = self.state_stack[#self.state_stack]
+		if top then top:update(0, 0) end
+	end
+	function Main.handle_input(self, input)
+		local top = self.state_stack[#self.state_stack]
+		if top then return top:handle_input(input) end
+		if Base.was_option_selected(self, input) then self.chose = self.options[self.selected_option].name end
+	end
+	function Main.push_menu(self, name, args)
+		local s = assert(self.states[name], name)
+		self.state_stack[#self.state_stack + 1] = s
+		s:on_enter(args)
+	end
+	function Main.pop_menu(self)
+		local gone = table.remove(self.state_stack)
+		local top = self.state_stack[#self.state_stack]
+		if top then top:on_enter(gone) end
+	end
+	function Main.play_sound_accept() end
+	rawset(_G, "MenuScreenBase", Base)
+	rawset(_G, "MenuScreenOptions", Options)
+	rawset(_G, "MenuScreenMain", Main)
+	return Main
+end
+
+test("mod_settings_opens_from_the_pause_menu_and_keeps_its_values", function()
+	local api, _, e = start()
+	local Main = fake_menus()
+	-- Hooks on classes defined after boot go in at the next require.
+	rawget(_G, "require")("lua/network/network_global")
+	local core = e:core()
+	local own = core.current
+	-- Another mod's page, made from its own code.
+	core.current = { id = "dev.hud", mod = { options = {} } }
+	local changes = {}
+	local page = api.mod_settings.page("Better HUD")
+	E.eq(page:toggle("ammo", { label = "Ammo counter", default = true, on_change = function(v) changes[#changes + 1] = v end }), true)
+	page:choice("size", { label = "Bar size", choices = { { id = "small", label = "Small" }, { id = "large", label = "Large" } }, default = "large" })
+	page:number("scale", { label = "Scale", min = 0.5, max = 2, step = 0.5, default = 1 })
+	E.eq(page:set("scale", 1.5), true)
+	E.eq(page:set("scale", 9), false, "out of range")
+	core.current = own
+	e:frames(1)
+	E.eq(rawget(_G, "obsidian").storage.get("mod_settings/dev.hud/scale"), 1.5, "a mod's own change is kept from the frame")
+
+	local main = setmetatable({}, { __index = Main })
+	main:on_enter()
+	E.eq(main.options[3].name, "obsidian_mod_settings", "under the game's Settings")
+	main:update()
+	E.eq(main.drawn[3], "MODS", "in capitals, as the game's rows")
+	E.eq(main.drawn[4], "LOC:menu_exit_to_menu", "the game's own words stay")
+	main.selected_option = 3
+	main:handle_input({ select = true })
+	E.eq(main.chose, nil, "the pause menu didn't act on it")
+	main:update()
+	local list = main.state_stack[1]
+	E.eq(list.title, "MODS")
+	E.eq(list.drawn[1], "BETTER HUD")
+	main:handle_input({ select = true })
+	main:update()
+	local screen = main.state_stack[2]
+	E.eq(screen.title, "BETTER HUD")
+	E.eq(screen.drawn[1], "AMMO COUNTER = LOC:options_yes")
+	E.eq(screen.drawn[2], "BAR SIZE = LARGE")
+	E.eq(screen.drawn[3], "SCALE = 1.5")
+	main:handle_input({ right = true })
+	E.eq(page:get("ammo"), false)
+	E.eq(changes[1], false)
+	E.eq(rawget(_G, "obsidian").storage.get("mod_settings/dev.hud/ammo"), false, "a change in the menu is kept at once")
+	main:handle_input({ back = true })
+	E.eq(#main.state_stack, 1, "back to the list")
+	-- With no rows anywhere, the pause menu has no Mod Settings.
+	page.rows = {}
+	main:on_enter()
+	E.eq(#main.options, 3)
+end)
+
+-- A row bound to one of the mod's obsidian.json options starts from the value set in Obsidian, and a
+-- change is kept as the pending option Obsidian takes; that pending value wins until it's taken.
+-- Words by language follow the game's language ("bp" is pt-BR), in capitals with the accents.
+test("mod_settings_rows_bound_to_options_start_from_obsidian_and_keep_changes_for_it", function()
+	local api, _, e = start()
+	local Main = fake_menus()
+	rawget(_G, "require")("lua/network/network_global")
+	local core = e:core()
+	local own = core.current
+	local options = { { id = "pause", type = "toggle", default = true }, { id = "speed", type = "choice", default = "off", choices = { "off", "fast" } } }
+	local qol = { id = "dev.qol", mod = { options = options } }
+	core.current = qol
+	e.loaded["obsidian/loader/settings"].values["dev.qol"] = { speed = "fast" }
+	E.eq(api.mod_settings.BINDS, true)
+	local page = api.mod_settings.page({ en = "Quality", ["pt-BR"] = "Qualidade" })
+	local pause = { option = true, label = { en = "Pause", fr = "Pause", ["pt-BR"] = "Pausa" } }
+	E.eq(page:toggle("pause", pause), true, "the option's default")
+	E.eq(page:choice("speed", { option = true, label = "Speed", choices = { { id = "off", label = { en = "Off", ["pt-BR"] = "Desligado" } }, { id = "fast", label = { en = "Fast", ["pt-BR"] = "Rápido" } } } }), "fast", "the value set in Obsidian")
+	E.eq(page:set("pause", false), true)
+	core.current = own
+	e:frames(1)
+	local storage = rawget(_G, "obsidian").storage
+	E.eq(storage.get("option/dev.qol/pause"), false, "kept for Obsidian to take")
+	E.eq(storage.get("mod_settings/dev.qol/pause"), nil, "not as an in-game setting")
+
+	local lm = rawget(_G, "LocalizationManager")
+	local was = lm.current_language
+	lm.current_language = "bp"
+	local main = setmetatable({}, { __index = Main })
+	main:on_enter()
+	main.selected_option = 3
+	main:handle_input({ select = true })
+	main:update()
+	E.eq(main.state_stack[1].drawn[1], "QUALIDADE")
+	main:handle_input({ select = true })
+	main:update()
+	local screen = main.state_stack[2]
+	E.eq(screen.drawn[1], "PAUSA = LOC:options_no")
+	E.eq(screen.drawn[2], "SPEED = RÁPIDO")
+	main:handle_input({ right = true })
+	lm.current_language = was
+	E.eq(storage.get("option/dev.qol/pause"), true, "a change in the menu is kept at once")
+	core.current = qol
+	E.eq(page:toggle("pause", pause), true, "made again, the row starts from the pending value")
+	core.current = own
+end)
+
+-- Obsidian QoL's page: the four options that can change in game, each bound to its option.
+test("obsidian_qol_binds_four_of_its_options_to_the_mods_page", function()
+	local e = G.start({ "obsidian.api", "obsidian.qol" }, { scope = "client" })
+	e:core().current = e:core().mods_by_id["obsidian.api"]
+	local page = rawget(_G, "obsidian").import("obsidian.api").mod_settings.pages["obsidian.qol"]
+	E.eq(page ~= nil, true, "QoL made its page")
+	local ids = {}
+	for _, row in ipairs(page.rows) do
+		E.eq(row.option, true, row.id)
+		ids[#ids + 1] = row.id
+	end
+	E.eq(table.concat(ids, ","), "expedite_mission_end,solo_pause,aim_cursor,toggle_map")
+	E.eq(page.rows[1].kind, "choice")
+	E.eq(type(page.rows[2].label), "table", "words by language")
 end)
 
 return T

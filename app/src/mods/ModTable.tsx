@@ -4,6 +4,8 @@
 // Alt+Up and Alt+Down move the focused mod or folder from the keyboard. A warning icon marks
 // mods in a conflict and opens the conflicts; a right click opens the menu. The column beside the
 // switches asks GitHub for updates to one mod, a folder or the whole list, as the checkboxes do.
+// The lines at the left of the Version and Scope headers drag to resize those columns (kept between
+// launches); a double click puts them back.
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type MutableRefObject, type PointerEvent } from "react";
 import { CheckIcon, ChevronIcon, LockIcon, UnlockIcon, UpArrowIcon, UpdateIcon, WarnIcon } from "../Icons";
 import { language, pick, t } from "../i18n";
@@ -11,6 +13,7 @@ import { Thumb } from "../Thumb";
 import { offered } from "./modUpdates";
 import type { ConflictRow, ImageRef, ModRow } from "../types";
 import { conflictsByMod } from "./conflicts";
+import { drag as dragWidths, readWidths, reset as resetWidths, saveWidths, type Col, type Widths } from "./columns";
 import { dropSpot, folderDropIndex, lines, moveFolder, moveMods, nudge, pinned, type Line, type Node } from "./layout";
 
 export type MenuTarget = { kind: "mod"; id: string } | { kind: "folder"; id: string };
@@ -69,6 +72,11 @@ function UpdateCheck({ label, spinning, off, onCheck }: { label: string; spinnin
       <UpdateIcon />
     </button>
   );
+}
+
+/** The line at the left of a header cell: drag to move it, double-click to put the columns back. */
+function Grip({ label, onStart, onReset }: { label: string; onStart: (e: PointerEvent<HTMLDivElement>) => void; onReset: () => void }) {
+  return <div className="col-grip" role="separator" aria-orientation="vertical" aria-label={label} data-tip={t("app.mods.resizeHint")} onPointerDown={onStart} onDoubleClick={onReset} />;
 }
 
 /** What a row calls back into; kept in a ref so the rows never see new functions. */
@@ -138,6 +146,10 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
   const drag = useRef<Drag | null>(null);
   const before = useRef<Map<string, number> | null>(null);
   const lastCheck = useRef<string | null>(null);
+  const modHead = useRef<HTMLSpanElement>(null);
+  const versionHead = useRef<HTMLSpanElement>(null);
+  const scopeHead = useRef<HTMLSpanElement>(null);
+  const [widths, setWidths] = useState<Widths>(readWidths);
   const [marker, setMarker] = useState<Marker | null>(null);
   // Folders open and close on screen at once; the saved state follows.
   const [fold, setFold] = useState<Record<string, boolean>>({});
@@ -300,6 +312,37 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
     }
     return out;
   }, [conflicts, names]);
+  /** Drags the line at the left of a header cell: the widths follow the pointer and are kept when it lets go. */
+  const grip = (col: Col) => (e: PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    const el = e.currentTarget;
+    el.setPointerCapture(e.pointerId);
+    // Widths are worked out from what is on screen, in rem.
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const wide = (n: HTMLElement | null) => (n?.getBoundingClientRect().width ?? 0) / rem;
+    const start: Widths = { version: wide(versionHead.current), scope: wide(scopeHead.current) };
+    const mod = wide(modHead.current);
+    const x0 = e.clientX;
+    let last: Widths | null = null;
+    const move = (ev: globalThis.PointerEvent) => {
+      last = dragWidths(start, col, (ev.clientX - x0) / rem, mod);
+      setWidths(last);
+    };
+    const up = () => {
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", up);
+      el.removeEventListener("pointercancel", up);
+      if (last) saveWidths(last);
+    };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up);
+  };
+  const regrip = (col: Col) => () => {
+    const next = resetWidths(widths, col);
+    setWidths(next);
+    saveWidths(next);
+  };
   const h = useRef<Handlers>(null!);
   h.current = { down, move, up, key, menu, check, toggle: (id, on) => onToggle([id], on), conflicts: onConflicts, update: onUpdate, checkUpdates: onCheckUpdates };
   const allState = visibleMods.length && visibleMods.every((id) => checked.has(id)) ? true : visibleMods.some((id) => checked.has(id)) ? "mixed" : false;
@@ -309,16 +352,22 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
   const checkingNow = checking.length > 0;
 
   return (
-    <div className="table" role="table">
+    <div className="table" role="table" style={{ "--col-ver": `${widths.version}rem`, "--col-scope": `${widths.scope}rem` } as CSSProperties}>
       <div className="th cap" role="row">
         <Check state={allState} label={t("app.mods.checkAll")} onChange={(on) => onCheck(visibleMods, on)} />
         <span data-tip-title={t("app.mods.orderTitle")} data-tip={tree ? t("app.mods.orderHint") : t("app.mods.reorderOff")}>#</span>
         <span>{t("app.mods.colOn")}</span>
         {updatable.length ? <UpdateCheck label={t("app.mods.checkUpdates")} spinning={updatable.every((id) => checking.includes(id))} off={checkingNow} onCheck={() => onCheckUpdates(updatable)} /> : <span />}
-        <span>{t("app.mods.colMod")}</span>
+        <span ref={modHead}>{t("app.mods.colMod")}</span>
         <span />
-        <span>{t("app.mods.colVersion")}</span>
-        <span className="th-scope">{t("app.mods.colScope")}</span>
+        <span ref={versionHead} className="th-col">
+          {t("app.mods.colVersion")}
+          <Grip label={t("app.mods.resizeColumn", t("app.mods.colVersion"))} onStart={grip("version")} onReset={regrip("version")} />
+        </span>
+        <span ref={scopeHead} className="th-col th-scope">
+          {t("app.mods.colScope")}
+          <Grip label={t("app.mods.resizeColumn", t("app.mods.colScope"))} onStart={grip("scope")} onReset={regrip("scope")} />
+        </span>
       </div>
       <div ref={body} className={marker ? "tbody dragging-list" : "tbody"}>
         {all.map((line) => {

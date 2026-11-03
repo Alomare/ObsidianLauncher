@@ -108,10 +108,11 @@ local function want()
 	M.wanted = true
 end
 
--- A session mod's output stops with its hooks, and a mod that was switched off stops altogether.
+-- A session mod's output stops with its hooks, and a mod that was switched off stops altogether. An
+-- expansion draws in any lobby, so the screens that lead to its content show.
 local function allowed(state)
 	if state and state.off then return false end
-	return state == nil or state.mod.scope == "client" or M.session.allows(state)
+	return state == nil or state.mod.scope == "client" or state.mod.scope == "expansion" or M.session.allows(state)
 end
 
 local function state_of()

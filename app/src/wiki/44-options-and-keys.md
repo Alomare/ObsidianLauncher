@@ -34,7 +34,7 @@ Each option has an `id` (lowercase letters, digits and `_`), a `type`, a `defaul
 
 ### Personal options in session mods
 
-The option values of a session mod count when Obsidian compares two players' mods, because a balance slider changes the shared game. Mark an option `"scope": "client"` when the value only changes what this player sees, such as a color or a camera distance. Players can then pick different values and still match ([Playing online](wiki:multiplayer)).
+The option values of a session mod or an expansion count when Obsidian compares two players' mods, because a balance slider changes the shared game. Mark an option `"scope": "client"` when the value only changes what this player sees, such as a color or a camera distance. Players can then pick different values and still match ([Playing online](wiki:multiplayer)).
 
 ## Reading options in Lua
 

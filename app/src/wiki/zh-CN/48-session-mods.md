@@ -6,13 +6,15 @@ summary: 如何修改共享游戏，同时让防护措施继续为你工作。
 
 会话模组会改变其他玩家能察觉的内容：伤害、敌人、生成、任务。加载器决定这类模组何时可以运行（[联机游戏](wiki:multiplayer)），并随玩家进出开启或关闭它。你要做的是让每项更改都经过加载器，这样它才能被关闭。
 
+如果模组的所有更改都发生在一种独立的内容中，例如带有单独任务界面的游戏模式，它也可以改为[扩展模组](#expansions)，让其他所有任务保持原样。
+
 ## 设置作用范围 {#set-the-scope}
 
 ```json
 "scope": "session"
 ```
 
-省略该字段效果相同。只有当模组所做的一切都不会影响其他玩家时，才使用 `client`。
+省略该字段会让模组成为未指定模组，作为客户端模组运行。只有当模组所做的一切都不会影响其他玩家时，才使用 `client`。
 
 ## 通过挂钩修改游戏 {#change-the-game-through-hooks}
 
@@ -97,6 +99,86 @@ return {
 
 检查在玩家进入大厅后才运行。邀请仍可能跨越匹配组，因此在确认每位玩家之前请保持游戏原样：对于更大的大厅，请保持通常的上限，直到 `obsidian.session.cleared()` 为 `true`，并在 `on_session` 返回 `false` 时恢复上限。
 
+## 编写扩展模组 {#expansions}
+
+扩展模组是独立于普通游戏的内容，例如街机模式。在内容之外，它算作客户端模组：玩家保留普通匹配、银河战争和试炼场。只有内容运行过的任务才会离开共享的战争（[作用范围](wiki:scopes#expansions)）。
+
+```json
+"scope": "expansion",
+"min_obsidian": "1.2.0",
+"requires": ["obsidian.api"]
+```
+
+`every_player` 不与它一起使用：内容本来就只在每位玩家都运行该扩展模组时才会运行。
+
+### 何时运行什么 {#what-runs-when}
+
+| | 内容之外 | 内容运行期间 |
+|---|---|---|
+| `obsidian.hook`、`obsidian.on_frame` 和按键 | 关闭：挂钩只调用游戏的函数 | 开启，大厅中的每个游戏都是如此 |
+| `obsidian.wrap`，以及带 `opts.always` 的按键 | 开启 | 开启 |
+| `obsidian.ui`、菜单页面和叠加层 | 开启 | 开启 |
+| 库中受保护的函数，例如 Obsidian API 的大部分函数 | `false, "not_started"` | 完整可用 |
+| `obsidian.session.cleared()` | `false` | `true` |
+
+进入内容的入口（菜单页面或用 `obsidian.ui` 绘制的界面）在任何大厅中都可用。内容本身放在挂钩中。
+
+### 启动和停止 {#starting-and-stopping}
+
+```lua
+-- 不支持扩展模组的旧版 Obsidian 会在每个大厅中运行所有挂钩。
+if not obsidian.capabilities.expansion then return end
+
+local api = obsidian.import("obsidian.api")
+
+api.menu.add("街机", function(page)
+  page:action("开始", function()
+    local ok, why, names = obsidian.expansion.start()
+    if ok then return "已开始" end
+    if why == "players_missing" then return "缺少：" .. table.concat(names, ", ") end
+    return why
+  end)
+  page:action("停止", function() obsidian.expansion.stop() end)
+end)
+
+-- 只在内容运行期间生效，大厅中的每个游戏都是如此。
+obsidian.hook("Damage", "apply", function(original, target, amount, ...)
+  return original(target, amount * 2, ...)
+end)
+
+obsidian.on_session(function(on)
+  if on then set_up() else undo() end
+end)
+```
+
+`obsidian.expansion.start()` 在主机的游戏中调用。它会检查大厅中其他每位玩家是否运行同一个扩展模组，且版本和共享选项值都相同。然后内容开始，大厅中的其他游戏会在大约一秒内跟上。`obsidian.on_session(true)` 会在每个游戏中运行，内容结束后运行 `obsidian.on_session(false)`，所以设置和撤销都应放在这里。其他游戏只能通过这种方式从主机得知内容。
+
+返回 `true`，或者返回 `false` 和原因：
+
+| 原因 | 时机 |
+|---|---|
+| `"players_missing"` | 大厅中有人没有运行它。第三个返回值列出这些玩家的名字，主机也会在通知中看到 |
+| `"not_host"` | 大厅的主机是另一位玩家 |
+| `"busy"` | 另一个扩展模组的内容正在运行。一次只能运行一个 |
+| `"not_expansion"` | 发出调用的模组不是扩展模组 |
+
+`obsidian.expansion.stop()` 在主机的游戏中结束内容，内容未运行时返回 `false, "not_running"`。离开大厅也会结束内容。主机离开时，接管大厅的玩家会让内容继续运行。`obsidian.expansion.running()` 返回发出调用的模组的内容当前是否在运行，`running(id)` 用于查询其他模组。
+
+### 加入的玩家 {#players-who-join}
+
+内容运行期间，主机的大厅在匹配中只对运行同一扩展模组、同一版本的玩家显示。没有该扩展模组的玩家通过邀请或好友尝试加入时，会在载入前被拒绝，主机会看到其名字。仍然在没有该扩展模组的情况下进入任务的玩家，会被游戏自带的踢出功能移除，内容结束后可以再回来。玩家加入或离开，都不会为已在内容中的玩家关闭内容。
+
+### 扩展模组依赖的库 {#libraries-an-expansion-requires}
+
+扩展模组依赖的库在部署时算作客户端模组，除非也有会话模组依赖它。`obsidian.scope()` 在其中返回 `"session"`，以便库准备好扩展模组可能用到的一切；其余时候，它像客户端库一样运行。内容运行期间，库中受保护的函数对该扩展模组可用，`obsidian.on_session` 会在内容开始和结束时通知库，以便库撤销所做的更改。使用同一个库的客户端模组仍会从这些函数得到 `"needs_session"`。
+
+### 须知 {#things-to-know}
+
+- 用 `resources` 替换的文件始终留在游戏中，无论内容是否运行。这些文件应只包含客户端模组也能更改的内容，例如字体和图片。
+- 与会话模组一样，共享选项值会计入。个人选项应标记为 `"scope": "client"`。
+- 内容运行过的任务，其结果永远不会进入银河战争，即使内容在结算画面之前就已停止。下一场不含该内容的任务会重新计入。
+- `min_obsidian` 让 Obsidian 1.1 不部署该模组，并提示玩家更新。Obsidian 1.0 不读取该字段，会把它当作未指定模组运行，因此入口脚本顶部的功能检查能让模组在那里不进入游戏。
+
 ## 会话模组中的选项 {#options-in-session-mods}
 
-比较玩家的组合时，每个选项值都会计入，除非你把它标记为 `"scope": "client"`。请标记那些只改变该玩家自己所见内容的选项（[选项和按键](wiki:options-and-keys#personal-options-in-session-mods)）。
+比较玩家的组合时，每个选项值都会计入，除非把它标记为 `"scope": "client"`。扩展模组也一样。只改变该玩家自己所见内容的选项应这样标记（[选项和按键](wiki:options-and-keys#personal-options-in-session-mods)）。

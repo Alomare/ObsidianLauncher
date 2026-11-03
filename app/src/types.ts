@@ -11,9 +11,12 @@ export type OptionRow = {
 export type KeyRow = { id: string; label: Localized; default: string; key: string | null; clash: string[] };
 export type ImportInfo = { date: string; file: string };
 export type ImageRef = { path: string; v: number };
+/** Every scope a manifest can give, as `Scope::name` in core/src/manifest.rs writes it. */
+export const SCOPES = ["unspecified", "client", "session", "library", "expansion"] as const;
+export type Scope = (typeof SCOPES)[number];
 export type ModRow = {
   id: string; name: Localized; description: Localized; authors: string[];
-  version: string | null; scope: "client" | "session" | "library" | "unspecified"; on: boolean;
+  version: string | null; scope: Scope; on: boolean;
   options: OptionRow[]; keybinds: KeyRow[]; files: string[];
   import: ImportInfo | null; source: string | null; updatable: boolean; image: ImageRef | null; customImage: boolean;
   folder: string | null; requires: string[];
