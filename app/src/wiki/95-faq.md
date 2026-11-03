@@ -12,7 +12,7 @@ HELLDIVERS has no anti-cheat, and Obsidian never edits a game file. Session mods
 
 ### Why can't I find any lobbies?
 
-With session mods deployed, or with **Allow other players' session mods in my game** on in Guardrails, you only see other Obsidian players. Turn the switch off and deploy without session mods for normal matchmaking ([Playing online](wiki:multiplayer#matchmaking)).
+With session mods deployed, you only see other Obsidian players. Deploy without session mods for normal matchmaking. **Allow other players' session mods in my game** in Guardrails leaves every lobby in your list, but your own lobby shows only for Obsidian players while it's on ([Playing online](wiki:multiplayer#matchmaking)).
 
 ### My friend and I both use Obsidian. Why are my session mods off?
 

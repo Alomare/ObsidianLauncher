@@ -386,8 +386,9 @@ function M.boot()
 
 	backend_block.setup(M, hooks)
 	guardrails.setup(M, hooks)
-	-- The multiplayer terminal lists only lobbies with the same build hash, so the filter titles say so.
-	if tag then
+	-- The multiplayer terminal lists only lobbies with the same build hash, so the filter titles say so,
+	-- unless the vanilla lobbies are listed too.
+	if tag and not pool.bridge(M, hooks, tag) then
 		game_text.replace(M, hooks, "campaign_public", "lobby_public")
 		game_text.replace(M, hooks, "campaign_friends", "lobby_friends")
 	end

@@ -115,7 +115,7 @@
   "app.guardrails.always": "Resultados da Guerra Galáctica e placares nunca são enviados enquanto houver mods de sessão aplicados, e Proving Grounds fica fechado. Isso protege os outros jogadores, então não é uma escolha aqui.",
   "app.guardrails.button": "Proteções (perfil %s)",
   "app.guardrails.consent": "Permitir mods de sessão de outros jogadores no meu jogo",
-  "app.guardrails.consentHint": "Quando vocês jogam juntos, os mods de sessão deles continuam rodando e podem mudar o seu jogo, como inimigos, dano e missões. Você só encontra outros jogadores do Obsidian. Desligado: os mods de sessão deles são desligados enquanto vocês estiverem no mesmo lobby.",
+  "app.guardrails.consentHint": "Quando vocês jogam juntos, os mods de sessão deles continuam rodando e podem mudar o seu jogo, como inimigos, dano e missões. Você continua vendo todos os lobbies, mas o seu só aparece para outros jogadores do Obsidian. Desligado: os mods de sessão deles são desligados enquanto vocês estiverem no mesmo lobby.",
   "app.guardrails.freeze": "Congelar a progressão da minha conta",
   "app.guardrails.freezeHint": "Seu XP, patente, amostras, desbloqueios, melhorias e estatísticas ficam como estavam quando o jogo abriu. Nada do que você ganhar ou gastar é salvo, então você pode testar qualquer coisa sem mudar sua conta.",
   "app.guardrails.lead": "Para o perfil atual. As mudanças valem na próxima vez que o jogo for aberto.",
