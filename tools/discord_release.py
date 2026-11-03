@@ -1,7 +1,8 @@
 """Posts a release to Discord as one embed: the version, a link to the release, and the release's highlights.
 
-Only the ### Highlights section goes in, each #### heading in bold with the first sentence of its paragraph; the
-additions, changes and fixes stay on the release page, which the embed links to.
+Only the ### Highlights section goes in, each #### heading in bold over its paragraph (cut at a sentence if one runs
+past the release-text rule of about 250 characters); the additions, changes and fixes stay on the release page, which
+the embed links to.
 
     python tools/discord_release.py v1.2.0             # posts to the webhook in DISCORD_WEBHOOK
     python tools/discord_release.py v1.2.0 --dry-run   # prints the payload instead
@@ -20,7 +21,9 @@ import urllib.request
 
 REPO = os.environ.get("GITHUB_REPOSITORY", "Alomare/ObsidianModManager")
 GOLD = 0xF0B429  # --gold in app/src/styles.css
-ICON = f"https://raw.githubusercontent.com/{REPO}/main/app/src-tauri/icons/128x128.png"
+# The app icon on a dark square with room around it, so the round avatar frame doesn't cut it. Taken from the commit
+# that runs, so a run from dev shows the same picture as one from main.
+AVATAR = f"https://raw.githubusercontent.com/{REPO}/{os.environ.get('GITHUB_SHA', 'main')}/assets/discord-avatar.png"
 LIMIT = 4096  # Discord's cap on an embed description
 
 
@@ -32,7 +35,7 @@ def release(tag):
     return json.loads(out)
 
 
-def summary(text, enough=120, most=320):
+def summary(text, enough=320, most=320):
     """The paragraph's opening: sentences until it reads as enough, never past `most` once it has one, and never a
     sentence that only leads into a list ("Mods can now:")."""
     # A sentence ends at . ! or ? followed by a space and a capital (or bold), so "1.9.2" and "e.g. this" stay whole.
@@ -92,12 +95,11 @@ def payload(rel):
         "url": rel["url"],
         "description": desc,
         "color": GOLD,
-        "thumbnail": {"url": ICON},
         "footer": {"text": "Obsidian Mod Manager"},
     }
     if rel.get("publishedAt"):
         embed["timestamp"] = rel["publishedAt"]
-    return {"username": "Obsidian", "avatar_url": ICON, "embeds": [embed], "allowed_mentions": {"parse": []}}
+    return {"username": "Obsidian", "avatar_url": AVATAR, "embeds": [embed], "allowed_mentions": {"parse": []}}
 
 
 def post(url, data):
