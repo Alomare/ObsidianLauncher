@@ -2,7 +2,7 @@
 -- edge-triggered keyboard. pressed() is true for the one frame a key goes down, as in the game.
 local F = {}
 
-local KEYS = { "up", "down", "left", "right", "enter", "esc", "tab", "e", "q", "w", "a", "s", "d", "r", "left shift", "f6" }
+local KEYS = { "up", "down", "left", "right", "enter", "esc", "tab", "e", "q", "w", "a", "s", "d", "r", "left shift", "f6", "backspace" }
 
 function F.install(e, opts)
 	opts = opts or {}

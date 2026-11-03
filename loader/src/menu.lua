@@ -414,6 +414,7 @@ end
 local function begin_text_entry(frame, it)
 	if not global("GuiItems") then return end
 	M.field = { text = "", state = {}, max = 48, prompt = text_of(frame.state, it.label, "label"), item = it,
+		code = it.code == true or nil, arrows = {},
 		done = function(text)
 			local ok, result = run(frame.state, "input", it.run, text)
 			if not ok then
@@ -560,8 +561,31 @@ local function read_nav(dt)
 	return ev
 end
 
+-- A code field (Page:input with opts.code): the arrow keys, W A S D and a pad's directions add arrows,
+-- Backspace takes the last off, and Enter hands them over as words, "up down left". Letters typed are
+-- dropped: the directions come from the menu's own keys, so W isn't counted twice.
+local CODE_MAX, DIRECTIONS = 10, { "up", "down", "left", "right" }
+
+local function read_code_field(f)
+	f.state.marker = 0
+	local _, _, finished, cancelled = global("GuiItems").InputField.do_input("", f.state, 1)
+	local ev = read_nav(0)
+	for _, dir in B.ipairs(DIRECTIONS) do
+		if ev[dir] and #f.arrows < CODE_MAX then B.insert(f.arrows, dir) end
+	end
+	local kb = global("Keyboard")
+	local ok, i = B.pcall(kb.button_index, "backspace")
+	if ok and i and kb.pressed(i) == true then B.remove(f.arrows) end
+	f.text = B.concat(f.arrows, " ")
+	if finished then
+		M.field = nil
+		if not cancelled then f.done(f.text) end
+	end
+end
+
 local function read_field()
 	local f = M.field
+	if f.code then return read_code_field(f) end
 	local input = global("GuiItems").InputField
 	local before = f.text
 	local text, _, finished, cancelled = input.do_input(f.text, f.state, f.max)
@@ -884,6 +908,14 @@ local function keycap_w(key)
 	return B.max(width_of(key, SMALL) + 10, KEYCAP_H)
 end
 
+-- A triangle pointing `dir`, centred on cx, cy, `r` from the middle to the tip. y runs up.
+local function arrow_points(dir, cx, cy, r)
+	if dir == "up" then return { cx - r, cy - r / 2, cx + r, cy - r / 2, cx, cy + r } end
+	if dir == "down" then return { cx - r, cy + r / 2, cx, cy - r, cx + r, cy + r / 2 } end
+	if dir == "left" then return { cx + r / 2, cy - r, cx + r / 2, cy + r, cx - r, cy } end
+	return { cx - r / 2, cy - r, cx + r, cy, cx - r / 2, cy + r }
+end
+
 -- A keycap at x, y: a box with the key's name, or an arrow for an arrow key. Answers its width.
 local function keycap(x, y, key)
 	local kit, w = M.kit, keycap_w(key)
@@ -891,14 +923,7 @@ local function keycap(x, y, key)
 	kit:panel({ x, y, w, KEYCAP_H, cut = 3, corners = "br", fill = HEADER })
 	kit.z = LAYER_MARK + 1
 	if ARROWS[key] then
-		local cx, cy, r = x + w / 2, y + KEYCAP_H / 2, 4
-		local points = {
-			up = { cx - r, cy - r / 2, cx + r, cy - r / 2, cx, cy + r },
-			down = { cx - r, cy + r / 2, cx, cy - r, cx + r, cy + r / 2 },
-			left = { cx + r / 2, cy - r, cx + r / 2, cy + r, cx - r, cy },
-			right = { cx - r / 2, cy - r, cx + r, cy, cx - r / 2, cy + r },
-		}
-		kit:poly(points[key], WHITE)
+		kit:poly(arrow_points(key, x + w / 2, y + KEYCAP_H / 2, 4), WHITE)
 	else
 		put(key, x + w / 2, mid(y, KEYCAP_H, SMALL), SMALL, WHITE, "center")
 	end
@@ -927,6 +952,16 @@ local function draw_field(row, right, left)
 	kit:panel({ right - w, row.y + 3, w, ROW_H - 6, cut = 4, corners = "br", fill = FIELD })
 	kit:rect(right - w, row.y + 3, 2, ROW_H - 6, GOLD)
 	kit.z = LAYER_MARK + 1
+	if M.field.code then
+		-- The arrows so far, then the caret.
+		local x, cy = right - w + 12, row.y + ROW_H / 2
+		for _, dir in B.ipairs(M.field.arrows) do
+			kit:poly(arrow_points(dir, x, cy, 5), GOLD)
+			x = x + 14
+		end
+		put("_", x - 4, mid(row.y, ROW_H, BODY), BODY, GOLD)
+		return w
+	end
 	put(fit(M.field.text .. "_", w - 14, BODY), right - w + 8, mid(row.y, ROW_H, BODY), BODY, GOLD)
 	return w
 end
