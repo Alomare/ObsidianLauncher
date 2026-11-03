@@ -15,7 +15,7 @@
   --warn: #ff9b5e; --go: #2fb889;
   /* The scopes (the user, 2026-11-03): unspecified black, client green, session red, library white,
      expansion yellow. --scope-edge rings a color too close to the theme's panels to read alone. */
-  --client: #2fb889; --session: #e0443a; --library: #f2f2f0; --unspecified: #0b0c0d; --expansion: #f2d01e;
+  --client: #2fb889; --session: #f2574b; --library: #f2f2f0; --unspecified: #0b0c0d; --expansion: #f2d01e;
   --scope-edge: rgba(255, 255, 255, 0.6);
   /* Load order conflicts, in the orange the session color used to be. */
   --conflict: #e8891c;
@@ -37,7 +37,7 @@
   --bar: rgba(255, 255, 255, 0.55);
   --tx: #1d1f22; --mu: #53575c; --ln: rgba(0, 0, 0, 0.1); --row: rgba(0, 0, 0, 0.035);
   --goldtx: #8a5d00; --warn: #a54300; --go: #1d8a64; --well: rgba(0, 0, 0, 0.04);
-  --client: #1d9a6c; --session: #c8352b; --library: #ffffff; --unspecified: #111214; --expansion: #e0bb00;
+  --client: #1d9a6c; --session: #dc3f33; --library: #ffffff; --unspecified: #111214; --expansion: #e0bb00;
   --scope-edge: rgba(0, 0, 0, 0.55);
   color-scheme: light;
 }
@@ -196,11 +196,15 @@ button.bare:hover { color: var(--tx); }
 .col-grip { position: absolute; top: -0.35rem; bottom: -0.35rem; left: -0.55rem; width: 0.6rem; cursor: col-resize; touch-action: none; }
 .col-grip::after { content: ""; position: absolute; top: 0.2rem; bottom: 0.2rem; left: 50%; width: 1px; margin-left: -0.5px; background: transparent; transition: background var(--fast); }
 .col-grip:hover::after, .col-grip:active::after { background: var(--mu); }
-.scope i { width: 0.6rem; height: 0.6rem; transform: rotate(45deg); display: inline-block; background: var(--client); }
-.scope.session i { background: var(--session); }
-.scope.library i { background: var(--library); }
-.scope.unspecified i { background: var(--unspecified); }
-.scope.expansion i { background: var(--expansion); }
+/* Shaded as if lit from above: the gradient runs corner to corner, which the rotation turns upright. */
+.scope i {
+  width: 0.6rem; height: 0.6rem; transform: rotate(45deg); display: inline-block; background-color: var(--client);
+  background-image: linear-gradient(to bottom right, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0) 48%, rgba(0, 0, 0, 0) 52%, rgba(0, 0, 0, 0.3));
+}
+.scope.session i { background-color: var(--session); }
+.scope.library i { background-color: var(--library); }
+.scope.unspecified i { background-color: var(--unspecified); }
+.scope.expansion i { background-color: var(--expansion); }
 /* Black on the dark theme, and white or yellow on the light one, get an edge to stand out. */
 :root:not([data-theme="light"]) .scope.unspecified i,
 :root[data-theme="light"] .scope.library i, :root[data-theme="light"] .scope.expansion i { box-shadow: 0 0 0 1px var(--scope-edge); }
