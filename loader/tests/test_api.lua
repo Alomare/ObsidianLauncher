@@ -1018,6 +1018,99 @@ test("the_session_gate_takes_the_scale_off", function()
 	E.eq((rawget(_G, "HealthComponent").calculate_damage(game.enemies[1], 10)), 10)
 end)
 
+-- HealthComponent's two commands that work out a hit, as far as on_hit and on_fatal use them: each
+-- asks calculate_damage first, then takes the health off, the master's count through the setter.
+local function fake_hits(game)
+	local H = rawget(_G, "HealthComponent")
+	local function take(unit, data)
+		local damage = H.calculate_damage(unit, data.power)
+		local s = unit.slave.health
+		s.hitpoints = s.hitpoints - damage
+		if s.hitpoints_real then game.components.health:set_protected(s, "hitpoints_real", s.hitpoints_real - damage) end
+	end
+	H.command_master = function(_, unit, _, name, data) if name == "do_damage" then take(unit, data) end end
+	H.filter_slave_command = function(_, unit, _, name, data) if name == "do_damage" then take(unit, data) end end
+	return H
+end
+
+test("on_hit_hears_this_machines_hits_on_any_machines_enemies", function()
+	local api, game, e = start()
+	local H = fake_hits(game)
+	hooked(e)
+	local heard = {}
+	E.eq(api.combat.on_hit(function(victim, hit) heard[#heard + 1] = { victim, hit.damage, hit.slot, hit.owner_unit } end), true)
+	local mine, theirs = game.enemies[1], game.enemies[2]
+	H:command_master(mine, nil, "do_damage", { power = 12, owner_unit = game.me, attacker_unit = game.weapon })
+	H:filter_slave_command(theirs, nil, "do_damage", { power = 7, owner_unit = game.me, attacker_unit = game.weapon })
+	H:command_master(mine, nil, "do_damage", { power = 3, owner_unit = game.me, attacker_unit = game.arm })
+	E.eq(#heard, 3)
+	E.eq(heard[1][1] == mine and heard[1][2] == 12 and heard[1][3] == "primary_weapon" and heard[1][4] == game.me, true)
+	E.eq(heard[2][1] == theirs and heard[2][2] == 7, true, "an enemy another machine runs")
+	E.eq(heard[3][3], nil, "not a weapon the player holds")
+	-- Another player's hit, one that costs nothing, a heal and a sum asked for outside a hit.
+	H:filter_slave_command(mine, nil, "do_damage", { power = 5, owner_unit = theirs, attacker_unit = game.weapon })
+	H:command_master(mine, nil, "do_damage", { power = 0, owner_unit = game.me })
+	H:command_master(mine, nil, "do_heal", 10)
+	H.calculate_damage(mine, 4)
+	E.eq(#heard, 3)
+	E.eq(mine.slave.health.hitpoints, 30 - 12 - 3 - 5, "every hit still lands")
+end)
+
+test("on_hit_stops_with_off_hit_and_a_failing_listener_hurts_nothing", function()
+	local api, game, e = start()
+	local H = fake_hits(game)
+	hooked(e)
+	local count = 0
+	local function fn() count = count + 1 end
+	api.combat.on_hit(function() error("broken listener") end)
+	api.combat.on_hit(fn)
+	H:command_master(game.enemies[1], nil, "do_damage", { power = 5, owner_unit = game.me, attacker_unit = game.weapon })
+	E.eq(count, 1, "the next listener still runs")
+	E.eq(game.enemies[1].slave.health.hitpoints, 25)
+	E.eq(api.combat.off_hit(fn), true)
+	H:command_master(game.enemies[1], nil, "do_damage", { power = 5, owner_unit = game.me, attacker_unit = game.weapon })
+	E.eq(count, 1)
+	E.eq(api.combat.on_hit("not a function"), false)
+end)
+
+test("on_fatal_can_spare_a_player_once_per_hit_with_one_hitpoint", function()
+	local api, game, e = start()
+	local H = fake_hits(game)
+	hooked(e)
+	local asked, spare = {}, true
+	api.combat.on_fatal(function(unit, damage) asked[#asked + 1] = damage return spare end)
+	local health = game.me.slave.health
+	H:command_master(game.me, nil, "do_damage", { power = 40, owner_unit = game.enemies[1] })
+	E.eq(#asked, 0, "not a killing hit")
+	H:command_master(game.me, nil, "do_damage", { power = 500, owner_unit = game.enemies[1] })
+	E.eq(asked[1], 500)
+	E.eq(health.hitpoints_real, 1, "60 left, cut to 59")
+	-- A volley in one frame: hitpoints lags the master's own count, which is the one asked.
+	health.hitpoints = 60
+	H:command_master(game.me, nil, "do_damage", { power = 30, owner_unit = game.enemies[1] })
+	E.eq(asked[2], 30, "1 left by the master's count")
+	E.eq(health.hitpoints_real, 1)
+	spare = false
+	H:command_master(game.me, nil, "do_damage", { power = 30, owner_unit = game.enemies[1] })
+	E.eq(health.hitpoints_real, -29, "not spared")
+	-- Only a player of this machine, and only where this machine runs them.
+	H:command_master(game.enemies[1], nil, "do_damage", { power = 500, owner_unit = game.me })
+	H:filter_slave_command(game.me, nil, "do_damage", { power = 500, owner_unit = game.enemies[1] })
+	E.eq(#asked, 3)
+end)
+
+test("a_downed_player_spared_stays_as_they_were", function()
+	local api, game, e = start()
+	local H = fake_hits(game)
+	hooked(e)
+	api.combat.on_fatal(function() return true end)
+	local health = game.me.slave.health
+	health.constitution, health.hitpoints = -50, -10
+	game.components.health:set_protected(health, "hitpoints_real", -10)
+	H:command_master(game.me, nil, "do_damage", { power = 100, owner_unit = game.enemies[1] })
+	E.eq(health.hitpoints_real, -10)
+end)
+
 local function drive(game, vehicle)
 	game.me.master.character.current_seat_unit = vehicle or game.mech
 end
