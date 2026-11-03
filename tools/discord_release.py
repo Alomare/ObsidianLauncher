@@ -28,6 +28,8 @@ AVATAR = f"{RAW}/assets/discord-avatar.png"
 # The banner (a smaller copy of branding/banner.jpg) goes under the text of a feature release, x.y.0, not a patch.
 BANNER = f"{RAW}/assets/discord-banner.jpg"
 LIMIT = 4096  # Discord's cap on an embed description
+# Obsidian Kit updates (the Obsidian API, Trainer and QoL highlights) stay out: the kit has its own changelogs.
+KIT = re.compile(r"^Obsidian\s+(API|Trainer|QoL|Quality of Life)\b", re.I)
 
 
 def release(tag):
@@ -55,7 +57,7 @@ def highlights(body):
     items, title, para, inside = [], None, [], False
 
     def close():
-        if title:
+        if title and not KIT.match(title):
             items.append((title, summary(" ".join(para))))
 
     for line in body.replace("\r", "").split("\n"):
@@ -84,7 +86,6 @@ def payload(rel):
     nexus = os.environ.get("NEXUS_URL", "").strip()
     if nexus:
         links += f" · [Nexus]({nexus})"
-    links += " · Obsidian updates itself from within the app."
 
     desc = ""
     for line in lines:
