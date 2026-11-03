@@ -19,10 +19,6 @@ on:
         type: choice
         options: [test, live]
         default: test
-  # Temporary, for the first test from dev: workflow_dispatch only reaches a workflow on the default branch.
-  push:
-    branches: [dev]
-    paths: [.github/workflows/discord.yml]
 
 permissions:
   contents: read
@@ -37,7 +33,7 @@ jobs:
       - name: Post the release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.release.tag_name || inputs.tag || 'v1.2.0' }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
           LIVE: ${{ github.event_name == 'release' || inputs.target == 'live' }}
           LIVE_HOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
           TEST_HOOK: ${{ secrets.DISCORD_RELEASE_TEST }}

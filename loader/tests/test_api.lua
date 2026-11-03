@@ -463,6 +463,49 @@ test("respawn_needs_a_dead_player", function()
 	E.eq(game.record.spawn_timer, 0.01, "never zero")
 end)
 
+test("auto_respawn_starts_the_countdown_once_per_death", function()
+	local api, game, e = start()
+	local record, health = game.record, game.me.slave.health
+	record.spawn_timer, record.extra_lives = 0, 0
+	api.effects.set("auto_respawn", true)
+	e:frames(1)
+	E.eq(record.spawn_timer, 0, "alive")
+	health.is_dead = true
+	e:frames(1)
+	E.eq(record.spawn_timer, 3, "dead, with no lives left")
+	record.spawn_timer = 0
+	e:frames(3)
+	E.eq(record.spawn_timer, 0, "not again while the drop is on its way")
+	health.is_dead = false
+	e:frames(1)
+	health.is_dead = true
+	record.spawn_timer = 7
+	e:frames(1)
+	E.eq(record.spawn_timer, 7, "a respawn the game started is left alone")
+	health.is_dead = false
+	e:frames(1)
+	api.effects.set("auto_respawn", 1.5)
+	health.is_dead, record.spawn_timer = true, 0
+	e:frames(1)
+	E.eq(record.spawn_timer, 1.5, "the seconds given")
+end)
+
+test("auto_respawn_waits_for_the_first_drop_and_stops_after_extraction", function()
+	local api, game, e = start()
+	local record = game.record
+	record.spawn_timer = 0
+	record.player_go.avatar_unit = nil
+	api.effects.set("auto_respawn", true)
+	e:frames(2)
+	E.eq(record.spawn_timer, 0, "no avatar yet: the drop hasn't happened")
+	record.player_go.avatar_unit = game.me
+	e:frames(1)
+	record.player_go.has_extracted = true
+	game.me.slave.health.is_dead = true
+	e:frames(1)
+	E.eq(record.spawn_timer, 0, "extracted")
+end)
+
 test("helping_a_teammate_goes_to_its_owner", function()
 	local api, game = start()
 	local other = game.enemies[2]
