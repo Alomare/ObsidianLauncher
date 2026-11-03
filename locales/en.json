@@ -268,6 +268,9 @@
   "app.scope.client": "Client",
   "app.scope.clientHint": "Changes only your game. Safe to play with anyone.",
   "app.scope.clientMod": "Client mod",
+  "app.scope.expansion": "Expansion",
+  "app.scope.expansionHint": "Adds new content, such as a game mode, and leaves the rest of the game unchanged. Outside that content it works like a client mod. The content starts only when every player in the lobby runs it.",
+  "app.scope.expansionMod": "Expansion",
   "app.scope.library": "Library",
   "app.scope.libraryHint": "Code other mods build on. It counts as a session mod when a session mod needs it, and as a client mod otherwise.",
   "app.scope.libraryMod": "Library mod",
@@ -410,5 +413,11 @@
   "achievements_blocked": "Achievements are off for this launch.",
   "uploads_blocked": "Galactic War and leaderboard results aren't sent while session mods are deployed.",
   "every_player_off": "%s is off, because not every player here runs it.",
-  "proving_grounds_blocked": "%s is ranked, so it's closed while session mods are in play."
+  "proving_grounds_blocked": "%s is ranked, so it's closed while session mods are in play.",
+  "expansion_refused": "%s can't start. These players don't run it at the same version and settings: %s",
+  "expansion_turned_away": "%s couldn't join: %s needs every player to run it.",
+  "expansion_missing_here": "This lobby is playing %s, which isn't deployed here at the same version and settings.",
+  "expansion_unknown_player": "unknown player",
+  "expansion_proving_grounds": "%s is ranked, so it's closed while %s runs.",
+  "campaign_not_uploaded_expansion": "Progress was not uploaded to Galactic Campaign due to %s"
 }

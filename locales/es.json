@@ -9,5 +9,11 @@
   "achievements_blocked": "Los logros están desactivados hasta que cierres el juego.",
   "uploads_blocked": "Los resultados de la Guerra Galáctica y de las clasificaciones no se envían mientras haya mods de sesión desplegados.",
   "every_player_off": "%s está desactivado, porque no todos los jugadores de aquí lo usan.",
-  "proving_grounds_blocked": "%s es clasificatorio, así que está cerrado mientras haya mods de sesión en juego."
+  "proving_grounds_blocked": "%s es clasificatorio, así que está cerrado mientras haya mods de sesión en juego.",
+  "expansion_refused": "%s can't start. These players don't run it at the same version and settings: %s",
+  "expansion_turned_away": "%s couldn't join: %s needs every player to run it.",
+  "expansion_missing_here": "This lobby is playing %s, which isn't deployed here at the same version and settings.",
+  "expansion_unknown_player": "unknown player",
+  "expansion_proving_grounds": "%s is ranked, so it's closed while %s runs.",
+  "campaign_not_uploaded_expansion": "Progress was not uploaded to Galactic Campaign due to %s"
 }

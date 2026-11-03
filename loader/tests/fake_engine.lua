@@ -97,21 +97,26 @@ function E.new(opts)
 		__index = function(_, k) error("Undeclared global " .. tostring(k), 2) end,
 	})
 
-	-- opts.lobby: { my_id = "me", members = { "me", "p2" }, data = { p2 = "1;..." } }
+	-- opts.lobby: { my_id = "me", members = { "me", "p2" }, data = { p2 = "1;..." } }, and optionally
+	-- host (the lobby host's peer, my_id when left out) and extra ({ [peer] = { [key] = value } }).
+	-- What this machine publishes lands in published, and room data the host sets in room.
 	if opts.lobby then
 		local l = opts.lobby
-		l.published = {}
+		l.published, l.room = {}, {}
 		rawset(_G, "NetworkGlobal", {
 			lobby = {
 				my_id = l.my_id,
 				lobby = {},
 				state = function() return l.state or "joined" end,
 				members = function() return l.members end,
+				lobby_host = function() return l.host or l.my_id end,
 				member_data = function(_, peer, key)
 					if key == "obsidian" then return l.data[peer] end
+					if peer == l.my_id and l.published[key] ~= nil then return l.published[key] end
 					return l.extra and l.extra[peer] and l.extra[peer][key]
 				end,
 				set_member_data = function(_, key, value) l.published[key] = value end,
+				set_data = function(_, key, value) l.room[key] = value end,
 			},
 		})
 	end

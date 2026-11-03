@@ -3,6 +3,7 @@ local B = require("obsidian/loader/builtins")
 local log = require("obsidian/loader/log")
 local hooks = require("obsidian/loader/hooks")
 local session = require("obsidian/loader/session")
+local expansion = require("obsidian/loader/expansion")
 local backend_block = require("obsidian/loader/backend_block")
 local guardrails = require("obsidian/loader/guardrails")
 local pool = require("obsidian/loader/pool")
@@ -24,7 +25,7 @@ local M = {
 local capabilities = {
 	after_startup = true, log = true, hook = true, wrap = true, on_require = true, on_session = true, session = true,
 	settings = true, keybind = true, text = true, on_frame = true, module = true, import = true, menu = true, toast = true, notify = true, storage = true, caller = true,
-	ui = true, scope = true, guardrails = true, info = true,
+	ui = true, scope = true, guardrails = true, info = true, expansion = true,
 }
 local api = {
 	version = API_VERSION,
@@ -33,6 +34,7 @@ local api = {
 	on_require = hooks.on_require,
 	on_session = session.on_session,
 	session = session.api(),
+	expansion = expansion.api(),
 	settings = { get = settings.get },
 	keybind = settings.keybind,
 	text = settings.text,
@@ -245,11 +247,27 @@ local function run_frame_callbacks()
 	M.frame_callbacks = keep
 end
 
--- How the calling mod runs in this deploy: "client" or "session". A library has become one of the two.
+-- How a mod runs in this deploy: "client", "session" or "expansion". A library has become client or
+-- session: session when a session mod or an expansion requires it, so the library sets up what the
+-- expansion may use.
+local function scope_of(state)
+	local scope = state.mod.scope
+	if scope == "client" then return "client" end
+	if scope == "expansion" and expansion.is_own(state.id) then return "expansion" end
+	return "session"
+end
+
 function api.scope()
 	local state = M.current
 	if not state then return nil end
-	return state.mod.scope == "client" and "client" or "session"
+	return scope_of(state)
+end
+
+-- A mod's name from its obsidian.json, in the game's language, else English, else the id.
+function M.name_of(state)
+	local names = B.type(state.mod.name) == "table" and state.mod.name or {}
+	local name = names[M.language()] or names.en
+	return B.type(name) == "string" and name or state.id
 end
 
 function api.after_startup(fn)
@@ -262,17 +280,13 @@ function api.caller()
 end
 
 -- What a running mod is: id, name (from its obsidian.json, in the game's language, else English),
--- version and scope ("client" or "session"). id: nil for the calling mod. nil for a mod that isn't
--- running.
+-- version and scope, as obsidian.scope() gives it. id: nil for the calling mod. nil for a mod that
+-- isn't running.
 function api.info(id)
 	local state
 	if id == nil then state = M.current else state = M.mods_by_id[B.tostring(id)] end
 	if not state or state.off then return nil end
-	local mod = state.mod
-	local names = B.type(mod.name) == "table" and mod.name or {}
-	local name = names[M.language()] or names.en
-	return { id = state.id, name = B.type(name) == "string" and name or state.id, version = B.tostring(mod.version),
-		scope = mod.scope == "client" and "client" or "session" }
+	return { id = state.id, name = M.name_of(state), version = B.tostring(state.mod.version), scope = scope_of(state) }
 end
 
 -- Loads a script of the calling mod, named like the file in `modules` without `.lua`.
@@ -356,10 +370,12 @@ function M.boot()
 	local tag = pool.apply(deploy, M.consent_on)
 
 	M.session = session
+	M.expansion = expansion
 	hooks.setup(M, session)
 	session.setup(M)
 	hooks.on_frame(function() M.frame_count = M.frame_count + 1 end)
 	hooks.on_frame(session.tick)
+	expansion.setup(M, hooks, session)
 	hooks.on_frame(settings.tick)
 	hooks.on_frame(show_notices)
 	hooks.on_frame(run_frame_callbacks)

@@ -18,6 +18,9 @@ pub enum Scope {
     Session,
     /// Code for other mods: session when an enabled session mod requires it, client otherwise.
     Library,
+    /// Content of its own, such as a game mode, that leaves the rest of the game alone. A client mod
+    /// at deploy, with its hooks off, until the host starts the content and every player runs it.
+    Expansion,
     /// No scope given, or one Obsidian doesn't know, as with mods imported from elsewhere. It runs
     /// as a client mod: being kept out of multiplayer by a guess is worse than what it might change.
     #[default]
@@ -30,11 +33,13 @@ impl Scope {
             Scope::Client => "client",
             Scope::Session => "session",
             Scope::Library => "library",
+            Scope::Expansion => "expansion",
             Scope::Unspecified => "unspecified",
         }
     }
 
-    /// Runs as a client mod: declared one, or declared nothing.
+    /// Runs as a client mod: declared one, or declared nothing. An expansion isn't one: its shared
+    /// options go into what players compare, so changing one needs a deploy.
     pub fn is_client(self) -> bool {
         matches!(self, Scope::Client | Scope::Unspecified)
     }
@@ -57,6 +62,7 @@ impl<'de> Deserialize<'de> for Scope {
             Some("client") => Scope::Client,
             Some("session") => Scope::Session,
             Some("library") => Scope::Library,
+            Some("expansion") => Scope::Expansion,
             _ => Scope::Unspecified,
         })
     }
@@ -352,6 +358,9 @@ impl Manifest {
         if self.every_player && self.scope == Scope::Client {
             return Err(bad("every_player", "a client mod reaches no other player, so use session or library"));
         }
+        if self.every_player && self.scope == Scope::Expansion {
+            return Err(bad("every_player", "the content of an expansion already runs only when every player runs it, so leave it out"));
+        }
         if let Some(entry) = &self.entry {
             check_path(mod_dir, entry, "entry")?;
         }
@@ -540,6 +549,25 @@ mod tests {
         assert_eq!(load_manifest(mod_with(&session).path()).unwrap().scope, Scope::Session);
         let library = EXAMPLE.replace(r#""scope": "client""#, r#""scope": "library""#);
         assert_eq!(load_manifest(mod_with(&library).path()).unwrap().scope, Scope::Library);
+    }
+
+    #[test]
+    fn an_expansion_parses_round_trips_and_isnt_a_client_mod() {
+        let json = EXAMPLE.replace(r#""scope": "client""#, r#""scope": "expansion""#);
+        let d = mod_with(&json);
+        let m = load_manifest(d.path()).unwrap();
+        assert_eq!(m.scope, Scope::Expansion);
+        assert_eq!(m.scope.name(), "expansion");
+        assert!(!m.scope.is_client(), "shared options need a deploy, as in a session mod");
+        write_manifest(d.path(), &m).unwrap();
+        assert!(std::fs::read_to_string(d.path().join(FILE)).unwrap().contains(r#""scope": "expansion""#));
+        assert_eq!(load_manifest(d.path()).unwrap(), m);
+    }
+
+    #[test]
+    fn an_expansion_doesnt_take_every_player() {
+        let both = EXAMPLE.replace(r#""scope": "client","#, r#""scope": "expansion", "every_player": true,"#);
+        assert_eq!(field_of(load_manifest(mod_with(&both).path())), "every_player");
     }
 
     #[test]

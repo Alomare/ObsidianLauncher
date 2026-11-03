@@ -50,6 +50,12 @@ pub fn every_pool_tag<'a>(every: impl IntoIterator<Item = (&'a str, &'a str)>) -
     sha256_hex(&format!("obsidian:every:1\n{}", pairs.join("\n")))[..12].to_string()
 }
 
+/// The tag a host's lobby carries while an expansion's content runs, from the expansion's id and
+/// `every_hash`: the lobby then shows only for players who run the same expansion.
+pub fn expansion_pool_tag(id: &str, hash: &str) -> String {
+    sha256_hex(&format!("obsidian:expansion:1\n{id}:{hash}"))[..12].to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -98,6 +104,17 @@ mod tests {
         assert_ne!(tag, every_pool_tag([("a", "11")]));
         assert_ne!(tag, open_pool_tag());
         assert_eq!(tag.len(), 12);
+    }
+
+    #[test]
+    fn an_expansion_tag_follows_its_hash_and_leaves_the_other_pools() {
+        let tag = expansion_pool_tag("a", "11");
+        assert_eq!(tag.len(), 12);
+        assert!(tag.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)));
+        assert_ne!(tag, expansion_pool_tag("a", "12"));
+        assert_ne!(tag, expansion_pool_tag("b", "11"));
+        assert_ne!(tag, every_pool_tag([("a", "11")]));
+        assert_ne!(tag, open_pool_tag());
     }
 
     #[test]

@@ -180,8 +180,9 @@ local function ensure_gui()
 	return true
 end
 
+-- An expansion's overlays stay on outside its content, as its entry points do.
 local function allowed(state)
-	return state == nil or state.mod.scope == "client" or M.session.allows(state)
+	return state == nil or state.mod.scope == "client" or state.mod.scope == "expansion" or M.session.allows(state)
 end
 
 local function run(state, fn, ...)
