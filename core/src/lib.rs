@@ -9,6 +9,7 @@ pub mod edit;
 pub mod folders;
 pub mod error;
 pub mod game;
+pub mod game_options;
 pub mod gate;
 pub mod hash;
 pub mod images;
