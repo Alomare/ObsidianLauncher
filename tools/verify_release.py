@@ -3,8 +3,9 @@ match what the tag holds.
 
 Usage: python tools/verify_release.py v1.0.4 [--keep DIR]
 
-Needs `gh`, signed in. It downloads latest.json, the signature and the portable ZIP of the release (a draft
-works) into a temporary folder, or into DIR with --keep, and checks:
+Talks to GitHub through tools/github_api.py, with the token git pushes with. It downloads latest.json, the
+signature and the portable ZIP of the release (a draft works) into a temporary folder, or into DIR with
+--keep, and checks:
 
 - the four files are there: the installer, its .sig, latest.json and the portable ZIP;
 - latest.json has the tag's version, the notes of docs/releases/<version>.md, and for each platform the
@@ -24,6 +25,8 @@ import sys
 import tempfile
 import zipfile
 from pathlib import Path
+
+import github_api
 
 ROOT = Path(__file__).resolve().parent.parent
 REPO = "Alomare/ObsidianModManager"
@@ -45,13 +48,6 @@ def check(ok, what, detail=""):
     return ok
 
 
-def gh(*args, text=True):
-    r = subprocess.run(["gh", *args], capture_output=True, text=text, encoding="utf-8" if text else None)
-    if r.returncode != 0:
-        raise SystemExit(f"gh {' '.join(args)} failed: {r.stderr.strip()}")
-    return r.stdout
-
-
 def git_show(tag, path):
     r = subprocess.run(["git", "show", f"{tag}:{path}"], cwd=ROOT, capture_output=True, text=True, encoding="utf-8")
     return r.stdout if r.returncode == 0 else None
@@ -65,7 +61,9 @@ def main():
     tag = args.tag
     version = tag.removeprefix("v")
 
-    release = json.loads(gh("release", "view", tag, "--repo", REPO, "--json", "isDraft,isPrerelease,body,assets,tagName,createdAt"))
+    rel = github_api.release(REPO, tag)
+    release = {"isDraft": rel["draft"], "isPrerelease": rel["prerelease"], "body": rel.get("body") or "",
+               "assets": rel["assets"], "createdAt": rel["created_at"]}
     print(f"{tag}: {'draft' if release['isDraft'] else 'published'}{', prerelease' if release['isPrerelease'] else ''}")
     setup = f"Obsidian.Mod.Manager_{version}_x64-setup.exe"
     portable = f"ObsidianModManager-{version}-portable.zip"
@@ -95,7 +93,7 @@ def main():
     else:
         tmp = tempfile.TemporaryDirectory()
         out = Path(tmp.name)
-    gh("release", "download", tag, "--repo", REPO, "--dir", str(out), "--clobber", "--pattern", "latest.json", "--pattern", setup + ".sig", "--pattern", portable)
+    github_api.download(rel, {"latest.json", setup + ".sig", portable}, out)
 
     latest = json.loads((out / "latest.json").read_text(encoding="utf-8"))
     signature = (out / (setup + ".sig")).read_text(encoding="utf-8").strip()
@@ -121,10 +119,10 @@ def main():
             have = json.loads(z.read(path).decode("utf-8")).get("version")
             # The workflow takes each Kit mod's latest release when it builds, so compare with the latest
             # one published before this release was made, not with today's.
-            kit = json.loads(gh("release", "list", "--repo", repo, "--limit", "30", "--json", "tagName,publishedAt,isDraft,isPrerelease"))
-            then = [r for r in kit if not r["isDraft"] and not r["isPrerelease"] and r["publishedAt"] <= release["createdAt"]]
-            then.sort(key=lambda r: r["publishedAt"])
-            want = then[-1]["tagName"].removeprefix("v") if then else None
+            kit = github_api.releases(repo)
+            then = [r for r in kit if not r["draft"] and not r["prerelease"] and r["published_at"] and r["published_at"] <= release["createdAt"]]
+            then.sort(key=lambda r: r["published_at"])
+            want = then[-1]["tag_name"].removeprefix("v") if then else None
             check(have == want, f"{mod} {have} is the latest release of when this one was built", f"that was {want}")
 
     print()
@@ -134,6 +132,7 @@ def main():
         print("Everything passed. Before publishing, walk the GitHub build: unzip the portable ZIP, delete")
         print("portable.txt from the copy (it would make the app use its own data folder), then run")
         print("  OBSIDIAN_EXE=<copy>/Obsidian.exe OBSIDIAN_WALK=<scratch folder> node internal/tools/walk/walk_exe.mjs")
+        print(f"and then publish it with: python tools/publish_release.py {tag}")
     if tmp:
         tmp.cleanup()
     sys.exit(1 if failures else 0)
