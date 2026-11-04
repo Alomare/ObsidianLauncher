@@ -1,6 +1,7 @@
 -- What multiplayer looks like for this deploy, told once, the first time the player loads into the
--- ship: free to play with anyone, session mods that switch off in some public lobbies, or content
--- that can't switch off and keeps vanilla players out of public lobbies.
+-- ship: free to play with anyone, session mods that switch off in some public lobbies, content that
+-- can't switch off and keeps vanilla players out of public lobbies, or an expansion, whose running
+-- content turns away players without it.
 local B = require("obsidian/loader/builtins")
 local log = require("obsidian/loader/log")
 
@@ -10,6 +11,7 @@ local M = {}
 function M.key(deploy)
 	if deploy.has_static_session then return "status_isolated" end
 	if deploy.has_session then return "status_session" end
+	if B.type(deploy.expansions) == "table" and B.next(deploy.expansions) ~= nil then return "status_expansion" end
 	return "status_clear"
 end
 

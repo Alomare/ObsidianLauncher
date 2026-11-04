@@ -3,7 +3,7 @@ local E = require "fake_engine"
 local T = {}
 local function test(name, fn) T[#T + 1] = { name, fn } end
 
-local TEXTS = { status_clear = "clear", status_session = "session", status_isolated = "isolated" }
+local TEXTS = { status_clear = "clear", status_session = "session", status_isolated = "isolated", status_expansion = "expansion" }
 
 -- Boots with the deploy over, a StateMenu to enter, and the toast the notice falls back to.
 local function ship(over)
@@ -47,6 +47,18 @@ test("content_that_cant_switch_off_says_it_keeps_vanilla_out_of_public_lobbies",
 	local e, enter = ship({ has_session = true, has_static_session = true })
 	enter()
 	E.eq(notices(e), "status_isolated")
+end)
+
+test("an_expansion_alone_says_it_may_isolate_the_player", function()
+	local e, enter = ship({ has_session = false, expansions = { arena = "0123456789abcdef" } })
+	enter()
+	E.eq(notices(e), "status_expansion")
+end)
+
+test("session_mods_beside_an_expansion_say_the_session_message", function()
+	local e, enter = ship({ has_session = true, expansions = { arena = "0123456789abcdef" } })
+	enter()
+	E.eq(notices(e), "status_session", "that limit applies all the time")
 end)
 
 test("only_the_first_ship_says_it", function()

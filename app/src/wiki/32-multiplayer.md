@@ -22,7 +22,7 @@ Session mods don't change who you find or who can join you. Vanilla players see 
 
 With an expansion deployed, you also see the lobbies of players running the content of that same expansion, wherever your own matchmaking puts you.
 
-The first time you load into the ship, a message says which case applies to you: your mods don't affect other players, your session mods switch off in some public lobbies, or some of your content keeps players without Obsidian out of your public lobby.
+The first time you load into the ship, a message says which case applies to you: your mods don't affect other players, your session mods switch off in some public lobbies, some of your content keeps players without Obsidian out of your public lobby, or an expansion may keep you apart from players who don't have it while its content runs.
 
 ## When session mods run
 
