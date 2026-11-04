@@ -572,4 +572,115 @@ test("options_off_change_nothing", function()
 	E.eq(sticky(rawget(_G, "InputRebinder"):get_or_default("keyboard_mouse"), "map_pressed"), false, "toggle map")
 end)
 
+
+-- Dynamic input switch: a keyboard player, a gamepad nobody plays on, and the parts of the game the
+-- option reads and writes.
+local function dynamic(on)
+	local options = { { id = "dynamic_input", type = "toggle", default = false } }
+	local e = E.new({
+		deploy = E.deploy({ mods = { E.mod("obsidian.qol", { options = options }) } }),
+		mods = { ["obsidian/mods/obsidian.qol/main"] = E.read("bundled/obsidian.qol/main.lua") },
+		settings = on and "option\tobsidian.qol\tdynamic_input\ttoggle\t1\n" or nil,
+	})
+	e:boot()
+	e:start_frames()
+	local game = { commands = {}, sets = {}, sent = {}, menus = {}, buttons = {}, pressed = {}, keys = false, stick = 0, set = "keyboard_mouse" }
+	rawset(_G, "KEYBOARD_MOUSE_PAD_NUMBER", 0)
+	local unit = { alive = true }
+	game.unit = unit
+	local pad = {
+		any_pressed = function() return next(game.pressed) ~= nil end,
+		axis_index = function(n) return n end,
+		axis = function(n) return { x = n == "left" and game.stick or 0, y = 0 } end,
+		button_index = function(n) return n end,
+		button = function(n) return game.buttons[n] and 1 or 0 end,
+		pressed = function(n) return game.pressed[n] == true end,
+	}
+	rawset(_G, "PadManager", { get_active_pads = function() return { { pad_number = 1, pad = pad } } end })
+	rawset(_G, "Keyboard", { any_pressed = function() return game.keys end, button_index = function() return nil end, pressed = function() return false end })
+	rawset(_G, "Mouse", false)
+	rawset(_G, "Unit", { alive = function(u) return u and u.alive end })
+	rawset(_G, "EntityAux", { queue_command_master = function(u, c, cmd, v) game.commands[#game.commands + 1] = { c, cmd, v } end })
+	rawset(_G, "InputUtility", { set_localization_modifier_set_for = function(n)
+		game.sets[#game.sets + 1] = n
+		game.set = n == 0 and "keyboard_mouse" or ("pad" .. n)
+	end })
+	rawset(_G, "LocalizationManager", { get_current_modifier_set = function() return game.set end,
+		string = function(_, key) return key == "press_cross_to_join" and "PRESS [A] TO JOIN" or key end })
+	rawset(_G, "HotjoinManager", { can_pad_join = function() return true end })
+	rawset(_G, "NetworkGlobal", { lobby = { lobby_host = function() return "host" end } })
+	local Router = {}
+	Router.__index = Router
+	function Router.transmit_to(_, peer, message, pad_number, index) game.sent[#game.sent + 1] = { peer, message, pad_number, index } end
+	rawset(_G, "NetworkRouter", Router)
+	local go = { exists = function() return true end, owned = function() return true end, get = function(_, k) return k == "avatar_unit" and unit or nil end }
+	local st = { players = { { pad_number = 0, player_go = go } }, network_router = setmetatable({}, Router),
+		get_active_players = function() return { 1 } end, network_session_handler = { is_peer_in_session = function() return true end },
+		show_menu = function(_, name, args) game.menus[#game.menus + 1] = args.user_pad_number end }
+	rawget(_G, "Boot").state_machine = { get_current_state_name = function() return game.state or "game" end, get_current_state = function() return st end }
+	-- Hooks on classes the game defines later go in at the next require.
+	e.opts.modules["lua/states/state_game"] = true
+	rawget(_G, "require")("lua/states/state_game")
+	game.st = st
+	return e, game
+end
+
+local function last_command(game)
+	local c = game.commands[#game.commands - 1]
+	return c and c[3]
+end
+
+test("dynamic_input_hands_the_first_helldiver_to_the_last_device_used", function()
+	local e, game = dynamic(true)
+	e:frames(1)
+	game.stick = 1
+	e:frames(1)
+	game.stick = 0
+	E.eq(last_command(game), 1, "the gamepad drives the Helldiver")
+	E.eq(game.set, "pad1", "and the prompts show its buttons")
+	game.keys = true
+	e:frames(1)
+	game.keys = false
+	E.eq(last_command(game), 0, "back to the keyboard")
+	E.eq(game.set, "keyboard_mouse")
+end)
+
+test("dynamic_input_joins_only_after_a_held_button", function()
+	local e, game = dynamic(true)
+	game.st.network_router:transmit_to("host", "rpc_add_local_player_request", 1, 1)
+	E.eq(#game.sent, 0, "the game's join at a press is held back")
+	game.st.network_router:transmit_to("host", "rpc_other", 1)
+	E.eq(#game.sent, 1, "other messages go")
+	game.buttons.a, game.pressed.a = true, true
+	e:frames(60)
+	E.eq(#game.sent, 1, "not yet")
+	e:frames(40)
+	E.eq(#game.sent, 2, "joined after 1.5 s")
+	E.eq(game.sent[2][2], "rpc_add_local_player_request")
+	E.eq(game.sent[2][3], 1)
+	E.eq(last_command(game), 0, "the first Helldiver is back on the keyboard")
+	e:frames(200)
+	E.eq(#game.sent, 2, "once per hold")
+end)
+
+test("dynamic_input_rewords_the_prompt_and_opens_the_pause_menu_for_the_gamepad", function()
+	local e, game = dynamic(true)
+	E.eq(rawget(_G, "LocalizationManager"):string("press_cross_to_join"), "HOLD [A] TO JOIN")
+	game.stick = 1
+	e:frames(1)
+	game.pressed.start = true
+	e:frames(1)
+	E.eq(game.menus[1], 1, "Start on the gamepad")
+end)
+
+test("dynamic_input_off_leaves_joining_and_input_alone", function()
+	local e, game = dynamic(false)
+	game.stick = 1
+	e:frames(5)
+	E.eq(#game.commands, 0)
+	game.st.network_router:transmit_to("host", "rpc_add_local_player_request", 1, 1)
+	E.eq(#game.sent, 1, "a press joins as in the game")
+	E.eq(rawget(_G, "LocalizationManager"):string("press_cross_to_join"), "PRESS [A] TO JOIN")
+end)
+
 return T
