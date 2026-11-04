@@ -21,12 +21,10 @@ test("session_mods_keep_the_vanilla_hash", function()
 	end
 end)
 
-test("mods_every_player_needs_get_their_own_pool", function()
-	for _, consent in ipairs({ false, true }) do
-		E.new()
-		require("obsidian/loader/pool").apply(E.deploy({ has_session = true, hashes = { open = "aaaaaaaaaaaa", every = "bbbbbbbbbbbb" } }), consent)
-		E.eq(game_hash(), "3bd83d77c8aebbbbbbbbbbbb", "consent " .. tostring(consent))
-	end
+test("mods_every_player_needs_stay_in_the_vanilla_pool", function()
+	E.new()
+	require("obsidian/loader/pool").apply(E.deploy({ has_session = true, hashes = { open = "aaaaaaaaaaaa", every = "bbbbbbbbbbbb" } }))
+	E.eq(game_hash(), "3bd83d77c8ae", "they switch off live when someone lacks them")
 end)
 
 test("letting_others_in_alone_stays_in_the_vanilla_pool", function()
@@ -35,29 +33,14 @@ test("letting_others_in_alone_stays_in_the_vanilla_pool", function()
 	E.eq(game_hash(), "3bd83d77c8ae", "vanilla players still find the lobby")
 end)
 
-test("rewritten_hash_matches_build_info_pattern", function()
-	E.new()
-	require("obsidian/loader/pool").apply(E.deploy({ has_session = true, hashes = { open = "aaaaaaaaaaaa", every = "bbbbbbbbbbbb" } }))
-	local rev = rawget(_G, "BUILD_REVISION_INFORMATION")
-	E.eq(string.match(rev, "parent: ([0-9]+):"), "32148")
-	E.eq(game_hash(), "3bd83d77c8aebbbbbbbbbbbb")
-	E.has(rev, " tip\n [code] ok", "rest of the revision string")
-end)
-
-test("bad_tag_leaves_the_hash_vanilla", function()
-	E.new()
-	require("obsidian/loader/pool").apply(E.deploy({ has_session = true, hashes = { open = "aaaaaaaaaaaa", every = "XYZ" } }))
-	E.eq(game_hash(), "3bd83d77c8ae")
-end)
-
-test("boot_applies_the_pool_before_mods_start", function()
+test("boot_leaves_the_revision_alone_before_mods_start", function()
 	local e = E.new({
 		deploy = E.deploy({ has_session = true, hashes = { open = "aaaaaaaaaaaa", every = "bbbbbbbbbbbb" }, mods = { E.mod("a", { scope = "session" }) } }),
 		mods = { ["obsidian/mods/a/main"] = "SEEN = BUILD_REVISION_INFORMATION" },
 	})
 	e:boot()
-	E.has(rawget(_G, "SEEN"), "3bd83d77c8aebbbbbbbbbbbb")
-	E.has(e:log(), "pool: every bbbbbbbbbbbb")
+	E.has(rawget(_G, "SEEN"), "3bd83d77c8ae tip")
+	E.has(e:log(), "pool: vanilla")
 end)
 
 -- The multiplayer terminal lists only lobbies with the same build hash, so in an Obsidian pool the
@@ -73,13 +56,6 @@ local function booted(over, settings)
 	e:start_frames()
 	return rawget(_G, "LocalizationManager")
 end
-
-test("obsidian_pool_marks_the_lobby_filters", function()
-	local lm = booted({ has_session = true, modset = string.rep("a", 64), hashes = { open = "aaaaaaaaaaaa", every = "bbbbbbbbbbbb" } })
-	E.eq(lm:string("campaign_public"), "Public (Obsidian Only)")
-	E.eq(lm:string("campaign_friends"), "Friends (Obsidian Only)")
-	E.eq(lm:string("campaign_back"), "game:campaign_back", "other texts")
-end)
 
 test("session_mods_leave_the_lobby_filters", function()
 	local lm = booted({ has_session = true, has_static_session = true })

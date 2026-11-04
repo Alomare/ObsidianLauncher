@@ -389,8 +389,6 @@
   "app.wiki.warning": "Atenção",
   "build_unknown": "Versão do jogo desconhecida, então nenhum mod está rodando. Atualize o Obsidian e faça o deploy de novo.",
   "campaign_not_uploaded": "O progresso não foi enviado à Campanha Galáctica por causa dos mods de sessão",
-  "lobby_friends": "Amigos (só Obsidian)",
-  "lobby_public": "Público (só Obsidian)",
   "mod_failed": "%s falhou e fica desligado até o jogo reiniciar.",
   "session_not_cleared": "Outros jogadores aqui usam mods diferentes, e alguns dos seus mudam arquivos do jogo que não podem ser pausados. Considere sair desta partida.",
   "progress_frozen": "Seu progresso está congelado até você fechar o jogo: nada do que você ganhar ou gastar é salvo.",

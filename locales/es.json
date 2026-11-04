@@ -1,8 +1,6 @@
 {
   "build_unknown": "Versión del juego desconocida, así que no se ejecuta ningún mod. Actualiza Obsidian y vuelve a desplegar.",
   "campaign_not_uploaded": "El progreso no se subió a la Campaña Galáctica debido a los mods de sesión",
-  "lobby_friends": "Amigos (solo Obsidian)",
-  "lobby_public": "Público (solo Obsidian)",
   "mod_failed": "%s falló y queda desactivado hasta que reinicies el juego.",
   "session_not_cleared": "Otros jugadores de esta partida usan mods distintos, y algunos de los tuyos cambian archivos del juego que no se pueden pausar. Considera salir de esta partida.",
   "progress_frozen": "Tu progreso está congelado hasta que cierres el juego: no se guarda nada de lo que ganes o gastes.",

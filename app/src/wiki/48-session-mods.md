@@ -93,11 +93,11 @@ A player's `consent` tells your mod that they allow it, not that they run it. Th
 "every_player": true
 ```
 
-Such a mod runs only when every other player runs it too, at the same version and with the same shared option values. Players who only allow it don't count. Obsidian switches it off, and back on, like any session mod, and tells the player why. Players of such a mod also get a matchmaking pool of their own, so they only find each other.
+Such a mod runs only when every other player runs it too, at the same version and with the same shared option values. Players who only allow it don't count. Obsidian switches it off, and back on, like any session mod, and tells the player why.
 
 `obsidian.session.cleared()` answers for the mod that asks, and `obsidian.on_session` calls the mod when its own switch changes.
 
-The check runs once a player is in the lobby. Invites can still cross pools, so leave the game as it was until every player is confirmed: for a bigger lobby, keep the usual limit until `obsidian.session.cleared()` is true, and go back to it when `on_session` says `false`.
+The check runs once a player is in the lobby, and anyone can join first, so leave the game as it was until every player is confirmed: for a bigger lobby, keep the usual limit until `obsidian.session.cleared()` is true, and go back to it when `on_session` says `false`.
 
 ## Writing an expansion {#expansions}
 
