@@ -171,29 +171,68 @@ test("a_new_light_is_placed_at_once_in_a_stopped_world", function()
 	E.eq((game.lights[1].settled or 0) > 0, true, "a point light, before any move")
 end)
 
-test("a_hidden_helldiver_takes_its_armour_and_what_it_carries_with_it", function()
+test("a_hidden_helldiver_shrinks_to_nothing_and_grows_back_leaving_the_games_hidden_meshes", function()
 	local api, game = start()
 	local units = rawget(_G, "Unit")
+	local V3 = rawget(_G, "Vector3")
 	units.set_unit_visibility = function(u, on) u.visible = on end
 	units.alive = function(u) return type(u) == "table" and u.gone ~= true end
-	local cape = { name = "cape" }
-	units.children = function(u, out) if u == game.me then out[1] = cape end end
-	local helmet, body, rifle, other_rifle = { name = "helmet" }, { name = "body" }, { name = "rifle" }, { name = "other" }
-	game.slaves.customization = { [game.me] = { state = { helmet_unit = helmet, body_unit = body } } }
-	game.slaves.equipment = { [rifle] = { state = { wielder = game.me } }, [other_rifle] = { state = { wielder = { name = "friend" } } } }
-	E.eq(#api.world.parts_of(game.me), 5, "the avatar, a child, two armour parts and the rifle")
-	game.me.visible = false
+	game.me.scale = { x = 1.2, y = 1.2, z = 1.2 }
+	units.local_scale = function(u) return u.scale or { x = 1, y = 1, z = 1 } end
+	units.set_local_scale = function(u, _, s) u.scale = { x = s.x, y = s.y, z = s.z } end
+	local cape, helmet, rifle = { name = "cape" }, { name = "helmet" }, { name = "rifle" }
+	units.children = function(u, out) if u == game.me then out[1] = helmet end end
+	game.slaves.customization = { [game.me] = { state = { cape_unit = cape, helmet_unit = helmet } } }
+	game.slaves.equipment = { [rifle] = { state = { wielder = game.me } } }
+	E.eq(#api.world.parts_of(game.me), 4, "the avatar, the helmet, the cape and the rifle")
+	E.eq(api.world.cape_of(game.me), cape)
 	E.eq(api.world.visible(game.me, false), true)
-	E.eq(helmet.visible, false)
-	E.eq(body.visible, false)
-	E.eq(cape.visible, false)
-	E.eq(rifle.visible, false)
-	E.eq(other_rifle.visible, nil, "another Helldiver's weapon stays")
+	E.eq(game.me.scale.x < 0.001, true, "shrunk")
+	E.eq(cape.visible, false, "the cape is cloth and hides on its own")
+	E.eq(helmet.visible, nil, "no part's own visibility changes, so meshes the game hides stay hidden")
+	E.eq(rifle.visible, nil)
+	E.eq(api.world.hidden(game.me), true)
+	E.eq(api.world.visible(game.me, false), true, "hiding twice")
 	E.eq(api.world.visible(game.me, true), true)
-	E.eq(helmet.visible, true)
-	E.eq(rifle.visible, true)
-	E.eq(game.me.visible, false, "the avatar's own unit stays undrawn, as the game keeps it")
+	near(game.me.scale.x, 1.2, "the size it had")
+	E.eq(cape.visible, true)
+	E.eq(api.world.hidden(game.me), false)
+	local crate = { name = "crate" }
+	E.eq(api.world.visible(crate, false), true)
+	E.eq(crate.visible, false, "anything else hides as before")
 	game.slaves.customization, game.slaves.equipment = nil, nil
+end)
+
+test("detail_raises_the_model_distance_and_gives_the_players_own_back", function()
+	local api = start()
+	local set, app_before = {}, rawget(_G, "Application")
+	rawset(_G, "Application", setmetatable({ set_renderer_setting = function(k, v) set[k] = v end,
+		user_setting = function(group, k) if group == "render_settings" and k == "lod_object_multiplier" then return 2 end end },
+		{ __index = rawget(_G, "Application") }))
+	E.eq(api.world.detail(10), true)
+	E.eq(set.lod_object_multiplier, "10")
+	E.eq(select(2, api.world.detail(0.5)), "out_of_range")
+	E.eq(api.world.detail(nil), true)
+	E.eq(set.lod_object_multiplier, "2", "the player's own setting")
+	rawset(_G, "Application", app_before)
+end)
+
+test("the_planets_shading_is_read_before_any_change", function()
+	local api = start()
+	local vp = api.game.state().viewport
+	rawset(_G, "ShadingEnvironment", { vector2 = function(env, name)
+		E.eq(name, "fog_depth_range")
+		return { x = 10, y = 130 }
+	end })
+	vp.get_shading_environment = function() return "planet env" end
+	local fog = api.world.planet_shading("fog_depth_range")
+	E.eq(fog[1], 10)
+	E.eq(fog[2], 130)
+	vp.variable_values = { fog_depth_range = { 5000, 5001 } }
+	E.eq(select(2, api.world.planet_shading("fog_depth_range")), "changed", "a set value isn't the planet's")
+	E.eq(select(2, api.world.planet_shading("no_such_value")), "unknown_shading")
+	vp.variable_values, vp.get_shading_environment = nil, nil
+	rawset(_G, "ShadingEnvironment", nil)
 end)
 
 test("the_sun_is_the_set_direction_or_the_planets_pointing_at_the_sun", function()
@@ -938,6 +977,31 @@ test("a_pause_row_closes_the_pause_menu_then_runs_as_its_mod", function()
 	ship:on_enter()
 	E.eq(#ship.options, 3, "not on the ship")
 	lm.string = real_string
+end)
+
+-- The ship keeps its open screens in a stack and closes them all at once, as its Resume does.
+test("a_pause_row_on_the_ship_closes_the_whole_pause_stack", function()
+	local e, ui = start_mod([[
+		local api = obsidian.import("obsidian.api")
+		RAN = {}
+		api.mod_settings.pause_row("photo", { en = "Photo Mode" }, function() RAN[#RAN + 1] = obsidian.caller() end,
+			{ when = function(screen) return screen == "menu" end })
+	]])
+	local Main = fake_pause_menu()
+	local list, stack_before = {}, rawget(_G, "stack")
+	rawset(_G, "stack", { empty = function(s) return #s == 0 end, top = function(s) return s[#s] end })
+	local parent = { active_screens = list }
+	local main = setmetatable({ parent = parent, state_name = "menu" }, { __index = Main })
+	list[1] = main
+	parent.pop_menu = function(self, all) self.popped_all = all end
+	main:on_enter()
+	E.eq(main.options[3].name, "obsidian_pause_row_1", "on the ship")
+	main.selected_option = 3
+	main:handle_input({ select = true })
+	ui.frame()
+	E.eq(parent.popped_all, true, "every screen closed")
+	E.eq(rawget(_G, "RAN")[1], "m")
+	rawset(_G, "stack", stack_before)
 end)
 
 -- The ship sets its own camera (52 degrees, 10 m): a change and a reset give back exactly that, not a
