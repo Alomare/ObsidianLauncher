@@ -45,7 +45,7 @@ A library is code other mods build on, such as Obsidian API. It takes the scope 
 
 ## In the app
 
-Every row of the mod list has a diamond for the scope: black for unspecified, green for client, red for session, white for a library (grey on the light theme) and yellow for an expansion. Hover over it for the name. The details of each mod say it too.
+Every row of the mod list has a diamond for the scope: black for unspecified, green for client, red for session, white for a library (grey on the light theme) and yellow for an expansion. Hover over it for the name, and click it to open this page at that scope. The details of each mod say it too.
 
 ## Who decides the scope
 

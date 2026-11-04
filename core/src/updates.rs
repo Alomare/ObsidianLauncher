@@ -132,8 +132,15 @@ impl GitHub {
 
     /// The published releases of `repo`, newest first. A tag that isn't a version is left out.
     pub fn releases(&self, repo: &Repo) -> Result<Vec<ListedRelease>> {
-        let raw: Vec<RawListed> = serde_json::from_str(&self.release_json(repo, "?per_page=50")?)?;
-        Ok(raw
+        Ok(self.releases_page(repo, 1, 50)?.0)
+    }
+
+    /// One page of `releases`, counted from 1, and whether GitHub may have more after it.
+    pub fn releases_page(&self, repo: &Repo, page: u32, per_page: u32) -> Result<(Vec<ListedRelease>, bool)> {
+        let per_page = per_page.clamp(1, 100);
+        let raw: Vec<RawListed> = serde_json::from_str(&self.release_json(repo, &format!("?per_page={per_page}&page={}", page.max(1)))?)?;
+        let more = raw.len() as u32 == per_page;
+        let list = raw
             .into_iter()
             .filter(|r| !r.draft && !r.prerelease)
             .filter_map(|r| {
@@ -141,7 +148,8 @@ impl GitHub {
                 Version::parse(version).ok()?;
                 Some(ListedRelease { version: version.to_string(), date: r.published_at, notes: r.body.unwrap_or_default(), url: r.html_url })
             })
-            .collect())
+            .collect();
+        Ok((list, more))
     }
 
     fn release_json(&self, repo: &Repo, which: &str) -> Result<String> {
@@ -339,13 +347,27 @@ mod tests {
             {"tag_name":"nightly","html_url":"u5"},
             {"tag_name":"1.0.1","html_url":"u1","body":null}
         ]"#;
-        routes.lock().unwrap().push(("/repos/me/mod/releases?per_page=50".into(), 200, list.to_vec()));
+        routes.lock().unwrap().push(("/repos/me/mod/releases?per_page=50&page=1".into(), 200, list.to_vec()));
         let github = GitHub::at(base);
         let found = github.releases(&github_repo("https://github.com/me/mod").unwrap()).unwrap();
         let versions: Vec<&str> = found.iter().map(|r| r.version.as_str()).collect();
         assert_eq!(versions, ["1.0.2", "1.0.1"]);
         assert_eq!(found[0].notes, "Two");
         assert_eq!(found[1].notes, "");
+    }
+
+    #[test]
+    fn a_full_page_of_releases_says_more_may_follow() {
+        let (base, routes) = server();
+        let page = |a: &str, b: &str| format!(r#"[{{"tag_name":"{a}","html_url":"u"}},{{"tag_name":"{b}","html_url":"u"}}]"#).into_bytes();
+        routes.lock().unwrap().push(("/repos/me/mod/releases?per_page=2&page=1".into(), 200, page("v1.3.0", "v1.2.0")));
+        routes.lock().unwrap().push(("/repos/me/mod/releases?per_page=2&page=2".into(), 200, br#"[{"tag_name":"v1.1.0","html_url":"u"}]"#.to_vec()));
+        let github = GitHub::at(base);
+        let repo = github_repo("https://github.com/me/mod").unwrap();
+        let (first, more) = github.releases_page(&repo, 1, 2).unwrap();
+        assert_eq!((first.len(), more), (2, true));
+        let (second, more) = github.releases_page(&repo, 2, 2).unwrap();
+        assert_eq!((second[0].version.as_str(), more), ("1.1.0", false));
     }
 
     #[test]

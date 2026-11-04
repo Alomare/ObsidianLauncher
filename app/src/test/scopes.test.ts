@@ -4,12 +4,12 @@ import ptBR from "../../../locales/pt-BR.json";
 import zhCN from "../../../locales/zh-CN.json";
 import { SCOPES } from "../types";
 
-// The mod list shows a diamond per scope with a title and a hint, and the details name the scope.
+// The mod list shows a diamond per scope named in the title, with a hint, and the details name the scope.
 describe("every scope", () => {
   for (const scope of SCOPES) {
-    it(`${scope}_has_a_name_a_title_and_a_hint_in_every_app_language`, () => {
+    it(`${scope}_has_a_name_and_a_hint_in_every_app_language`, () => {
       for (const catalog of [en, ptBR, zhCN] as Record<string, string>[]) {
-        for (const key of [`app.scope.${scope}`, `app.scope.${scope}Mod`, `app.scope.${scope}Hint`]) expect(catalog[key], key).toBeTruthy();
+        for (const key of [`app.scope.${scope}`, `app.scope.${scope}Hint`]) expect(catalog[key], key).toBeTruthy();
       }
     });
   }

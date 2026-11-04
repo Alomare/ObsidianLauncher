@@ -6,7 +6,7 @@ import { t } from "./i18n";
 import { notify } from "./notices";
 import type { Snapshot } from "./types";
 
-type DeployDone = { snapshot: Snapshot; mods: number; backup: boolean; unchanged: boolean };
+type DeployDone = { snapshot: Snapshot; mods: number; backup: boolean; unchanged: boolean; settings: boolean };
 type PurgeDone = { snapshot: Snapshot; removed: number; kept: number };
 
 async function step<T>(busy: string, work: () => Promise<T>): Promise<T | null> {
@@ -22,7 +22,7 @@ export async function deploy() {
   const r = await step(t("app.action.deploying"), () => call<DeployDone>("deploy"));
   if (!r) return;
   setSnapshot(r.snapshot);
-  if (r.unchanged) return notify("info", t("app.action.deployUpToDate"));
+  if (r.unchanged) return notify("info", t(r.settings ? "app.action.deployedOptions" : "app.action.deployUpToDate"));
   notify("info", r.mods === 1 ? t("app.action.deployedOne") : r.mods ? t("app.action.deployed", r.mods) : t("app.action.deployedVanilla"));
 }
 

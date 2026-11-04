@@ -6,7 +6,9 @@ summary: What happens when you deploy, what a purge removes, and why Obsidian so
 
 ## Deploy
 
-Deploy puts the enabled mods of the active profile into the game. The button turns green when you have changes that are not in the game yet. The game has to be closed.
+Deploy puts the enabled mods of the active profile into the game. The button turns green when you have changes that are not in the game yet, an option value or a key included. The game has to be closed.
+
+Every deploy replaces all the patches of the one before, so there's no need to purge first: a mod you turned off or removed leaves the game at the next deploy. When only option values or keys changed, nothing is rebuilt and the deploy takes a moment.
 
 Each deploy runs these steps:
 
@@ -23,7 +25,7 @@ Each deploy runs these steps:
 Purge deletes every file Obsidian wrote and checks that none is left. The game is then the vanilla game again. Your library and profiles stay; deploy again to bring the mods back.
 
 > [!NOTE]
-> Patches that another tool or a person put in the game folder are listed under Game in [Settings](app:settings) and never deleted. The patches Obsidian writes go above them.
+> Patches that another tool or a person put in the game folder are listed under Game in [Settings](app:settings), and Purge never deletes them. The patches Obsidian writes go above them. **Remove other patches** there moves them out of the game, into the `removed-patches` folder in the data folder, where you can copy them back by hand.
 
 > [!WARNING]
 > Purge before you uninstall Obsidian. The patches stay in the game folder until something removes them, so the game would keep running your mods.

@@ -1,11 +1,14 @@
 // The drawer beside the mod table (spec 4.2): one mod's About, Options, Keys, Files and Dependencies,
 // or the conflicts. With nothing selected it shows the conflicts, or a hint about importing.
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { run } from "../api";
 import { Confirm } from "../Confirm";
-import { ArrowIcon, CloseIcon, ExternalIcon, FileIcon, InfoIcon, KeyboardIcon, LinkIcon, ResetIcon, SlidersIcon, TrashIcon } from "../Icons";
+import { ArrowIcon, ChevronIcon, CloseIcon, ExternalIcon, FileIcon, InfoIcon, KeyboardIcon, LinkIcon, ResetIcon, SlidersIcon, TrashIcon, VerifiedIcon } from "../Icons";
 import { language, pick, t } from "../i18n";
+import { Markdown, parse } from "../Markdown";
 import { Select } from "../Select";
+import { changelog, type ChangelogEntry } from "../updates";
+import { loadMore, useModReleases } from "./modReleases";
 import { Thumb } from "../Thumb";
 import type { ConflictRow, KeyRow, ModRow, OptionRow } from "../types";
 import { overrides, type Override } from "./conflicts";
@@ -13,6 +16,7 @@ import { dependencies, type Dep } from "./deps";
 import { keyName } from "./keyCapture";
 import type { DrawerView } from "./ModsPage";
 import { clampNumber } from "./optionValue";
+import { isVerified } from "./verified";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
 type Props = {
@@ -52,7 +56,7 @@ function ModDrawer({ mod, mods, conflicts, names, onOpen, onClose }: { mod: ModR
       <div className="dh">
         <Thumb image={mod.image} name={name} size="lg" pick={{ owner: "mod", key: mod.id, custom: mod.customImage }} />
         <div className="dh-text">
-          <h2>{name}</h2>
+          <h2>{name}{isVerified(mod) && <span className="verified" role="img" aria-label={t("app.mods.verified")} data-tip-title={t("app.mods.verified")} data-tip={t("app.mods.verifiedHint")}><VerifiedIcon /></span>}</h2>
           <div className="meta">
             {[mod.authors.join(", "), mod.version ?? t("app.mods.imported"), t(`app.scope.${mod.scope}`)].filter(Boolean).join(" · ")}
           </div>
@@ -252,7 +256,80 @@ function AboutTab({ mod }: { mod: ModRow }) {
         {mod.source && <><dt>{t("app.drawer.source")}</dt><dd className="src"><button className="link src-link" aria-label={mod.source} data-tip-title={t("app.drawer.source")} data-tip={mod.source} onClick={() => openUrl(mod.source!).catch(() => {})}><ExternalIcon /></button></dd></>}
         {mod.import && <><dt>{t("app.drawer.imported")}</dt><dd>{date}</dd><dt>{t("app.drawer.file")}</dt><dd className="mono">{mod.import.file}</dd></>}
       </dl>
+      {mod.updatable && <ModChangelog mod={mod} />}
     </div>
+  );
+}
+
+/** How many versions show at first, and how many more each Load more adds. */
+const LOG_STEP = 8;
+const LOG_OPEN_KEY = "obsidian.modChangelogOpen";
+const logOpenSaved = () => { try { return localStorage.getItem(LOG_OPEN_KEY) !== "0"; } catch { return true; } };
+
+/** The releases of the mod's GitHub repository, newest first, each folded. The list starts open;
+ *  closed, it stays closed for the next mod too and asks GitHub nothing. */
+function ModChangelog({ mod }: { mod: ModRow }) {
+  const [open, setOpen] = useState(logOpenSaved);
+  const [shown, setShown] = useState(LOG_STEP);
+  const [unfolded, setUnfolded] = useState<Record<string, boolean>>({});
+  const r = useModReleases(mod.id, open);
+  const entries = useMemo(() => changelog(r.list, mod.version ?? "", []), [r.list, mod.version]);
+  const toggle = () => {
+    setOpen((v) => {
+      try { localStorage.setItem(LOG_OPEN_KEY, v ? "0" : "1"); } catch { /* kept for this session only */ }
+      return !v;
+    });
+  };
+  const more = () => {
+    const next = shown + LOG_STEP;
+    setShown(next);
+    if (next > r.list.length && r.more) loadMore(mod.id);
+  };
+  const badge = (e: ChangelogEntry) =>
+    !mod.version ? null : e.when === "new" ? <span className="upd-badge new">{t("app.update.badgeNew")}</span> : e.when === "installed" ? <span className="upd-badge">{t("app.update.badgeInstalled")}</span> : null;
+  const first = r.pages === 0 && (r.loading || !r.error);
+  return (
+    <section className={open ? "mod-log open" : "mod-log"}>
+      <button className="mod-log-head" aria-expanded={open} onClick={toggle}>
+        <ChevronIcon />
+        <span className="cap">{t("app.drawer.changelogs")}</span>
+      </button>
+      {open && (
+        <div className="mod-log-body">
+          {first && <p className="muted mod-log-note"><span className="upd-spin" aria-hidden="true" />{t("app.drawer.changelogsLoading")}</p>}
+          {r.error && (
+            <p className="muted mod-log-note">
+              {t("app.drawer.changelogsFailed", r.error)} <button className="link small" onClick={() => loadMore(mod.id)} disabled={r.loading}>{t("app.drawer.tryAgain")}</button>
+            </p>
+          )}
+          {!first && !r.error && entries.length === 0 && <p className="muted mod-log-note">{t("app.update.noReleases")}</p>}
+          <ol className="mod-log-list">
+            {entries.slice(0, shown).map((e) => {
+              const unfold = !!unfolded[e.version];
+              return (
+                <li key={e.version} className={`mod-log-entry ${e.when}${unfold ? " open" : ""}`}>
+                  <button className="upd-head" aria-expanded={unfold} onClick={() => setUnfolded((u) => ({ ...u, [e.version]: !unfold }))}>
+                    <ChevronIcon />
+                    <b>{e.version}</b>
+                    {badge(e)}
+                    <span className="date">{e.date ? new Date(e.date).toLocaleDateString(language(), { dateStyle: "medium" }) : ""}</span>
+                  </button>
+                  {unfold && (
+                    <div className="upd-body">
+                      {e.notes ? <Markdown tokens={parse(e.notes).tokens} /> : <p className="muted">{t("app.update.noNotes")}</p>}
+                      {e.url && <button className="link small" onClick={() => openUrl(e.url!).catch(() => {})}>{t("app.update.onGithub")}</button>}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+          {(entries.length > shown || (r.more && r.pages > 0 && !r.error)) && (
+            <button className="btn small mod-log-more" onClick={more} disabled={r.loading}>{r.loading ? t("app.drawer.changelogsLoading") : t("app.drawer.loadMore")}</button>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 

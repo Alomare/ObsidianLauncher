@@ -44,7 +44,7 @@ pub fn backup_saves(sources: &[(String, PathBuf)], backups_dir: &Path, keep: usi
     {
         return Ok(Some(newest));
     }
-    let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();
+    let stamp = stamp();
     // Number above every existing backup of this second: reusing a pruned name would sort the new copy as the oldest.
     let highest = std::fs::read_dir(backups_dir)?
         .filter_map(|e| e.ok().and_then(|e| order_key(&e.path())))
@@ -73,6 +73,11 @@ pub fn backup_saves(sources: &[(String, PathBuf)], backups_dir: &Path, keep: usi
 }
 
 /// The backups in `backups_dir`, newest first.
+/// The local time as a folder name: 20261104-153012.
+pub fn stamp() -> String {
+    chrono::Local::now().format("%Y%m%d-%H%M%S").to_string()
+}
+
 pub fn list_backups(backups_dir: &Path) -> Vec<PathBuf> {
     let mut all: Vec<(String, u32, PathBuf)> = std::fs::read_dir(backups_dir)
         .map(|rd| rd.filter_map(|e| e.ok().map(|e| e.path())).filter(|p| p.is_dir()).filter_map(|p| order_key(&p).map(|(s, n)| (s, n, p))).collect())

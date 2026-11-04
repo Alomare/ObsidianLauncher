@@ -6,7 +6,9 @@ summary: O que acontece quando você aplica, o que Limpar remove e por que o Obs
 
 ## Aplicar {#deploy}
 
-Aplicar coloca no jogo os mods ligados do perfil ativo. O botão fica verde quando há mudanças que ainda não estão no jogo. O jogo precisa estar fechado.
+Aplicar coloca no jogo os mods ligados do perfil ativo. O botão fica verde quando há mudanças que ainda não estão no jogo, inclusive um valor de opção ou uma tecla. O jogo precisa estar fechado.
+
+Cada aplicação substitui todos os patches da anterior, então não é preciso limpar antes: um mod que você desligou ou removeu sai do jogo na próxima aplicação. Quando só mudaram valores de opção ou teclas, nada é reconstruído e a aplicação leva um instante.
 
 Cada aplicação segue estes passos:
 
@@ -23,7 +25,7 @@ Cada aplicação segue estes passos:
 Limpar apaga todos os arquivos que o Obsidian gravou e confere que nenhum ficou para trás. O jogo volta a ser o original. A biblioteca e os perfis continuam; aplique de novo para trazer os mods de volta.
 
 > [!NOTE]
-> Patches que outra ferramenta ou uma pessoa colocou na pasta do jogo aparecem em Jogo, nas [Configurações](app:settings), e nunca são apagados. Os patches do Obsidian ficam acima deles.
+> Patches que outra ferramenta ou uma pessoa colocou na pasta do jogo aparecem em Jogo, nas [Configurações](app:settings), e Limpar nunca os apaga. Os patches do Obsidian ficam acima deles. **Remover outros patches**, ali mesmo, tira esses patches do jogo e os guarda na pasta `removed-patches`, dentro da pasta de dados, de onde você pode copiá-los de volta à mão.
 
 > [!WARNING]
 > Use o Purge antes de desinstalar o Obsidian. Os patches ficam na pasta do jogo até alguém removê-los, então o jogo continuaria rodando os seus mods.

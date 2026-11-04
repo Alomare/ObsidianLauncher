@@ -7,10 +7,12 @@
 // The lines at the left of the Version and Scope headers drag to resize those columns (kept between
 // launches); a double click puts them back.
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type MutableRefObject, type PointerEvent } from "react";
-import { CheckIcon, ChevronIcon, LockIcon, UnlockIcon, UpArrowIcon, UpdateIcon, WarnIcon } from "../Icons";
+import { CheckIcon, ChevronIcon, LockIcon, UnlockIcon, UpArrowIcon, UpdateIcon, VerifiedIcon, WarnIcon } from "../Icons";
+import { go } from "../nav";
 import { language, pick, t } from "../i18n";
 import { Thumb } from "../Thumb";
 import { offered } from "./modUpdates";
+import { isVerified } from "./verified";
 import type { ConflictRow, ImageRef, ModRow } from "../types";
 import { conflictsByMod } from "./conflicts";
 import { drag as dragWidths, readWidths, reset as resetWidths, saveWidths, type Col, type Widths } from "./columns";
@@ -31,7 +33,8 @@ type Props = {
   checked: Set<string>;
   onCheck: (ids: string[], on: boolean) => void;
   onSelect: (id: string) => void;
-  onToggle: (ids: string[], on: boolean) => void;
+  /** Switches mods on or off; the switches show the new state until the returned promise settles. */
+  onToggle: (ids: string[], on: boolean) => unknown;
   onConflicts: (id: string) => void;
   onArrange: (tree: Node[]) => void;
   onCollapse: (folder: string, collapsed: boolean) => void;
@@ -95,13 +98,13 @@ type Handlers = {
 type RowProps = {
   id: string; folder: string | null; color: string | null; name: string; description: string; version: string | null; update: string | null;
   scope: string; on: boolean; imagePath: string | null; imageV: number; num: number; pinned: boolean; selected: boolean; checked: boolean;
-  lifted: boolean; leaving: boolean; tips: string | null; lose: boolean; updatable: boolean; spinning: boolean; checkOff: boolean; h: MutableRefObject<Handlers>;
+  lifted: boolean; leaving: boolean; verified: boolean; tips: string | null; lose: boolean; updatable: boolean; spinning: boolean; checkOff: boolean; h: MutableRefObject<Handlers>;
   /** The UI language: the row's texts change with it. */
   lang: string;
 };
 
 /** One mod. Every prop is a plain value, so a click elsewhere in a long list leaves this row alone. */
-const ModLine = memo(function ModLine({ id, folder, color, name, description, version, update, scope, on, imagePath, imageV, num, pinned: fixed, selected, checked, lifted, leaving, tips, lose, updatable, spinning, checkOff, h }: RowProps) {
+const ModLine = memo(function ModLine({ id, folder, color, name, description, version, update, scope, on, imagePath, imageV, num, pinned: fixed, selected, checked, lifted, leaving, verified, tips, lose, updatable, spinning, checkOff, h }: RowProps) {
   const line: Line = { kind: "mod", id, folder };
   const image: ImageRef | null = useMemo(() => (imagePath ? { path: imagePath, v: imageV } : null), [imagePath, imageV]);
   const cls = ["tr", folder && "in", fixed && "pinned", selected && "sel", checked && "checked", lifted && "lifted", leaving && "leaving"].filter(Boolean).join(" ");
@@ -118,7 +121,8 @@ const ModLine = memo(function ModLine({ id, folder, color, name, description, ve
         <Thumb image={image} name={name} />
         <div className="who">
           <div className="nm">
-            {name}
+            <span className="nm-text">{name}</span>
+            {verified && <span className="verified" role="img" aria-label={t("app.mods.verified")} data-tip-title={t("app.mods.verified")} data-tip={t("app.mods.verifiedHint")}><VerifiedIcon /></span>}
           </div>
         </div>
       </div>
@@ -133,10 +137,15 @@ const ModLine = memo(function ModLine({ id, folder, color, name, description, ve
           <span>{version ?? t("app.mods.imported")}</span><UpArrowIcon />
         </button>
       ) : <span className="ver">{version ?? t("app.mods.imported")}</span>}
-      <span className={`scope ${scope}`} role="img" aria-label={t(`app.scope.${scope}Mod`)} data-tip-title={t(`app.scope.${scope}Mod`)} data-tip={t(`app.scope.${scope}Hint`)}><i /></span>
+      <button className={`bare scope ${scope}`} aria-label={t(`app.scope.${scope}`)} data-tip-title={t(`app.scope.${scope}`)} data-tip={`${t(`app.scope.${scope}Hint`)}
+${t("app.scope.wikiHint")}`}
+        {...stop} onClick={() => go("wiki", `scopes#${SCOPE_ANCHORS[scope] ?? ""}`)}><i /></button>
     </div>
   );
 });
+
+/** The part of the Scopes page in the Wiki about each scope. */
+const SCOPE_ANCHORS: Record<string, string> = { client: "client-mods", session: "session-mods", expansion: "expansions", unspecified: "unspecified-mods", library: "libraries" };
 
 /** How long the mods of a closing folder take to fade before the rows below move up. */
 const CLOSE_MS = 140;
@@ -154,6 +163,19 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
   // Folders open and close on screen at once; the saved state follows.
   const [fold, setFold] = useState<Record<string, boolean>>({});
   const [leaving, setLeaving] = useState<string | null>(null);
+  // A switch flips at once and holds the new state while the change saves; a later click on the
+  // same switch takes over, so an earlier answer can't flip it back.
+  const [flips, setFlips] = useState<Record<string, { on: boolean; n: number }>>({});
+  const flipCount = useRef(0);
+  const toggle = async (ids: string[], on: boolean) => {
+    const n = ++flipCount.current;
+    setFlips((f) => ({ ...f, ...Object.fromEntries(ids.map((id) => [id, { on, n }])) }));
+    try {
+      await onToggle(ids, on);
+    } finally {
+      setFlips((f) => Object.fromEntries(Object.entries(f).filter(([id, v]) => !(ids.includes(id) && v.n === n))));
+    }
+  };
   const tree = useMemo(
     () => saved?.map((n) => (n.kind === "folder" && fold[n.folder.id] !== undefined ? { ...n, folder: { ...n.folder, collapsed: fold[n.folder.id] } } : n)) ?? null,
     [saved, fold],
@@ -186,14 +208,22 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
     const old = before.current;
     before.current = null;
     if (!old) return;
+    // Every position is read before any row moves, and one reflow serves them all: reading a row
+    // after moving the one before it would lay out the whole list again for each row.
+    const moved: [HTMLElement, number][] = [];
     for (const el of rowEls()) {
       const prev = old.get(el.dataset.key!);
       if (prev === undefined) continue;
       const dy = prev - el.getBoundingClientRect().top;
-      if (!dy) continue;
+      if (dy) moved.push([el, dy]);
+    }
+    if (!moved.length) return;
+    for (const [el, dy] of moved) {
       el.style.transition = "none";
       el.style.transform = `translateY(${dy}px)`;
-      el.getBoundingClientRect();
+    }
+    body.current?.getBoundingClientRect();
+    for (const [el] of moved) {
       el.style.transition = "";
       el.style.transform = "";
     }
@@ -344,7 +374,7 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
     saveWidths(next);
   };
   const h = useRef<Handlers>(null!);
-  h.current = { down, move, up, key, menu, check, toggle: (id, on) => onToggle([id], on), conflicts: onConflicts, update: onUpdate, checkUpdates: onCheckUpdates };
+  h.current = { down, move, up, key, menu, check, toggle: (id, on) => toggle([id], on), conflicts: onConflicts, update: onUpdate, checkUpdates: onCheckUpdates };
   const allState = visibleMods.length && visibleMods.every((id) => checked.has(id)) ? true : visibleMods.some((id) => checked.has(id)) ? "mixed" : false;
   const draggingKeys = new Set(drag.current?.moved ? (drag.current.folder ? [drag.current.key] : drag.current.ids) : []);
   // The whole library, closed folders and all, unlike the checkbox above: a check leaves nothing out.
@@ -405,9 +435,9 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
           const folder = line.folder ? folders.get(line.folder) : undefined;
           return (
             <ModLine key={m.id} id={m.id} folder={line.folder} color={folder?.kind === "folder" ? folder.folder.color : null} name={names.get(m.id) ?? m.id}
-              description={pick(m.description)} version={m.version} update={offered(updates, m)} scope={m.scope} on={m.on} imagePath={m.image?.path ?? null} imageV={m.image?.v ?? 0} num={position.get(m.id) ?? 0}
+              description={pick(m.description)} version={m.version} update={offered(updates, m)} scope={m.scope} on={flips[m.id]?.on ?? m.on} imagePath={m.image?.path ?? null} imageV={m.image?.v ?? 0} num={position.get(m.id) ?? 0}
               pinned={!!folder && folder.kind === "folder" && folder.folder.locked} selected={selected === m.id} checked={checked.has(m.id)}
-              lifted={draggingKeys.has(m.id)} leaving={leaving !== null && line.folder === leaving} tips={conflict?.tips ?? null} lose={conflict?.lose ?? false}
+              lifted={draggingKeys.has(m.id)} leaving={leaving !== null && line.folder === leaving} verified={isVerified(m)} tips={conflict?.tips ?? null} lose={conflict?.lose ?? false}
               updatable={m.updatable} spinning={checking.includes(m.id)} checkOff={checkingNow} h={h} lang={language()} />
           );
         })}

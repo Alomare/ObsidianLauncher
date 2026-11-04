@@ -33,6 +33,9 @@ pub struct DeployState {
     /// `fingerprint` of what was deployed; missing in states written before it existed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fingerprint: Option<String>,
+    /// `settings_digest` of the option values and keys the deploy wrote; missing in older states.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub settings: Option<String>,
     /// Set while the patches are being swapped: if it's still there, a deploy was cut short.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub incomplete: bool,
@@ -73,6 +76,8 @@ pub struct DeployReport {
     pub backup: Option<PathBuf>,
     /// The game already had this deploy, so no patch was written (only the live settings).
     pub unchanged: bool,
+    /// The option values or keys differ from the last deploy.
+    pub settings_changed: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -233,18 +238,27 @@ pub fn fingerprint(comp: &Composition, profile: &Profile, loader_dir: &Path) -> 
     Ok(h.finalize().iter().map(|b| format!("{b:02x}")).collect())
 }
 
+/// One hash of the settings file a deploy writes: option values, keys and the guardrails.
+pub fn settings_digest(s: &settings::Settings) -> String {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(settings::render(s).as_bytes()).iter().map(|b| format!("{b:02x}")).collect()
+}
+
 /// `contents` is the game's folder of bundles, to check that the recorded patches are still there.
 pub fn changes_waiting(lib: &Library, profile: &Profile, data_dir: &Path, contents: Option<&Path>) -> Result<ChangesWaiting> {
     let mut profile = profile.clone();
     profile.sync(lib)?;
     let comp = crate::compose::plan_for(lib, &profile, contents)?;
-    changes_waiting_for(&comp, &profile, data_dir, contents)
+    let digest = settings_digest(&loader::settings_for(lib, &profile)?);
+    changes_waiting_for(&comp, &profile, &digest, data_dir, contents)
 }
 
 /// `changes_waiting` for a composition already made from `profile`, synced with the library. A deploy
 /// that was cut short, or patches that are gone (a reinstall, another copy of the game), count as
-/// changes waiting: Play would otherwise start the game without the mods.
-pub fn changes_waiting_for(comp: &Composition, profile: &Profile, data_dir: &Path, contents: Option<&Path>) -> Result<ChangesWaiting> {
+/// changes waiting: Play would otherwise start the game without the mods. So do option values and
+/// keys changed since the deploy (`settings`, from `settings_digest`), although they reach the
+/// game at the next launch anyway: Deploy says the game has what the profile shows.
+pub fn changes_waiting_for(comp: &Composition, profile: &Profile, settings: &str, data_dir: &Path, contents: Option<&Path>) -> Result<ChangesWaiting> {
     let (comp, profile) = (comp, profile);
     let state = load_state(data_dir)?;
     let deployed_nothing = state.as_ref().is_none_or(|s| s.files.is_empty());
@@ -256,8 +270,10 @@ pub fn changes_waiting_for(comp: &Composition, profile: &Profile, data_dir: &Pat
     }
     let now = fingerprint(comp, profile, &loader::find_loader_dir()?)?;
     let whole = state.as_ref().is_some_and(|s| !s.incomplete && contents.is_none_or(|c| s.files.iter().all(|f| here(c, f).is_file())));
+    // A state from before the settings were recorded can't tell, so one deploy (a quick one) records them.
+    let same_settings = state.as_ref().is_some_and(|s| s.settings.as_deref() == Some(settings));
     Ok(match state.and_then(|s| s.fingerprint) {
-        Some(f) if f == now && whole => ChangesWaiting::UpToDate,
+        Some(f) if f == now && whole && same_settings => ChangesWaiting::UpToDate,
         _ => ChangesWaiting::Waiting,
     })
 }
@@ -296,11 +312,17 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
         let planned = crate::compose::plan_for(&lib, &profile, Some(&contents))?;
         let intact = || prev.files.iter().all(|f| sha256_file(&here(&contents, f)).is_ok_and(|s| s == f.sha256));
         if planned.unplaced.is_empty() && prev.fingerprint.as_deref() == Some(fingerprint(&planned, &profile, &loader_dir)?.as_str()) && intact() {
-            settings::write(&settings::game_side_dir(&game.saves_dir), &loader::settings_for(&lib, &profile)?)?;
+            let live = loader::settings_for(&lib, &profile)?;
+            let digest = settings_digest(&live);
+            settings::write(&settings::game_side_dir(&game.saves_dir), &live)?;
+            let settings_changed = prev.settings.as_deref() != Some(digest.as_str());
+            if settings_changed {
+                write_state(data_dir, &DeployState { settings: Some(digest), ..prev.clone() })?;
+            }
             let foreign = foreign_patches(&contents, previous.as_ref(), &[])?;
             let foreign = foreign.into_iter().filter(|(b, _, _)| planned.bundles.contains_key(b)).map(|(_, _, p)| p).collect();
             let patches = prev.files.iter().map(|f| here(&contents, f)).collect();
-            return Ok(DeployReport { patches, conflicts: planned.conflicts, foreign, backup: None, unchanged: true });
+            return Ok(DeployReport { patches, conflicts: planned.conflicts, foreign, backup: None, unchanged: true, settings_changed });
         }
     }
     let mut comp = crate::compose::compose_for(&lib, &profile, Some(&contents))?;
@@ -315,6 +337,8 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
         }
     }
     let settings = loader::settings_for(&lib, &profile)?;
+    let digest = settings_digest(&settings);
+    let settings_changed = previous.as_ref().is_none_or(|p| p.settings.as_deref() != Some(digest.as_str()));
 
     // Plan every slot before changing anything, so a refusal leaves the previous deploy in place. A
     // patch of the last deploy that another tool has changed stops being Obsidian's, as in a purge: it
@@ -388,7 +412,7 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
         .map(|(tmp, p)| Ok(DeployedFile { path: p.clone(), sha256: sha256_file(tmp)? }))
         .collect::<Result<Vec<_>>>()?;
     let mods = profile.mods.iter().filter(|m| m.enabled).map(|m| m.id.clone()).collect();
-    let state = DeployState { build, files, mods, time: chrono::Local::now().to_rfc3339(), fingerprint: Some(fingerprint), incomplete: false, previous: None };
+    let state = DeployState { build, files, mods, time: chrono::Local::now().to_rfc3339(), fingerprint: Some(fingerprint), settings: Some(digest), incomplete: false, previous: None };
 
     // Only now, with the new set ready, does the game change. The old patches step aside instead of
     // going, so a failure can put them back, and the state says what's under way first, so a crash
@@ -433,7 +457,7 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
     }
     settings::write(&settings::game_side_dir(&game.saves_dir), &settings)?;
     let foreign_paths = foreign.into_iter().filter(|(b, _, _)| comp.bundles.contains_key(b)).map(|(_, _, p)| p).collect();
-    Ok(DeployReport { patches: state.files.into_iter().map(|f| f.path).collect(), conflicts: comp.conflicts, foreign: foreign_paths, backup, unchanged: false })
+    Ok(DeployReport { patches: state.files.into_iter().map(|f| f.path).collect(), conflicts: comp.conflicts, foreign: foreign_paths, backup, unchanged: false, settings_changed })
 }
 
 /// One bundle's patch, and the bytes of its `.stream` (empty when nothing is streamed). A bundle's
@@ -500,10 +524,110 @@ pub fn purge(game: &GameInstall, data_dir: &Path) -> Result<PurgeReport> {
     Ok(report)
 }
 
-/// The patches in the game folder that aren't Obsidian's, by file name.
-pub fn foreign_files(game: &GameInstall, data_dir: &Path) -> Result<Vec<String>> {
+/// A patch in the game folder that isn't Obsidian's.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ForeignPatch {
+    pub name: String,
+    /// The game bundle it patches, as 16 hex digits.
+    pub bundle: String,
+    /// Bytes, with its `.stream` when there is one.
+    pub size: u64,
+    /// When it was last written, in seconds since 1970.
+    pub modified: Option<u64>,
+}
+
+/// The patches in the game folder that aren't Obsidian's.
+pub fn foreign_files(game: &GameInstall, data_dir: &Path) -> Result<Vec<ForeignPatch>> {
     let state = load_state(data_dir)?;
-    Ok(foreign_patches(&game.contents(), state.as_ref(), &[])?.into_iter().filter_map(|(_, _, p)| p.file_name().map(|n| n.to_string_lossy().into_owned())).collect())
+    let mut out = Vec::new();
+    for (bundle, _, p) in foreign_patches(&game.contents(), state.as_ref(), &[])? {
+        let meta = std::fs::metadata(&p)?;
+        let stream = std::fs::metadata(beside(&p, "stream")).map(|m| m.len()).unwrap_or(0);
+        let modified = meta.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs());
+        out.push(ForeignPatch { name: p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(), bundle, size: meta.len() + stream, modified });
+    }
+    Ok(out)
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ForeignRemoved {
+    /// The folder that holds a copy of every patch taken out.
+    pub kept_in: Option<PathBuf>,
+    pub removed: Vec<PathBuf>,
+    /// Obsidian's patches moved down to fill the numbers the removed ones leave free.
+    pub renumbered: usize,
+}
+
+/// Moves file `from` to `to`, across drives too.
+fn move_file(from: &Path, to: &Path) -> Result<()> {
+    if rename_retrying(from, to).is_ok() {
+        return Ok(());
+    }
+    std::fs::copy(from, to)?;
+    std::fs::remove_file(from)?;
+    Ok(())
+}
+
+/// Takes every patch that isn't Obsidian's out of the game folder, keeping a copy of each (and of
+/// its `.stream`) in `keep_dir`. The game reads a bundle's patches from 0 up and stops at the first
+/// number missing, so Obsidian's own patches then move down to fill the gaps, and the state follows.
+pub fn remove_foreign(game: &GameInstall, data_dir: &Path, keep_dir: &Path) -> Result<ForeignRemoved> {
+    let _lock = hold_lock(data_dir)?;
+    let contents = game.contents();
+    finish_interrupted(&contents, data_dir)?;
+    clear_leftovers(&contents)?;
+    let mut state = load_state(data_dir)?;
+    let foreign = foreign_patches(&contents, state.as_ref(), &[])?;
+    let mut out = ForeignRemoved { kept_in: None, removed: Vec::new(), renumbered: 0 };
+    if foreign.is_empty() {
+        return Ok(out);
+    }
+    std::fs::create_dir_all(keep_dir)?;
+    out.kept_in = Some(keep_dir.to_path_buf());
+    for (_, _, p) in &foreign {
+        for f in [p.clone(), beside(p, "stream")] {
+            if let (true, Some(name)) = (f.is_file(), f.file_name()) {
+                move_file(&f, &keep_dir.join(name))?;
+            }
+        }
+        out.removed.push(p.clone());
+    }
+    let Some(st) = state.as_mut() else { return Ok(out) };
+    let mut by_bundle: std::collections::BTreeMap<String, Vec<(u32, usize)>> = std::collections::BTreeMap::new();
+    for (i, f) in st.files.iter().enumerate() {
+        if let Some((bundle, n)) = f.path.file_name().and_then(|n| patch_name(&n.to_string_lossy())) {
+            by_bundle.entry(bundle).or_default().push((n, i));
+        }
+    }
+    for (bundle, mut ours) in by_bundle {
+        ours.sort();
+        for (slot, (n, i)) in ours.into_iter().enumerate() {
+            let slot = slot as u32;
+            if slot == n {
+                continue;
+            }
+            let from = here(&contents, &st.files[i]);
+            let to = contents.join(format!("{bundle}.patch_{slot}"));
+            if !from.is_file() || to.symlink_metadata().is_ok() {
+                continue;
+            }
+            rename_retrying(&from, &to)?;
+            if beside(&from, "stream").is_file() {
+                rename_retrying(&beside(&from, "stream"), &beside(&to, "stream"))?;
+            }
+            // The .stream sits in the list as a file of its own, right after its patch.
+            let old_stream = beside(&st.files[i].path, "stream");
+            st.files[i].path = to.clone();
+            if let Some(s) = st.files.iter_mut().find(|f| f.path.file_name() == old_stream.file_name()) {
+                s.path = beside(&to, "stream");
+            }
+            out.renumbered += 1;
+        }
+    }
+    if out.renumbered > 0 {
+        write_state(data_dir, st)?;
+    }
+    Ok(out)
 }
 
 pub fn status(game: &GameInstall, data_dir: &Path, known: &[KnownBuild]) -> Result<Status> {
@@ -831,6 +955,28 @@ mod tests {
     }
 
     #[test]
+    fn removing_other_patches_keeps_a_copy_and_closes_the_gap() {
+        let w = world();
+        bundle::write_file(&patch(&w, "00000000000000aa.patch_0"), &base(7)).unwrap();
+        put(&w.game.contents(), "00000000000000aa.patch_0.stream", b"streamed");
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert!(patch(&w, "00000000000000aa.patch_1").exists(), "Obsidian's patch goes above the other one");
+        let listed = foreign_files(&w.game, &w.data).unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!((listed[0].name.as_str(), listed[0].bundle.as_str()), ("00000000000000aa.patch_0", "00000000000000aa"));
+        let keep = w.data.join("removed-patches");
+        let r = remove_foreign(&w.game, &w.data, &keep).unwrap();
+        assert_eq!((r.removed.len(), r.renumbered), (1, 1));
+        assert!(keep.join("00000000000000aa.patch_0").is_file() && keep.join("00000000000000aa.patch_0.stream").is_file());
+        assert!(patch(&w, "00000000000000aa.patch_0").exists() && !patch(&w, "00000000000000aa.patch_1").exists());
+        assert!(!patch(&w, "00000000000000aa.patch_0.stream").exists(), "the other patch's stream left with it");
+        assert!(foreign_files(&w.game, &w.data).unwrap().is_empty());
+        assert_eq!(waiting(&w), ChangesWaiting::UpToDate, "the moved patch is still the deploy");
+        let r = purge(&w.game, &w.data).unwrap();
+        assert!(r.kept_changed.is_empty() && !patch(&w, "00000000000000aa.patch_0").exists());
+    }
+
+    #[test]
     fn redeploy_replaces_previous_patches() {
         let w = world();
         deploy(&w.game, &w.data, &w.opts).unwrap();
@@ -910,12 +1056,13 @@ mod tests {
         assert!(!w.data.join(STATE).exists());
     }
 
-    /// Adds client mod `opt` (on, last): an entry, a live toggle `fast`, a deploy choice `sky`, and
+    /// Adds client mod `opt` (on, last): an entry, a live toggle `fast`, a deploy choice `sky`, a key, and
     /// the resource `mod-aa` changes too.
     fn add_option_mod(w: &World) {
         let d = w.data.join("..").join("stage-opt");
         put(&d, "obsidian.json", br##"{"obsidian":1,"id":"opt","version":"1.0.0","name":{"en":"o"},"entry":"main.lua","scope":"client",
             "options":[{"id":"fast","type":"toggle","default":false},{"id":"sky","type":"choice","default":"day","choices":["day","night"]}],
+            "keybinds":[{"id":"toggle","default":"f8"}],
             "resources":[
               {"type":"#0000000000000001","name":"#00000000000000f0","bundle":"00000000000000aa","data":"day.bin","when":{"sky":"day"}},
               {"type":"#0000000000000001","name":"#00000000000000f0","bundle":"00000000000000aa","data":"night.bin","when":{"sky":"night"}}]}"##);
@@ -961,15 +1108,27 @@ mod tests {
     }
 
     #[test]
-    fn changing_a_live_option_is_not_waiting() {
+    fn changing_a_live_option_is_waiting_until_a_quick_deploy() {
         let w = world();
         add_option_mod(&w);
         deploy(&w.game, &w.data, &w.opts).unwrap();
         change(&w, |p| {
             p.options.entry("opt".into()).or_default().insert("fast".into(), serde_json::json!(true));
+        });
+        assert_eq!(waiting(&w), ChangesWaiting::Waiting, "an option value");
+        let r = deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert!(r.unchanged && r.settings_changed, "no patch is rebuilt for an option");
+        assert_eq!(waiting(&w), ChangesWaiting::UpToDate);
+        change(&w, |p| {
             p.keys.entry("opt".into()).or_default().insert("toggle".into(), "f9".into());
         });
-        assert_eq!(waiting(&w), ChangesWaiting::UpToDate);
+        assert_eq!(waiting(&w), ChangesWaiting::Waiting, "a key");
+        change(&w, |p| {
+            p.keys.remove("opt");
+        });
+        assert_eq!(waiting(&w), ChangesWaiting::UpToDate, "back as deployed");
+        let r = deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert!(r.unchanged && !r.settings_changed);
     }
 
     #[test]

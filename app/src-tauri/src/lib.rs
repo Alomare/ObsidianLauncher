@@ -67,6 +67,8 @@ pub fn run() {
             commands::check_mod_updates,
             commands::release_notes,
             commands::release_list,
+            commands::mod_releases,
+            commands::remove_other_patches,
             commands::update_mod,
             commands::deploy,
             commands::purge,
