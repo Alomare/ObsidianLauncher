@@ -1051,4 +1051,39 @@ test("a_centred_frame_stays_in_the_middle_at_any_ui_scale", function()
 	rawset(_G, "SaveManager", nil)
 end)
 
+-- A photo mode asks for the screen: only the kits of the mods it names draw, the loader's menu still
+-- does, and everyone draws again once it lets go, or once it's switched off.
+test("solo_holds_back_every_kit_but_the_named_mods", function()
+	local e, ui = start(nil, { mods = { E.mod("a", { scope = "client" }), E.mod("b", { scope = "client" }) },
+		sources = { ["obsidian/mods/a/main"] = [[ KIT_A = obsidian.ui.canvas("a") SOLO = obsidian.ui.solo SOLOED = obsidian.ui.soloed ]],
+			["obsidian/mods/b/main"] = [[ KIT_B = obsidian.ui.canvas("b") ]] } })
+	ui.state = "menu"
+	e:frames(2)
+	local core = e:core()
+	local a, b = rawget(_G, "KIT_A"), rawget(_G, "KIT_B")
+	local function drawn()
+		ui.rects = {}
+		a:rect(0, 0, 5, 5)
+		b:rect(10, 0, 5, 5)
+		local who = {}
+		for _, r in ipairs(ui.rects) do who[#who + 1] = r.pos.x == 0 and "a" or "b" end
+		return table.concat(who, ",")
+	end
+	E.eq(drawn(), "a,b")
+	core.current = core.mods_by_id.a
+	E.eq(rawget(_G, "SOLO")({ "a" }), true)
+	E.eq(drawn(), "a", "only the named mod")
+	E.eq(table.concat(rawget(_G, "SOLOED")(), ","), "a")
+	E.eq(rawget(_G, "SOLO")({}), true)
+	E.eq(drawn(), "", "an empty list holds everyone back")
+	E.eq(rawget(_G, "SOLO")(nil), true)
+	E.eq(drawn(), "a,b", "and back")
+	E.eq(rawget(_G, "SOLOED")(), nil)
+	E.eq(select(2, rawget(_G, "SOLO")("a")), "bad_type")
+	rawget(_G, "SOLO")({ "a" })
+	core.mods_by_id.a.off = true
+	e:frames(1)
+	E.eq(drawn(), "a,b", "a mod switched off lets the screen go")
+end)
+
 return T

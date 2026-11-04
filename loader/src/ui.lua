@@ -639,10 +639,38 @@ local function sync(kit)
 end
 
 -- The menu is the loader's own, and the fonts' gui is what it needs, so a system kit doesn't wait.
+-- While a mod has asked for the screen (M.solo), only the kits of the mods it named draw.
 local function ready(kit)
 	if not (M.can_draw or kit.system) then return false end
+	if M.solo_ids and not kit.system and not M.solo_ids[kit.owner.id or ""] then return false end
 	sync(kit)
 	return canvas_gui() ~= nil
+end
+
+-- Only the kits of the mods in `ids` (a list of mod ids) draw, until solo(nil): a photo mode wants the
+-- screen to itself. An empty list holds every mod's drawing back. The loader's own menu always draws.
+-- Asking again replaces the list. A mod switched off while it holds the screen lets it go.
+function M.solo(ids)
+	if ids == nil or ids == false then
+		M.solo_ids, M.solo_by = nil, nil
+		return true
+	end
+	if B.type(ids) ~= "table" then return false, "bad_type" end
+	local set = {}
+	for _, id in B.ipairs(ids) do
+		if B.type(id) == "string" then set[id] = true end
+	end
+	M.solo_ids, M.solo_by = set, M.core.current
+	return true
+end
+
+-- The ids solo() was given, as a fresh list, or nil when every mod draws.
+function M.soloed()
+	if not M.solo_ids then return nil end
+	local out = {}
+	for id in B.pairs(M.solo_ids) do B.insert(out, id) end
+	B.sort(out)
+	return out
 end
 
 local Kit = {}
@@ -1261,6 +1289,7 @@ function M.tick()
 	local cur = M.current()
 	M.can_draw = cur.state ~= "game" or M.cleared.mission_draw
 	M.fade = fade_level()
+	if M.solo_by and M.solo_by.off then M.solo_ids, M.solo_by = nil, nil end
 	run_screens(cur, global("ENGINE_DT") or 0)
 	refresh_mutes()
 	script.set_temp_count(vectors, quaternions, matrices)
@@ -1337,6 +1366,8 @@ function M.api()
 		glyphs = M.glyph_names,
 		font = M.font,
 		art = M.art,
+		solo = M.solo,
+		soloed = M.soloed,
 	}
 end
 
