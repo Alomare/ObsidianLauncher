@@ -741,4 +741,37 @@ test("widescreen_leaves_16_9_and_the_option_off_alone", function()
 	E.eq(seen.objectives, 320)
 end)
 
+-- The galaxy map: a GuiManager centring a 1280-wide layout on a 2560-wide screen (640 each side).
+local function galaxy_map()
+	wide_screen(2560)
+	local GM = {}
+	GM.__index = GM
+	function GM:get_scale() return 1, 1 end
+	function GM:calculate_pos(pos, size) return { x = pos.x + 640, y = pos.y }, size, 1 end
+	local gm = setmetatable({ rect = { w = 2560, h = 1080 }, gui_settings = { design_width = 1280 }, ui_scale_user = 1 }, GM)
+	local drawn = {}
+	rawset(_G, "MenuScreenCampaignMission", { show_mission_info = function(_, g)
+		drawn.left = g:calculate_pos({ x = 100, y = 0 }, { x = 200, y = 10 }).x
+		drawn.title = g:calculate_pos({ x = 500, y = 0 }, { x = 300, y = 10 }).x
+		drawn.right = g:calculate_pos({ x = 900, y = 0 }, { x = 300, y = 10 }).x
+	end })
+	rawset(_G, "MenuScreenCampaignPlanet", { show_planet_info = function() end })
+	rawset(_G, "MenuScreenCampaign", { draw_scanlines = function(_, _, _, g) drawn.scan = { g.gui_settings.design_width, g:calculate_pos({ x = 0, y = 0 }).x } end })
+	-- Hooks on classes defined after boot go in at the next require.
+	rawget(_G, "require")("lua/hud/hud")
+	return gm, drawn
+end
+
+test("widescreen_moves_the_galaxy_map_panels_to_their_sides_and_leaves_the_middle", function()
+	local gm, drawn = galaxy_map()
+	rawget(_G, "MenuScreenCampaignMission").show_mission_info({}, gm)
+	E.eq(drawn.left, 100, "the reward block at the left edge")
+	E.eq(drawn.title, 1140, "a centred title stays")
+	E.eq(drawn.right, 2180, "the mission panel at the right edge")
+	E.eq(rawget(gm, "calculate_pos"), nil, "the panel's own maths back")
+	rawget(_G, "MenuScreenCampaign").draw_scanlines({}, 0.016, 0, gm)
+	E.eq(drawn.scan[1], 2560, "the overlay as wide as the screen while it draws")
+	E.eq(gm.gui_settings.design_width, 1280, "and back")
+end)
+
 return T
