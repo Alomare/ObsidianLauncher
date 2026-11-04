@@ -511,43 +511,38 @@ test("recoil_fix_off_leaves_the_pose", function()
 	E.eq(g.set, 0)
 end)
 
--- The dive and crawl states, and the animation events a unit gets.
-local function dive_game()
+-- The character states, and the animation events a unit gets.
+local function sprint_game()
 	local g = { unit = {}, events = {} }
-	rawset(_G, "Unit", { animation_event = function(u, name) g.events[#g.events + 1] = name end })
-	for _, n in ipairs({ "CharacterStateIdle", "CharacterStateSprint", "CharacterStateWalk", "CharacterStateDownedKnockedDown" }) do rawset(_G, n, { name = n }) end
-	for _, n in ipairs({ "CharacterStateDodge", "CharacterStateCrawl" }) do rawset(_G, n, { on_enter = function() end, on_exit = function() end }) end
+	rawset(_G, "Unit", {
+		animation_event = function(u, name) g.events[#g.events + 1] = name end,
+		has_animation_event = function() return true end,
+	})
+	for _, n in ipairs({ "CharacterStateIdle", "CharacterStateWalk", "CharacterStateFire", "CharacterStateWalkFire",
+		"CharacterStateSwitchWeapon", "CharacterStateReload", "CharacterStateDodge" }) do rawset(_G, n, { name = n }) end
+	rawset(_G, "CharacterStateSprint", { on_enter = function() end })
 	return g
 end
 
-test("dive_sprint_fix_stops_the_sprint_a_dive_cut_short", function()
-	local g = dive_game()
-	local e = engine()
-	local dodge, crawl = rawget(_G, "CharacterStateDodge"), rawget(_G, "CharacterStateCrawl")
-	local idle, sprint = rawget(_G, "CharacterStateIdle"), rawget(_G, "CharacterStateSprint")
-	dodge.on_enter(g.unit, {}, sprint)
-	dodge.on_exit(g.unit, {}, idle)
-	E.eq(table.concat(g.events, ","), "sprint_stop", "a dive out of a sprint, back on foot")
-	-- Through a crawl: the stop comes when the crawl stands up.
-	dodge.on_enter(g.unit, {}, sprint)
-	dodge.on_exit(g.unit, {}, crawl)
-	E.eq(#g.events, 1, "not while crawling")
-	crawl.on_exit(g.unit, {}, idle)
-	E.eq(#g.events, 2)
-	-- A dive from a walk, and one that ends downed, get nothing.
-	dodge.on_enter(g.unit, {}, rawget(_G, "CharacterStateWalk"))
-	dodge.on_exit(g.unit, {}, idle)
-	dodge.on_enter(g.unit, {}, sprint)
-	dodge.on_exit(g.unit, {}, rawget(_G, "CharacterStateDownedKnockedDown"))
-	crawl.on_exit(g.unit, {}, idle)
-	E.eq(#g.events, 2)
+test("dive_sprint_fix_frees_the_upper_body_when_a_sprint_starts_from_a_held_pose", function()
+	local g = sprint_game()
+	engine()
+	local sprint = rawget(_G, "CharacterStateSprint")
+	for _, from in ipairs({ "CharacterStateIdle", "CharacterStateFire", "CharacterStateWalkFire", "CharacterStateSwitchWeapon" }) do
+		sprint.on_enter(g.unit, {}, rawget(_G, from))
+	end
+	E.eq(table.concat(g.events, ","), "no_animation,no_animation,no_animation,no_animation", "standing (after a dive), firing, a weapon switch")
+	-- A walk frees the layer itself; a reload and anything else are left alone.
+	sprint.on_enter(g.unit, {}, rawget(_G, "CharacterStateWalk"))
+	sprint.on_enter(g.unit, {}, rawget(_G, "CharacterStateReload"))
+	sprint.on_enter(g.unit, {}, nil)
+	E.eq(#g.events, 4)
 end)
 
 test("dive_sprint_fix_off_sends_nothing", function()
-	local g = dive_game()
+	local g = sprint_game()
 	engine({ "dive_sprint_fix" })
-	rawget(_G, "CharacterStateDodge").on_enter(g.unit, {}, rawget(_G, "CharacterStateSprint"))
-	rawget(_G, "CharacterStateDodge").on_exit(g.unit, {}, rawget(_G, "CharacterStateIdle"))
+	rawget(_G, "CharacterStateSprint").on_enter(g.unit, {}, rawget(_G, "CharacterStateIdle"))
 	E.eq(#g.events, 0)
 end)
 
