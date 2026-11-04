@@ -22,7 +22,7 @@ Se o jogo parar depois disso, o Obsidian avisa que ele não fechou normalmente. 
 
 ## "Versão desconhecida" {#build-unknown}
 
-Os arquivos do jogo não batem com a versão que o Obsidian conhece, então nada é aplicado e o loader não inicia nenhum mod. Use Limpar e depois verifique a integridade dos arquivos na Steam. Se você usou outra ferramenta de mods que edita os bundles diretamente, a verificação traz os originais de volta.
+Os arquivos do jogo não batem com a versão que o Obsidian conhece, então nada é aplicado e o loader não inicia nenhum mod. Isso acontece quando um mod foi copiado direto para a pasta `contents` do jogo por cima dos arquivos originais. Use Limpar e depois verifique a integridade dos arquivos na Steam para trazer os originais de volta. Depois, adicione esse mod no Obsidian com **Adicionar mods**, que o aplica sem mexer nos originais.
 
 ## Logs {#logs}
 

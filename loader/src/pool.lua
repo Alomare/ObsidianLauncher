@@ -6,24 +6,20 @@ local log = require("obsidian/loader/log")
 
 local M = {}
 
--- Returns the tag that was applied, or nil for the vanilla pool. Players who run session content
--- share one pool, so they only find other Obsidian players. A player who merely lets other players'
--- session mods in stays in the vanilla pool, where vanilla players find their lobby, and sees the
--- open pool's lobbies too (bridge). Players who run mods every player needs get a pool of their
--- own, shared only with players who run the same ones.
+-- Returns the tag that was applied, or nil for the vanilla pool. Only players who run mods every
+-- player needs leave the vanilla pool at boot: they get a pool of their own, shared only with players
+-- who run the same ones. Session mods keep the vanilla hash, so vanilla friends can join a private or
+-- friends-only lobby and be joined there; in a public lobby the session gate holds back what can
+-- switch off live, and the public door below keeps vanilla players away from what can't.
 function M.apply(deploy)
 	local hashes = deploy.hashes or {}
-	local tag, pool
-	if hashes.every then
-		tag, pool = hashes.every, "every"
-	elseif deploy.has_session then
-		tag, pool = hashes.open, "open"
-	else
+	local tag = hashes.every
+	if not tag then
 		log.line("pool: vanilla")
 		return nil
 	end
 	if B.type(tag) ~= "string" or not B.match(tag, "^[0-9a-f]+$") then
-		log.line("pool: bad tag for " .. pool .. ", left vanilla")
+		log.line("pool: bad tag for every, left vanilla")
 		return nil
 	end
 	local revision = B.rawget(B.G, "BUILD_REVISION_INFORMATION")
@@ -33,7 +29,7 @@ function M.apply(deploy)
 		return nil
 	end
 	B.rawset(B.G, "BUILD_REVISION_INFORMATION", rewritten)
-	log.line("pool: " .. pool .. " " .. tag)
+	log.line("pool: every " .. tag)
 	return tag
 end
 
@@ -51,51 +47,88 @@ function M.room(l)
 	return parsed and B.type(t) == "table" and t or nil
 end
 
--- Whether the lobby being joined, not hosted, carries the hash `other`: a room the browser listed
--- from that pool, at the address the join screen keeps, or else (an invite) the room data.
-local function joining(other, screen, listed)
+-- Whether a lobby privacy value is public. One that can't be read counts as public.
+local function is_public(privacy)
+	local settings = B.rawget(B.G, "GameSettings")
+	local kinds = B.type(settings) == "table" and settings.room_privacy_settings or nil
+	local n = B.tonumber(privacy)
+	if n == nil or B.type(kinds) ~= "table" then return true end
+	return n == kinds.public
+end
+M.is_public = is_public
+
+-- The hash a join request to the lobby being joined, not hosted, carries: `other` (the open pool's)
+-- for a room in the open pool, by the room picked in the list or else (an invite) the room data,
+-- and for any public room when this player runs session content that can't switch off live. Nil
+-- leaves the game's own hash.
+local function join_hash(other, screen, listed, static)
+	local ok, hash = B.pcall(function()
+		local network = B.rawget(B.G, "NetworkGlobal")
+		local l = network and network.lobby
+		if not (l and l.lobby) or l:is_host() then return nil end
+		local entry = B.type(screen) == "table" and screen.join_address ~= nil and listed[B.tostring(screen.join_address)] or nil
+		if entry and entry.open then return other end
+		local data = M.room(l)
+		if data ~= nil and data.build_game_hash == other then return other end
+		if static then
+			local privacy = data and data.privacy
+			if privacy == nil and entry then privacy = entry.privacy end
+			if is_public(privacy) then return other end
+		end
+		return nil
+	end)
+	if not ok then log.limited("pool join", "pool: the lobby being joined couldn't be read: " .. B.tostring(hash)) end
+	return ok and hash or nil
+end
+
+local function in_public_lobby_as_host()
 	local ok, yes = B.pcall(function()
 		local network = B.rawget(B.G, "NetworkGlobal")
 		local l = network and network.lobby
-		if not (l and l.lobby) or l:is_host() then return false end
-		if B.type(screen) == "table" and screen.join_address ~= nil and listed[B.tostring(screen.join_address)] then return true end
-		local data = M.room(l)
-		return data ~= nil and data.build_game_hash == other
+		if not (l and l:is_host()) then return false end
+		return is_public(l:get_data("privacy"))
 	end)
-	if not ok then log.limited("pool join", "pool: the lobby being joined couldn't be read: " .. B.tostring(yes)) end
-	return ok and yes == true
+	return not ok or yes == true
 end
 
--- A player in the vanilla pool who runs no session content but lets other players' session mods in
--- (the default) also finds the open pool's lobbies: the lobby browser lists them beside the vanilla
--- ones, and a join request to one carries the open pool's hash, the one its host checks. Their own
--- lobby stays in the vanilla pool, where vanilla players find it. Answers whether it applies.
+-- Every player in the vanilla pool finds the open pool's lobbies: Obsidian 1.3.0 put players with
+-- session mods there, and a public lobby whose host runs content that can't switch off live carries
+-- its hash now. The lobby browser lists them beside the vanilla ones, and a join request to one
+-- carries the open pool's hash, the one its room shows. As the host, a join request with that hash
+-- counts as the game's own.
+-- The public door: a player whose session content can't switch off live (data overrides, legacy
+-- mods) keeps vanilla players out of their public lobby, whose room shows the open pool's hash, and
+-- doesn't take that content into another public lobby. Private and friends-only lobbies are open to
+-- anyone. Answers whether the bridge applies.
 function M.bridge(core, hooks, tag)
 	local deploy = core.deploy
-	if tag ~= nil or deploy.has_session or not core.consent() then return false end
+	if tag ~= nil then return false end
 	local open = (deploy.hashes or {}).open
 	local base = B.match(B.tostring(deploy.revision), ":(%x+)$")
 	if not base or B.type(open) ~= "string" or not B.match(open, "^[0-9a-f]+$") then return false end
 	local other = base .. open
-	-- Addresses of the open pool's rooms the browser listed, as strings.
+	local static = deploy.has_static_session == true
+	-- The rooms the browser listed, by address as a string: whether in the open pool, and privacy.
 	local listed, told = {}, nil
 	hooks.loader_hook("MenuScreenCampaignMultiplayer", "add_room", function(original, self, room, ...)
 		local own = B.rawget(B.G, "BUILD_GAME_HASH")
-		if B.type(room) == "table" and room.build_game_hash == other and B.type(own) == "string" then
-			room.build_game_hash = own
-			if room.address ~= nil then listed[B.tostring(room.address)] = true end
+		if B.type(room) == "table" and B.type(own) == "string" then
+			local is_open = room.build_game_hash == other
+			if is_open then room.build_game_hash = own end
+			if room.address ~= nil then listed[B.tostring(room.address)] = { open = is_open, privacy = room.privacy } end
 		end
 		return original(self, room, ...)
 	end)
 	hooks.loader_hook("MenuScreenCampaignMultiplayer", "update_join", function(original, self, ...)
 		local own = B.rawget(B.G, "BUILD_GAME_HASH")
-		if B.type(own) ~= "string" or not joining(other, self, listed) then return original(self, ...) end
+		local hash = B.type(own) == "string" and join_hash(other, self, listed, static) or nil
+		if hash == nil then return original(self, ...) end
 		local address = B.type(self) == "table" and B.tostring(self.join_address) or "?"
 		if told ~= address then
 			told = address
-			log.line("pool: joining an Obsidian lobby, with the open pool's hash")
+			log.line("pool: joining with the open pool's hash")
 		end
-		B.rawset(B.G, "BUILD_GAME_HASH", other)
+		B.rawset(B.G, "BUILD_GAME_HASH", hash)
 		local r = { n = 0 }
 		local function keep(...)
 			r = { n = B.select("#", ...), ... }
@@ -105,7 +138,44 @@ function M.bridge(core, hooks, tag)
 		if not r[1] then B.error(r[2], 0) end
 		return B.unpack(r, 2, r.n)
 	end)
-	log.line("pool: open pool lobbies listed too")
+	local function on_join_request(original, self, peer, game_hash, ...)
+		local own = B.rawget(B.G, "BUILD_GAME_HASH")
+		local public = static and in_public_lobby_as_host()
+		if game_hash == other and B.type(own) == "string" then
+			game_hash = own
+		elseif public and game_hash == own then
+			-- The game turns it away as another version.
+			game_hash = B.tostring(own) .. "-public"
+			log.line("pool: turned away a player without Obsidian from a public lobby")
+		end
+		return original(self, peer, game_hash, ...)
+	end
+	for _, class in B.ipairs({ "StateMenu", "StateMissionStart", "StateGame", "StateMissionEnd" }) do
+		hooks.loader_hook(class, "rpc_on_join_request", on_join_request)
+	end
+	if static then
+		-- The game writes the room hash before the privacy, and the privacy again when it changes.
+		hooks.loader_hook("NetworkRoom", "set_data", function(original, self, key, value, ...)
+			local own = B.rawget(B.G, "BUILD_GAME_HASH")
+			local function privacy()
+				local ok, v = B.pcall(self.get_data, self, "privacy")
+				return ok and v or nil
+			end
+			if key == "build_game_hash" and value == own and is_public(privacy()) then value = other end
+			-- NetworkRoom.set_data answers nothing.
+			original(self, key, value, ...)
+			if key == "privacy" then
+				local ok, cur = B.pcall(self.get_data, self, "build_game_hash")
+				local want = is_public(value) and other or own
+				if ok and (cur == own or cur == other) and cur ~= want then
+					original(self, "build_game_hash", want)
+					log.line("pool: lobby " .. (want == other and "public, open pool hash" or "not public, game hash"))
+				end
+			end
+			return
+		end)
+	end
+	log.line("pool: open pool lobbies listed too" .. (static and ", public door on" or ""))
 	return true
 end
 

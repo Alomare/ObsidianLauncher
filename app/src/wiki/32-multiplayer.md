@@ -12,13 +12,12 @@ Obsidian holds session mods back only in public lobbies, where you can end up wi
 
 ## Matchmaking
 
-Obsidian changes which public lobbies you can find, so a vanilla player never ends up in a modded game by chance.
+Session mods don't change who you find or who can join you. Vanilla players see your lobby and can join it, and you can join theirs. In a public lobby, your session mods switch off while a vanilla player is there (see below).
 
 | Your setup | Who you find in matchmaking |
 |---|---|
-| No session mods | Everyone, players with session mods included. Your own lobby shows for everyone. Expansions don't change this |
-| No session mods, blocking on | Everyone without session mods. This is normal play |
-| Session mods deployed | Only other Obsidian players with session mods |
+| No session mods, or session mods that switch off live | Everyone. Your lobby shows for everyone. Expansions don't change this |
+| Session mods that can't switch off live | Everyone. While your lobby is public, only Obsidian players can join it, and you can join another public lobby only when its host runs such content too |
 | A mod every player needs deployed | Only players who run that same mod, at the same version |
 | Hosting the content of an expansion | Your lobby shows only for players who run that expansion, at the same version |
 
@@ -67,7 +66,7 @@ Once the content starts, every game in the lobby follows the host. A player who 
 
 ## Mods that can't switch off live
 
-Some session content can't be switched off in the middle of a game: data overrides and older imported mods. If a vanilla player, or one who blocks session mods, ends up in such a public lobby, the loader records a warning in `loader.log` and the session mods that can switch off stay off. Leave the lobby, or play in a friends-only lobby.
+Some session content can't be switched off in the middle of a game: data overrides and older imported mods. While a player with such content hosts a public lobby, vanilla players can't join it and the game tells them the version doesn't match. That player also can't take the content into a public lobby whose host doesn't run such content. Friends-only and private lobbies are open to everyone. If a player who blocks session mods ends up in such a public lobby, the loader records a warning in `loader.log` and the session mods that can switch off stay off. Leave the lobby, or play in a friends-only lobby.
 
 ## Invites
 

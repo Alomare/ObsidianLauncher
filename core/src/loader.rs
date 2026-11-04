@@ -647,7 +647,7 @@ mod tests {
         assert_eq!(hash.len(), 16);
         assert_eq!(table["every"].as_object().unwrap().len(), 1);
         assert_eq!(table["hashes"]["every"], every_pool_tag([("big", hash)]));
-        assert_eq!(table["hashes"]["open"], open_pool_tag(), "kept for players who only allow other players' mods");
+        assert_eq!(table["hashes"]["open"], open_pool_tag(), "kept for the bridge to the open pool");
     }
 
     fn scope_in<'a>(table: &'a Value, id: &str) -> &'a str {

@@ -12,13 +12,12 @@ O Obsidian só segura os mods de sessão em lobbies públicos, onde você pode c
 
 ## Matchmaking {#matchmaking}
 
-O Obsidian muda quais lobbies públicos você encontra, para que um jogador sem mods nunca caia num jogo modificado por acaso.
+Mods de sessão não mudam quem você encontra nem quem pode entrar no seu lobby. Jogadores sem mods veem o seu lobby e podem entrar, e você pode entrar no deles. Num lobby público, os seus mods de sessão desligam enquanto houver um jogador sem mods (veja abaixo).
 
 | A sua configuração | Quem você encontra no matchmaking |
 |---|---|
-| Sem mods de sessão | Todo mundo, inclusive jogadores com mods de sessão. O seu próprio lobby aparece para todo mundo. Expansões não mudam isso |
-| Sem mods de sessão, bloqueio ligado | Todo mundo sem mods de sessão. É o jogo normal |
-| Mods de sessão aplicados | Só outros jogadores do Obsidian com mods de sessão |
+| Sem mods de sessão, ou com mods de sessão que desligam na hora | Todo mundo. O seu lobby aparece para todo mundo. Expansões não mudam isso |
+| Mods de sessão que não desligam na hora | Todo mundo. Enquanto o seu lobby for público, só jogadores do Obsidian podem entrar, e você só entra em outro lobby público se o anfitrião também rodar conteúdo assim |
 | Um mod que todos os jogadores precisam ter aplicado | Só jogadores que rodam esse mesmo mod, na mesma versão |
 | Hospedando o conteúdo de uma expansão | O lobby só aparece para jogadores que rodam essa expansão, na mesma versão |
 
@@ -67,7 +66,7 @@ Depois que o conteúdo começa, todos os jogos do lobby seguem o host. Um jogado
 
 ## Mods que não desligam na hora {#mods-that-can-t-switch-off-live}
 
-Parte do conteúdo de sessão não pode ser desligada no meio do jogo: substituições de dados e mods antigos importados. Se um jogador sem mods, ou um que bloqueia mods de sessão, cair num lobby público assim, o loader registra um aviso no `loader.log` e os mods de sessão que podem desligar continuam desligados. Saia do lobby, ou jogue num lobby só para amigos.
+Parte do conteúdo de sessão não pode ser desligada no meio do jogo: substituições de dados e mods antigos importados. Enquanto um jogador com esse conteúdo hospeda um lobby público, jogadores sem mods não conseguem entrar, e o jogo diz que a versão não bate. Esse jogador também não leva o conteúdo para um lobby público cujo anfitrião não rode conteúdo assim. Lobbies só para amigos e privados ficam abertos a todos. Se um jogador que bloqueia mods de sessão cair num lobby público assim, o loader registra um aviso no `loader.log` e os mods de sessão que podem desligar continuam desligados. Saia do lobby, ou jogue num lobby só para amigos.
 
 ## Convites {#invites}
 

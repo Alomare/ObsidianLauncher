@@ -22,7 +22,7 @@ If the game stops later, Obsidian tells you the game didn't close normally. A cr
 
 ## "Build unknown"
 
-The game files don't match the build Obsidian knows, so nothing gets deployed and the loader starts no mod. Purge, then verify the game files in Steam. If you used another mod tool that edits bundles directly, verifying puts the originals back.
+The game files don't match the build Obsidian knows, so nothing gets deployed and the loader starts no mod. This happens when a mod was copied straight into the game's `contents` folder over the original files. Purge, then verify the game files in Steam to put the originals back. Then add that mod in Obsidian with **Add mods** instead, which deploys it without touching the originals.
 
 ## Logs
 
