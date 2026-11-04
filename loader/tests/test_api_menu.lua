@@ -116,12 +116,12 @@ local function rows_shown(ui)
 	return n
 end
 
--- The title bar's words: the text drawn just right of the shield.
+-- The title bar's words: the text drawn at the left end of the bar, where the margin ends.
 local function title_of(e, ui)
 	local M = menu_of(e)
 	local kit = M.kit
 	for _, t in ipairs(ui.texts) do
-		if math.abs(t.pos.x - kit.ox - (M.win.x + 38) * kit.scale) < 0.01 then return t.text end
+		if math.abs(t.pos.x - kit.ox - (M.win.x + 14) * kit.scale) < 0.01 then return t.text end
 	end
 	return nil
 end
@@ -549,6 +549,62 @@ test("back_right_click_and_close", function()
 	E.eq(ui.shown("God mode"), true, "a right click goes back too")
 	ui.click(middle(e, menu_of(e).hits.close))
 	E.eq(menu().is_open(), false, "the close button closes")
+end)
+
+test("the_window_plays_the_games_menu_sounds_quietly", function()
+	local e, ui = start(PAGE)
+	local played = {}
+	rawset(_G, "TimpaniWorld", {
+		has_event = function(world, name) return world == "ui sounds" end,
+		trigger_event = function(world, name)
+			played[#played + 1] = { world = world, name = name }
+			return #played
+		end,
+		set_parameter = function(_, id, name, value) played[id][name] = value end,
+	})
+	rawget(_G, "World").timpani_world = function(w) return w == "brightness" and "ui sounds" or nil end
+	open_player(e, ui)
+	ui.frame()
+	E.eq(played[1].name, "ui_select", "opening, then into the page")
+	E.eq(played[1].volume, 0.35)
+	for _ = 1, 6 do ui.frame() end
+	ui.tap("down")
+	ui.frame()
+	E.eq(played[#played].name, "ui_move", "moving")
+	ui.tap("up")
+	for _ = 1, 6 do ui.frame() end
+	ui.tap("enter")
+	ui.frame()
+	E.eq(values().god, true)
+	E.eq(played[#played].name, "ui_move", "a toggle changes")
+	ui.tap("esc")
+	ui.frame()
+	E.eq(played[#played].name, "ui_back", "back to the list")
+	ui.tap("esc")
+	ui.frame()
+	E.eq(menu().is_open(), false)
+	E.eq(played[#played].name, "ui_back", "closing")
+	local n = #played
+	menu().open()
+	ui.state = "menu"
+	ui.frame()
+	ui.frame()
+	E.eq(menu().is_open(), false, "a new screen closes it")
+	E.eq(#played, n, "without a sound")
+	rawset(_G, "TimpaniWorld", nil)
+end)
+
+test("the_title_bars_have_no_shield", function()
+	local e, ui = start(PAGE)
+	open_root(ui)
+	local kit = menu_of(e).kit
+	local win = menu_of(e).win
+	E.eq(title_of(e, ui), "Test Mod", "the title at the margin")
+	for _, t in ipairs(ui.triangles) do
+		local x, y = (t.a.x - kit.ox) / kit.scale, (t.a.z - kit.oy) / kit.scale
+		local in_corner = x > win.x + 10 and x < win.x + 32 and y > win.top - 30 and y < win.top - 4
+		E.eq(in_corner and t.color[2] == 240 and t.color[3] == 180, false, "no gold glyph at the left of the title bar")
+	end
 end)
 
 test("with_no_page_to_list_the_window_says_so_and_closes", function()

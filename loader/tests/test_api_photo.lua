@@ -434,6 +434,387 @@ test("a_hidden_panel_draws_nothing_and_a_shot_holds_every_panel_back", function(
 	E.eq(panel():hidden(), false)
 end)
 
+-- Where a point of the open panel is on screen, in pixels: the panel scales around the corner it's kept at.
+local function screen_at(e, x, y)
+	local M = menu_of(e)
+	local p, kit = M.panel_on, M.kit
+	local s, ax, ay = p.scale_now, p.place.x, p.place.y
+	return kit.ox + (ax + (x - ax) * s) * kit.scale, kit.oy + (ay + (y - ay) * s) * kit.scale
+end
+
+local function middle_of(e, area) return screen_at(e, area.x + area.w / 2, area.y + area.h / 2) end
+
+-- The screen in the kit's units.
+local function visible_of(e)
+	local kit = menu_of(e).kit
+	local left, bottom = kit:point(0, 0)
+	local right, top = kit:point(1920, 1080)
+	return left, bottom, right, top
+end
+
+local function count_texts(ui, pattern)
+	local n = 0
+	for _, t in ipairs(ui.texts) do
+		if string.find(t.text, pattern) then n = n + 1 end
+	end
+	return n
+end
+
+local HELP_WORDS = {}
+for i = 1, 120 do HELP_WORDS[i] = "w" .. i end
+
+local LONG_PANEL = [[
+	local api = obsidian.import("obsidian.api")
+	VALUES = { reset = 0 }
+	PANEL = api.menu.panel({ title = "Long", id = "long",
+		buttons = { { glyph = "reset", help = "Puts every value back.", run = function()
+			VALUES.reset = VALUES.reset + 1
+			VALUES.by = obsidian.caller()
+			return "All back"
+		end } },
+		tabs = {
+			{ title = "Camera", icon = "weapons", build = function(page)
+				for i = 1, 30 do
+					page:toggle("Row " .. i .. ".", { get = function() return false end, set = function() end, help = "]] .. table.concat(HELP_WORDS, " ") .. [[" })
+				end
+			end },
+			{ title = "Lens", icon = "search", build = function(page) page:label("Glass") end },
+			{ title = "Scene", icon = "no_such_icon", build = function(page) page:label("Here") end },
+		} })
+]]
+
+local function relaunch(e, p)
+	e.loaded["obsidian/loader/storage"].loaded = {}
+	p.loaded, p.place, p.alpha_now, p.scale_now, p.foot = false, nil, 0.5, 1, 0
+end
+
+test("a_new_panel_sits_at_the_bottom_right_three_wide_by_two_high", function()
+	local e, ui = start_mod(PANEL)
+	panel():open()
+	ui.frame()
+	local p = panel()
+	local _, bottom, right = visible_of(e)
+	near(p.screen.x + p.screen.w, right - 18, "at the right edge, inside the margin")
+	near(p.screen.top - p.screen.h, bottom + 18, "at the bottom")
+	near(p.box.w / p.box.h, 1.5, "three wide by two high")
+	E.eq(p:opacity(), 0.5)
+	E.eq(p:scale(), 1)
+	local grip = menu_of(e).hits.grip
+	near(grip.x, p.box.x, "the grip in the corner across from the anchor's")
+	near(grip.y + grip.h, p.box.top)
+end)
+
+test("a_panel_drags_by_the_title_resizes_from_the_grip_and_stays_on_screen", function()
+	local e, ui = start_mod(PANEL)
+	panel():open()
+	ui.frame()
+	local M, p = menu_of(e), panel()
+	local left, bottom, right, top = visible_of(e)
+	local x, y = middle_of(e, M.hits.title)
+	ui.press(x, y)
+	ui.move(x - 150, y + 60)
+	near(p.screen.x + p.screen.w, right - 18 - 100, "moved left")
+	near(p.screen.top - p.screen.h, bottom + 18 + 40, "and up")
+	ui.move(9000, -9000)
+	near(p.screen.x + p.screen.w, right, "stopped at the right edge")
+	near(p.screen.top - p.screen.h, bottom, "stopped at the bottom edge")
+	ui.release()
+	E.eq(M.drag, nil)
+	local w, h, corner_x, corner_y = p.box.w, p.box.h, p.place.x, p.place.y
+	x, y = middle_of(e, M.hits.grip)
+	ui.press(x, y)
+	ui.move(x - 60, y + 45)
+	near(p.box.w, w + 40, "wider")
+	near(p.box.h, h + 30, "taller")
+	near(p.place.x, corner_x, "the kept corner stays put")
+	near(p.place.y, corner_y)
+	ui.move(-9000, 9000)
+	near(p.screen.x, left, "not wider than the screen")
+	near(p.screen.top, top, "nor taller")
+	ui.move(9000, -9000)
+	E.eq(p.box.w, 300, "not narrower than the rows need")
+	E.eq(p.box.h, 200)
+	ui.release()
+end)
+
+test("a_panel_keeps_its_place_size_help_room_opacity_and_scale_for_the_next_launch", function()
+	local e, ui = start_mod(LONG_PANEL)
+	local p = panel()
+	p:open()
+	ui.frame()
+	local M = menu_of(e)
+	local x, y = middle_of(e, M.hits.title)
+	ui.press(x, y)
+	ui.move(x - 150, y + 60)
+	ui.release()
+	x, y = middle_of(e, M.hits.divider)
+	ui.press(x, y)
+	ui.move(x, y + 30)
+	ui.release()
+	E.eq(p:set_opacity(0.3), true)
+	E.eq(p:set_scale(1.2), true)
+	ui.frame()
+	local place, foot = { x = p.place.x, y = p.place.y, w = p.place.w, h = p.place.h }, p.foot
+	p:close()
+	relaunch(e, p)
+	p:open()
+	ui.frame()
+	near(p.place.x, place.x, "the place")
+	near(p.place.y, place.y)
+	near(p.place.w, place.w, "the size")
+	near(p.place.h, place.h)
+	near(p.foot, foot, "the help's room")
+	near(p:opacity(), 0.3, "the opacity")
+	near(p:scale(), 1.2, "the scale")
+	local core = e:core()
+	local was = core.current
+	core.current = core.mods_by_id["obsidian.api"]
+	E.eq(type(rawget(_G, "obsidian").storage.get("menu/panel/m/long")), "string", "in Obsidian API's storage, by mod and id")
+	core.current = was
+	E.eq(p:reset_place(), true)
+	ui.frame()
+	local _, bottom, right = visible_of(e)
+	near(p.screen.x + p.screen.w, right - 18, "back in the corner")
+	near(p.screen.top - p.screen.h, bottom + 18)
+	near(p:opacity(), 0.3, "the opacity stays")
+end)
+
+test("the_wheel_scrolls_a_panel_only_with_the_mouse_over_it", function()
+	local e, ui = start_mod(LONG_PANEL)
+	panel():open()
+	ui.frame()
+	local M = menu_of(e)
+	ui.move(middle_of(e, M.hits.rows[2]))
+	E.eq(ui.shown("Row 1."), true)
+	ui.scroll(-1)
+	E.eq(ui.shown("Row 1."), false, "scrolled")
+	E.eq(ui.shown("Row 4."), true, "by three rows")
+	local top = M.stack[#M.stack].top
+	ui.move(5, 5)
+	ui.scroll(-1)
+	E.eq(M.stack[#M.stack].top, top, "the wheel away from the panel is the mod's")
+end)
+
+test("a_panels_background_takes_the_opacity_and_the_words_stay_whole", function()
+	local e, ui = start_mod(PANEL)
+	local p = panel()
+	p:open()
+	ui.frame()
+	local function body_alpha()
+		for _, t in ipairs(ui.triangles) do
+			if t.color[2] == 41 and t.color[3] == 44 and t.color[4] == 48 then return t.color[1] end
+		end
+	end
+	near(body_alpha(), 125, "half of the background at first")
+	E.eq(ui.find("Field of view").color[1], 255, "the rows at full strength")
+	p:set_opacity(0.2)
+	ui.frame()
+	near(body_alpha(), 50)
+	p:set_opacity(5)
+	ui.frame()
+	near(body_alpha(), 250, "held at 1")
+	E.eq(select(2, p:set_opacity("half")), "bad_type")
+end)
+
+test("a_scaled_panel_grows_from_its_corner_and_the_mouse_follows", function()
+	local e, ui = start_mod(PANEL)
+	local p = panel()
+	p:open()
+	ui.frame()
+	local kit = menu_of(e).kit
+	local right, bottom = p.screen.x + p.screen.w, p.screen.top - p.screen.h
+	local size = ui.find("Photo Mode").size
+	E.eq(p:set_scale(1.5), true)
+	ui.frame()
+	near(p.screen.x + p.screen.w, right, "the corner stays")
+	near(p.screen.top - p.screen.h, bottom)
+	near(p.screen.w, p.box.w * 1.5, "half again as wide")
+	near(ui.find("Photo Mode").size, size * 1.5, "and the words as big")
+	near(size, 21 * kit.scale)
+	local row = row_named(e, "Mode")
+	ui.click(middle_of(e, row.plus))
+	E.eq(values().mode, "orbit", "a click lands on the scaled row")
+	p:set_scale(3)
+	E.eq(p:scale(), 1.6)
+	p:set_scale(0.1)
+	E.eq(p:scale(), 0.6)
+end)
+
+test("icon_tabs_show_the_icon_and_the_title_over_the_help", function()
+	local e, ui = start_mod(LONG_PANEL)
+	panel():open()
+	ui.frame()
+	local M = menu_of(e)
+	E.eq(M.hits.tabs[1].icon, true, "a glyph draws")
+	E.eq(M.hits.tabs[3].icon, false, "an unknown icon doesn't")
+	E.eq(ui.shown("Scene"), true, "so that tab's title shows instead")
+	E.eq(ui.shown("Lens"), false, "an icon tab shows no title")
+	E.eq(ui.shown("Camera"), true, "the open tab's title, over the help")
+	ui.move(middle_of(e, M.hits.tabs[2]))
+	E.eq(ui.shown("Lens"), true, "the title of the tab under the mouse")
+	E.eq(ui.shown("Camera"), false)
+	ui.click(middle_of(e, M.hits.tabs[2]))
+	ui.move(5, 5)
+	E.eq(panel():tab_number(), 2)
+	E.eq(ui.shown("Lens"), true, "the open tab")
+end)
+
+test("a_header_button_runs_as_the_mod_and_shows_its_help", function()
+	local e, ui = start_mod(LONG_PANEL)
+	panel():open()
+	ui.frame()
+	local M = menu_of(e)
+	local button = M.hits.buttons[1]
+	E.eq(button.x + button.w <= M.hits.close.x, true, "left of the close button")
+	ui.move(middle_of(e, button))
+	E.eq(ui.shown("Puts every value back."), true, "the help, in the foot")
+	ui.click(middle_of(e, button))
+	ui.frame()
+	E.eq(values().reset, 1)
+	E.eq(values().by, "m", "as the mod")
+	E.eq(ui.shown("All back"), true, "an answer becomes a toast")
+	E.eq(panel():is_open(), true)
+end)
+
+test("the_help_fits_four_lines_and_the_line_over_it_drags", function()
+	local e, ui = start_mod(LONG_PANEL)
+	local p = panel()
+	p:open()
+	ui.frame()
+	local M = menu_of(e)
+	E.eq(count_texts(ui, "^w%d+"), 3, "four lines: the tab's title, then three of help")
+	local rows = #M.hits.rows
+	local x, y = middle_of(e, M.hits.divider)
+	ui.press(x, y)
+	ui.move(x, y + 48)
+	ui.release()
+	E.eq(count_texts(ui, "^w%d+"), 5, "two lines more")
+	E.eq(#M.hits.rows < rows, true, "and fewer rows")
+	ui.press(middle_of(e, M.hits.divider))
+	ui.move(x, -9000)
+	ui.release()
+	E.eq(count_texts(ui, "^w%d+"), 0, "one line at the least, the tab's title")
+	E.eq(ui.shown("Camera"), true)
+	ui.press(middle_of(e, M.hits.divider))
+	ui.move(x, 9000)
+	ui.release()
+	E.eq(#M.hits.rows, 2, "two rows at the least")
+end)
+
+test("a_hidden_cursor_stays_hidden_and_the_panel_leaves_the_mouse", function()
+	local e, ui = start_mod(PANEL)
+	local p = panel()
+	p:open()
+	ui.frame()
+	E.eq(ui.cursor.shown, true)
+	E.eq(p:set_cursor_hidden(true), true)
+	ui.frame()
+	ui.frame()
+	E.eq(ui.cursor.shown, false, "not shown again each frame")
+	E.eq(p:cursor_hidden(), true)
+	local row = row_named(e, "Mode")
+	ui.click(middle_of(e, row.plus))
+	E.eq(values().mode, "free", "a click goes to the mod")
+	E.eq(p:under_mouse(), false)
+	p:set_cursor_hidden(false)
+	ui.frame()
+	E.eq(ui.cursor.shown, true, "back")
+	E.eq(ui.cursor.name, "hud/cursors/menu")
+	p:set_cursor_hidden(true)
+	p:close()
+	E.eq(p:cursor_hidden(), false, "closing brings it back")
+end)
+
+test("a_panel_down_the_left_still_docks_there_full_height", function()
+	local e, ui = start_mod([[
+		local api = obsidian.import("obsidian.api")
+		PANEL = api.menu.panel({ title = "Side", side = "left", tabs = { { title = "One", build = function(page) page:label("Text") end } } })
+	]])
+	local p = panel()
+	p:open()
+	ui.frame()
+	local left, bottom, _, top = visible_of(e)
+	near(p.screen.x, left + 18, "at the left")
+	near(p.screen.top, top - 18, "from the top")
+	near(p.screen.h, top - bottom - 36, "the full height")
+	near(p.box.w, 390)
+	local grip = menu_of(e).hits.grip
+	near(grip.x + grip.w, p.box.x + p.box.w, "the grip at the bottom right")
+	near(grip.y, p.box.top - p.box.h)
+end)
+
+-- The sound world of the world the engine keeps for drawing the screen, which records what plays.
+local function ui_sounds(has)
+	local played = {}
+	rawset(_G, "TimpaniWorld", {
+		has_event = function(world, name) return world == "ui sounds" and has ~= false and name:sub(1, 3) == "ui_" end,
+		trigger_event = function(world, name)
+			played[#played + 1] = { world = world, name = name }
+			return #played
+		end,
+		set_parameter = function(_, id, name, value) played[id][name] = value end,
+	})
+	rawget(_G, "World").timpani_world = function(w) return w == "brightness" and "ui sounds" or nil end
+	return played
+end
+
+local function wait(ui, n)
+	for _ = 1, n or 6 do ui.frame() end
+end
+
+test("a_panel_plays_the_games_menu_sounds_quietly", function()
+	local e, ui = start_mod(PANEL)
+	local played = ui_sounds()
+	panel():open()
+	ui.frame()
+	E.eq(played[1].name, "ui_select", "opening")
+	E.eq(played[1].world, "ui sounds", "in the world that runs while a mission is paused")
+	near(played[1].volume, 0.35, "quietly")
+	wait(ui)
+	ui.tap("down")
+	ui.frame()
+	E.eq(played[#played].name, "ui_move", "moving")
+	wait(ui)
+	local n = #played
+	ui.tap("right")
+	ui.tap("right")
+	ui.frame()
+	E.eq(values().fov, 70, "two steps")
+	E.eq(#played, n + 1, "one sound for steps closer together than 0.06 s")
+	E.eq(played[#played].name, "ui_move")
+	wait(ui)
+	ui.tap("tab")
+	ui.frame()
+	E.eq(played[#played].name, "ui_move", "a new tab")
+	ui.tap("esc")
+	ui.frame()
+	E.eq(played[#played].name, "ui_back", "closing")
+	rawset(_G, "TimpaniWorld", nil)
+end)
+
+test("a_panel_with_sounds_off_plays_none_and_a_missing_event_plays_nothing", function()
+	local e, ui = start_mod([[
+		local api = obsidian.import("obsidian.api")
+		PANEL = api.menu.panel({ title = "Quiet", sounds = false, tabs = {
+			{ title = "One", build = function(page) page:toggle("A", { get = function() return false end, set = function() end }) page:toggle("B", {}) end } } })
+		LOUD = api.menu.panel({ title = "Loud", tabs = { { title = "One", build = function(page) page:label("Text") end } } })
+	]])
+	local played = ui_sounds()
+	panel():open()
+	ui.frame()
+	ui.tap("down")
+	ui.frame()
+	ui.tap("esc")
+	ui.frame()
+	E.eq(#played, 0, "sounds = false")
+	local none = ui_sounds(false)
+	rawget(_G, "LOUD"):open()
+	ui.frame()
+	E.eq(rawget(_G, "LOUD"):is_open(), true)
+	E.eq(#none, 0, "a sound world without the event")
+	rawset(_G, "TimpaniWorld", nil)
+end)
+
 -- The pause menu, as test_api.lua fakes it, with the state that owns it.
 local function fake_pause_menu()
 	local lm = rawget(_G, "LocalizationManager") or { string = function(_, k) return "LOC:" .. k end }
