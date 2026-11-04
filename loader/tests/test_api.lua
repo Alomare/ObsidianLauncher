@@ -3948,7 +3948,7 @@ test("mod_settings_rows_bound_to_options_start_from_obsidian_and_keep_changes_fo
 end)
 
 -- Obsidian Patches' page: the four options that change how the game plays, each bound to its option.
-test("obsidian_patches_binds_five_options_to_the_mods_page", function()
+test("obsidian_patches_binds_four_options_to_the_mods_page", function()
 	local e = G.start({ "obsidian.api", "obsidian.qol" }, { scope = "client" })
 	e:core().current = e:core().mods_by_id["obsidian.api"]
 	local page = rawget(_G, "obsidian").import("obsidian.api").mod_settings.pages["obsidian.qol"]
@@ -3958,7 +3958,7 @@ test("obsidian_patches_binds_five_options_to_the_mods_page", function()
 		E.eq(row.option, true, row.id)
 		ids[#ids + 1] = row.id
 	end
-	E.eq(table.concat(ids, ","), "expedite_mission_end,solo_pause,aim_cursor,toggle_map,dynamic_input")
+	E.eq(table.concat(ids, ","), "expedite_mission_end,solo_pause,aim_cursor,toggle_map")
 	E.eq(page.title, "Obsidian Patches", "the name in full")
 	E.eq(page.rows[1].kind, "choice")
 	E.eq(type(page.rows[2].label), "table", "words by language")
