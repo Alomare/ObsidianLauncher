@@ -16,7 +16,7 @@ describe("filterMods", () => {
   });
   it("also looks in the description and the id", () => {
     expect(filterMods(rows, "enemy").map((r) => r.id)).toEqual(["a"]);
-    expect(filterMods([row("obsidian.qol", "Quality of Life", [])], "obsidian.qol")).toHaveLength(1);
+    expect(filterMods([row("obsidian.qol", "Obsidian Patches", [])], "obsidian.qol")).toHaveLength(1);
   });
   it("keeps everything for an empty or blank query", () => {
     expect(filterMods(rows, "")).toEqual(rows);

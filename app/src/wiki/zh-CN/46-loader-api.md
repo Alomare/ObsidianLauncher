@@ -63,7 +63,7 @@ end)
 
 ### obsidian.session.members() {#obsidian-session-members}
 
-大厅中其他玩家的列表。每项包含 `peer`、`obsidian`（该玩家是否使用 Obsidian）、`modset` 和 `consent`。
+大厅中其他玩家的列表。每项包含 `peer`、`obsidian`（该玩家是否使用 Obsidian）、`modset` 和 `consent`（除非该玩家在公开大厅中阻止他人的会话模组，否则为 true）。
 
 若要仅在所有玩家都有你的模组时运行，请在清单中设置 [`every_player`](wiki:session-mods#every-player)，无需自行比较这些数据。
 
@@ -73,7 +73,7 @@ end)
 
 ### obsidian.guardrails() {#obsidian-guardrails}
 
-玩家在 **防护** 中为本次启动所做的选择，形式为 `{ consent, block_achievements, freeze_progress }`。模组可以读取它们，例如提示玩家账号已冻结。只有玩家可以更改它们，加载器会在所有模组之下执行它们（[防护](wiki:guardrails)）。
+玩家在 **防护** 中为本次启动所做的选择，形式为 `{ consent, block_achievements, freeze_progress }`，玩家在公开大厅中阻止他人的会话模组时 `consent` 为 false。模组可以读取它们，例如提示玩家账号已冻结。只有玩家可以更改它们，加载器会在所有模组之下执行它们（[防护](wiki:guardrails)）。
 
 ### obsidian.on_session(fn) {#obsidian-on-session-fn}
 

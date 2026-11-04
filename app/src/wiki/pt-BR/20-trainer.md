@@ -67,7 +67,7 @@ Cada opção tem uma descrição no rodapé do menu enquanto está selecionada. 
 
 ## Jogar com outras pessoas {#playing-with-others}
 
-O Trainer é um mod de sessão, então todos no lobby precisam usar os mesmos mods ou permitir mods de sessão ([Jogar online](wiki:multiplayer)). Quando entra alguém que não cumpre isso, cada mudança é desfeita e as páginas do Trainer fecham até esse jogador sair. Depois as mudanças voltam.
+O Trainer é um mod de sessão, então num lobby público todos precisam usar os mesmos mods ou permitir mods de sessão ([Jogar online](wiki:multiplayer)). Quando entra alguém que não cumpre isso, cada mudança é desfeita e as páginas do Trainer fecham até esse jogador sair. Depois as mudanças voltam. Num lobby só para amigos ou privado, ele sempre roda.
 
 Os números do Editor e as duas linhas de dano rodam no jogo de cada jogador, então funcionam melhor quando todos usam os mesmos.
 

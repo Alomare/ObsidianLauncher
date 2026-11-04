@@ -304,6 +304,28 @@ test("every_new_row_changes_what_it_says", function()
 	E.eq(api.effects.get("mutator"), "super_boots")
 	E.eq(rows["Proving grounds modifier"].choices[2].label, "Super boots", "the game's name, or a readable form of it")
 	rows["Proving grounds modifier"].set(false)
+	rows["Auto-respawn"].set(true)
+	E.eq(api.effects.is_on("auto_respawn"), true)
+	E.eq(rows["Auto-respawn"].get(), true)
+	rows["Auto-respawn"].set(false)
+	rows["Practice mission"](page)
+	E.eq(rows["Look"].choices[1].label, "Random")
+	E.eq(rows["Look"].choices[5].label, "Bug world")
+	E.eq(rows["Layout"].max, 215)
+	local asked
+	local real = api.mission.practice
+	api.mission.practice = function(choice) asked = choice return false, "look_not_here" end
+	rows["Look"].set(5)
+	rows["Layout"].set(12)
+	E.eq(rows["Drop"](), "This look doesn't exist on this planet type.")
+	E.eq(asked.look, 5)
+	E.eq(asked.layout, 12)
+	rows["Look"].set(0)
+	rows["Layout"].set(0)
+	rows["Drop"]()
+	E.eq(asked.look, nil, "random")
+	E.eq(asked.layout, nil, "random")
+	api.mission.practice = real
 	page_of("enemies")(page)
 	rows["Encounter difficulty"].set(15)
 	E.eq(api.effects.get("enemy_difficulty"), 15)
@@ -366,10 +388,17 @@ end)
 
 test("every_reason_the_runtime_gives_has_a_text", function()
 	local en = keys_of("en")
-	for _, name in ipairs({ "game", "edits", "console", "catalog", "world", "player", "gear", "stratagems", "enemies", "mission", "progress", "events", "combat", "vehicles", "lobby", "ui", "audio" }) do
+	for _, name in ipairs({ "game", "edits", "console", "catalog", "world", "player", "gear", "stratagems", "enemies", "mission", "progress", "events", "combat", "vehicles", "lobby", "ui", "audio", "bots" }) do
 		local src = assert(E.read("bundled/obsidian.api/lib/" .. name .. ".lua"))
 		for reason in src:gmatch('return false, "([%w_]+)"') do
-			E.eq(en["why_" .. reason] ~= nil, true, name .. " can answer " .. reason)
+			-- API 1.29.0's pose and flashlight answers: the Trainer calls neither.
+			if reason ~= "no_event" and reason ~= "no_flashlight" then
+				E.eq(en["why_" .. reason] ~= nil, true, name .. " can answer " .. reason)
+			end
+		end
+		-- How a bot's stratagem call ended, which the Trainer shows as a toast.
+		for reason in src:gmatch('finish%(%w+, false, "([%w_]+)"%)') do
+			E.eq(en["why_" .. reason] ~= nil, true, name .. " can end with " .. reason)
 		end
 	end
 end)

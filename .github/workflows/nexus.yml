@@ -1,5 +1,7 @@
 # Uploads a release's installer and portable ZIP to Nexus Mods, as new versions of the Setup and Portable files
-# already on the mod page. The mod's version follows, and the release text becomes each version's changelog.
+# already on the mod page. The mod's version follows, and the release text becomes each version's changelog: one line per
+# manager change, without the Obsidian Kit's updates. The files' titles and descriptions are the ones on the page, set by
+# hand there, and stay as they are (tools/nexus_release.py).
 # It runs when a release is published (the Release workflow makes a draft; publishing it starts this), and by
 # hand from the Actions tab for a tag that's already out. Drafts and pre-releases are never uploaded.
 #
@@ -33,6 +35,8 @@ jobs:
   nexus:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - name: Check the API key is set
         env:
           KEY: ${{ secrets.NEXUSMODS_API_KEY }}
@@ -67,28 +71,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body -q .body > body.md
-          # Nexus shows each changelog line as a point of its own: the section headings (Highlights, Additions...)
-          # go, a highlight's title leads its paragraph, and list marks, bold and link targets go
-          python3 - <<'PY' > notes.txt
-          import re
-          out, title = [], None
-          for line in open("body.md", encoding="utf-8").read().replace("\r", "").split("\n"):
-              line = line.strip()
-              if not line or line.startswith("### "):
-                  continue
-              if line.startswith("#### "):
-                  title = line[5:].strip()
-                  continue
-              line = re.sub(r"^[-*]\s+", "", line)
-              line = re.sub(r"\*\*(.+?)\*\*", r"\1", line)
-              line = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", line)
-              if title:
-                  line, title = f"{title}: {line}", None
-              out.append(line)
-          print("\n".join(out))
-          PY
+          python3 tools/nexus_release.py changelog body.md > notes.txt
           test -s notes.txt || echo "Version ${VERSION}." > notes.txt
           { echo 'text<<NOTES_END'; cat notes.txt; echo 'NOTES_END'; } >> "$GITHUB_OUTPUT"
+
+      - name: The files' titles and descriptions on the page now
+        id: page
+        run: python3 tools/nexus_release.py files >> "$GITHUB_OUTPUT"
 
       # New versions of the two files already on the page (Files tab, Advanced, API File ID). The action gets the
       # API key, so it is pinned to the commit of the tag v1.0.0-beta.11 (a tag can be moved); a new version of the
@@ -101,8 +90,8 @@ jobs:
           file_id: '8290677'
           filename: ${{ env.SETUP }}
           version: ${{ env.VERSION }}
-          display_name: Obsidian Mod Manager Setup
-          description: Windows setup. Install like any other program. Updates itself from within the app.
+          display_name: ${{ steps.page.outputs.setup_name }}
+          description: ${{ steps.page.outputs.setup_description }}
           category: main
           archive_existing_version: true
           primary_mod_manager_download: true
@@ -118,8 +107,8 @@ jobs:
           file_id: '8290683'
           filename: ${{ env.PORTABLE }}
           version: ${{ env.VERSION }}
-          display_name: Obsidian Mod Manager Portable
-          description: Portable ZIP. Unzip anywhere and run Obsidian.exe; it keeps its data beside it.
+          display_name: ${{ steps.page.outputs.portable_name }}
+          description: ${{ steps.page.outputs.portable_description }}
           category: main
           archive_existing_version: true
           primary_mod_manager_download: false

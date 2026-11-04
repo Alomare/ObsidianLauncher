@@ -19,7 +19,7 @@ Mods made by hand usually replace whole bundles. Two such mods overwrite each ot
 
 Mods that run code, such as a camera mod, need a way to start inside the game. Obsidian adds one small script to the game at every deploy: Obsidian Loader. When the game boots, the loader reads the list of deployed mods, starts each one, and keeps an eye on what they are allowed to do.
 
-The loader also handles the multiplayer rules. Mods that change the shared game only run with players who agreed to it, and modded missions are kept out of the Galactic War. [Scopes](wiki:scopes) explains how.
+The loader also handles the multiplayer rules. In a public lobby, mods that change the shared game hold back until every player allows them, and modded missions are kept out of the Galactic War. [Scopes](wiki:scopes) explains how.
 
 ## The tabs
 

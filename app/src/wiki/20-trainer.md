@@ -45,7 +45,7 @@ The menu blocks the character while it's open, and it closes by itself when the 
 - **Weapons:** infinite ammo, instant reload, refills, the fire rate, damage, magazine, reload, spread and armor piercing of each weapon the player holds, and any weapon, backpack or perk from the base game or an owned DLC, with the chosen upgrades.
 - **Stratagems:** no cooldowns, unlimited uses, instant call-ins, ignoring no-stratagem zones, any stratagem from the base game or an owned DLC dropped at the cursor, and real flares, Reinforce included. **New stratagem** builds a stratagem from one of the game's: a name, code, icon, cooldown, uses and call-in time, and what happens when it lands. Other players see the stratagem it started from, and it comes back at the next launch.
 - **Vehicles:** speed, turning, armor, no damage and endless exosuit rockets for the vehicle being driven, plus repairs and refills.
-- **Bots:** Helldivers played by this machine, with a HUD slot or as bare bodies past four players. Orders for every bot or each one: follow the player, hold, walk to the cursor, come to the player, fight, face the cursor, shoot, throw, reload and call stratagems, plus weapons, backpacks, perks and stratagems to give them. Host only, in a mission.
+- **Bots:** Helldivers played by this machine, with a HUD slot or as bare bodies past four players. Orders for every bot or each one: follow the player, hold, walk to the cursor, come to the player, fight, face the cursor, shoot, throw, reload, enter a stratagem code the way a player does and throw the flare at the cursor, and call stratagems, plus weapons, backpacks, perks and stratagems to give them. Host only, in a mission.
 - **Spawn:** ammunition, supply crates and pickups on the spot, and flares at the cursor.
 - **Enemies:** stopping spawns, freezing, blinding or stunning enemies, killing them, spawning more, and setting how hard encounters and patrols push.
 - **Mission:** the objective list, finishing objectives, protecting convoys and escorts, fast extraction, skipping waits, Proving Grounds modifiers in any mission, the players in the lobby, research samples, and practice missions of any kind from the ship.
@@ -67,7 +67,7 @@ Every option has a description at the bottom of the menu while it's selected. Sp
 
 ## Playing with others
 
-The Trainer is a session mod, so everyone in the lobby has to run the same mods or allow session mods ([Playing online](wiki:multiplayer)). When someone joins who hasn't, every change is undone and the Trainer's pages close until that player leaves. Then the changes come back.
+The Trainer is a session mod, so in a public lobby everyone has to run the same mods or allow session mods ([Playing online](wiki:multiplayer)). When someone joins who doesn't, every change is undone and the Trainer's pages close until that player leaves. Then the changes come back. In a friends-only or private lobby it always runs.
 
 Numbers from the Editor and the two damage rows run on each player's game, so they work best when everyone uses the same ones.
 

@@ -8,7 +8,7 @@ summary: O escudo no topo: mods de sessão de outros jogadores, conquistas e a p
 
 ## Mods de sessão de outros jogadores {#session-mods-of-other-players}
 
-**Permitir mods de sessão de outros jogadores no meu jogo** deixa outros jogadores do Obsidian rodarem os mods de sessão deles no seu jogo quando vocês jogam juntos. Ele não decide se os seus próprios mods de sessão rodam ([Jogar online](wiki:multiplayer)).
+**Bloquear mods de sessão dos outros no meu lobby público** mantém os mods de sessão dos outros jogadores fora do seu jogo enquanto você estiver num lobby público com eles. Ele vem desligado, então jogar com outros jogadores do Obsidian simplesmente funciona. Lobbies só para amigos e privados nunca são bloqueados. Ele não decide se os seus próprios mods de sessão rodam ([Jogar online](wiki:multiplayer)).
 
 ## Conquistas {#achievements}
 
@@ -25,9 +25,9 @@ Serve para testar mods, o trainer ou um modo de jogo novo sem que conte.
 
 ## No aplicativo {#in-the-app}
 
-O escudo fica preenchido, com um número, enquanto um dos dois últimos interruptores estiver ligado. Passe o mouse por cima para ver os três. Na lista de perfis, um escudo marca o perfil que tem um deles ligado.
+O escudo fica preenchido, com um número, enquanto algum dos interruptores estiver ligado. Passe o mouse por cima para ver os três. Na lista de perfis, um escudo marca o perfil com um dos dois últimos ligado, e o ícone de jogadores marca o que bloqueia os mods de sessão dos outros.
 
-Um perfil que você compartilha ou importa mantém esses dois, e o Obsidian avisa quando um perfil importado vem com eles ligados. **Permitir mods de sessão de outros jogadores no meu jogo** fica desligado num perfil importado, para cada jogador escolher.
+Um perfil que você compartilha ou importa mantém os dois últimos, e o Obsidian avisa quando um perfil importado vem com eles ligados. **Bloquear mods de sessão dos outros no meu lobby público** fica desligado num perfil importado, para cada jogador escolher.
 
 ## Sempre ligado {#always-on}
 

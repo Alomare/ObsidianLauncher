@@ -639,10 +639,38 @@ local function sync(kit)
 end
 
 -- The menu is the loader's own, and the fonts' gui is what it needs, so a system kit doesn't wait.
+-- While a mod has asked for the screen (M.solo), only the kits of the mods it named draw.
 local function ready(kit)
 	if not (M.can_draw or kit.system) then return false end
+	if M.solo_ids and not kit.system and not M.solo_ids[kit.owner.id or ""] then return false end
 	sync(kit)
 	return canvas_gui() ~= nil
+end
+
+-- Only the kits of the mods in `ids` (a list of mod ids) draw, until solo(nil): a photo mode wants the
+-- screen to itself. An empty list holds every mod's drawing back. The loader's own menu always draws.
+-- Asking again replaces the list. A mod switched off while it holds the screen lets it go.
+function M.solo(ids)
+	if ids == nil or ids == false then
+		M.solo_ids, M.solo_by = nil, nil
+		return true
+	end
+	if B.type(ids) ~= "table" then return false, "bad_type" end
+	local set = {}
+	for _, id in B.ipairs(ids) do
+		if B.type(id) == "string" then set[id] = true end
+	end
+	M.solo_ids, M.solo_by = set, M.core.current
+	return true
+end
+
+-- The ids solo() was given, as a fresh list, or nil when every mod draws.
+function M.soloed()
+	if not M.solo_ids then return nil end
+	local out = {}
+	for id in B.pairs(M.solo_ids) do B.insert(out, id) end
+	B.sort(out)
+	return out
 end
 
 local Kit = {}
@@ -796,6 +824,49 @@ end
 
 -- One of the icons drawn from shapes (obsidian.ui.glyphs lists them). x and y: its bottom left. false when
 -- there's no such name. They need no art, so they work in every state a kit does.
+-- Gui triangles have no anti-aliasing, so a small shape's edges step. Under each polygon goes a copy
+-- grown by under a pixel at about half the opacity, which softens the steps. points: a flat list of a
+-- convex polygon's corners in screen pixels. Answers the grown copy.
+local function feathered(points, grow)
+	local n = #points / 2
+	local area = 0
+	for i = 0, n - 1 do
+		local j = (i + 1) % n
+		area = area + points[i * 2 + 1] * points[j * 2 + 2] - points[j * 2 + 1] * points[i * 2 + 2]
+	end
+	local turn = area >= 0 and 1 or -1
+	local out = {}
+	for i = 0, n - 1 do
+		local p, q = (i - 1) % n, (i + 1) % n
+		local x, y = points[i * 2 + 1], points[i * 2 + 2]
+		local ax, ay = x - points[p * 2 + 1], y - points[p * 2 + 2]
+		local bx, by = points[q * 2 + 1] - x, points[q * 2 + 2] - y
+		local la, lb = math.sqrt(ax * ax + ay * ay), math.sqrt(bx * bx + by * by)
+		if la < 1e-6 or lb < 1e-6 then
+			out[#out + 1], out[#out + 2] = x, y
+		else
+			-- Outward normals of the two edges at this corner, and the way between them.
+			local nax, nay = ay / la * turn, -ax / la * turn
+			local nbx, nby = by / lb * turn, -bx / lb * turn
+			local mx, my = nax + nbx, nay + nby
+			local lm = math.sqrt(mx * mx + my * my)
+			if lm < 1e-6 then
+				out[#out + 1], out[#out + 2] = x + nax * grow, y + nay * grow
+			else
+				mx, my = mx / lm, my / lm
+				local reach = grow / math.max(0.35, mx * nax + my * nay)
+				out[#out + 1], out[#out + 2] = x + mx * reach, y + my * reach
+			end
+		end
+	end
+	return out
+end
+
+local function faded(c, share)
+	if B.type(c) ~= "table" then return c end
+	return { c[1] or c.r or 255, c[2] or c.g or 255, c[3] or c.b or 255, (c[4] or c.a or 255) * share }
+end
+
 function Kit:glyph(name, x, y, size, c)
 	local polys = glyphs[name]
 	if not polys then
@@ -808,6 +879,7 @@ function Kit:glyph(name, x, y, size, c)
 		for i = 1, #poly, 2 do
 			points[i], points[i + 1] = x + poly[i] * s, y + poly[i + 1] * s
 		end
+		self:poly(feathered(points, 0.75), faded(c, 0.45))
 		self:poly(points, c)
 	end
 	return true
@@ -1261,6 +1333,7 @@ function M.tick()
 	local cur = M.current()
 	M.can_draw = cur.state ~= "game" or M.cleared.mission_draw
 	M.fade = fade_level()
+	if M.solo_by and M.solo_by.off then M.solo_ids, M.solo_by = nil, nil end
 	run_screens(cur, global("ENGINE_DT") or 0)
 	refresh_mutes()
 	script.set_temp_count(vectors, quaternions, matrices)
@@ -1337,6 +1410,8 @@ function M.api()
 		glyphs = M.glyph_names,
 		font = M.font,
 		art = M.art,
+		solo = M.solo,
+		soloed = M.soloed,
 	}
 end
 

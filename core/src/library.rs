@@ -173,9 +173,11 @@ pub struct ProfileEntry {
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct Profile {
     pub mods: Vec<ProfileEntry>,
-    /// "Allow session mods from other Obsidian users".
-    #[serde(default)]
-    pub consent: bool,
+    /// "Block session mods from others in my public lobby". Off by default: other players' session
+    /// mods run with this player unless the lobby is public and this is on. Profiles from before it
+    /// existed had `consent` (allow) instead, off by default, and now read as off here.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub block_public: bool,
     /// No Steam achievement unlocks, and no achievement progress kept, while this profile plays.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub block_achievements: bool,
@@ -198,6 +200,11 @@ pub struct Profile {
 }
 
 impl Profile {
+    /// Whether other players' session mods may run with this player, as the loader tells the lobby.
+    pub fn allows_others(&self) -> bool {
+        !self.block_public
+    }
+
     /// The active profile.
     pub fn load(data_dir: &Path) -> Result<Profile> {
         Profile::load_named(data_dir, &crate::profiles::active(data_dir)?)
@@ -286,7 +293,7 @@ impl Profile {
             }
         }
         // A mod that gained a requirement in an update brings it on, as switching it on would: a deploy
-        // refuses an enabled mod whose requirement is off (Obsidian QoL 1.4.0 began to require the API).
+        // refuses an enabled mod whose requirement is off (Obsidian Patches, then Obsidian QoL, began to require the API in 1.4.0).
         let mut todo: Vec<String> = self.mods.iter().filter(|e| e.enabled).map(|e| e.id.clone()).collect();
         while let Some(id) = todo.pop() {
             let needs = installed.iter().find(|m| m.id == id).map(|m| m.requires.clone()).unwrap_or_default();
@@ -446,7 +453,7 @@ mod tests {
         p.set_enabled("top", true).unwrap();
         let on = |p: &Profile, id: &str| p.mods.iter().find(|m| m.id == id).unwrap().enabled;
         assert!(!on(&p, "base"));
-        // The update: top now needs base, as Obsidian QoL 1.4.0 began to need Obsidian API.
+        // The update: top now needs base, as Obsidian Patches (then Obsidian QoL) 1.4.0 began to need Obsidian API.
         lib.install(&needing(t.path(), "top", "base")).unwrap();
         p.sync(&lib).unwrap();
         assert!(on(&p, "base"), "a deploy would refuse top with base off");

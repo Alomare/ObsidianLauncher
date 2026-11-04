@@ -22,7 +22,7 @@ Some tests read your own game files and are skipped unless you point them at the
 
 ## The Obsidian Kit
 
-Obsidian API, Obsidian Trainer and Obsidian Quality of Life each have their own repository, under the MIT License. `bundled/` holds a copy of each one for the installer and the tests. It isn't committed: run `python tools/starter_pack.py` once after cloning, and it fetches each mod's latest release, as the release workflow does. So a change to a mod reaches Obsidian's next build once that mod is released. To work on a mod and Obsidian together, clone its repository into `../Bundled` and use `--local`, which takes what the clones have committed.
+Obsidian API, Obsidian Trainer and Obsidian Patches each have their own repository, under the MIT License. `bundled/` holds a copy of each one for the installer and the tests. It isn't committed: run `python tools/starter_pack.py` once after cloning, and it fetches each mod's latest release, as the release workflow does. So a change to a mod reaches Obsidian's next build once that mod is released. To work on a mod and Obsidian together, clone its repository into `../Bundled` and use `--local`, which takes what the clones have committed.
 
 ## Changes that need care
 

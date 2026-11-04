@@ -107,6 +107,56 @@ test("one_vanilla_member_is_not_cleared", function()
 	E.eq(cleared(), false)
 end)
 
+-- The host's privacy, in the room data the engine's lobby answers: 1 public, 2 friends, 3 private.
+local function privacy(value)
+	rawset(_G, "GameSettings", { room_data_values = { "build_game_hash", "privacy" }, room_privacy_settings = { public = 1, friends = 2, private = 3 } })
+	local network = rawget(_G, "NetworkGlobal")
+	network.data_string_to_table = function(raw, keys)
+		local out, i = {}, 0
+		for v in string.gmatch(raw or "", "[^|]+") do
+			i = i + 1
+			out[keys[i]] = v
+		end
+		return out
+	end
+	network.lobby.lobby = { data = function(_, key) return key == "data" and value and ("3bd83d77c8ae|" .. value) or nil end }
+end
+
+test("a_friends_or_private_lobby_is_cleared_with_anyone", function()
+	for _, kind in ipairs({ "2", "3" }) do
+		local e = engine({ my_id = "me", members = { "me", "p2", "p3" }, data = { p3 = "1;" .. OTHER .. ";0" } })
+		privacy(kind)
+		e:frames(31)
+		E.eq(cleared(), true, "privacy " .. kind .. ": a vanilla player and one who blocks")
+		E.has(e:log(), "session: lobby privacy not public")
+	end
+end)
+
+test("a_public_lobby_holds_session_mods_back", function()
+	local e = engine({ my_id = "me", members = { "me", "p2" }, data = {} })
+	privacy("1")
+	e:frames(31)
+	E.eq(cleared(), false, "a vanilla player")
+	E.has(e:log(), "session: lobby privacy public")
+end)
+
+test("a_lobby_whose_privacy_cant_be_read_counts_as_public", function()
+	local e = engine({ my_id = "me", members = { "me", "p2" }, data = {} })
+	privacy(nil)
+	e:frames(31)
+	E.eq(cleared(), false)
+	E.has(e:log(), "session: lobby privacy unknown, counted as public")
+end)
+
+test("a_mod_every_player_needs_stays_off_in_a_friends_lobby_without_it", function()
+	local e = engine({ my_id = "me", members = { "me", "p2" }, data = { p2 = "1;" .. OTHER .. ";1" } }, { every = { ["x.every"] = "abc" } })
+	privacy("2")
+	e:frames(31)
+	E.eq(cleared(), true)
+	E.eq(rawget(_G, "obsidian").session.cleared ~= nil, true)
+	E.eq(require("obsidian/loader/session").missing["x.every"], true, "it needs every player, whatever the lobby")
+end)
+
 test("malformed_member_data_is_not_cleared", function()
 	for _, bad in ipairs({ "1;zz;0", "2;" .. OWN .. ";0", "", "1;" .. OWN .. ";2", "1;" .. OWN }) do
 		local e = engine({ my_id = "me", members = { "me", "p2" }, data = { p2 = bad } })

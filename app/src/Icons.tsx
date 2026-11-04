@@ -19,7 +19,7 @@ export const FolderAddIcon = () => <Icon strokeWidth="2"><path d={FOLDER} /><pat
 export const LockIcon = () => <Icon strokeWidth="2.4"><path d="M8 11V7.8a4 4 0 0 1 8 0V11" /><rect x="4.5" y="10.5" width="15" height="10.5" rx="1.5" fill="currentColor" stroke="none" /></Icon>;
 export const UnlockIcon = () => <Icon strokeWidth="2.4"><path d="M8 11V7.8a4 4 0 0 1 7.6-1.7" /><rect x="4.5" y="10.5" width="15" height="10.5" rx="1.5" fill="currentColor" stroke="none" /></Icon>;
 export const TrashIcon = () => <Icon><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13M10 11v5.5M14 11v5.5" /></Icon>;
-export const CheckIcon = () => <Icon strokeWidth="2.6"><path d="M5 12.5l4.5 4.5L19 7.5" /></Icon>;
+export const CheckIcon =() => <Icon strokeWidth="2.6"><path d="M5 12.5l4.5 4.5L19 7.5" /></Icon>;
 /** The switch of a mod row, on and off. */
 export const SwitchOnIcon = () => <Icon><rect x="2" y="6.5" width="20" height="11" rx="1" fill="currentColor" /><rect x="14" y="9.5" width="5" height="5" fill="var(--btn)" stroke="none" /></Icon>;
 export const SwitchOffIcon = () => <Icon><rect x="2" y="6.5" width="20" height="11" rx="1" /><rect x="5" y="9.5" width="5" height="5" fill="currentColor" stroke="none" /></Icon>;

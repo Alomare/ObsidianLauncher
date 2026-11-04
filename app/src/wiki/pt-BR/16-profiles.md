@@ -19,6 +19,6 @@ A cor de um perfil aparece no botão **Perfil** e nos interruptores ligados enqu
 
 **Exportar** salva o perfil ativo como `.zip`. O arquivo leva as configurações do perfil e uma cópia de cada mod ligado.
 
-**Importar** lê um arquivo desses. Cada mod dentro dele é instalado se você não tiver, ou se a cópia do arquivo for mais nova que a sua. O perfil entra com um nome que não conflita com os seus. As proteções da conta vêm junto, e o Obsidian avisa. Permitir mods de sessão de outros jogadores fica desligado, para cada jogador escolher.
+**Importar** lê um arquivo desses. Cada mod dentro dele é instalado se você não tiver, ou se a cópia do arquivo for mais nova que a sua. O perfil entra com um nome que não conflita com os seus. As proteções da conta vêm junto, e o Obsidian avisa. Bloquear mods de sessão dos outros em lobbies públicos fica desligado, para cada jogador escolher.
 
 Um perfil compartilhado é o jeito mais fácil de dar aos amigos o mesmo conjunto de mods de sessão, para que os seus mods rodem quando vocês jogarem juntos ([Jogar online](wiki:multiplayer)).

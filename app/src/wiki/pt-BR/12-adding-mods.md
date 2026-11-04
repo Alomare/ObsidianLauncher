@@ -37,13 +37,15 @@ Um mod pode indicar o repositório dele no GitHub. Quando indica, aparece um bot
 
 O Obsidian fala com o GitHub ao abrir e quando você clica, e só oferece uma versão mais alta do mesmo mod. Nada é instalado até você escolher. Um mod com versão nova mostra o número da versão numa caixa amarela com uma seta. Clique nela para ver a versão nova e um link para as novidades do mod, e depois confirme. **Atualizar todos** instala de uma vez todas as atualizações pendentes.
 
+A aba Sobre, nos detalhes de um mod assim, lista o que mudou em cada versão, em **Notas de versão**. Clique numa versão para ler as mudanças; **Carregar mais** traz as mais antigas.
+
 ## Remover {#removing}
 
 Clique com o botão direito num mod e escolha **Remover**, ou use a lixeira abaixo do botão de fechar nos detalhes do mod. Para remover vários, marque os mods e use **Remover** na barra no pé da lista.
 
 ## Obsidian Kit
 
-Três mods vêm com o Obsidian, na pasta **Obsidian Kit**, no topo da lista: Obsidian API, [Obsidian Trainer](wiki:trainer) e Obsidian Qualidade de Vida. O Qualidade de Vida começa ligado, só com as correções para tela larga e a **Pausa dinâmica solo** ativas. Os outros dois ficam desligados até você ligar.
+Três mods vêm com o Obsidian, na pasta **Obsidian Kit**, no topo da lista: Obsidian API, [Obsidian Trainer](wiki:trainer) e Obsidian Patches. O Obsidian Patches começa ligado, com a maioria das correções ativas. Os outros dois ficam desligados até você ligar.
 
 Eles são mods como quaisquer outros: você pode ligar, desligar, remover e atualizar os mods pelo GitHub. A pasta começa trancada, então fica onde está. Clique no cadeado para destrancar, e aí você pode mover os mods e renomear ou apagar a pasta. Para deixar tudo como era, use **Restaurar Obsidian Kit** em [Configurações](app:settings). Isso traz de volta os mods apagados e a pasta, e volta as configurações deles ao padrão no perfil ativo.
 

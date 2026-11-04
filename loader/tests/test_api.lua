@@ -463,6 +463,49 @@ test("respawn_needs_a_dead_player", function()
 	E.eq(game.record.spawn_timer, 0.01, "never zero")
 end)
 
+test("auto_respawn_starts_the_countdown_once_per_death", function()
+	local api, game, e = start()
+	local record, health = game.record, game.me.slave.health
+	record.spawn_timer, record.extra_lives = 0, 0
+	api.effects.set("auto_respawn", true)
+	e:frames(1)
+	E.eq(record.spawn_timer, 0, "alive")
+	health.is_dead = true
+	e:frames(1)
+	E.eq(record.spawn_timer, 3, "dead, with no lives left")
+	record.spawn_timer = 0
+	e:frames(3)
+	E.eq(record.spawn_timer, 0, "not again while the drop is on its way")
+	health.is_dead = false
+	e:frames(1)
+	health.is_dead = true
+	record.spawn_timer = 7
+	e:frames(1)
+	E.eq(record.spawn_timer, 7, "a respawn the game started is left alone")
+	health.is_dead = false
+	e:frames(1)
+	api.effects.set("auto_respawn", 1.5)
+	health.is_dead, record.spawn_timer = true, 0
+	e:frames(1)
+	E.eq(record.spawn_timer, 1.5, "the seconds given")
+end)
+
+test("auto_respawn_waits_for_the_first_drop_and_stops_after_extraction", function()
+	local api, game, e = start()
+	local record = game.record
+	record.spawn_timer = 0
+	record.player_go.avatar_unit = nil
+	api.effects.set("auto_respawn", true)
+	e:frames(2)
+	E.eq(record.spawn_timer, 0, "no avatar yet: the drop hasn't happened")
+	record.player_go.avatar_unit = game.me
+	e:frames(1)
+	record.player_go.has_extracted = true
+	game.me.slave.health.is_dead = true
+	e:frames(1)
+	E.eq(record.spawn_timer, 0, "extracted")
+end)
+
 test("helping_a_teammate_goes_to_its_owner", function()
 	local api, game = start()
 	local other = game.enemies[2]
@@ -642,6 +685,34 @@ test("practice_starts_only_from_the_ship_and_pays_nothing", function()
 	E.eq(game.seed_parts[1], 1, "time, zero based")
 	E.eq(game.seed_parts[3], 2, "environment")
 	E.eq(game.seed_parts[7], 7, "difficulty")
+	local layout = game.seed_parts[8]
+	E.eq(layout % 10000000, 0, "the layout sits above the seven digits of parts, where the game keeps it")
+	E.eq(layout >= 0 and layout <= 214 * 10000000, true)
+end)
+
+test("a_seed_takes_a_look_and_a_layout", function()
+	local api, game = start()
+	local base = { time = 4, environment = 1, enemy = 1, kind = 1, difficulty = 9 }
+	local function with(extra)
+		local c = {}
+		for k, v in pairs(base) do c[k] = v end
+		for k, v in pairs(extra) do c[k] = v end
+		return c
+	end
+	E.eq(api.mission.seed(with({ look = 2, layout = 215 })), 777)
+	E.eq(game.seed_parts[4], 1, "the second terrain set")
+	E.eq(game.seed_parts[8], 214 * 10000000, "the last layout")
+	api.mission.seed(with({ look = 4, layout = 1 }))
+	E.eq(game.seed_parts[2], 3, "the bug world's light")
+	E.eq(game.seed_parts[4], 3, "and terrain")
+	E.eq(game.seed_parts[8], 0, "the first layout")
+	local ok, why = api.mission.seed(with({ look = 5 }))
+	E.eq(ok, false)
+	E.eq(why, "look_not_here", "the cyborg world is snow only")
+	E.eq(select(2, api.mission.seed(with({ environment = 5, look = 3 }))), "look_not_here", "city has two terrain sets")
+	E.eq(select(2, api.mission.seed(with({ layout = 216 }))), "bad_choice")
+	E.eq(select(2, api.mission.seed(with({ difficulty = 0 }))), "bad_choice")
+	E.eq(select(2, api.mission.seed(with({ look = 7 }))), "bad_choice")
 end)
 
 local LOCKED = { locked = { "weapon_rifle", "perk_cardio", "stratagem_machinegun", "stratagem_exosuit", "stratagem_jumppack", "cus_helmet_a" } }
@@ -2191,9 +2262,9 @@ test("photo_mode_leaves_a_hidden_hud_hidden", function()
 	E.eq(api.effects.is_on("hide_hud"), true)
 end)
 
-test("photo_mode_needs_a_mission", function()
+test("photo_mode_needs_a_mission_or_the_ship", function()
 	local api, game, e, ui = start()
-	ui.state = "menu"
+	ui.state = "main_menu"
 	E.eq(select(2, api.world.camera.photo(true)), "not_in_mission")
 end)
 
@@ -3189,6 +3260,194 @@ test("a_bot_is_given_gear_and_help_as_the_player_is", function()
 	no_tampering(game)
 end)
 
+-- The game's side of a stratagem call, as CharacterStateStratagems and CharacterStateStratagemsThrow
+-- run it: the menu while the button is held, one arrow a frame into the queue, the stratagem the queue
+-- makes, then a charge while the throw is held and the throw on release.
+local function stratagem_world(api, game, e, u)
+	local S = {}
+	for _, n in ipairs({ "CharacterStateIdle", "CharacterStateStratagems", "CharacterStateStratagemsThrow" }) do
+		S[n] = { name = n }
+		rawset(_G, n, S[n])
+	end
+	local settings = rawget(_G, "LoadoutSettings")
+	settings.stratagems[1].combo = { "down", "down", "up", "right" }
+	settings.stratagems[2].combo = { "down", "left", "down", "up", "right" }
+	u.master.inventory.stratagems = { { id = 1, cooldown_timer = 0 }, { id = 2, cooldown_timer = 0, uses_left = 1 } }
+	local cs = u.master.character
+	cs.current_state, cs.stratagems_queue = S.CharacterStateIdle, {}
+	local function match(queue)
+		for _, s in ipairs(settings.stratagems) do
+			if s.combo and #s.combo == #queue then
+				local same = true
+				for i = 1, #queue do
+					if s.combo[i] ~= queue[i] then same = false end
+				end
+				if same then return s.id end
+			end
+		end
+	end
+	game.thrown = {}
+	local function character()
+		local t = u.master.input.input_data
+		if not t then return end
+		if cs.current_state == S.CharacterStateIdle then
+			if t.stratagems_pressed then
+				cs.current_state = S.CharacterStateStratagems
+				cs.stratagems_disabled = game.jammed
+				for i = #cs.stratagems_queue, 1, -1 do cs.stratagems_queue[i] = nil end
+			end
+		elseif cs.current_state == S.CharacterStateStratagems then
+			for _, d in ipairs({ "down", "right", "up", "left" }) do
+				if t["stratagem_" .. d] and not cs.stratagems_disabled then
+					cs.stratagems_queue[#cs.stratagems_queue + 1] = d
+					-- An arrow the game counted twice.
+					if game.doubled == d then
+						cs.stratagems_queue[#cs.stratagems_queue + 1] = d
+						game.doubled = nil
+					end
+				end
+			end
+			local id = api.stratagems.find(match, cs.stratagems_queue)
+			local entry
+			for _, s in ipairs(u.master.inventory.stratagems) do
+				if s.id == id then entry = s end
+			end
+			if entry and entry.cooldown_timer <= 0 then
+				cs.current_stratagem = id
+				cs.current_state = S.CharacterStateStratagemsThrow
+				cs.has_thrown, cs.throw_started, cs.throw_done, cs.throw_timer, cs.grenade_charge = false, false, false, 0, 0
+			elseif not t.stratagems_pressed then
+				cs.current_state = S.CharacterStateIdle
+			end
+		elseif cs.current_state == S.CharacterStateStratagemsThrow then
+			if cs.throw_done and t.throw == 0 and t.fire_button == 0 then
+				cs.current_state = S.CharacterStateIdle
+				return
+			end
+			if cs.throw_started then
+				cs.throw_timer = cs.throw_timer + 0.016
+			elseif t.melee then
+				game.cancelled = true
+				cs.current_state = S.CharacterStateIdle
+				return
+			end
+			if cs.has_thrown then
+				cs.throw_done = true
+			elseif t.throw > 0.1 or t.fire_button > 0.05 then
+				cs.grenade_charge = math.min(cs.throw_timer, 1)
+				cs.throw_started = true
+			elseif cs.throw_started then
+				cs.has_thrown = true
+				game.thrown[#game.thrown + 1] = { id = cs.current_stratagem, charge = cs.grenade_charge, aim = { x = t.aim.x, y = t.aim.y } }
+			end
+		end
+	end
+	game.step = function(n)
+		for _ = 1, n do
+			e:frames(1)
+			rawget(_G, "InputComponent").update_masters({}, 0.016)
+			character()
+		end
+	end
+	return S, cs
+end
+
+test("a_bot_calls_a_stratagem_with_the_button_held_the_code_entered_and_a_throw", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add()
+	E.eq(select(2, bot:use_stratagem("stratagem_resupply", { x = 1, y = 7 })), "no_avatar")
+	local u = game.land(2)
+	local S, cs = stratagem_world(api, game, e, u)
+	local held = bot:stratagems()
+	E.eq(#held, 2)
+	E.eq(held[1].name, "stratagem_resupply")
+	E.eq(held[1].ready, true)
+	E.eq(held[2].uses_left, 1)
+	E.eq(select(2, bot:use_stratagem("stratagem_mortar", { x = 1, y = 7 })), "not_held")
+	E.eq(select(2, bot:use_stratagem("stratagem_nothing", { x = 1, y = 7 })), "not_available")
+	E.eq(select(2, bot:use_stratagem("stratagem_resupply")), "no_position")
+	-- The player's any-arrow shortcut is the player's: the bot's code still makes its own stratagem.
+	api.stratagems.select(2)
+	api.effects.set("any_arrow", true)
+	bot:fight(25)
+	local done
+	E.eq(bot:use_stratagem("stratagem_resupply", { x = 1, y = 7 }, function(ok, why) done = { ok, why } end), true)
+	E.eq(select(2, bot:use_stratagem("stratagem_resupply", { x = 1, y = 7 })), "busy")
+	E.eq((bot:using_stratagem()), "stratagem_resupply")
+	game.step(1)
+	E.eq(cs.current_state, S.CharacterStateStratagems, "the held button opens the menu")
+	local t = u.master.input.input_data
+	local pressed = 0
+	for _ = 1, 60 do
+		E.eq(t.fire_button, 0, "no shooting while entering")
+		E.eq(t.stratagems_button, 1, "the button stays held")
+		game.step(1)
+		for _, d in ipairs({ "up", "down", "left", "right" }) do
+			if t["stratagem_" .. d] then pressed = pressed + 1 end
+		end
+		if cs.current_state ~= S.CharacterStateStratagems then break end
+	end
+	E.eq(pressed, 4, "one press an arrow")
+	E.eq(cs.current_state, S.CharacterStateStratagemsThrow, "the code calls it")
+	E.eq(cs.current_stratagem, 1)
+	game.step(120)
+	E.eq(#game.thrown, 1)
+	-- 6 metres away: the charge a mouse player aiming there gets, 6 * 6 * 0.015.
+	E.eq(math.abs(game.thrown[1].charge - 0.54) < 0.04, true, "as far as the point: " .. game.thrown[1].charge)
+	E.eq(game.thrown[1].aim.y, 1, "toward it")
+	E.eq(done[1], true)
+	E.eq(bot:using_stratagem(), false)
+	E.eq(cs.current_state, S.CharacterStateIdle)
+	game.step(1)
+	E.eq(bot:fighting(), 25, "the orders are kept")
+	u.master.inventory.stratagems[1].cooldown_timer = 30
+	E.eq(select(2, bot:use_stratagem("stratagem_resupply", { x = 1, y = 7 })), "cooling_down")
+end)
+
+test("a_bot_enters_the_code_again_when_an_arrow_counts_twice_and_hears_how_a_call_ended", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add()
+	local u = game.land(2)
+	local S, cs = stratagem_world(api, game, e, u)
+	local done
+	local function on_done(ok, why) done = { ok, why } end
+	game.doubled = "left"
+	E.eq(bot:use_stratagem("stratagem_machinegun", { x = 4, y = 1 }, on_done), true)
+	game.step(200)
+	E.eq(#game.thrown, 1, "thrown on the second try")
+	E.eq(game.thrown[1].id, 2)
+	E.eq(game.thrown[1].aim.x, 1)
+	E.eq(done[1], true)
+	-- A no-stratagem zone: the arrows do nothing, and the call gives up at once.
+	game.jammed = true
+	E.eq(bot:use_stratagem("stratagem_resupply", { x = 4, y = 1 }, on_done), true)
+	game.step(10)
+	E.eq(done[2], "jammed")
+	E.eq(cs.current_state, S.CharacterStateIdle, "the button let go")
+	game.jammed = nil
+	-- Cancelled with the beacon in hand: a melee press puts it back.
+	E.eq(bot:use_stratagem("stratagem_resupply", { x = 4, y = 1 }, on_done), true)
+	for _ = 1, 60 do
+		if cs.current_state == S.CharacterStateStratagemsThrow then break end
+		game.step(1)
+	end
+	E.eq(bot:cancel_stratagem(), true)
+	game.step(3)
+	E.eq(done[2], "cancelled")
+	E.eq(game.cancelled, true)
+	E.eq(#game.thrown, 1, "nothing more thrown")
+	-- A bot that goes down with no body mid-call hears it too.
+	E.eq(bot:use_stratagem("stratagem_resupply", { x = 4, y = 1 }, on_done), true)
+	game.step(1)
+	u.alive = false
+	game.state.players[2].player_go.avatar_unit = nil
+	game.step(1)
+	E.eq(done[2], "no_avatar")
+	E.eq(bot:using_stratagem(), false)
+end)
+
 -- Custom stratagems: a copy of a base in the game's list, with its own words, and the base on the wire.
 local function wire_world(game)
 	game.sent = {}
@@ -3317,6 +3576,117 @@ test("a_definition_is_checked", function()
 	E.eq(select(2, api.stratagems.define({ name = "test_a", base = "stratagem_resupply", title = "x", type = "weird" })), "bad_type")
 	E.eq(api.stratagems.define({ name = "test_a", base = "stratagem_resupply", title = "x" }) ~= nil, true)
 	E.eq(select(2, api.stratagems.define({ name = "test_a", base = "stratagem_resupply", title = "x" })), "taken", "once")
+end)
+
+-- Before the game has its stratagem list, as in a mod's main chunk.
+local function no_list_yet()
+	local s = rawget(_G, "LoadoutSettings")
+	local list = s.stratagems
+	s.stratagems = nil
+	return function() s.stratagems = list end, list
+end
+
+test("a_stratagem_defined_before_the_game_has_its_list_is_made_before_the_loadout_is_read", function()
+	local api, game, e = start()
+	wire_world(game)
+	local ready, list = no_list_yet()
+	local made = api.stratagems.define(PITCHFORK)
+	E.eq(made.pending, true)
+	E.eq(made.name, "test_pitchfork")
+	E.eq(made.id, nil)
+	E.eq(select(2, api.stratagems.define(PITCHFORK)), "taken", "once, while it waits")
+	E.eq(select(2, api.stratagems.define({ name = "test_a", base = "stratagem_resupply" })), "bad_type", "checked at once")
+	E.eq(api.stratagems.custom()[1], nil, "not made yet")
+	ready()
+	hooked(e)
+	rawget(_G, "Boot").ensure_loadout(1, {})
+	local c = api.stratagems.custom()[1]
+	E.eq(c.name, "test_pitchfork")
+	E.eq(list[c.id].icon, "stratagem_lasercannon")
+	E.eq(rawget(_G, "LocalizationManager"):string("test_pitchfork"), "Pitchfork")
+	E.eq(#api.stratagems.custom(), 1, "made once")
+end)
+
+test("a_pending_stratagem_is_made_on_a_frame_when_nothing_reads_the_loadout", function()
+	local api, game, e = start()
+	wire_world(game)
+	local ready = no_list_yet()
+	api.stratagems.define(PITCHFORK)
+	api.stratagems.define({ name = "test_gone", base = "stratagem_nothing", title = "x" })
+	e:frames(1)
+	E.eq(api.stratagems.custom()[1], nil, "still no list")
+	ready()
+	e:frames(1)
+	E.eq(api.stratagems.custom()[1].name, "test_pitchfork")
+	E.eq(#api.stratagems.custom(), 1, "a base the game hasn't got is logged, not made")
+end)
+
+local function joined(list)
+	local out = {}
+	for i, item in ipairs(list) do out[i] = item.name end
+	return table.concat(out, ",")
+end
+
+test("a_custom_stratagems_own_icon_comes_with_its_material_on_every_gui_that_lists_hud_hud", function()
+	local api, game, e, ui = start({ font_files = { "m/icons" } })
+	wire_world(game)
+	local made = api.stratagems.define({ name = "test_tower", base = "stratagem_resupply", title = "Tower", icon = "test_tower_icon", icon_material = "m/icons" })
+	E.eq(rawget(_G, "LoadoutSettings").stratagems[made.id].icon, "test_tower_icon")
+	hooked(e)
+	local world = rawget(_G, "World")
+	world.create_screen_gui("w", "immediate", "material", "menu/menu", "material", "hud/hud", "material", "fonts/fonts")
+	E.eq(table.concat(ui.gui_args, " ", 2), "immediate material menu/menu material hud/hud material m/icons material fonts/fonts")
+	world.create_screen_gui("w", "material", "hud/hud", "material", "m/icons", "immediate")
+	E.eq(table.concat(ui.gui_args, " ", 2), "material hud/hud material m/icons immediate", "listed once")
+	world.create_screen_gui("w", "material", "foundation/gui/gui", "immediate")
+	E.eq(table.concat(ui.gui_args, " ", 2), "material foundation/gui/gui immediate", "a gui without the game's icons is left alone")
+	E.eq(select(2, api.stratagems.define({ name = "test_x", base = "stratagem_resupply", title = "x", icon_material = "m/icons" })), "bad_type", "a material needs its icon's name")
+end)
+
+test("a_custom_stratagem_whose_material_isnt_deployed_takes_its_bases_icon", function()
+	local api, game, e, ui = start()
+	wire_world(game)
+	local made = api.stratagems.define({ name = "test_tower", base = "stratagem_resupply", title = "Tower", icon = "test_tower_icon", icon_material = "m/icons" })
+	E.eq(rawget(_G, "LoadoutSettings").stratagems[made.id].icon, api.catalog.stratagem("stratagem_resupply").icon)
+	hooked(e)
+	rawget(_G, "World").create_screen_gui("w", "material", "hud/hud", "immediate")
+	E.eq(table.concat(ui.gui_args, " ", 2), "material hud/hud immediate", "nothing to add")
+end)
+
+test("the_arsenal_and_the_loadout_list_a_custom_stratagem_right_after_its_base", function()
+	local api, game, e = start()
+	wire_world(game)
+	api.stratagems.define({ name = "test_a", base = "stratagem_resupply", title = "A" })
+	api.stratagems.define({ name = "test_b", base = "stratagem_resupply", title = "B" })
+	api.stratagems.define({ name = "test_c", base = "stratagem_machinegun", title = "C" })
+	local function items(...)
+		local out = {}
+		for i, name in ipairs({ ... }) do out[i] = { name = name } end
+		return out
+	end
+	local function groups(...)
+		local out = {}
+		for i, name in ipairs({ ... }) do out[i] = { name = name, item_index = 1, items = { { name = name } } } end
+		return out
+	end
+	rawset(_G, "MenuScreenArmoryUnlocks", { on_enter = function(self)
+		self.available_items = { stratagems = { groups = {
+			{ name = "supply", items = items("stratagem_resupply", "stratagem_machinegun", "test_a", "test_b") },
+			{ name = "locked", items = items("stratagem_mortar", "test_c") },
+		} } }
+	end })
+	rawset(_G, "MenuScreenLoadout", { setup_loadout = function(self, slot)
+		self.parent.players[slot].available_items = { stratagems = { groups = groups("stratagem_resupply", "stratagem_mortar", "test_a", "test_c", "test_b") } }
+	end })
+	hooked(e)
+	local arsenal = {}
+	rawget(_G, "MenuScreenArmoryUnlocks").on_enter(arsenal, {})
+	local g = arsenal.available_items.stratagems.groups
+	E.eq(joined(g[1].items), "stratagem_resupply,test_a,test_b,stratagem_machinegun")
+	E.eq(joined(g[2].items), "stratagem_mortar,test_c", "its base is in another group")
+	local loadout = { parent = { players = { {}, {} } } }
+	rawget(_G, "MenuScreenLoadout").setup_loadout(loadout, 2)
+	E.eq(joined(loadout.parent.players[2].available_items.stratagems.groups), "stratagem_resupply,test_a,test_b,stratagem_mortar,test_c", "a base not offered leaves it be")
 end)
 
 test("on_the_wire_a_custom_stratagem_is_its_base", function()
@@ -3577,18 +3947,19 @@ test("mod_settings_rows_bound_to_options_start_from_obsidian_and_keep_changes_fo
 	core.current = own
 end)
 
--- Obsidian QoL's page: the four options that can change in game, each bound to its option.
-test("obsidian_qol_binds_four_of_its_options_to_the_mods_page", function()
+-- Obsidian Patches' page: the four options that change how the game plays, each bound to its option.
+test("obsidian_patches_binds_four_options_to_the_mods_page", function()
 	local e = G.start({ "obsidian.api", "obsidian.qol" }, { scope = "client" })
 	e:core().current = e:core().mods_by_id["obsidian.api"]
 	local page = rawget(_G, "obsidian").import("obsidian.api").mod_settings.pages["obsidian.qol"]
-	E.eq(page ~= nil, true, "QoL made its page")
+	E.eq(page ~= nil, true, "Patches made its page")
 	local ids = {}
 	for _, row in ipairs(page.rows) do
 		E.eq(row.option, true, row.id)
 		ids[#ids + 1] = row.id
 	end
 	E.eq(table.concat(ids, ","), "expedite_mission_end,solo_pause,aim_cursor,toggle_map")
+	E.eq(page.title, "Obsidian Patches", "the name in full")
 	E.eq(page.rows[1].kind, "choice")
 	E.eq(type(page.rows[2].label), "table", "words by language")
 end)

@@ -12,11 +12,11 @@ O HELLDIVERS não tem anti-cheat, e o Obsidian nunca edita um arquivo do jogo. M
 
 ### Por que não encontro nenhum lobby? {#why-can-t-i-find-any-lobbies}
 
-Com mods de sessão aplicados, você só vê outros jogadores do Obsidian. Aplique sem mods de sessão para ter o matchmaking normal. **Permitir mods de sessão de outros jogadores no meu jogo** em Proteções deixa todos os lobbies na lista, mas o seu próprio lobby só aparece para jogadores do Obsidian enquanto estiver ligado ([Jogar online](wiki:multiplayer#matchmaking)).
+Com mods de sessão aplicados, você só vê outros jogadores do Obsidian que rodam mods de sessão. Aplique sem mods de sessão para ter o matchmaking normal: aí você vê todo mundo, e o seu próprio lobby também aparece para todo mundo ([Jogar online](wiki:multiplayer#matchmaking)).
 
 ### Eu e um amigo usamos o Obsidian. Por que os meus mods de sessão estão desligados? {#my-friend-and-i-both-use-obsidian-why-are-my-session-mods-off}
 
-Os mods de sessão rodam quando todos os outros jogadores têm o mesmo conjunto ou estão com o interruptor ligado. Exportar o seu perfil e mandar para o seu amigo é o jeito mais rápido de bater os conjuntos ([Perfis](wiki:profiles#sharing-a-profile)).
+Num lobby público, os mods de sessão rodam quando todos os outros jogadores têm o mesmo conjunto ou não bloqueiam os mods de sessão dos outros. Deixe o lobby só para amigos e eles rodam com qualquer um. Exportar o seu perfil e mandar para o seu amigo é o jeito mais rápido de bater os conjuntos ([Perfis](wiki:profiles#sharing-a-profile)).
 
 ### As minhas missões contam para a Guerra Galáctica? {#do-my-missions-count-for-the-galactic-war}
 
@@ -38,11 +38,11 @@ O que está mais abaixo na lista ([Ordem de carregamento](wiki:load-order)).
 
 ### Preciso de um mod para ultrawide? {#do-i-need-an-ultrawide-mod}
 
-Não. O Obsidian Qualidade de Vida tira as barras pretas em telas largas, e essa opção começa ligada. Um patch de ultrawide importado faz o mesmo.
+Não. O Obsidian Patches tira as barras pretas em telas largas, e essa opção começa ligada. Um patch de ultrawide importado faz o mesmo.
 
-### O que é o Obsidian Qualidade de Vida? {#what-is-obsidian-quality-of-life}
+### O que é o Obsidian Patches? {#what-is-obsidian-patches}
 
-Um mod de cliente que vem com o Obsidian: ele pula a abertura, a tela de login, os resumos da guerra e a varredura de planetas, tira as barras pretas em telas largas e pode acelerar ou pular as telas de resultado depois de uma missão. Cada correção é uma opção. Ele começa ligado, só com as correções para tela larga ativas; fica na pasta Obsidian Kit, no topo da lista.
+Um mod de cliente que vem com o Obsidian: ele pula a abertura, a tela de login, os resumos da guerra e a varredura de planetas, tira as barras pretas em telas largas pode acelerar ou pular as telas de resultado depois de uma missão e corrige duas falhas de animação do jogo, após lançar estratagemas e após mergulhos. Cada correção é uma opção. Ele começa ligado, com a maioria das correções ativas; fica na pasta Obsidian Kit, no topo da lista.
 
 ## Criar mods {#making-mods}
 

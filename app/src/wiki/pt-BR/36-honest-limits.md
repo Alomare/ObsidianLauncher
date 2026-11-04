@@ -9,7 +9,7 @@ As proteções impedem que mods bem-comportados prejudiquem outros jogadores por
 ## O que elas cobrem {#what-they-cover}
 
 - Um jogador sem mods não encontra lobbies com mods no matchmaking.
-- Mods de sessão que usam o loader se desligam sozinhos num lobby que não concordou com eles.
+- Mods de sessão que usam o loader se desligam sozinhos num lobby público que não os permitiu.
 - Missões jogadas com conteúdo de sessão não são enviadas para a Guerra Galáctica.
 - Suas conquistas e a progressão da sua conta ficam como estavam quando você pede isso em [Proteções](wiki:guardrails), seja o que for que os mods façam.
 - Um mod que falha sem parar é desligado, e um travamento na abertura do jogo aponta o mod que estava iniciando.

@@ -10,11 +10,11 @@ HELLDIVERS is a co-op game. A mod that changes enemies, weapons or missions chan
 
 A client mod changes only what you see, hear or press: the camera, the HUD, input, menus, local visuals and sound. Nothing it does reaches the other players. Client mods run everywhere, in any lobby, with anyone.
 
-Obsidian Quality of Life is a client mod.
+Obsidian Patches is a client mod.
 
 ## Session mods
 
-A session mod can change the shared game: balance, enemies, spawns, missions, physics, anything other players would notice. Session mods only run in a lobby where every other player has agreed to them ([Playing online](wiki:multiplayer)). Alone, they always run.
+A session mod can change the shared game: balance, enemies, spawns, missions, physics, anything other players would notice. In a public lobby, session mods only run when every other player allows them. Alone, and in a friends-only or private lobby, they always run ([Playing online](wiki:multiplayer)).
 
 A session mod changes the whole deploy, in every mission: Galactic War and leaderboard results aren't sent, Proving Grounds is closed, and matchmaking finds only other Obsidian players ([The Galactic War](wiki:galactic-war)).
 
@@ -45,7 +45,7 @@ A library is code other mods build on, such as Obsidian API. It takes the scope 
 
 ## In the app
 
-Every row of the mod list has a diamond for the scope: black for unspecified, green for client, red for session, white for a library (grey on the light theme) and yellow for an expansion. Hover over it for the name. The details of each mod say it too.
+Every row of the mod list has a diamond for the scope: black for unspecified, green for client, red for session, white for a library (grey on the light theme) and yellow for an expansion. Hover over it for the name, and click it to open this page at that scope. The details of each mod say it too.
 
 ## Who decides the scope
 

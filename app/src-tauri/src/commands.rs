@@ -290,10 +290,10 @@ pub async fn set_profile_color(ctx: State<'_, Ctx>, name: String, color: Option<
 }
 
 #[tauri::command]
-pub async fn set_consent(ctx: State<'_, Ctx>, on: bool) -> CmdResult<Snapshot> {
+pub async fn set_block_public(ctx: State<'_, Ctx>, on: bool) -> CmdResult<Snapshot> {
     let _turn = ctx.turn();
     live_edit(&ctx, |_, p| {
-        p.consent = on;
+        p.block_public = on;
         Ok(())
     })
 }
@@ -334,8 +334,10 @@ pub struct SystemInfo {
     pub chosen_game_dir: Option<PathBuf>,
     /// Where the loader and the mods log; `None` with no game.
     pub logs_dir: Option<PathBuf>,
-    /// Patches in the game folder that aren't Obsidian's, by file name.
-    pub foreign: Vec<String>,
+    /// Patches in the game folder that aren't Obsidian's.
+    pub foreign: Vec<obsidian_core::deploy::ForeignPatch>,
+    /// Where earlier removals of those patches left their copies.
+    pub removed_patches: Option<PathBuf>,
 }
 
 /// The folder that holds the logs of the game in `settings`.
@@ -351,7 +353,31 @@ pub fn system_info(ctx: State<'_, Ctx>) -> SystemInfo {
         .collect();
     let settings = AppSettings::load(&ctx.data);
     let foreign = find(&settings).and_then(|g| obsidian_core::deploy::foreign_files(&g, &ctx.data).ok()).unwrap_or_default();
-    SystemInfo { data_dir: ctx.data.clone(), backups, logs_dir: logs_dir(&settings), foreign, chosen_game_dir: settings.game_dir }
+    let kept = ctx.data.join(REMOVED_PATCHES);
+    SystemInfo { data_dir: ctx.data.clone(), backups, logs_dir: logs_dir(&settings), foreign, removed_patches: kept.is_dir().then_some(kept), chosen_game_dir: settings.game_dir }
+}
+
+/// The folder in the data folder that keeps the patches taken out with `remove_other_patches`.
+const REMOVED_PATCHES: &str = "removed-patches";
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OtherPatchesRemoved {
+    pub snapshot: Snapshot,
+    pub removed: usize,
+    pub kept_in: Option<PathBuf>,
+}
+
+/// Takes the patches that aren't Obsidian's out of the game folder, into a dated folder under
+/// `removed-patches`, so they can be put back by hand.
+#[tauri::command]
+pub async fn remove_other_patches(ctx: State<'_, Ctx>) -> CmdResult<OtherPatchesRemoved> {
+    let _turn = ctx.turn();
+    let game = game_of(&ctx)?;
+    ensure_closed()?;
+    let keep = ctx.data.join(REMOVED_PATCHES).join(obsidian_core::backup::stamp());
+    let r = obsidian_core::deploy::remove_foreign(&game, &ctx.data, &keep)?;
+    Ok(OtherPatchesRemoved { snapshot: fresh(&ctx)?, removed: r.removed.len(), kept_in: r.kept_in })
 }
 
 /// The text for a bug report, for the clipboard.
@@ -428,6 +454,28 @@ pub async fn release_notes(version: String) -> CmdResult<Option<String>> {
 pub async fn release_list() -> CmdResult<Vec<updates::ListedRelease>> {
     let Some(repo) = updates::github_repo(APP_SOURCE) else { return Ok(Vec::new()) };
     Ok(GitHub::default().releases(&repo)?)
+}
+
+/// One page of releases from the repository a mod names, for the changelog in the mod's details.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReleasePage {
+    pub releases: Vec<updates::ListedRelease>,
+    /// GitHub may have older releases on the next page.
+    pub more: bool,
+}
+
+/// The releases of a mod's `source`, newest first, `page` counted from 1. Only reading the
+/// manifest takes a turn; the network doesn't.
+#[tauri::command]
+pub async fn mod_releases(ctx: State<'_, Ctx>, id: String, page: u32) -> CmdResult<ReleasePage> {
+    let m = {
+        let _turn = ctx.turn();
+        load_manifest(&Library::open(&ctx.data)?.mod_dir(&id))?
+    };
+    let Some(repo) = updates::source_of(&m) else { return Ok(ReleasePage { releases: Vec::new(), more: false }) };
+    let (releases, more) = GitHub::default().releases_page(&repo, page, 30)?;
+    Ok(ReleasePage { releases, more })
 }
 
 /// Asks GitHub about the mods in `ids` that name a repository. Only reading the library takes a
@@ -539,6 +587,8 @@ pub struct DeployDone {
     pub backup: bool,
     /// The game already had this deploy; nothing was written.
     pub unchanged: bool,
+    /// Option values or keys changed since the last deploy.
+    pub settings: bool,
 }
 
 #[tauri::command]
@@ -561,7 +611,7 @@ pub async fn deploy(app: tauri::AppHandle, ctx: State<'_, Ctx>) -> CmdResult<Dep
     };
     let r = core_deploy(&game, &ctx.data, &DeployOptions { progress: Some(&tell), ..DeployOptions::default() })?;
     let snapshot = fresh(&ctx)?;
-    Ok(DeployDone { mods: if r.patches.is_empty() { 0 } else { snapshot.mods.iter().filter(|m| m.on).count() }, backup: r.backup.is_some(), unchanged: r.unchanged, snapshot })
+    Ok(DeployDone { mods: if r.patches.is_empty() { 0 } else { snapshot.mods.iter().filter(|m| m.on).count() }, backup: r.backup.is_some(), unchanged: r.unchanged, settings: r.settings_changed, snapshot })
 }
 
 #[derive(Debug, Serialize)]

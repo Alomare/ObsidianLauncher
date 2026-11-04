@@ -1,9 +1,9 @@
--- The bundled Obsidian Quality of Life mod, run from bundled/obsidian.qol/main.lua as a client mod.
+-- The bundled Obsidian Patches mod (id obsidian.qol), run from bundled/obsidian.qol/main.lua as a client mod.
 local E = require "fake_engine"
 local T = {}
 local function test(name, fn) T[#T + 1] = { name, fn } end
 
-local IDS = { "skip_intro", "skip_login", "skip_war_briefs", "skip_planet_scanning", "solo_pause", "widescreen", "aim_cursor", "toggle_map" }
+local IDS = { "skip_intro", "skip_login", "skip_war_briefs", "skip_planet_scanning", "solo_pause", "widescreen", "aim_cursor", "toggle_map", "recoil_fix", "dive_sprint_fix" }
 
 -- off: option ids switched off in settings.txt; every other option keeps the default (on).
 -- expedite: the mission end choice, off when not given.
@@ -418,6 +418,134 @@ test("toggle_map_makes_the_map_binding_sticky_on_a_copy", function()
 	E.eq(#list, 3)
 end)
 
+-- A unit whose animation state is a list of numbers, and the character and inventory states the fix reads.
+local function recoil_game()
+	local g = { unit = { alive = true, pose = { 1, 2, 3, 4, 5, 7, 9 } }, set = 0, flows = {}, cs = {}, inv = { current_weapon = "rifle" } }
+	rawset(_G, "Unit", {
+		alive = function(u) return u.alive end,
+		animation_get_state = function(u) return unpack(u.pose) end,
+		animation_set_state = function(u, ...)
+			u.pose = { ... }
+			g.set = g.set + 1
+		end,
+		flow_event = function(u, name) g.flows[#g.flows + 1] = { u, name } end,
+	})
+	rawset(_G, "EntityAux", { state = function(_, component) return component == "inventory" and g.inv or g.cs end })
+	for _, n in ipairs({ "CharacterStateIdle", "CharacterStateWalk", "CharacterStateFire", "CharacterStateStratagemsThrow", "CharacterStateSwitchWeapon" }) do rawset(_G, n, { name = n }) end
+	rawset(_G, "CharacterStateStratagems", { on_enter = function() end })
+	rawset(_G, "CharacterStateInteract", { on_enter = function() end })
+	return g
+end
+
+test("recoil_fix_puts_the_weapon_pose_back_after_a_stratagem", function()
+	local g = recoil_game()
+	local e = engine()
+	local S, idle = rawget(_G, "CharacterStateStratagems"), rawget(_G, "CharacterStateIdle")
+	S.on_enter(g.unit, {}, idle)
+	g.unit.pose[6] = 12
+	g.cs.current_state = rawget(_G, "CharacterStateStratagemsThrow")
+	e:frames(30)
+	E.eq(g.set, 0, "nothing while throwing")
+	g.cs.current_state = idle
+	e:frames(19)
+	E.eq(g.set, 0, "the weapon comes back up first")
+	e:frames(2)
+	E.eq(g.set, 1)
+	E.eq(g.unit.pose[6], 7, "the weapon layer from before the menu")
+	E.eq(g.unit.pose[5], 5, "every other layer as it was")
+	E.eq(#g.unit.pose, 7)
+	e:frames(30)
+	E.eq(g.set, 1, "once")
+	-- A layer the throw left alone stays alone, and a weapon switch on the way drops the check.
+	S.on_enter(g.unit, {}, idle)
+	e:frames(30)
+	E.eq(g.set, 1, "nothing to put back")
+	S.on_enter(g.unit, {}, idle)
+	g.unit.pose[6], g.inv.current_weapon = 12, "pistol"
+	g.cs.current_state = rawget(_G, "CharacterStateSwitchWeapon")
+	e:frames(2)
+	g.cs.current_state = idle
+	e:frames(30)
+	E.eq(g.set, 1, "switched by the player")
+	E.eq(#g.flows, 0)
+	-- A pose kept mid-shot would fire the weapon again.
+	g.inv.current_weapon = "rifle"
+	S.on_enter(g.unit, {}, rawget(_G, "CharacterStateFire"))
+	e:frames(30)
+	E.eq(g.set, 1, "opened while firing")
+	E.eq(E.count(e:log("obsidianqol"), "recoil fix: weapon pose put back"), 1)
+end)
+
+test("recoil_fix_sets_up_a_weapon_picked_up_from_the_ground", function()
+	local g = recoil_game()
+	local e = engine()
+	local idle = rawget(_G, "CharacterStateIdle")
+	g.cs.current_state = idle
+	rawget(_G, "CharacterStateInteract").on_enter(g.unit, {}, idle)
+	g.cs.current_state = nil
+	g.inv.current_weapon = "machinegun"
+	e:frames(10)
+	E.eq(#g.flows, 0, "not while picking it up")
+	g.cs.current_state = idle
+	e:frames(21)
+	E.eq(#g.flows, 1)
+	E.eq(g.flows[1][1], "machinegun", "the weapon picked up")
+	E.eq(g.flows[1][2], "on_wielded")
+	E.eq(g.set, 0, "no pose of another weapon put on it")
+	-- An interaction that keeps the weapon puts the pose back, as after a stratagem.
+	rawget(_G, "CharacterStateInteract").on_enter(g.unit, {}, idle)
+	g.unit.pose[6] = 12
+	e:frames(25)
+	E.eq(g.set, 1)
+	E.eq(g.unit.pose[6], 7)
+	E.eq(#g.flows, 1)
+end)
+
+test("recoil_fix_off_leaves_the_pose", function()
+	local g = recoil_game()
+	local e = engine({ "recoil_fix" })
+	rawget(_G, "CharacterStateStratagems").on_enter(g.unit, {}, rawget(_G, "CharacterStateIdle"))
+	g.unit.pose[6] = 12
+	g.cs.current_state = rawget(_G, "CharacterStateIdle")
+	e:frames(30)
+	E.eq(g.set, 0)
+end)
+
+-- The character states, and the animation events a unit gets.
+local function sprint_game()
+	local g = { unit = {}, events = {} }
+	rawset(_G, "Unit", {
+		animation_event = function(u, name) g.events[#g.events + 1] = name end,
+		has_animation_event = function() return true end,
+	})
+	for _, n in ipairs({ "CharacterStateIdle", "CharacterStateWalk", "CharacterStateFire", "CharacterStateWalkFire",
+		"CharacterStateSwitchWeapon", "CharacterStateReload", "CharacterStateDodge" }) do rawset(_G, n, { name = n }) end
+	rawset(_G, "CharacterStateSprint", { on_enter = function() end })
+	return g
+end
+
+test("dive_sprint_fix_frees_the_upper_body_when_a_sprint_starts_from_a_held_pose", function()
+	local g = sprint_game()
+	engine()
+	local sprint = rawget(_G, "CharacterStateSprint")
+	for _, from in ipairs({ "CharacterStateIdle", "CharacterStateFire", "CharacterStateWalkFire", "CharacterStateSwitchWeapon" }) do
+		sprint.on_enter(g.unit, {}, rawget(_G, from))
+	end
+	E.eq(table.concat(g.events, ","), "no_animation,no_animation,no_animation,no_animation", "standing (after a dive), firing, a weapon switch")
+	-- A walk frees the layer itself; a reload and anything else are left alone.
+	sprint.on_enter(g.unit, {}, rawget(_G, "CharacterStateWalk"))
+	sprint.on_enter(g.unit, {}, rawget(_G, "CharacterStateReload"))
+	sprint.on_enter(g.unit, {}, nil)
+	E.eq(#g.events, 4)
+end)
+
+test("dive_sprint_fix_off_sends_nothing", function()
+	local g = sprint_game()
+	engine({ "dive_sprint_fix" })
+	rawget(_G, "CharacterStateSprint").on_enter(g.unit, {}, rawget(_G, "CharacterStateIdle"))
+	E.eq(#g.events, 0)
+end)
+
 test("options_off_change_nothing", function()
 	rawset(_G, "GameSettings", { max_aspect_ratio = 16 / 9 })
 	local e = engine(IDS)
@@ -442,6 +570,83 @@ test("options_off_change_nothing", function()
 	E.eq(seen.cursor, "hud/cursors/game_inactive")
 	bindings_game(e)
 	E.eq(sticky(rawget(_G, "InputRebinder"):get_or_default("keyboard_mouse"), "map_pressed"), false, "toggle map")
+end)
+
+
+-- Widescreen fixes: corner elements of the 16:9 layout reach the real corners of a wider screen.
+local function wide_screen(width, widescreen_on)
+	local options = { { id = "widescreen", type = "toggle", default = true } }
+	local e = E.new({
+		deploy = E.deploy({ mods = { E.mod("obsidian.qol", { options = options }) } }),
+		mods = { ["obsidian/mods/obsidian.qol/main"] = E.read("bundled/obsidian.qol/main.lua") },
+		settings = widescreen_on == false and "option\tobsidian.qol\twidescreen\ttoggle\t0\n" or nil,
+	})
+	e:boot()
+	e:start_frames()
+	rawget(_G, "Application").resolution = function() return width, 1080 end
+	local seen = {}
+	rawset(_G, "MissionManager", { draw_objective_list = function(_, gui) seen.objectives = gui.resolution_offset_x return "drawn" end })
+	rawset(_G, "Hud", { draw_dialogue = function(self, a1, a2, a3, a4, a5, a6, a7, a8)
+		seen.dialogue = { (a7 or self.hd_gui).resolution_offset_x, (a8 or self.hd_gui_dialogue).resolution_offset_x }
+	end })
+	e.opts.modules["lua/hud/hud"] = true
+	rawget(_G, "require")("lua/hud/hud")
+	return seen
+end
+
+test("widescreen_pins_the_objectives_right_and_dialogue_left_and_puts_the_offset_back", function()
+	local seen = wide_screen(2560)
+	local gui = { resolution_offset_x = 320 }
+	E.eq(rawget(_G, "MissionManager").draw_objective_list({}, gui, 0.016), "drawn", "answers pass through")
+	E.eq(seen.objectives, 640, "to the right edge")
+	E.eq(gui.resolution_offset_x, 320, "put back")
+	local hud = { hd_gui = { resolution_offset_x = 320 }, hd_gui_dialogue = { resolution_offset_x = 320 } }
+	rawget(_G, "Hud").draw_dialogue(hud, nil, {})
+	E.eq(seen.dialogue[1], 0, "to the left edge")
+	E.eq(seen.dialogue[2], 0)
+	E.eq(hud.hd_gui.resolution_offset_x, 320)
+end)
+
+test("widescreen_leaves_16_9_and_the_option_off_alone", function()
+	local seen = wide_screen(1920)
+	rawget(_G, "MissionManager").draw_objective_list({}, { resolution_offset_x = 0 }, 0.016)
+	E.eq(seen.objectives, 0)
+	seen = wide_screen(2560, false)
+	rawget(_G, "MissionManager").draw_objective_list({}, { resolution_offset_x = 320 }, 0.016)
+	E.eq(seen.objectives, 320)
+end)
+
+-- The galaxy map: a GuiManager centring a 1280-wide layout on a 2560-wide screen (640 each side).
+local function galaxy_map()
+	wide_screen(2560)
+	local GM = {}
+	GM.__index = GM
+	function GM:get_scale() return 1, 1 end
+	function GM:calculate_pos(pos, size) return { x = pos.x + 640, y = pos.y }, size, 1 end
+	local gm = setmetatable({ rect = { w = 2560, h = 1080 }, gui_settings = { design_width = 1280 }, ui_scale_user = 1 }, GM)
+	local drawn = {}
+	rawset(_G, "MenuScreenCampaignMission", { show_mission_info = function(_, g)
+		drawn.left = g:calculate_pos({ x = 100, y = 0 }, { x = 200, y = 10 }).x
+		drawn.title = g:calculate_pos({ x = 500, y = 0 }, { x = 300, y = 10 }).x
+		drawn.right = g:calculate_pos({ x = 900, y = 0 }, { x = 300, y = 10 }).x
+	end })
+	rawset(_G, "MenuScreenCampaignPlanet", { show_planet_info = function() end })
+	rawset(_G, "MenuScreenCampaign", { draw_scanlines = function(_, _, _, g) drawn.scan = { g.gui_settings.design_width, g:calculate_pos({ x = 0, y = 0 }).x } end })
+	-- Hooks on classes defined after boot go in at the next require.
+	rawget(_G, "require")("lua/hud/hud")
+	return gm, drawn
+end
+
+test("widescreen_moves_the_galaxy_map_panels_to_their_sides_and_leaves_the_middle", function()
+	local gm, drawn = galaxy_map()
+	rawget(_G, "MenuScreenCampaignMission").show_mission_info({}, gm)
+	E.eq(drawn.left, 100, "the reward block at the left edge")
+	E.eq(drawn.title, 1140, "a centred title stays")
+	E.eq(drawn.right, 2180, "the mission panel at the right edge")
+	E.eq(rawget(gm, "calculate_pos"), nil, "the panel's own maths back")
+	rawget(_G, "MenuScreenCampaign").draw_scanlines({}, 0.016, 0, gm)
+	E.eq(drawn.scan[1], 2560, "the overlay as wide as the screen while it draws")
+	E.eq(gm.gui_settings.design_width, 1280, "and back")
 end)
 
 return T

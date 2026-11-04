@@ -73,7 +73,7 @@ fn settings_path(appdata: &std::path::Path) -> std::path::PathBuf {
 }
 
 #[test]
-fn consent_and_set_write_settings_for_a_starter_mod() {
+fn block_public_and_set_write_settings_for_a_starter_mod() {
     let t = spaced();
     let game = t.path().join("game");
     std::fs::create_dir_all(game.join("contents")).unwrap();
@@ -84,11 +84,11 @@ fn consent_and_set_write_settings_for_a_starter_mod() {
         c
     };
     let list = String::from_utf8(run(&["list"]).assert().success().get_output().stdout.clone()).unwrap();
-    assert!(list.contains("[on ] obsidian.qol") && list.contains("[off] obsidian.trainer"), "only Quality of Life starts on: {list}");
-    run(&["consent", "on"]).assert().success();
+    assert!(list.contains("[on ] obsidian.qol") && list.contains("[off] obsidian.trainer"), "only Obsidian Patches starts on: {list}");
+    run(&["block-public", "on"]).assert().success();
     run(&["set", "obsidian.qol", "skip_intro", "false"]).assert().success();
     let s = std::fs::read_to_string(settings_path(&appdata)).unwrap();
-    assert!(s.contains("consent\t1\n") && s.contains("option\tobsidian.qol\tskip_intro\ttoggle\t0\n"), "{s}");
+    assert!(s.contains("consent\t0\n") && s.contains("option\tobsidian.qol\tskip_intro\ttoggle\t0\n"), "{s}");
     run(&["set", "obsidian.qol", "skip_intro", "7"]).assert().failure();
 }
 
@@ -156,7 +156,7 @@ fn the_starter_pack_stays_deleted_until_it_is_restored() {
         c
     };
     let list = || String::from_utf8(run(&["list"]).assert().success().get_output().stdout.clone()).unwrap();
-    assert!(list().contains("1. [on ] obsidian.api"), "first in the load order, on for Quality of Life");
+    assert!(list().contains("1. [on ] obsidian.api"), "first in the load order, on for Obsidian Patches");
     run(&["remove", "obsidian.qol"]).assert().success();
     assert!(!list().contains("obsidian.qol"), "and it stays gone at the next start");
     run(&["restore-starter"]).assert().success();
@@ -201,13 +201,13 @@ fn status_says_vanilla_when_the_deploy_wrote_nothing() {
 }
 
 #[test]
-fn consent_asks_for_a_deploy_when_the_loader_is_not_in_the_game() {
+fn a_guardrail_asks_for_a_deploy_when_the_loader_is_not_in_the_game() {
     let t = spaced();
     let game = t.path().join("game");
     std::fs::create_dir_all(game.join("contents")).unwrap();
     let data = t.path().join("data");
     empty_deploy(&data);
-    let out = obsidian(&game, &data).env("OBSIDIAN_APPDATA", t.path().join("appdata")).args(["consent", "on"]).assert().success().get_output().stdout.clone();
+    let out = obsidian(&game, &data).env("OBSIDIAN_APPDATA", t.path().join("appdata")).args(["block-achievements", "on"]).assert().success().get_output().stdout.clone();
     let text = String::from_utf8(out).unwrap();
     assert!(text.contains("Run obsidian deploy to apply."), "{text}");
 }

@@ -30,7 +30,7 @@ import github_api
 
 ROOT = Path(__file__).resolve().parent.parent
 REPO = "Alomare/ObsidianModManager"
-KIT = {"obsidian.api": "Alomare/ObsidianAPI", "obsidian.trainer": "Alomare/ObsidianTrainer", "obsidian.qol": "Alomare/ObsidianQoL"}
+KIT = {"obsidian.api": "Alomare/ObsidianAPI", "obsidian.trainer": "Alomare/ObsidianTrainer", "obsidian.qol": "Alomare/ObsidianPatches"}
 VERSION_FILES = {
     "app/package.json": r'"version":\s*"([^"]+)"',
     "app/src-tauri/tauri.conf.json": r'"version":\s*"([^"]+)"',

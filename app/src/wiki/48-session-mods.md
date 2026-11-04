@@ -51,7 +51,7 @@ end)
 ## Things to avoid
 
 - **Replacing globals directly.** `SomeTable.func = mine` keeps running in every lobby, because the loader can't switch it off. The loader log lists such changes for every mod at startup.
-- **Replacing game scripts with resources for gameplay changes.** A replaced script can't be switched off live either. Obsidian accepts it, but in a lobby with a player who didn't agree, the change stays in your game while the rest of your session mods switch off.
+- **Replacing game scripts with resources for gameplay changes.** A replaced script can't be switched off live either. Obsidian accepts it, but in a public lobby with a player who blocks session mods, the change stays in your game while the rest of your session mods switch off.
 - **Sending your own network messages** to other players outside the game's own code.
 
 > [!NOTE]
@@ -86,14 +86,14 @@ Your own code keeps the real table, so it can still undo what it changed after t
 
 ## Mods every player needs {#every-player}
 
-The multiplayer switch tells your mod that another player agrees to it, not that they run it. That's enough for most mods, since the host's game decides what happens. A mod that only works when every game in the lobby has it, such as one that changes how many players fit in a lobby, can ask for more:
+A player's `consent` tells your mod that they allow it, not that they run it. That's enough for most mods, since the host's game decides what happens. A mod that only works when every game in the lobby has it, such as one that changes how many players fit in a lobby, can ask for more:
 
 ```json
 "scope": "session",
 "every_player": true
 ```
 
-Such a mod runs only when every other player runs it too, at the same version and with the same shared option values. Players who only agree don't count. Obsidian switches it off, and back on, like any session mod, and tells the player why. Its players also get a matchmaking pool of their own, so they only find each other.
+Such a mod runs only when every other player runs it too, at the same version and with the same shared option values. Players who only allow it don't count. Obsidian switches it off, and back on, like any session mod, and tells the player why. Players of such a mod also get a matchmaking pool of their own, so they only find each other.
 
 `obsidian.session.cleared()` answers for the mod that asks, and `obsidian.on_session` calls the mod when its own switch changes.
 

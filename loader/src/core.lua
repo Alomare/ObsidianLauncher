@@ -367,7 +367,7 @@ function M.boot()
 	end
 
 	settings.load(M, game_side and (game_side .. "/settings.txt"))
-	local tag = pool.apply(deploy, M.consent_on)
+	local tag = pool.apply(deploy)
 
 	M.session = session
 	M.expansion = expansion
@@ -386,9 +386,10 @@ function M.boot()
 
 	backend_block.setup(M, hooks)
 	guardrails.setup(M, hooks)
-	-- The multiplayer terminal lists only lobbies with the same build hash, so the filter titles say so,
-	-- unless the vanilla lobbies are listed too.
-	if tag and not pool.bridge(M, hooks, tag) then
+	-- The multiplayer terminal lists only lobbies with the same build hash, so in a pool of Obsidian
+	-- players the filter titles say so. A player in the vanilla pool may list the open pool's too.
+	pool.bridge(M, hooks, tag)
+	if tag then
 		game_text.replace(M, hooks, "campaign_public", "lobby_public")
 		game_text.replace(M, hooks, "campaign_friends", "lobby_friends")
 	end

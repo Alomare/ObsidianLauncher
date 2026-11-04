@@ -1,6 +1,6 @@
 // The profiles dialog, opened from the Profile button on the Mods page: every profile with what it
 // holds, and New, Import, Duplicate, Rename, Export, Delete and Use. A profile keeps the load order, which mods are
-// on, option values, keys and consent.
+// on, option values, keys and guardrails.
 import { useEffect, useState, type CSSProperties } from "react";
 import { run } from "./api";
 import { Confirm } from "./Confirm";
@@ -54,8 +54,8 @@ export function ProfilesDialog({ snap, onClose }: { snap: Snapshot; onClose: () 
                 <div className="nm">
                   {p.name}
                   {active && <span className="tag">{t("app.profiles.active")}</span>}
-                  <span className={p.consent ? "consent-ico on" : "consent-ico"} role="img" aria-label={t(p.consent ? "app.profiles.consentOn" : "app.profiles.consentOff")}
-                    data-tip={t(p.consent ? "app.profiles.consentOn" : "app.profiles.consentOff")}><ModdersIcon /></span>
+                  <span className={p.blockPublic ? "consent-ico on" : "consent-ico"} role="img" aria-label={t(p.blockPublic ? "app.profiles.blockPublicOn" : "app.profiles.blockPublicOff")}
+                    data-tip={t(p.blockPublic ? "app.profiles.blockPublicOn" : "app.profiles.blockPublicOff")}><ModdersIcon /></span>
                   <span className={p.guarded ? "consent-ico on" : "consent-ico"} role="img" aria-label={t(p.guarded ? "app.profiles.guardedOn" : "app.profiles.guardedOff")}
                     data-tip={t(p.guarded ? "app.profiles.guardedOn" : "app.profiles.guardedOff")}><ShieldIcon filled={p.guarded} /></span>
                 </div>

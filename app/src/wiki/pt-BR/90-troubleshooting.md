@@ -17,7 +17,7 @@ Se o jogo parar depois disso, o Obsidian avisa que ele não fechou normalmente. 
 ## Um mod não faz nada {#a-mod-does-nothing}
 
 - Confira se o mod está ligado e se você aplicou depois de ligar. Um botão **Aplicar** verde quer dizer que há mudanças esperando.
-- Num mod de sessão, confira o lobby: com jogadores que não concordaram, os mods de sessão desligam ([Jogar online](wiki:multiplayer)).
+- Num mod de sessão, confira o lobby: num lobby público com jogadores sem mods, ou que bloqueiam mods de sessão, os mods de sessão desligam ([Jogar online](wiki:multiplayer)).
 - Leia os logs (abaixo). Um mod que falhou ao iniciar tem uma linha de erro ali.
 
 ## "Versão desconhecida" {#build-unknown}

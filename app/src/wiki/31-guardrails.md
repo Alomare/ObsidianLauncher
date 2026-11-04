@@ -8,7 +8,7 @@ summary: The shield at the top: other players' session mods, achievements and yo
 
 ## Session mods of other players
 
-**Allow other players' session mods in my game** lets other Obsidian players run their session mods in your game when you play together. It doesn't decide whether your own session mods run ([Playing online](wiki:multiplayer)).
+**Block session mods from others in my public lobby** keeps other players' session mods out of your game while you're in a public lobby with them. The switch is off by default, so playing with other Obsidian players just works. Friends-only and private lobbies are never blocked. It doesn't decide whether your own session mods run ([Playing online](wiki:multiplayer)).
 
 ## Achievements
 
@@ -25,9 +25,9 @@ It's for trying mods, the trainer or a new game mode without it counting.
 
 ## In the app
 
-The shield fills, with a number, while either of the last two switches is on. Hover over it to see all three. In the profiles list, a shield marks a profile that has either of them on.
+The shield fills, with a number, while any of the switches is on. Hover over it to see all three. In the profiles list, a shield marks a profile with either of the last two on, and the players icon one that blocks other players' session mods.
 
-A profile you share or import keeps those two, and Obsidian tells you when an imported one has them on. **Allow other players' session mods in my game** is left off in an imported profile, for each player to choose.
+A profile you share or import keeps the last two, and Obsidian tells you when an imported one has them on. **Block session mods from others in my public lobby** is left off in an imported profile, for each player to choose.
 
 ## Always on
 

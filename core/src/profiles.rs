@@ -189,12 +189,12 @@ mod tests {
     #[test]
     fn old_profile_json_becomes_default() {
         let t = spaced_tempdir();
-        let text = "{\"mods\":[{\"id\":\"a.b\",\"enabled\":true}],\"consent\":true}";
+        let text = "{\"mods\":[{\"id\":\"a.b\",\"enabled\":true}],\"block_public\":true}";
         std::fs::write(t.path().join("profile.json"), text).unwrap();
         assert_eq!(active(t.path()).unwrap(), "Default");
         assert!(!t.path().join("profile.json").exists());
         let p = Profile::load(t.path()).unwrap();
-        assert!(p.consent && p.mods[0].enabled);
+        assert!(p.block_public && p.mods[0].enabled);
     }
 
     #[test]
@@ -219,17 +219,17 @@ mod tests {
     #[test]
     fn create_copy_rename_delete() {
         let t = spaced_tempdir();
-        let p = Profile { consent: true, ..Default::default() };
+        let p = Profile { block_public: true, ..Default::default() };
         p.save(t.path()).unwrap();
         create(t.path(), "Camera fun", Some("default")).unwrap();
         create(t.path(), "Clean", None).unwrap();
         assert_eq!(list(t.path()).unwrap(), vec!["Camera fun", "Clean", "Default"]);
         use_profile(t.path(), "camera fun").unwrap();
-        assert!(Profile::load(t.path()).unwrap().consent, "copy keeps the settings");
+        assert!(Profile::load(t.path()).unwrap().block_public, "copy keeps the settings");
         rename(t.path(), "Camera fun", "Cameras").unwrap();
         assert_eq!(active(t.path()).unwrap(), "Cameras", "renaming the active profile keeps it active");
         use_profile(t.path(), "Clean").unwrap();
-        assert!(!Profile::load(t.path()).unwrap().consent);
+        assert!(!Profile::load(t.path()).unwrap().block_public);
         delete(t.path(), "Cameras").unwrap();
         assert_eq!(list(t.path()).unwrap(), vec!["Clean", "Default"]);
     }

@@ -10,11 +10,11 @@ HELLDIVERS é um jogo cooperativo. Um mod que muda inimigos, armas ou missões m
 
 Um mod de cliente muda só o que o jogador vê, ouve ou aperta: a câmera, o HUD, os controles, os menus, o visual e o som locais. Nada do que ele faz chega aos outros jogadores. Mods de cliente rodam em qualquer lugar, em qualquer lobby, com qualquer pessoa.
 
-O Obsidian Qualidade de Vida é um mod de cliente.
+O Obsidian Patches é um mod de cliente.
 
 ## Mods de sessão {#session-mods}
 
-Um mod de sessão pode mudar o jogo compartilhado: balanceamento, inimigos, spawns, missões, física, qualquer coisa que outros jogadores perceberiam. Mods de sessão só rodam num lobby em que todos os outros jogadores concordaram com eles ([Jogar online](wiki:multiplayer)). Jogando sozinho, eles sempre rodam.
+Um mod de sessão pode mudar o jogo compartilhado: balanceamento, inimigos, spawns, missões, física, qualquer coisa que outros jogadores perceberiam. Num lobby público, os mods de sessão só rodam quando todos os outros jogadores os permitem. Sozinho, e num lobby só para amigos ou privado, eles sempre rodam ([Jogar online](wiki:multiplayer)).
 
 Um mod de sessão aplicado vale para todas as missões: os resultados da Guerra Galáctica e dos placares não são enviados, Proving Grounds fica fechado e o matchmaking só encontra outros jogadores do Obsidian ([A Guerra Galáctica](wiki:galactic-war)).
 
@@ -45,7 +45,7 @@ Uma biblioteca é código usado por outros mods, como o Obsidian API. Ela assume
 
 ## No aplicativo {#in-the-app}
 
-Cada linha da lista de mods tem um losango para o escopo: preto para não especificado, verde para cliente, vermelho para sessão, branco para biblioteca (cinza no tema claro) e amarelo para expansão. Passar o mouse por cima mostra o nome. Os detalhes de cada mod também mostram o escopo.
+Cada linha da lista de mods tem um losango para o escopo: preto para não especificado, verde para cliente, vermelho para sessão, branco para biblioteca (cinza no tema claro) e amarelo para expansão. Passar o mouse por cima mostra o nome, e clicar abre esta página no escopo dele. Os detalhes de cada mod também mostram o escopo.
 
 ## Quem decide o escopo {#who-decides-the-scope}
 

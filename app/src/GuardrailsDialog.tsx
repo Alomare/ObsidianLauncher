@@ -1,6 +1,6 @@
 // The Guardrails dialog, opened from the shield in the navigation bar: the active profile's three switches.
-// One lets other players' session mods into this player's game; two protect the player's own account, its
-// achievements and its progression. The loader reads them when the game starts, so a change applies at
+// One keeps other players' session mods out of a public lobby; two protect the player's own account:
+// achievements and progression. All three start off. The loader reads them when the game starts, so a change applies at
 // the next launch.
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
@@ -9,21 +9,21 @@ import { CloseIcon, ShieldIcon } from "./Icons";
 import { t } from "./i18n";
 import type { Snapshot } from "./types";
 
-type Row = { key: "consent" | "blockAchievements" | "freezeProgress"; command: string; text: string };
+type Row = { key: "blockPublic" | "blockAchievements" | "freezeProgress"; command: string; text: string };
 
 export const GUARDRAILS: Row[] = [
-  { key: "consent", command: "set_consent", text: "consent" },
+  { key: "blockPublic", command: "set_block_public", text: "blockPublic" },
   { key: "blockAchievements", command: "set_block_achievements", text: "achievements" },
   { key: "freezeProgress", command: "set_freeze_progress", text: "freeze" },
 ];
 
-/** How many of the guardrails that protect the account are on. */
-export const guardsOn = (snap: Snapshot) => [snap.blockAchievements, snap.freezeProgress].filter(Boolean).length;
+/** How many guardrails are on. */
+export const guardsOn = (snap: Snapshot) => [snap.blockPublic, snap.blockAchievements, snap.freezeProgress].filter(Boolean).length;
 
 /** One line per switch, for the button's tooltip. */
 export function guardrailsSummary(snap: Snapshot): string {
   const state = (on: boolean, name: string) => t(`app.guardrails.state${name}${on ? "On" : "Off"}`);
-  return [state(snap.consent, "Consent"), state(snap.blockAchievements, "Achievements"), state(snap.freezeProgress, "Freeze")].join(". ") + ".";
+  return [state(snap.blockPublic, "BlockPublic"), state(snap.blockAchievements, "Achievements"), state(snap.freezeProgress, "Freeze")].join(". ") + ".";
 }
 
 export function GuardrailsDialog({ snap, onClose }: { snap: Snapshot; onClose: () => void }) {

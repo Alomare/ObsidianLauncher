@@ -69,7 +69,7 @@ pub fn restore(lib: &Library, p: &mut Profile) -> Result<()> {
             e.enabled = id == ON;
         }
     }
-    // With what it requires (Obsidian QoL needs Obsidian API since 1.4.0).
+    // With what it requires (Obsidian Patches needs Obsidian API since 1.4.0).
     if p.mods.iter().any(|m| m.id == ON) {
         p.switch(lib, ON, true)?;
     }
@@ -142,7 +142,7 @@ mod tests {
         assert_eq!((p.folders[0].name.as_str(), p.folders[0].color.as_str(), p.folders[0].collapsed, p.folders[0].locked), ("Obsidian Kit", "#4a90d9", true, true));
         assert!(p.mods.iter().take(3).all(|m| m.folder.as_deref() == Some(FOLDER)));
     }
-    /// The values the game gets for the Quality of Life mod.
+    /// The values the game gets for Obsidian Patches.
     fn qol_values(lib: &Library, p: &Profile) -> Vec<(String, Value)> {
         let specs = load_manifest(&lib.mod_dir(ON)).unwrap().option_specs().unwrap();
         effective_values(&specs, p.options.get(ON)).into_iter().collect()
@@ -155,12 +155,12 @@ mod tests {
         let lib = Library::open(t.path()).unwrap();
         let p = Profile::load(t.path()).unwrap();
         assert_eq!(order(&p), MODS);
-        assert_eq!(on(&p), ["obsidian.api", ON], "Quality of Life, with the API it requires");
+        assert_eq!(on(&p), ["obsidian.api", ON], "Obsidian Patches, with the API it requires");
         folders_ok(&p);
         let values = qol_values(&lib, &p);
         let toggled: Vec<&str> = values.iter().filter(|(_, v)| *v == json!(true)).map(|(k, _)| k.as_str()).collect();
-        assert_eq!(toggled, ["solo_pause", "widescreen"], "the widescreen fixes and Dynamic solo pause start on");
-        assert!(values.contains(&("expedite_mission_end".to_string(), json!("off"))));
+        assert_eq!(toggled, ["dive_sprint_fix", "recoil_fix", "skip_intro", "skip_login", "skip_planet_scanning", "solo_pause", "widescreen"], "the manifest's defaults");
+        assert!(values.contains(&("expedite_mission_end".to_string(), json!("faster"))));
         for id in MODS {
             assert!(crate::updates::source_of(&load_manifest(&lib.mod_dir(id)).unwrap()).is_some(), "{id} updates from its repository");
         }

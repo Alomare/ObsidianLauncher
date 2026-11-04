@@ -25,9 +25,9 @@ export type Folder = { id: string; name: string; color: string; collapsed: boole
 export type ConflictRow = { resource: string; mods: string[]; winner: string };
 export type ChangesWaiting = "UpToDate" | "Waiting" | "Vanilla";
 export type GameState = "supported" | "unknown" | "running" | "notFound";
-export type ProfileRow = { name: string; on: number; consent: boolean; guarded: boolean; image: ImageRef | null; color: string | null };
+export type ProfileRow = { name: string; on: number; blockPublic: boolean; guarded: boolean; image: ImageRef | null; color: string | null };
 export type Snapshot = {
-  mods: ModRow[]; folders: Folder[]; profile: string; profiles: string[]; profileRows: ProfileRow[]; consent: boolean; blockAchievements: boolean; freezeProgress: boolean; conflicts: ConflictRow[];
+  mods: ModRow[]; folders: Folder[]; profile: string; profiles: string[]; profileRows: ProfileRow[]; blockPublic: boolean; blockAchievements: boolean; freezeProgress: boolean; conflicts: ConflictRow[];
   changes: ChangesWaiting; deployed: boolean; game: GameState; gameDir: string | null; crashCulprit: string | null; broken: { folder: string; reason: string }[]; damagedProfiles: string[]; uncleanEnd: { stamp: number; last: string } | null;
   portable: boolean; version: string;
 };

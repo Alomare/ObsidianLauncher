@@ -12,11 +12,11 @@ HELLDIVERS has no anti-cheat, and Obsidian never edits a game file. Session mods
 
 ### Why can't I find any lobbies?
 
-With session mods deployed, you only see other Obsidian players. Deploy without session mods for normal matchmaking. **Allow other players' session mods in my game** in Guardrails leaves every lobby in your list, but your own lobby shows only for Obsidian players while it's on ([Playing online](wiki:multiplayer#matchmaking)).
+With session mods deployed, you only see other Obsidian players who run session mods. Deploy without session mods for normal matchmaking: you then see everyone, and your own lobby shows for everyone too ([Playing online](wiki:multiplayer#matchmaking)).
 
 ### My friend and I both use Obsidian. Why are my session mods off?
 
-Session mods run when every other player has the same set or has the switch on. Exporting your profile and sending it to your friend is the quickest way to match ([Profiles](wiki:profiles#sharing-a-profile)).
+In a public lobby, session mods run when every other player has the same set or doesn't block other players' session mods. Set the lobby to friends only and they run with anyone. Exporting your profile and sending it to your friend is the quickest way to match ([Profiles](wiki:profiles#sharing-a-profile)).
 
 ### Do my missions count for the Galactic War?
 
@@ -38,11 +38,11 @@ The one lower in the list ([Load order](wiki:load-order)).
 
 ### Do I need an ultrawide mod?
 
-No. Obsidian Quality of Life removes the black bars on wide screens, and that option starts on. An imported ultrawide patch does the same job.
+No. Obsidian Patches removes the black bars on wide screens, and that option starts on. An imported ultrawide patch does the same job.
 
-### What is Obsidian Quality of Life?
+### What is Obsidian Patches?
 
-A client mod that comes with Obsidian: it skips the intro, the login screen, war briefs and planet scanning, removes the black bars on wide screens, and can speed up or skip the results screens after a mission. Each fix is an option. It starts on with only the widescreen fixes enabled; find it in the Obsidian Kit folder at the top of the list.
+A client mod that comes with Obsidian: it skips the intro, the login screen, war briefs and planet scanning, removes the black bars on wide screens, can speed up or skip the results screens after a mission, and fixes two animation faults of the game, after stratagem throws and dives. Each fix is an option. It starts on with most of the fixes enabled; find it in the Obsidian Kit folder at the top of the list.
 
 ## Making mods
 

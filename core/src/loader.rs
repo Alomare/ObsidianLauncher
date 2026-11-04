@@ -1,6 +1,7 @@
 //! Obsidian Loader as patch resources: the loader modules, every mod entry and the deploy table,
 //! all compiled for the boot bundle, plus the settings file the loader reads at launch.
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
@@ -11,7 +12,7 @@ use crate::hash::hash_name;
 use crate::library::{Library, Profile};
 use crate::lua::{check_bytecode, unwrap_resource, wrap_resource};
 use crate::luajit::compile_all;
-use crate::manifest::{Scope, load_manifest};
+use crate::manifest::{Manifest, Scope, load_manifest};
 use crate::modset::{SessionMod, every_hash, every_pool_tag, expansion_pool_tag, modset_hash, open_pool_tag};
 use crate::options::{effective_values, value_text};
 use crate::settings::Settings;
@@ -114,9 +115,11 @@ pub fn find_loader_dir() -> Result<PathBuf> {
     })
 }
 
-/// The loader goes into the game whenever a mod, consent or a guardrail is on.
+/// The loader goes into the game whenever a mod or a guardrail of the account is on. Blocking other
+/// players' session mods alone needs no loader: a game without it runs none, and the others treat
+/// it as a vanilla player.
 pub fn needed(comp: &Composition, profile: &Profile) -> bool {
-    !comp.mods.is_empty() || profile.consent || profile.block_achievements || profile.freeze_progress
+    !comp.mods.is_empty() || profile.block_achievements || profile.freeze_progress
 }
 
 /// The folder of a mod's resources. Ids are already limited to `[a-z0-9._-]`.
@@ -498,15 +501,24 @@ pub fn build_inputs(loader_dir: &Path, comp: &Composition) -> Result<Vec<u8>> {
 /// The settings file for this profile: consent, the guardrails and the value of every option of each
 /// enabled mod with an entry. Reads manifests only, so nothing is compiled.
 pub fn settings_for(lib: &Library, profile: &Profile) -> Result<Settings> {
+    settings_from(profile, |id| load_manifest(&lib.mod_dir(id)).ok().map(Cow::Owned))
+}
+
+/// `settings_for` with the manifests already read, as the app's snapshot has them.
+pub fn settings_with(profile: &Profile, manifests: &BTreeMap<String, Manifest>) -> Result<Settings> {
+    settings_from(profile, |id| manifests.get(id).map(Cow::Borrowed))
+}
+
+fn settings_from<'a>(profile: &Profile, manifest: impl Fn(&str) -> Option<Cow<'a, Manifest>>) -> Result<Settings> {
     let mut s = Settings {
-        consent: profile.consent,
+        consent: profile.allows_others(),
         block_achievements: profile.block_achievements,
         freeze_progress: profile.freeze_progress,
         ..Default::default()
     };
     for entry in profile.mods.iter().filter(|m| m.enabled) {
         // A mod that can't be read stays out, as it does in a deploy.
-        let Ok(m) = load_manifest(&lib.mod_dir(&entry.id)) else { continue };
+        let Some(m) = manifest(&entry.id) else { continue };
         if m.entry.is_none() {
             continue;
         }
@@ -855,7 +867,7 @@ mod tests {
         let lib = Library::open(&t.path().join("data")).unwrap();
         let mut profile = Profile::default();
         crate::starter::restore(&lib, &mut profile).unwrap();
-        assert!(profile.mods.iter().any(|m| m.id == "obsidian.api" && m.enabled), "Quality of Life brings the API");
+        assert!(profile.mods.iter().any(|m| m.id == "obsidian.api" && m.enabled), "Obsidian Patches brings the API");
         assert_eq!(profile.switch(&lib, "obsidian.trainer", true).unwrap(), Vec::<String>::new());
         let comp = compose(&lib, &profile).unwrap();
         let table = deploy_table(&comp, json!({})).unwrap();
