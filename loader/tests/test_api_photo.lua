@@ -164,6 +164,58 @@ test("a_light_is_a_hidden_flare_with_its_light_set", function()
 	E.eq(light:set({ intensity = 1 }), false)
 end)
 
+test("a_new_light_is_placed_at_once_in_a_stopped_world", function()
+	local api, game = start()
+	light_world(game, true)
+	api.world.light({ x = 1, y = 2, z = 3 })
+	E.eq((game.lights[1].settled or 0) > 0, true, "a point light, before any move")
+end)
+
+test("a_hidden_helldiver_takes_its_armour_and_what_it_carries_with_it", function()
+	local api, game = start()
+	local units = rawget(_G, "Unit")
+	units.set_unit_visibility = function(u, on) u.visible = on end
+	units.alive = function(u) return type(u) == "table" and u.gone ~= true end
+	local cape = { name = "cape" }
+	units.children = function(u, out) if u == game.me then out[1] = cape end end
+	local helmet, body, rifle, other_rifle = { name = "helmet" }, { name = "body" }, { name = "rifle" }, { name = "other" }
+	game.slaves.customization = { [game.me] = { state = { helmet_unit = helmet, body_unit = body } } }
+	game.slaves.equipment = { [rifle] = { state = { wielder = game.me } }, [other_rifle] = { state = { wielder = { name = "friend" } } } }
+	E.eq(#api.world.parts_of(game.me), 5, "the avatar, a child, two armour parts and the rifle")
+	game.me.visible = false
+	E.eq(api.world.visible(game.me, false), true)
+	E.eq(helmet.visible, false)
+	E.eq(body.visible, false)
+	E.eq(cape.visible, false)
+	E.eq(rifle.visible, false)
+	E.eq(other_rifle.visible, nil, "another Helldiver's weapon stays")
+	E.eq(api.world.visible(game.me, true), true)
+	E.eq(helmet.visible, true)
+	E.eq(rifle.visible, true)
+	E.eq(game.me.visible, false, "the avatar's own unit stays undrawn, as the game keeps it")
+	game.slaves.customization, game.slaves.equipment = nil, nil
+end)
+
+test("the_sun_is_the_set_direction_or_the_planets_pointing_at_the_sun", function()
+	local api = start()
+	local vp = api.game.state().viewport
+	vp.variable_values = { sun_direction = { 0, 0, -2 } }
+	local sun = api.world.sun()
+	near(sun.z, 1, "the light falls down, so the sun is up")
+	vp.variable_values = nil
+	rawset(_G, "ShadingEnvironment", { vector3 = function(env, name)
+		E.eq(env, "planet env")
+		E.eq(name, "sun_direction")
+		return { x = 0, y = -1, z = 0 }
+	end })
+	vp.get_shading_environment = function() return "planet env" end
+	sun = api.world.sun()
+	near(sun.y, 1, "the planet's")
+	vp.get_shading_environment = nil
+	rawset(_G, "ShadingEnvironment", nil)
+	E.eq(api.world.sun(), nil, "nothing to read")
+end)
+
 test("a_flare_without_a_light_is_taken_away", function()
 	local api, game = start()
 	light_world(game, false)
@@ -657,6 +709,23 @@ test("icon_tabs_show_the_icon_and_the_title_over_the_help", function()
 	ui.move(5, 5)
 	E.eq(panel():tab_number(), 2)
 	E.eq(ui.shown("Lens"), true, "the open tab")
+end)
+
+test("a_tab_icon_of_the_mods_own_shapes_draws", function()
+	local e, ui = start_mod([[
+		local api = obsidian.import("obsidian.api")
+		PANEL = api.menu.panel({ title = "Shapes", id = "shapes", tabs = {
+			{ title = "Square", icon = { { 2, 2, 14, 2, 14, 14, 2, 14 } }, build = function(page) page:label("In") end },
+			{ title = "Broken", icon = { { 2, 2, "x", 2, 14, 14 } }, build = function(page) page:label("Out") end },
+		} })
+	]])
+	panel():open()
+	ui.frame()
+	local M = menu_of(e)
+	E.eq(M.hits.tabs[1].icon, true, "the shapes draw")
+	E.eq(ui.shown("Square"), true, "the open tab's title, over the help")
+	E.eq(M.hits.tabs[2].icon, false, "a polygon with a bad point draws nothing")
+	E.eq(ui.shown("Broken"), true, "so its title shows")
 end)
 
 test("a_header_button_runs_as_the_mod_and_shows_its_help", function()

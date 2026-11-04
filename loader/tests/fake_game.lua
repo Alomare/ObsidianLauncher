@@ -429,6 +429,7 @@ function G.start(ids, opts)
 		if u.owned then masters.enemy[u] = { state = u.master.health } end
 	end
 	game.masters = masters
+	game.slaves = slaves
 
 	rawset(_G, "EntityAux", {
 		get_component = function(name) return comps[name] end,
