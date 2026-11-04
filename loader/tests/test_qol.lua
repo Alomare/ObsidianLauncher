@@ -621,6 +621,9 @@ local function dynamic(on)
 		get_active_players = function() return { 1 } end, network_session_handler = { is_peer_in_session = function() return true end },
 		show_menu = function(_, name, args) game.menus[#game.menus + 1] = args.user_pad_number end }
 	rawget(_G, "Boot").state_machine = { get_current_state_name = function() return game.state or "game" end, get_current_state = function() return st end }
+	-- The game's input handling, which asks to join at a press of interact.
+	rawset(_G, "StateGame", { handle_input = function(self) self.network_router:transmit_to("host", "rpc_add_local_player_request", 1, 1) end })
+	rawset(_G, "StateMenu", { handle_input = function() end })
 	-- Hooks on classes the game defines later go in at the next require.
 	e.opts.modules["lua/states/state_game"] = true
 	rawget(_G, "require")("lua/states/state_game")
@@ -650,7 +653,7 @@ end)
 
 test("dynamic_input_joins_only_after_a_held_button", function()
 	local e, game = dynamic(true)
-	game.st.network_router:transmit_to("host", "rpc_add_local_player_request", 1, 1)
+	rawget(_G, "StateGame").handle_input(game.st)
 	E.eq(#game.sent, 0, "the game's join at a press is held back")
 	game.st.network_router:transmit_to("host", "rpc_other", 1)
 	E.eq(#game.sent, 1, "other messages go")
@@ -681,7 +684,7 @@ test("dynamic_input_off_leaves_joining_and_input_alone", function()
 	game.stick = 1
 	e:frames(5)
 	E.eq(#game.commands, 0)
-	game.st.network_router:transmit_to("host", "rpc_add_local_player_request", 1, 1)
+	rawget(_G, "StateGame").handle_input(game.st)
 	E.eq(#game.sent, 1, "a press joins as in the game")
 	E.eq(rawget(_G, "LocalizationManager"):string("press_cross_to_join"), "PRESS [A] TO JOIN")
 end)
@@ -772,6 +775,15 @@ test("widescreen_moves_the_galaxy_map_panels_to_their_sides_and_leaves_the_middl
 	rawget(_G, "MenuScreenCampaign").draw_scanlines({}, 0.016, 0, gm)
 	E.eq(drawn.scan[1], 2560, "the overlay as wide as the screen while it draws")
 	E.eq(gm.gui_settings.design_width, 1280, "and back")
+end)
+
+-- Joining a session asks to add each local player with the same message, outside the input handling:
+-- held back, the ship never got its Helldiver (1.9.1, at login).
+test("dynamic_input_lets_the_session_add_its_players", function()
+	local _, game = dynamic(true)
+	game.st.network_router:transmit_to("host", "rpc_add_local_player_request", 0, 1)
+	game.st.network_router:transmit_to("host", "rpc_add_local_player_request", 1, 2)
+	E.eq(#game.sent, 2, "both requests reach the host")
 end)
 
 return T
