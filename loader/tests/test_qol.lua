@@ -698,4 +698,47 @@ test("network_messages_go_on_with_the_values_they_came_with", function()
 	end
 end)
 
+-- Widescreen fixes: corner elements of the 16:9 layout reach the real corners of a wider screen.
+local function wide_screen(width, widescreen_on)
+	local options = { { id = "widescreen", type = "toggle", default = true } }
+	local e = E.new({
+		deploy = E.deploy({ mods = { E.mod("obsidian.qol", { options = options }) } }),
+		mods = { ["obsidian/mods/obsidian.qol/main"] = E.read("bundled/obsidian.qol/main.lua") },
+		settings = widescreen_on == false and "option\tobsidian.qol\twidescreen\ttoggle\t0\n" or nil,
+	})
+	e:boot()
+	e:start_frames()
+	rawget(_G, "Application").resolution = function() return width, 1080 end
+	local seen = {}
+	rawset(_G, "MissionManager", { draw_objective_list = function(_, gui) seen.objectives = gui.resolution_offset_x return "drawn" end })
+	rawset(_G, "Hud", { draw_dialogue = function(self, a1, a2, a3, a4, a5, a6, a7, a8)
+		seen.dialogue = { (a7 or self.hd_gui).resolution_offset_x, (a8 or self.hd_gui_dialogue).resolution_offset_x }
+	end })
+	e.opts.modules["lua/hud/hud"] = true
+	rawget(_G, "require")("lua/hud/hud")
+	return seen
+end
+
+test("widescreen_pins_the_objectives_right_and_dialogue_left_and_puts_the_offset_back", function()
+	local seen = wide_screen(2560)
+	local gui = { resolution_offset_x = 320 }
+	E.eq(rawget(_G, "MissionManager").draw_objective_list({}, gui, 0.016), "drawn", "answers pass through")
+	E.eq(seen.objectives, 640, "to the right edge")
+	E.eq(gui.resolution_offset_x, 320, "put back")
+	local hud = { hd_gui = { resolution_offset_x = 320 }, hd_gui_dialogue = { resolution_offset_x = 320 } }
+	rawget(_G, "Hud").draw_dialogue(hud, nil, {})
+	E.eq(seen.dialogue[1], 0, "to the left edge")
+	E.eq(seen.dialogue[2], 0)
+	E.eq(hud.hd_gui.resolution_offset_x, 320)
+end)
+
+test("widescreen_leaves_16_9_and_the_option_off_alone", function()
+	local seen = wide_screen(1920)
+	rawget(_G, "MissionManager").draw_objective_list({}, { resolution_offset_x = 0 }, 0.016)
+	E.eq(seen.objectives, 0)
+	seen = wide_screen(2560, false)
+	rawget(_G, "MissionManager").draw_objective_list({}, { resolution_offset_x = 320 }, 0.016)
+	E.eq(seen.objectives, 320)
+end)
+
 return T
