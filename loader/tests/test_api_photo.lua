@@ -871,4 +871,30 @@ test("a_pause_row_closes_the_pause_menu_then_runs_as_its_mod", function()
 	lm.string = real_string
 end)
 
+-- The ship sets its own camera (52 degrees, 10 m): a change and a reset give back exactly that, not a
+-- mission's values.
+test("camera_effects_give_back_the_cameras_own_values_on_each_screen", function()
+	local api, game = start()
+	local cm = rawget(_G, "CameraManager")
+	cm.fov, cm.follow_distance, cm.max_follow_distance, cm.min_follow_distance, cm.follow_angle = math.rad(52), 10, 10, 10, math.rad(40)
+	cm.change_settings = function(self, fov, distance, angle)
+		if distance then self.follow_distance, self.max_follow_distance, self.min_follow_distance = distance, distance, distance end
+		if angle then self.follow_angle = math.rad(angle) end
+	end
+	near(api.world.camera.defaults().fov, 52, "the game's own")
+	api.world.camera.fov(90)
+	near(math.deg(cm.fov), 90)
+	near(api.world.camera.defaults().fov, 52, "still the game's own while changed")
+	api.effects.set("camera_distance", 30)
+	api.effects.set("camera_angle", 70)
+	E.eq(cm.follow_distance, 30)
+	api.world.camera.fov(nil)
+	api.effects.set("camera_distance", false)
+	api.effects.set("camera_angle", false)
+	near(math.deg(cm.fov), 52, "the ship's field of view back")
+	E.eq(cm.follow_distance, 10, "and distance")
+	E.eq(cm.min_follow_distance, 10)
+	near(math.deg(cm.follow_angle), 40, "and angle")
+end)
+
 return T
