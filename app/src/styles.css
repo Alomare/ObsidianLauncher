@@ -106,6 +106,25 @@ button.bare:hover { color: var(--tx); }
 .guard-text .muted { font-size: 0.84rem; line-height: 1.4; }
 .nav-warn { display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: var(--warn); }
 .nav-warn svg { width: 1rem; height: 1rem; }
+button.nav-warn { cursor: pointer; font-family: inherit; }
+button.nav-warn:hover { filter: brightness(1.2); text-decoration: underline; text-underline-offset: 3px; }
+/* Game files changed: which files, what it means, how to get the known files back */
+.modal.build { width: min(36rem, 94vw); }
+.modal.build .head { display: flex; align-items: center; }
+.modal.build .head h2 { margin: 0; font-size: 1.05rem; display: flex; align-items: center; gap: 0.5rem; color: var(--warn); }
+.modal.build .head h2 svg { width: 1.1rem; height: 1.1rem; }
+.modal.build .head .close { margin-left: auto; }
+.modal.build h3 { margin: 0.3rem 0 0; font-size: 0.74rem; letter-spacing: 0.16em; text-transform: uppercase; opacity: 0.75; }
+.modal.build p, .modal.build li { margin: 0; font-size: 0.86rem; line-height: 1.45; }
+.build-files { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.build-files li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.6rem; padding: 0.45rem 0.6rem; background: rgba(0, 0, 0, 0.18); }
+:root[data-theme="light"] .build-files li { background: rgba(0, 0, 0, 0.06); }
+.build-files .name { font-weight: 600; }
+.build-files .mono { font-size: 0.76rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.build-files .tag { font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase; padding: 0.1rem 0.45rem; color: var(--warn); border: 1px solid currentColor; }
+.build-steps { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.25rem; }
+.modal.build .note { font-size: 0.8rem; }
+.modal.build .foot { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.2rem; }
 .actions { display: flex; gap: 0.5rem; }
 
 

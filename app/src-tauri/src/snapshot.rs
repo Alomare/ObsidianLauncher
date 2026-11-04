@@ -145,6 +145,8 @@ pub struct Snapshot {
     /// Whether a purge has anything to remove.
     pub deployed: bool,
     pub game: GameState,
+    /// The game files that differ from the build Obsidian knows, when it doesn't know this one.
+    pub game_changes: Vec<GameChange>,
     pub game_dir: Option<PathBuf>,
     pub crash_culprit: Option<String>,
     /// Mod folders that can't be read, which stay out of the game until they're fixed or removed.
@@ -157,21 +159,34 @@ pub struct Snapshot {
     pub version: &'static str,
 }
 
-/// Whether the game build at a folder is supported. Hashing the game files takes a moment, so the
-/// answer is kept per folder until `forget` (Settings, "Check again").
+/// A game file that differs from the build Obsidian knows, by its path under the game folder.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GameChange {
+    pub path: String,
+    pub missing: bool,
+}
+
+/// The game files that differ from the build Obsidian knows: empty when it knows the build.
+/// Hashing the game files takes a moment, so the answer is kept per folder until `forget`
+/// (Settings, "Check again").
 #[derive(Default)]
-pub struct GateCache(Option<(PathBuf, bool)>);
+pub struct GateCache(Option<(PathBuf, Vec<GameChange>)>);
 
 impl GateCache {
-    fn supported(&mut self, root: &Path) -> bool {
-        if let Some((r, ok)) = &self.0
+    fn changes(&mut self, root: &Path) -> Vec<GameChange> {
+        if let Some((r, c)) = &self.0
             && r == root
         {
-            return *ok;
+            return c.clone();
         }
-        let ok = check_build(root, KNOWN_BUILDS).is_ok_and(|g| g.build.is_some());
-        self.0 = Some((root.to_path_buf(), ok));
-        ok
+        let changes = match check_build(root, KNOWN_BUILDS) {
+            Ok(g) if g.build.is_some() => Vec::new(),
+            Ok(g) => g.mismatches.into_iter().map(|path| GameChange { missing: !root.join(&path).is_file(), path }).collect(),
+            Err(_) => vec![GameChange { path: "contents".into(), missing: true }],
+        };
+        self.0 = Some((root.to_path_buf(), changes.clone()));
+        changes
     }
     pub fn forget(&mut self) {
         self.0 = None;
@@ -314,10 +329,11 @@ pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Re
         });
     }
 
+    let game_changes = game_install.as_ref().map(|g| gate.changes(&g.root)).unwrap_or_default();
     let game = match &game_install {
         None => GameState::NotFound,
         Some(_) if is_running() => GameState::Running,
-        Some(g) if gate.supported(&g.root) => GameState::Supported,
+        Some(_) if game_changes.is_empty() => GameState::Supported,
         Some(_) => GameState::Unknown,
     };
     let crash_culprit = game_install.as_ref().and_then(crash_culprit);
@@ -345,6 +361,7 @@ pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Re
         changes: changes_waiting_for(&comp, &profile, &settings_digest(&obsidian_core::loader::settings_with(&profile, &manifests)?), data, game_install.as_ref().map(|g| g.contents()).as_deref()).unwrap_or(ChangesWaiting::Waiting),
         deployed: has_deployed(data),
         game,
+        game_changes,
         game_dir: game_install.map(|g| tidy(&g.root)),
         crash_culprit,
         broken,

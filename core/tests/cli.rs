@@ -30,7 +30,7 @@ fn help_lists_every_command() {
 }
 
 #[test]
-fn unknown_build_is_reported_and_blocks_deploy() {
+fn unknown_build_is_reported_and_doesnt_block_deploy() {
     let t = spaced();
     let game = t.path().join("game");
     std::fs::create_dir_all(game.join("binaries/x64")).unwrap();
@@ -38,7 +38,8 @@ fn unknown_build_is_reported_and_blocks_deploy() {
     let data = t.path().join("data");
     let out = obsidian(&game, &data).arg("status").assert().success().get_output().stdout.clone();
     assert!(String::from_utf8(out).unwrap().contains("Game build: not recognised"));
-    obsidian(&game, &data).arg("deploy").assert().code(2);
+    let err = obsidian(&game, &data).arg("deploy").assert().get_output().stderr.clone();
+    assert!(!String::from_utf8(err).unwrap().contains("not recognised"), "the build check no longer stops a deploy");
 }
 
 #[test]

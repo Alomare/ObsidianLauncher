@@ -74,8 +74,6 @@ pub enum ObsidianError {
     RecipeFile { mod_id: String, file: String, why: String },
     #[error("the patch for bundle {0} would pass 4 GB, which a bundle can't hold. Turn off some of the mods that change it")]
     PatchTooLarge(String),
-    #[error("game build not recognised: {}", .0.mismatches.join(", "))]
-    UnsupportedBuild(crate::gate::GateReport),
     #[error("bundle {bundle}: patch_{missing} is missing below another tool's patches, so the game would skip them")]
     ForeignPatchGap { bundle: String, missing: u32 },
     #[error("{0} is not an image Obsidian can use: PNG, JPG or WebP, up to 4 MB")]
