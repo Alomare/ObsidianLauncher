@@ -35,7 +35,7 @@ fn group(lang: &str, app: bool) -> BTreeMap<String, String> {
 
 /// Every key another catalog holds is one `en.json` has, with the same placeholders. A key it
 /// lacks shows in English: new text is translated at the last step before a release (the
-/// `fully_translated` check below, and "Translations owed" in internal/release/NEXT.md).
+/// `fully_translated` check below, and internal/release/untranslated-keys.txt).
 #[test]
 fn catalogs_have_the_same_keys_and_placeholders() {
     let en = catalog("en");
