@@ -107,7 +107,7 @@ test("a_taken_camera_needs_a_mission_and_a_change_of_screen_gives_it_back", func
 	E.eq(api.world.camera.taken(), false, "the screen changed")
 	cm:update(0)
 	E.eq(cm.updates, 1)
-	ui.state = "menu"
+	ui.state = "main_menu"
 	E.eq(select(2, api.world.camera.take()), "not_in_mission")
 end)
 
@@ -895,6 +895,21 @@ test("camera_effects_give_back_the_cameras_own_values_on_each_screen", function(
 	E.eq(cm.follow_distance, 10, "and distance")
 	E.eq(cm.min_follow_distance, 10)
 	near(math.deg(cm.follow_angle), 40, "and angle")
+end)
+
+test("the_camera_can_be_taken_on_the_ship_and_goes_back_to_the_ships_own_state", function()
+	local api, game, e, ui = start()
+	local cam, cm = camera_world(game)
+	ui.state = "menu"
+	cm.state = "follow_menu"
+	E.eq(api.world.camera.take(), true, "on the ship")
+	E.eq(api.world.camera.photo(true), true)
+	E.eq(cm.state, "fully_static")
+	E.eq(api.world.camera.photo(false), true)
+	E.eq(cm.state, "follow_menu", "the ship's own state back")
+	api.world.camera.release()
+	ui.state = "main_menu"
+	E.eq(select(2, api.world.camera.take()), "not_in_mission", "not on the main menu")
 end)
 
 return T

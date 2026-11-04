@@ -2262,9 +2262,9 @@ test("photo_mode_leaves_a_hidden_hud_hidden", function()
 	E.eq(api.effects.is_on("hide_hud"), true)
 end)
 
-test("photo_mode_needs_a_mission", function()
+test("photo_mode_needs_a_mission_or_the_ship", function()
 	local api, game, e, ui = start()
-	ui.state = "menu"
+	ui.state = "main_menu"
 	E.eq(select(2, api.world.camera.photo(true)), "not_in_mission")
 end)
 
