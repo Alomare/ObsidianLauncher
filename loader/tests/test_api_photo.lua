@@ -307,6 +307,8 @@ test("units_hide_and_flashlights_light_on_this_machine", function()
 	units.set_unit_visibility = function(u, on) u.visible = on end
 	local events = {}
 	units.flow_event = function(_, name) events[#events + 1] = name end
+	-- API 1.29.0 lights only a Helldiver whose armour carries a light, as the night armour does.
+	units.num_lights = function() return 1 end
 	E.eq(api.world.visible(game.me, false), true)
 	E.eq(game.me.visible, false)
 	E.eq(api.world.visible(game.me, true), true)
