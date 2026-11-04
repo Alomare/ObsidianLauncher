@@ -7,12 +7,11 @@
 // The lines at the left of the Version and Scope headers drag to resize those columns (kept between
 // launches); a double click puts them back.
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type MutableRefObject, type PointerEvent } from "react";
-import { CheckIcon, ChevronIcon, LockIcon, UnlockIcon, UpArrowIcon, UpdateIcon, VerifiedIcon, WarnIcon } from "../Icons";
+import { CheckIcon, ChevronIcon, LockIcon, UnlockIcon, UpArrowIcon, UpdateIcon, WarnIcon } from "../Icons";
 import { go } from "../nav";
 import { language, pick, t } from "../i18n";
 import { Thumb } from "../Thumb";
 import { offered } from "./modUpdates";
-import { isVerified } from "./verified";
 import type { ConflictRow, ImageRef, ModRow } from "../types";
 import { conflictsByMod } from "./conflicts";
 import { drag as dragWidths, readWidths, reset as resetWidths, saveWidths, type Col, type Widths } from "./columns";
@@ -98,13 +97,13 @@ type Handlers = {
 type RowProps = {
   id: string; folder: string | null; color: string | null; name: string; description: string; version: string | null; update: string | null;
   scope: string; on: boolean; imagePath: string | null; imageV: number; num: number; pinned: boolean; selected: boolean; checked: boolean;
-  lifted: boolean; leaving: boolean; verified: boolean; tips: string | null; lose: boolean; updatable: boolean; spinning: boolean; checkOff: boolean; h: MutableRefObject<Handlers>;
+  lifted: boolean; leaving: boolean; tips: string | null; lose: boolean; updatable: boolean; spinning: boolean; checkOff: boolean; h: MutableRefObject<Handlers>;
   /** The UI language: the row's texts change with it. */
   lang: string;
 };
 
 /** One mod. Every prop is a plain value, so a click elsewhere in a long list leaves this row alone. */
-const ModLine = memo(function ModLine({ id, folder, color, name, description, version, update, scope, on, imagePath, imageV, num, pinned: fixed, selected, checked, lifted, leaving, verified, tips, lose, updatable, spinning, checkOff, h }: RowProps) {
+const ModLine = memo(function ModLine({ id, folder, color, name, description, version, update, scope, on, imagePath, imageV, num, pinned: fixed, selected, checked, lifted, leaving, tips, lose, updatable, spinning, checkOff, h }: RowProps) {
   const line: Line = { kind: "mod", id, folder };
   const image: ImageRef | null = useMemo(() => (imagePath ? { path: imagePath, v: imageV } : null), [imagePath, imageV]);
   const cls = ["tr", folder && "in", fixed && "pinned", selected && "sel", checked && "checked", lifted && "lifted", leaving && "leaving"].filter(Boolean).join(" ");
@@ -122,7 +121,6 @@ const ModLine = memo(function ModLine({ id, folder, color, name, description, ve
         <div className="who">
           <div className="nm">
             <span className="nm-text">{name}</span>
-            {verified && <span className="verified" role="img" aria-label={t("app.mods.verified")} data-tip-title={t("app.mods.verified")} data-tip={t("app.mods.verifiedHint")}><VerifiedIcon /></span>}
           </div>
         </div>
       </div>
@@ -437,7 +435,7 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
             <ModLine key={m.id} id={m.id} folder={line.folder} color={folder?.kind === "folder" ? folder.folder.color : null} name={names.get(m.id) ?? m.id}
               description={pick(m.description)} version={m.version} update={offered(updates, m)} scope={m.scope} on={flips[m.id]?.on ?? m.on} imagePath={m.image?.path ?? null} imageV={m.image?.v ?? 0} num={position.get(m.id) ?? 0}
               pinned={!!folder && folder.kind === "folder" && folder.folder.locked} selected={selected === m.id} checked={checked.has(m.id)}
-              lifted={draggingKeys.has(m.id)} leaving={leaving !== null && line.folder === leaving} verified={isVerified(m)} tips={conflict?.tips ?? null} lose={conflict?.lose ?? false}
+              lifted={draggingKeys.has(m.id)} leaving={leaving !== null && line.folder === leaving} tips={conflict?.tips ?? null} lose={conflict?.lose ?? false}
               updatable={m.updatable} spinning={checking.includes(m.id)} checkOff={checkingNow} h={h} lang={language()} />
           );
         })}

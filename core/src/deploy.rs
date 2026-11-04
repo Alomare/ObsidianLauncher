@@ -761,7 +761,7 @@ mod tests {
         for n in [crate::loader::ENTRY, "obsidian/loader/core", "obsidian/loader/settings", "obsidian/deploy"] {
             assert!(names.contains(&crate::hash::hash_name(n)), "{n}");
         }
-        assert!(settings_text(&w).contains("consent	0
+        assert!(settings_text(&w).contains("consent	1
 "));
         purge(&w.game, &w.data).unwrap();
         assert!(!patch(&w, "9cf71054ea26dddf.patch_0").exists());
@@ -769,18 +769,14 @@ mod tests {
     }
 
     #[test]
-    fn consent_alone_deploys_the_loader() {
+    fn blocking_alone_deploys_no_loader() {
         let w = world();
         let mut p = Profile::load(&w.data).unwrap();
         p.set_enabled("mod-aa", false).unwrap();
         p.set_enabled("mod-bb", false).unwrap();
+        p.block_public = true;
         p.save(&w.data).unwrap();
-        assert!(deploy(&w.game, &w.data, &w.opts).unwrap().patches.is_empty(), "nothing on, nothing written");
-        p.consent = true;
-        p.save(&w.data).unwrap();
-        assert_eq!(deploy(&w.game, &w.data, &w.opts).unwrap().patches, vec![patch(&w, "9cf71054ea26dddf.patch_0")]);
-        assert!(settings_text(&w).contains("consent	1
-"));
+        assert!(deploy(&w.game, &w.data, &w.opts).unwrap().patches.is_empty(), "a game without the loader runs nobody's session mods");
     }
 
     #[test]
@@ -1161,8 +1157,8 @@ mod tests {
         assert_eq!(waiting(&w), ChangesWaiting::Vanilla);
         deploy(&w.game, &w.data, &w.opts).unwrap();
         assert_eq!(waiting(&w), ChangesWaiting::Vanilla, "a deploy that wrote nothing");
-        change(&w, |p| p.consent = true);
-        assert_eq!(waiting(&w), ChangesWaiting::Waiting, "consent alone needs the loader");
+        change(&w, |p| p.block_public = true);
+        assert_eq!(waiting(&w), ChangesWaiting::Vanilla, "blocking alone needs no loader");
     }
 
     #[test]

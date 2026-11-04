@@ -37,7 +37,7 @@ pub fn build(data: &Path, game: Option<&GameInstall>, app: &AppInfo) -> Result<S
     let mut profile = Profile::load(data)?;
     profile.sync(&lib)?;
     let manifests = lib.list()?;
-    let _ = writeln!(out, "Session mods from other players: {}", if profile.consent { "allowed" } else { "not allowed" });
+    let _ = writeln!(out, "Session mods from other players: {}", if profile.block_public { "blocked in public lobbies" } else { "allowed" });
 
     let on: Vec<_> = profile.mods.iter().filter(|e| e.enabled).collect();
     let _ = writeln!(out, "Mods on, in load order ({} of {}):", on.len(), profile.mods.len());

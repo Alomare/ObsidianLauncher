@@ -115,9 +115,11 @@ pub fn find_loader_dir() -> Result<PathBuf> {
     })
 }
 
-/// The loader goes into the game whenever a mod, consent or a guardrail is on.
+/// The loader goes into the game whenever a mod or a guardrail of the account is on. Blocking other
+/// players' session mods alone needs no loader: a game without it runs none, and the others treat
+/// it as a vanilla player.
 pub fn needed(comp: &Composition, profile: &Profile) -> bool {
-    !comp.mods.is_empty() || profile.consent || profile.block_achievements || profile.freeze_progress
+    !comp.mods.is_empty() || profile.block_achievements || profile.freeze_progress
 }
 
 /// The folder of a mod's resources. Ids are already limited to `[a-z0-9._-]`.
@@ -509,7 +511,7 @@ pub fn settings_with(profile: &Profile, manifests: &BTreeMap<String, Manifest>) 
 
 fn settings_from<'a>(profile: &Profile, manifest: impl Fn(&str) -> Option<Cow<'a, Manifest>>) -> Result<Settings> {
     let mut s = Settings {
-        consent: profile.consent,
+        consent: profile.allows_others(),
         block_achievements: profile.block_achievements,
         freeze_progress: profile.freeze_progress,
         ..Default::default()

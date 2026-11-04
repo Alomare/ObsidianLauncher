@@ -63,7 +63,7 @@ Uma visão da tabela `t` para entregar a outros mods. As funções da lista `fre
 
 ### obsidian.session.members() {#obsidian-session-members}
 
-Uma lista dos outros jogadores no lobby. Cada entrada tem `peer`, `obsidian` (se o jogador usa o Obsidian), `modset` e `consent`.
+Uma lista dos outros jogadores no lobby. Cada entrada tem `peer`, `obsidian` (se o jogador usa o Obsidian), `modset` e `consent` (verdadeiro a menos que o jogador bloqueie os mods de sessão dos outros num lobby público).
 
 Para rodar só quando todos os jogadores têm o seu mod, defina [`every_player`](wiki:session-mods#every-player) no manifesto em vez de comparar estes dados você mesmo.
 
@@ -73,7 +73,7 @@ Estas não fazem nada. O save de um jogador é dele, então o Obsidian não ret�
 
 ### obsidian.guardrails() {#obsidian-guardrails}
 
-O que o jogador escolheu em **Proteções** para esta abertura do jogo, como `{ consent, block_achievements, freeze_progress }`. Um mod pode lê-las, por exemplo para avisar que a conta está congelada. Só o jogador pode mudá-las, e o loader as aplica por baixo de todos os mods ([Proteções](wiki:guardrails)).
+O que o jogador escolheu em **Proteções** para esta abertura do jogo, como `{ consent, block_achievements, freeze_progress }`, em que `consent` é falso enquanto o jogador bloqueia os mods de sessão dos outros num lobby público. Um mod pode lê-las, por exemplo para avisar que a conta está congelada. Só o jogador pode mudá-las, e o loader as aplica por baixo de todos os mods ([Proteções](wiki:guardrails)).
 
 ### obsidian.on_session(fn) {#obsidian-on-session-fn}
 

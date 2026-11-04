@@ -19,7 +19,7 @@ Mods feitos à mão costumam substituir bundles inteiros. Dois mods assim se sob
 
 Mods que rodam código, como um mod de câmera, precisam de um jeito de começar dentro do jogo. A cada aplicação, o Obsidian coloca no jogo um script pequeno: o Obsidian Loader. Quando o jogo abre, o loader lê a lista de mods aplicados, inicia cada um e acompanha o que eles podem fazer.
 
-O loader também cuida das regras do multijogador. Mods que mudam o jogo compartilhado só rodam com jogadores que concordaram, e missões com mods ficam fora da Guerra Galáctica. [Escopos](wiki:scopes) explica como.
+O loader também cuida das regras do multijogador. Num lobby público, mods que mudam o jogo compartilhado esperam até que todos os jogadores os permitam, e missões com mods ficam fora da Guerra Galáctica. [Escopos](wiki:scopes) explica como.
 
 ## As abas {#the-tabs}
 

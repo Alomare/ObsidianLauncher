@@ -14,7 +14,7 @@ Obsidian Patches is a client mod.
 
 ## Session mods
 
-A session mod can change the shared game: balance, enemies, spawns, missions, physics, anything other players would notice. Session mods only run in a lobby where every other player has agreed to them ([Playing online](wiki:multiplayer)). Alone, they always run.
+A session mod can change the shared game: balance, enemies, spawns, missions, physics, anything other players would notice. In a public lobby, session mods only run when every other player allows them. Alone, and in a friends-only or private lobby, they always run ([Playing online](wiki:multiplayer)).
 
 A session mod changes the whole deploy, in every mission: Galactic War and leaderboard results aren't sent, Proving Grounds is closed, and matchmaking finds only other Obsidian players ([The Galactic War](wiki:galactic-war)).
 

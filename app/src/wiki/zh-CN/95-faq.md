@@ -12,11 +12,11 @@ HELLDIVERS 没有反作弊，Obsidian 也从不修改游戏文件。会话模组
 
 ### 为什么我找不到任何大厅？ {#why-can-t-i-find-any-lobbies}
 
-部署了会话模组时，你只能看到其他 Obsidian 玩家。在不含会话模组的情况下部署，即可回到普通匹配。防护中的 **允许其他玩家的会话模组进入我的游戏** 不会让大厅从列表中消失，但开关打开期间，你自己的大厅只对 Obsidian 玩家显示（[联机游戏](wiki:multiplayer#matchmaking)）。
+部署了会话模组时，你只能看到其他运行会话模组的 Obsidian 玩家。在不含会话模组的情况下部署，即可回到普通匹配：你能看到所有人，你自己的大厅也对所有人显示（[联机游戏](wiki:multiplayer#matchmaking)）。
 
 ### 我和朋友都用 Obsidian，为什么我的会话模组是关闭的？ {#my-friend-and-i-both-use-obsidian-why-are-my-session-mods-off}
 
-只有其他每位玩家都使用相同组合或打开了开关，会话模组才会运行。导出你的配置并发给朋友，是最快的匹配方式（[配置](wiki:profiles#sharing-a-profile)）。
+在公开大厅中，只有其他每位玩家都使用相同组合或没有阻止他人的会话模组，会话模组才会运行。把大厅设为仅限好友，它们就能和任何人一起运行。导出你的配置并发给朋友，是最快的匹配方式（[配置](wiki:profiles#sharing-a-profile)）。
 
 ### 我的任务会计入银河战争吗？ {#do-my-missions-count-for-the-galactic-war}
 

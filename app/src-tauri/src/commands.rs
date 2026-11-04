@@ -290,10 +290,10 @@ pub async fn set_profile_color(ctx: State<'_, Ctx>, name: String, color: Option<
 }
 
 #[tauri::command]
-pub async fn set_consent(ctx: State<'_, Ctx>, on: bool) -> CmdResult<Snapshot> {
+pub async fn set_block_public(ctx: State<'_, Ctx>, on: bool) -> CmdResult<Snapshot> {
     let _turn = ctx.turn();
     live_edit(&ctx, |_, p| {
-        p.consent = on;
+        p.block_public = on;
         Ok(())
     })
 }

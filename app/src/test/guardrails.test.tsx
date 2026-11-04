@@ -16,8 +16,8 @@ afterEach(() => {
   run.mockReset();
 });
 
-const snap = (consent: boolean, blockAchievements: boolean, freezeProgress: boolean) =>
-  ({ profile: "Fun", consent, blockAchievements, freezeProgress }) as unknown as Snapshot;
+const snap = (blockPublic: boolean, blockAchievements: boolean, freezeProgress: boolean) =>
+  ({ profile: "Fun", blockPublic, blockAchievements, freezeProgress }) as unknown as Snapshot;
 
 function show(s: Snapshot) {
   const box = document.createElement("div");
@@ -47,8 +47,15 @@ describe("guardrails", () => {
     expect(run.mock.calls).toEqual([["set_block_achievements", { on: true }], ["set_freeze_progress", { on: false }]]);
   });
 
-  it("the_count_is_of_what_protects_the_account", () => {
-    expect(guardsOn(snap(true, false, false))).toBe(0);
+  it("blocking_others_sends_its_command", () => {
+    const switches = show(snap(false, false, false));
+    act(() => switches[0].click());
+    expect(run.mock.calls).toEqual([["set_block_public", { on: true }]]);
+  });
+
+  it("the_count_is_of_the_guardrails_on", () => {
+    expect(guardsOn(snap(false, false, false))).toBe(0);
+    expect(guardsOn(snap(true, false, false))).toBe(1);
     expect(guardsOn(snap(false, true, true))).toBe(2);
     expect(guardrailsSummary(snap(true, true, false)).split(". ")).toHaveLength(3);
   });

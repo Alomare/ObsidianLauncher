@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { run } from "../api";
 import { Confirm } from "../Confirm";
-import { ArrowIcon, ChevronIcon, CloseIcon, ExternalIcon, FileIcon, InfoIcon, KeyboardIcon, LinkIcon, ResetIcon, SlidersIcon, TrashIcon, VerifiedIcon } from "../Icons";
+import { ArrowIcon, ChevronIcon, CloseIcon, ExternalIcon, FileIcon, InfoIcon, KeyboardIcon, LinkIcon, ResetIcon, SlidersIcon, TrashIcon } from "../Icons";
 import { language, pick, t } from "../i18n";
 import { Markdown, parse } from "../Markdown";
 import { Select } from "../Select";
@@ -16,7 +16,6 @@ import { dependencies, type Dep } from "./deps";
 import { keyName } from "./keyCapture";
 import type { DrawerView } from "./ModsPage";
 import { clampNumber } from "./optionValue";
-import { isVerified } from "./verified";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
 type Props = {
@@ -56,7 +55,7 @@ function ModDrawer({ mod, mods, conflicts, names, onOpen, onClose }: { mod: ModR
       <div className="dh">
         <Thumb image={mod.image} name={name} size="lg" pick={{ owner: "mod", key: mod.id, custom: mod.customImage }} />
         <div className="dh-text">
-          <h2>{name}{isVerified(mod) && <span className="verified" role="img" aria-label={t("app.mods.verified")} data-tip-title={t("app.mods.verified")} data-tip={t("app.mods.verifiedHint")}><VerifiedIcon /></span>}</h2>
+          <h2>{name}</h2>
           <div className="meta">
             {[mod.authors.join(", "), mod.version ?? t("app.mods.imported"), t(`app.scope.${mod.scope}`)].filter(Boolean).join(" · ")}
           </div>

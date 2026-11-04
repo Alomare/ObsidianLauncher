@@ -51,7 +51,7 @@ end)
 ## O que evitar {#things-to-avoid}
 
 - **Substituir globais diretamente.** `SomeTable.func = mine` continua rodando em qualquer lobby, porque o loader não consegue desligar. O loader lista mudanças assim no log, para cada mod, na inicialização.
-- **Substituir scripts do jogo por recursos para mudar a jogabilidade.** Um script substituído também não desliga na hora. O Obsidian aceita, mas num lobby com um jogador que não concordou, a mudança continua no seu jogo enquanto o resto dos seus mods de sessão desliga.
+- **Substituir scripts do jogo por recursos para mudar a jogabilidade.** Um script substituído também não desliga na hora. O Obsidian aceita, mas num lobby público com um jogador que bloqueia mods de sessão, a mudança continua no seu jogo enquanto o resto dos seus mods de sessão desliga.
 - **Mandar mensagens de rede próprias** para outros jogadores fora do código do próprio jogo.
 
 > [!NOTE]
@@ -86,14 +86,14 @@ O seu próprio código continua com a tabela real, então ainda consegue desfaze
 
 ## Mods que todos os jogadores precisam ter {#every-player}
 
-O interruptor de multijogador diz ao seu mod que outro jogador concorda com ele, não que o roda. Isso basta para a maioria dos mods, já que o jogo do host decide o que acontece. Um mod que só funciona quando todos os jogos do lobby o têm, como um que muda quantos jogadores cabem no lobby, pode pedir mais:
+O `consent` de um jogador diz ao seu mod que ele o permite, não que o roda. Isso basta para a maioria dos mods, já que o jogo do host decide o que acontece. Um mod que só funciona quando todos os jogos do lobby o têm, como um que muda quantos jogadores cabem no lobby, pode pedir mais:
 
 ```json
 "scope": "session",
 "every_player": true
 ```
 
-Um mod assim só roda quando todos os outros jogadores também o rodam, na mesma versão e com os mesmos valores de opção compartilhados. Quem só concorda não conta. O Obsidian liga e desliga o mod como qualquer mod de sessão e diz ao jogador o motivo. Os jogadores dele também têm um grupo de matchmaking próprio, então só encontram uns aos outros.
+Um mod assim só roda quando todos os outros jogadores também o rodam, na mesma versão e com os mesmos valores de opção compartilhados. Quem só permite não conta. O Obsidian liga e desliga o mod como qualquer mod de sessão e diz ao jogador o motivo. Os jogadores dele também têm um grupo de matchmaking próprio, então só encontram uns aos outros.
 
 `obsidian.session.cleared()` responde pelo mod que pergunta, e `obsidian.on_session` chama o mod quando o interruptor dele muda.
 

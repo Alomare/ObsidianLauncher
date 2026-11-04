@@ -182,12 +182,6 @@ button.bare:hover { color: var(--tx); }
 .who { min-width: 0; }
 .nm { display: flex; align-items: center; gap: 0.35rem; min-width: 0; font-weight: 660; font-size: 0.95rem; }
 .nm-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* A verified mod: a light grey disc with the check cut out, after the name (the user, 2026-11-04). */
-.verified { flex: none; display: inline-flex; color: #c9cac7; }
-:root[data-theme="light"] .verified { color: #8c9095; }
-.verified svg { width: 0.95rem; height: 0.95rem; }
-.dh-text h2 .verified { vertical-align: -0.1rem; margin-left: 0.4rem; }
-.dh-text h2 .verified svg { width: 1.05rem; height: 1.05rem; }
 .sub { font-size: 0.8rem; color: var(--mu); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sub.warn, .warn { color: var(--warn); }
 .tag { font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.1rem 0.45rem; background: var(--gold); color: var(--on); font-weight: 660; margin-left: 0.5rem; vertical-align: 0.1rem; }

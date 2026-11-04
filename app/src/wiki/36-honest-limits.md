@@ -9,7 +9,7 @@ The guardrails stop well-behaved mods from harming other players by accident, an
 ## What they cover
 
 - A vanilla player doesn't find modded lobbies in matchmaking.
-- Session mods that use the loader switch off by themselves in a lobby that didn't agree to them.
+- Session mods that use the loader switch off by themselves in a public lobby that didn't allow them.
 - Missions played with session content aren't reported to the Galactic War.
 - Your achievements and your account's progression stay as they were when you ask for it in [Guardrails](wiki:guardrails), whatever the mods do.
 - A mod that keeps failing is switched off, and a crash at startup names the mod that was starting.

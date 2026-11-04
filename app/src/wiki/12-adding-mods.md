@@ -39,10 +39,6 @@ Obsidian asks GitHub when it starts and when you click, and it only offers a hig
 
 The About tab in the details of such a mod lists the changes in each release, under **Changelogs**. Click a version to read what changed; **Load more** brings older ones.
 
-## Verified mods
-
-A round mark with a check after the name of a mod means the mod is trusted and endorsed by the Obsidian team. The mark shows only when the mod comes from the GitHub repository the team endorsed, so a copy under the same id from elsewhere goes without it. The bundled mods and Better HUD have it. The mark changes nothing else: verified mods deploy and run like any other.
-
 ## Removing
 
 Right-click a mod and choose **Remove**, or use the bin under the close button in the details of a mod. To remove several, check them and use **Remove** in the bar at the foot of the list.

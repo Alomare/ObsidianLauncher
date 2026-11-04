@@ -14,7 +14,7 @@ O Obsidian Patches é um mod de cliente.
 
 ## Mods de sessão {#session-mods}
 
-Um mod de sessão pode mudar o jogo compartilhado: balanceamento, inimigos, spawns, missões, física, qualquer coisa que outros jogadores perceberiam. Mods de sessão só rodam num lobby em que todos os outros jogadores concordaram com eles ([Jogar online](wiki:multiplayer)). Jogando sozinho, eles sempre rodam.
+Um mod de sessão pode mudar o jogo compartilhado: balanceamento, inimigos, spawns, missões, física, qualquer coisa que outros jogadores perceberiam. Num lobby público, os mods de sessão só rodam quando todos os outros jogadores os permitem. Sozinho, e num lobby só para amigos ou privado, eles sempre rodam ([Jogar online](wiki:multiplayer)).
 
 Um mod de sessão aplicado vale para todas as missões: os resultados da Guerra Galáctica e dos placares não são enviados, Proving Grounds fica fechado e o matchmaking só encontra outros jogadores do Obsidian ([A Guerra Galáctica](wiki:galactic-war)).
 

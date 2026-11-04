@@ -1,14 +1,14 @@
 ---
 title: Playing online
 group: Playing online
-summary: Matchmaking, the multiplayer switch, and when session mods run in a lobby.
+summary: Matchmaking, public lobbies, and when session mods run in a lobby.
 ---
 
-## The multiplayer switch
+## Public lobbies {#the-multiplayer-switch}
 
-**Allow other players' session mods in my game** is one of the switches in [Guardrails](wiki:guardrails), at the top of the window. It belongs to the active profile and applies from the next launch. Switching it on says one thing: other Obsidian players may run their session mods in your game.
+Obsidian holds session mods back only in public lobbies, where you can end up with strangers. In a lobby set to friends only or private, everyone chose who to play with, so session mods run there with anyone, vanilla players included.
 
-It does not decide whether your own session mods run. That depends on the other players, as described below.
+**Block session mods from others in my public lobby** is one of the switches in [Guardrails](wiki:guardrails), at the top of the window. The switch is off by default, belongs to the active profile and applies from the next launch. With it on, other players' session mods switch off while you're in a public lobby with them. It doesn't decide whether your own session mods run.
 
 ## Matchmaking
 
@@ -16,13 +16,11 @@ Obsidian changes which public lobbies you can find, so a vanilla player never en
 
 | Your setup | Who you find in matchmaking |
 |---|---|
-| No session mods, switch off | Everyone. This is normal play. Expansions don't change this |
-| No session mods, switch on | Everyone. Your own lobby shows only for other Obsidian players with session mods or the switch on |
-| Session mods deployed | Only other Obsidian players with session mods or the switch on |
+| No session mods | Everyone, players with session mods included. Your own lobby shows for everyone. Expansions don't change this |
+| No session mods, blocking on | Everyone without session mods. This is normal play |
+| Session mods deployed | Only other Obsidian players with session mods |
 | A mod every player needs deployed | Only players who run that same mod, at the same version |
 | Hosting the content of an expansion | Your lobby shows only for players who run that expansion, at the same version |
-
-So with the switch on and no session mods of your own, you still find every lobby, vanilla ones included, and join them as a vanilla player would. Your own lobby moves to the Obsidian pool, where players who run session mods find it and vanilla players don't. Turn the switch off to host for everyone.
 
 With an expansion deployed, you also see the lobbies of players running the content of that same expansion, wherever your own matchmaking puts you.
 
@@ -30,29 +28,31 @@ The lobby filters in the multiplayer terminal say **(Obsidian Only)** while the 
 
 ## When session mods run
 
-In a lobby, your session mods run only when every other player either:
+Alone, and in a friends-only or private lobby, your session mods always run. In a public lobby they run only when every other player either:
 
 1. runs the same set of session mods, with the same versions and the same option values, or
-2. has the multiplayer switch on.
+2. runs Obsidian and doesn't block other players' session mods.
 
-Alone, your session mods always run. Client mods always run.
+Client mods always run.
 
-A few examples, from the point of view of player A with session mods:
+A few examples, from the point of view of player A with session mods, in a public lobby:
 
 | Other players | A's session mods |
 |---|---|
 | B runs the same set | On |
-| B runs other session mods, switch on | On |
-| B runs other session mods, switch off | Off |
-| B runs no mods, switch on | On |
+| B runs other session mods, not blocking | On |
+| B runs other session mods, blocking | Off |
+| B runs only client mods, not blocking | On |
 | B has vanilla HELLDIVERS | Off |
-| B on, C off and on a different set | Off: everyone has to agree |
+| B not blocking, C blocking with a different set | Off: everyone has to allow them |
 
-The check runs again whenever someone joins, leaves or changes setup. Mods switch on and off live, and a session mod can undo what it changed when that happens.
+In a friends-only or private lobby, every row is On.
+
+The check runs again whenever someone joins, leaves or changes setup, and when the host changes who can join. Mods switch on and off live, and a session mod can undo what it changed when that happens.
 
 ## Mods every player needs
 
-Some mods only work when everyone has them, such as one that lets more players into a lobby. The author marks those, and they follow a stricter rule: such a mod runs only when every other player runs it too, at the same version and with the same option values. The multiplayer switch doesn't count for them. When a player who doesn't have it is in your lobby, that one mod switches off and the game tells you. Your other session mods follow the usual rules.
+Some mods only work when everyone has them, such as one that lets more players into a lobby. The author marks those, and they follow a stricter rule: such a mod runs only when every other player runs it too, at the same version and with the same option values, in any lobby, friends only included. Not blocking doesn't count for them. When a player who doesn't have it is in your lobby, that one mod switches off and the game tells you. Your other session mods follow the usual rules.
 
 These mods also get a matchmaking pool of their own, so you only find players who run the same ones.
 
@@ -61,13 +61,13 @@ These mods also get a matchmaking pool of their own, so you only find players wh
 
 ## Expansions
 
-An [expansion](wiki:scopes#expansions) runs as a client mod until the host starts the content. The start checks every player in the lobby: each has to run the same expansion, at the same version and with the same option values. If someone doesn't, nothing starts and the host is told who. The multiplayer switch doesn't count here.
+An [expansion](wiki:scopes#expansions) runs as a client mod until the host starts the content. The start checks every player in the lobby: each has to run the same expansion, at the same version and with the same option values. If someone doesn't, nothing starts and the host is told who. The Guardrails switch doesn't count here.
 
 Once the content starts, every game in the lobby follows the host. A player who tries to join without the expansion is turned away, and the host sees the name. Nobody joining or leaving switches the content off for the players already in it. When the host stops the content, or you leave the lobby, the expansion is a client mod again.
 
 ## Mods that can't switch off live
 
-Some session content can't be switched off in the middle of a game: data overrides and older imported mods. If a player who hasn't agreed ends up in such a lobby, for example through an invite, the loader records a warning in `loader.log` and the session mods that can switch off stay off. Leave the lobby, or play with players who agreed.
+Some session content can't be switched off in the middle of a game: data overrides and older imported mods. If a vanilla player, or one who blocks session mods, ends up in such a public lobby, the loader records a warning in `loader.log` and the session mods that can switch off stay off. Leave the lobby, or play in a friends-only lobby.
 
 ## Invites
 

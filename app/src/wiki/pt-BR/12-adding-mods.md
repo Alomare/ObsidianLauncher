@@ -39,10 +39,6 @@ O Obsidian fala com o GitHub ao abrir e quando você clica, e só oferece uma ve
 
 A aba Sobre, nos detalhes de um mod assim, lista o que mudou em cada versão, em **Notas de versão**. Clique numa versão para ler as mudanças; **Carregar mais** traz as mais antigas.
 
-## Mods verificados {#verified-mods}
-
-Uma marca redonda com um visto depois do nome de um mod quer dizer que o mod é confiável e recomendado pela equipe do Obsidian. A marca só aparece quando o mod vem do repositório do GitHub que a equipe recomendou, então uma cópia com o mesmo id vinda de outro lugar fica sem ela. Os mods que vêm com o Obsidian e o Better HUD têm a marca. A marca não muda mais nada: mods verificados são aplicados e rodam como qualquer outro.
-
 ## Remover {#removing}
 
 Clique com o botão direito num mod e escolha **Remover**, ou use a lixeira abaixo do botão de fechar nos detalhes do mod. Para remover vários, marque os mods e use **Remover** na barra no pé da lista.

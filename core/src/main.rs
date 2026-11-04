@@ -51,7 +51,8 @@ enum Command {
     /// Show the build check, what is deployed and patches from other tools
     Status,
     /// Allow session mods from other Obsidian users (on or off)
-    Consent { state: OnOff },
+    /// Block session mods from others in a public lobby.
+    BlockPublic { state: OnOff },
     /// Keep Steam achievements from unlocking (on or off), from the next launch
     BlockAchievements { state: OnOff },
     /// Keep the account's progression as it is (on or off), from the next launch
@@ -115,7 +116,7 @@ fn run(cli: Cli) -> Result<()> {
     let uses_library = matches!(
         cli.command,
         Command::Import { .. } | Command::List | Command::Order { .. } | Command::Enable { .. } | Command::Disable { .. } | Command::Conflicts
-            | Command::Consent { .. } | Command::BlockAchievements { .. } | Command::FreezeProgress { .. } | Command::Set { .. } | Command::Key { .. } | Command::Profile { .. }
+            | Command::BlockPublic { .. } | Command::BlockAchievements { .. } | Command::FreezeProgress { .. } | Command::Set { .. } | Command::Key { .. } | Command::Profile { .. }
             | Command::Remove { .. } | Command::RestoreStarter | Command::Updates | Command::Update { .. }
     );
     let mut profile = Profile::default();
@@ -285,9 +286,10 @@ fn run(cli: Cli) -> Result<()> {
                 println!("The last game launch stopped while loading {id}. If the game crashed, disable that mod and deploy again.");
             }
         }
-        Command::Consent { state } => {
-            profile.consent = matches!(state, OnOff::On);
-            live_change(&profile, &data, &lib, &game()?, &format!("Session mods from other Obsidian users are now {}", if profile.consent { "allowed" } else { "not allowed" }))?;
+        Command::BlockPublic { state } => {
+            profile.block_public = matches!(state, OnOff::On);
+            let now = if profile.block_public { "blocked in public lobbies" } else { "allowed" };
+            live_change(&profile, &data, &lib, &game()?, &format!("Session mods from other players are now {now}"))?;
         }
         Command::BlockAchievements { state } => {
             profile.block_achievements = matches!(state, OnOff::On);

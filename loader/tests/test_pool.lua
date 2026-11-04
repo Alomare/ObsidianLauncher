@@ -27,10 +27,10 @@ test("mods_every_player_needs_get_their_own_pool", function()
 	end
 end)
 
-test("consent_alone_joins_the_open_pool", function()
+test("letting_others_in_alone_stays_in_the_vanilla_pool", function()
 	local e = E.new({ deploy = E.deploy({ has_session = false }), settings = "consent\t1\n" })
 	e:boot()
-	E.eq(game_hash(), "3bd83d77c8aeaaaaaaaaaaaa")
+	E.eq(game_hash(), "3bd83d77c8ae", "vanilla players still find the lobby")
 end)
 
 test("rewritten_hash_matches_build_info_pattern", function()
@@ -84,18 +84,20 @@ test("consent_alone_leaves_the_lobby_filters", function()
 	E.eq(lm:string("campaign_public"), "game:campaign_public", "vanilla lobbies are listed too")
 end)
 
--- The multiplayer terminal for a player in the open pool: the rooms it lists, and the hash each join
--- request carries. room_data is the "data" string of the lobby being joined.
+-- The multiplayer terminal: the rooms it lists, and the hash each join request carries. room_data is
+-- the "data" string of the lobby being joined, which the engine's lobby answers.
 local VANILLA, OPEN = "3bd83d77c8ae", "3bd83d77c8aeaaaaaaaaaaaa"
 
 local function terminal(over, settings)
-	local t = { added = {}, sent = {}, lobby = { lobby = {}, host = false, room_data = nil } }
+	local t = { added = {}, sent = {}, lobby = { host = false, room_data = nil } }
+	t.lobby.lobby = { data = function(_, key) return key == "data" and t.lobby.room_data or nil end }
 	rawset(_G, "GameSettings", { room_data_values = { "build_game_hash", "num_players" } })
 	rawset(_G, "NetworkGlobal", {
 		lobby = {
 			lobby = t.lobby.lobby,
 			is_host = function() return t.lobby.host end,
-			data = function(_, key) return key == "data" and t.lobby.room_data or nil end,
+			-- As in the game: NetworkRoom's own table hides the lobby's data method.
+			data = {},
 		},
 		data_string_to_table = function(raw, keys)
 			local out, i = {}, 0
@@ -124,59 +126,65 @@ local function terminal(over, settings)
 	return t, e
 end
 
-test("consent_alone_lists_vanilla_lobbies_beside_the_open_pool", function()
+test("letting_others_in_lists_the_open_pool_beside_vanilla_lobbies", function()
 	local t, e = terminal({ has_session = false }, "consent\t1\n")
-	E.eq(rawget(_G, "BUILD_GAME_HASH"), OPEN, "the player's own lobby stays in the open pool")
-	t.browser:add_room({ build_game_hash = VANILLA })
+	E.eq(rawget(_G, "BUILD_GAME_HASH"), VANILLA, "the player's own lobby stays in the vanilla pool")
 	t.browser:add_room({ build_game_hash = OPEN })
+	t.browser:add_room({ build_game_hash = VANILLA })
 	t.browser:add_room({ build_game_hash = VANILLA .. "bbbbbbbbbbbb" })
-	E.eq(t.added[1], OPEN, "a vanilla room passes the game's own check")
-	E.eq(t.added[2], OPEN)
+	E.eq(t.added[1], VANILLA, "an open pool room passes the game's own check")
+	E.eq(t.added[2], VANILLA)
 	E.eq(t.added[3], VANILLA .. "bbbbbbbbbbbb", "another pool stays out")
-	E.has(e:log(), "pool: vanilla lobbies listed too")
+	E.has(e:log(), "pool: open pool lobbies listed too")
 end)
 
-test("consent_alone_joins_a_vanilla_lobby_with_the_vanilla_hash", function()
+test("blocking_others_lists_vanilla_lobbies_only", function()
+	local t = terminal({ has_session = false }, "consent\t0\n")
+	t.browser:add_room({ build_game_hash = OPEN })
+	E.eq(t.added[1], OPEN, "the game's check leaves it out")
+end)
+
+test("letting_others_in_joins_an_open_pool_lobby_with_its_hash", function()
 	local t = terminal({ has_session = false }, "consent\t1\n")
-	t.lobby.room_data = VANILLA .. "|2"
-	t.browser:update_join()
 	t.lobby.room_data = OPEN .. "|2"
 	t.browser:update_join()
-	t.lobby.host, t.lobby.room_data = true, VANILLA .. "|1"
+	t.lobby.room_data = VANILLA .. "|2"
 	t.browser:update_join()
-	E.eq(t.sent[1], VANILLA, "the join request to a vanilla host")
-	E.eq(t.sent[2], OPEN, "the join request to an Obsidian host")
-	E.eq(t.sent[3], OPEN, "a lobby of the player's own")
-	E.eq(rawget(_G, "BUILD_GAME_HASH"), OPEN, "the hash is back after the call")
+	t.lobby.host, t.lobby.room_data = true, OPEN .. "|1"
+	t.browser:update_join()
+	E.eq(t.sent[1], OPEN, "the join request to a host in the open pool")
+	E.eq(t.sent[2], VANILLA, "the join request to a vanilla host")
+	E.eq(t.sent[3], VANILLA, "a lobby of the player's own")
+	E.eq(rawget(_G, "BUILD_GAME_HASH"), VANILLA, "the hash is back after the call")
 end)
 
 -- The lobby's room data may not be readable while joining: the room picked in the list decides.
-test("a_vanilla_room_picked_in_the_list_is_joined_with_the_vanilla_hash", function()
+test("an_open_pool_room_picked_in_the_list_is_joined_with_its_hash", function()
 	local t, e = terminal({ has_session = false }, "consent\t1\n")
-	t.browser:add_room({ build_game_hash = VANILLA, address = 1001 })
-	t.browser:add_room({ build_game_hash = OPEN, address = 1002 })
+	t.browser:add_room({ build_game_hash = OPEN, address = 1001 })
+	t.browser:add_room({ build_game_hash = VANILLA, address = 1002 })
 	t.browser.join_address = 1001
 	t.browser:update_join()
 	t.browser.join_address = 1002
 	t.browser:update_join()
 	t.browser.join_address, t.lobby.host = 1001, true
 	t.browser:update_join()
-	E.eq(t.sent[1], VANILLA, "the vanilla room")
-	E.eq(t.sent[2], OPEN, "the Obsidian room")
-	E.eq(t.sent[3], OPEN, "a lobby the player hosts now")
-	E.has(e:log(), "pool: joining a vanilla lobby, with the vanilla hash")
+	E.eq(t.sent[1], OPEN, "the open pool room")
+	E.eq(t.sent[2], VANILLA, "the vanilla room")
+	E.eq(t.sent[3], VANILLA, "a lobby the player hosts now")
+	E.has(e:log(), "pool: joining an Obsidian lobby, with the open pool's hash")
 end)
 
 test("the_hash_comes_back_when_the_join_fails", function()
 	local t = terminal({ has_session = false }, "consent\t1\n")
-	t.lobby.room_data = VANILLA .. "|2"
+	t.lobby.room_data = OPEN .. "|2"
 	local a, b = t.browser:update_join()
 	E.eq(a, "joining", "what the game's function answers")
 	E.eq(b, 2)
 	t.fail = true
 	pcall(t.browser.update_join, t.browser)
 	E.eq(#t.sent, 2, "the game's function ran once")
-	E.eq(rawget(_G, "BUILD_GAME_HASH"), OPEN)
+	E.eq(rawget(_G, "BUILD_GAME_HASH"), VANILLA)
 end)
 
 test("session_mods_keep_vanilla_lobbies_out", function()

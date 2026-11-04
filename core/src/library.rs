@@ -173,9 +173,11 @@ pub struct ProfileEntry {
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct Profile {
     pub mods: Vec<ProfileEntry>,
-    /// "Allow session mods from other Obsidian users".
-    #[serde(default)]
-    pub consent: bool,
+    /// "Block session mods from others in my public lobby". Off by default: other players' session
+    /// mods run with this player unless the lobby is public and this is on. Profiles from before it
+    /// existed had `consent` (allow) instead, off by default, and now read as off here.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub block_public: bool,
     /// No Steam achievement unlocks, and no achievement progress kept, while this profile plays.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub block_achievements: bool,
@@ -198,6 +200,11 @@ pub struct Profile {
 }
 
 impl Profile {
+    /// Whether other players' session mods may run with this player, as the loader tells the lobby.
+    pub fn allows_others(&self) -> bool {
+        !self.block_public
+    }
+
     /// The active profile.
     pub fn load(data_dir: &Path) -> Result<Profile> {
         Profile::load_named(data_dir, &crate::profiles::active(data_dir)?)

@@ -19,6 +19,6 @@ The color of a profile shows on the **Profile** button and on the switches that 
 
 **Export** saves the active profile as a `.zip`. The file holds the profile settings and a copy of every enabled mod.
 
-**Import** reads such a file. Each mod in it is installed if you don't have it, or if the copy in the file is newer than yours. The profile is added under a name that doesn't clash with yours. The guardrails that protect the account come along, and Obsidian says so. Letting other players' session mods in stays off, for each player to choose.
+**Import** reads such a file. Each mod in it is installed if you don't have it, or if the copy in the file is newer than yours. The profile is added under a name that doesn't clash with yours. The guardrails that protect the account come along, and Obsidian says so. Blocking other players' session mods in public lobbies stays off, for each player to choose.
 
 A shared profile is the easiest way to give friends the same set of session mods, so your mods run when you play together ([Playing online](wiki:multiplayer)).

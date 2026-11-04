@@ -67,7 +67,7 @@ Every option has a description at the bottom of the menu while it's selected. Sp
 
 ## Playing with others
 
-The Trainer is a session mod, so everyone in the lobby has to run the same mods or allow session mods ([Playing online](wiki:multiplayer)). When someone joins who hasn't, every change is undone and the Trainer's pages close until that player leaves. Then the changes come back.
+The Trainer is a session mod, so in a public lobby everyone has to run the same mods or allow session mods ([Playing online](wiki:multiplayer)). When someone joins who doesn't, every change is undone and the Trainer's pages close until that player leaves. Then the changes come back. In a friends-only or private lobby it always runs.
 
 Numbers from the Editor and the two damage rows run on each player's game, so they work best when everyone uses the same ones.
 

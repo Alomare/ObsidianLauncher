@@ -117,8 +117,8 @@ pub fn import(data: &Path, src: &Path) -> Result<Imported> {
     crate::profiles::create(data, &name, None)?;
     let mut profile = header.profile;
     profile.sync(&lib)?;
-    // Letting other players' mods in is for each player to choose, not for a shared file.
-    profile.consent = false;
+    // Blocking other players' mods is for each player to choose, not for a shared file.
+    profile.block_public = false;
     // The guardrails only protect the player's own save, so they come along, and the player is told.
     let mut guardrails = Vec::new();
     if profile.block_achievements {
@@ -157,7 +157,7 @@ mod tests {
         let mut p = Profile::load(&home).unwrap();
         p.sync(&lib).unwrap();
         p.set_enabled("a.on", true).unwrap();
-        p.consent = true;
+        p.block_public = true;
         p.freeze_progress = true;
         p.options.insert("a.on".into(), [("speed".to_string(), serde_json::json!(3))].into());
         p.create_folder("Main", "#e8b931", &["a.on".to_string()]);
@@ -179,7 +179,7 @@ mod tests {
         assert!(q.mods.iter().any(|m| m.id == "a.on" && m.enabled && m.folder.as_deref() == Some("f1")));
         assert_eq!(q.options["a.on"]["speed"], serde_json::json!(3));
         assert_eq!(q.folders[0].name, "Main");
-        assert!(!q.consent, "letting other players in is each player's own choice");
+        assert!(!q.block_public, "blocking other players is each player's own choice");
         assert!(q.freeze_progress, "a guardrail only protects the player, so it comes along");
         assert!(images::custom(&away, Owner::Profile, "Default (2)").is_some());
 

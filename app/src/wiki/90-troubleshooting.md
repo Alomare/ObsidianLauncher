@@ -17,7 +17,7 @@ If the game stops later, Obsidian tells you the game didn't close normally. A cr
 ## A mod does nothing
 
 - Check that the mod is on and that you deployed after turning it on. A green **Deploy** button means changes are waiting.
-- For a session mod, check the lobby: with players who didn't agree, session mods switch off ([Playing online](wiki:multiplayer)).
+- For a session mod, check the lobby: in a public lobby with vanilla players, or players who block session mods, session mods switch off ([Playing online](wiki:multiplayer)).
 - Read the logs (below). A mod that failed at startup has an error line there.
 
 ## "Build unknown"

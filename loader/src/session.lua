@@ -1,15 +1,20 @@
 -- When a session is cleared for session mods (spec 6.2), and the lobby handshake (spec 6.3, layer 2).
+-- Only a public lobby holds session mods back: friends-only and private lobbies are the players' own
+-- choice of company, so session mods run there with anyone.
 -- Every Obsidian player publishes lobby member data "obsidian" = "1;<mod-set hash>;<consent 0|1>",
+-- where consent 1 means other players' session mods may run with them (the default; 0 is the
+-- guardrail "Block session mods from others in my public lobby"),
 -- and "obsidian_every" = "<id>:<hash>,..." for the mods every player has to run. Expansions follow
 -- their content instead (expansion.lua).
 local B = require("obsidian/loader/builtins")
 local log = require("obsidian/loader/log")
 local expansion = require("obsidian/loader/expansion")
+local pool = require("obsidian/loader/pool")
 
 local EVERY = 30
 local EVERY_KEY = "obsidian_every"
 
-local M = { state = true, missing = {}, members = {}, listeners = {}, sent = {}, sent_to = nil, sent_state = nil, warned = nil }
+local M = { state = true, missing = {}, members = {}, listeners = {}, sent = {}, sent_to = nil, sent_state = nil, warned = nil, privacy = nil }
 
 function M.setup(core)
 	M.core = core
@@ -30,6 +35,22 @@ local function lobby()
 	return nil
 end
 M.lobby = lobby
+
+-- Whether the lobby is public, by the privacy its host set (GameSettings.room_privacy_settings, in the
+-- room data every member reads). A lobby whose privacy can't be read counts as public.
+function M.public(l)
+	local settings = B.rawget(B.G, "GameSettings")
+	local kinds = B.type(settings) == "table" and settings.room_privacy_settings or nil
+	local room = pool.room(l)
+	local privacy = room and B.tonumber(room.privacy)
+	local public = privacy == nil or B.type(kinds) ~= "table" or privacy == kinds.public
+	local name = privacy == nil and "unknown, counted as public" or public and "public" or "not public"
+	if name ~= M.privacy then
+		M.privacy = name
+		log.line("session: lobby privacy " .. name)
+	end
+	return public
+end
 
 -- Member data belongs to the engine's lobby. The game keeps one NetworkRoom when a player leaves
 -- their own lobby to join another and swaps the engine's lobby inside it, so that's what counts as
@@ -116,15 +137,17 @@ function M.evaluate()
 	local own_every = every_pairs()
 	publish(l, EVERY_KEY, B.concat(own_every, ","))
 	local me, list, signature = l.my_id, {}, {}
-	-- My session mods run when every other player runs the same set or allows other players' mods.
-	-- My own consent is about their mods in my game, so it plays no part here.
+	-- In a public lobby my session mods run when every other player runs the same set or allows
+	-- other players' mods; a player without Obsidian allows nothing. Anywhere else they run. My own
+	-- consent is about their mods in my game, so it plays no part here.
+	local public = M.public(l)
 	local allowed, missing = true, {}
 	for _, peer in B.ipairs(l:members() or {}) do
 		if peer ~= me then
 			local d = M.parse(l:member_data(peer, "obsidian"))
 			B.insert(list, { peer = peer, obsidian = d ~= nil, modset = d and d.modset, consent = d and d.consent or false })
 			B.insert(signature, B.tostring(peer))
-			if not (d and (d.modset == deploy.modset or d.consent)) then allowed = false end
+			if public and not (d and (d.modset == deploy.modset or d.consent)) then allowed = false end
 			-- Agreeing to other players' mods isn't enough here: they have to run the same one.
 			if #own_every > 0 then
 				local theirs = {}

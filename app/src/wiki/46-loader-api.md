@@ -63,7 +63,7 @@ A view of table `t` to hand to other mods. The functions named in the list `free
 
 ### obsidian.session.members()
 
-A list of the other players in the lobby. Each entry has `peer`, `obsidian` (whether that player runs Obsidian), `modset` and `consent`.
+A list of the other players in the lobby. Each entry has `peer`, `obsidian` (whether that player runs Obsidian), `modset` and `consent` (true unless that player blocks other players' session mods in a public lobby).
 
 To run only when every player has your mod, set [`every_player`](wiki:session-mods#every-player) in the manifest instead of comparing these yourself.
 
@@ -73,7 +73,7 @@ These do nothing. A player's own save is theirs, so Obsidian holds none of a mis
 
 ### obsidian.guardrails()
 
-What the player chose in **Guardrails** for this launch, as `{ consent, block_achievements, freeze_progress }`. A mod can read them, for example to tell the player their account is frozen. Only the player can change them, and the loader enforces them under every mod ([Guardrails](wiki:guardrails)).
+What the player chose in **Guardrails** for this launch, as `{ consent, block_achievements, freeze_progress }`, where `consent` is false while the player blocks other players' session mods in a public lobby. A mod can read them, for example to tell the player their account is frozen. Only the player can change them, and the loader enforces them under every mod ([Guardrails](wiki:guardrails)).
 
 ### obsidian.on_session(fn)
 
