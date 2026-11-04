@@ -611,7 +611,10 @@ local function dynamic(on)
 	rawset(_G, "NetworkGlobal", { lobby = { lobby_host = function() return "host" end } })
 	local Router = {}
 	Router.__index = Router
-	function Router.transmit_to(_, peer, message, pad_number, index) game.sent[#game.sent + 1] = { peer, message, pad_number, index } end
+	function Router.transmit_to(_, peer, message, ...)
+		local pad_number, index = ...
+		game.sent[#game.sent + 1] = { peer, message, pad_number, index, count = select("#", ...) }
+	end
 	rawset(_G, "NetworkRouter", Router)
 	local go = { exists = function() return true end, owned = function() return true end, get = function(_, k) return k == "avatar_unit" and unit or nil end }
 	local st = { players = { { pad_number = 0, player_go = go } }, network_router = setmetatable({}, Router),
@@ -681,6 +684,18 @@ test("dynamic_input_off_leaves_joining_and_input_alone", function()
 	game.st.network_router:transmit_to("host", "rpc_add_local_player_request", 1, 1)
 	E.eq(#game.sent, 1, "a press joins as in the game")
 	E.eq(rawget(_G, "LocalizationManager"):string("press_cross_to_join"), "PRESS [A] TO JOIN")
+end)
+
+-- The game's network messages keep their number of values, option on or off: one value too many ends
+-- the online session (1.9.0 did, at login).
+test("network_messages_go_on_with_the_values_they_came_with", function()
+	for _, on in ipairs({ true, false }) do
+		local _, game = dynamic(on)
+		game.st.network_router:transmit_to("host", "rpc_two")
+		game.st.network_router:transmit_to("host", "rpc_three", 1, nil, nil)
+		E.eq(game.sent[1].count, 0, "nothing added")
+		E.eq(game.sent[2].count, 3, "trailing nils kept")
+	end
 end)
 
 return T
