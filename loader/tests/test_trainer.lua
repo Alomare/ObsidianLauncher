@@ -308,13 +308,13 @@ test("every_new_row_changes_what_it_says", function()
 	E.eq(api.effects.is_on("auto_respawn"), true)
 	E.eq(rows["Auto-respawn"].get(), true)
 	rows["Auto-respawn"].set(false)
-	rows["Practice mission"](page)
+	rows["Choose a mission"](page)
 	E.eq(rows["Look"].choices[1].label, "Random")
 	E.eq(rows["Look"].choices[5].label, "Bug world")
 	E.eq(rows["Layout"].max, 215)
 	local asked
-	local real = api.mission.practice
-	api.mission.practice = function(choice) asked = choice return false, "look_not_here" end
+	local real = api.mission.drop
+	api.mission.drop = function(choice) asked = choice return false, "look_not_here" end
 	rows["Look"].set(5)
 	rows["Layout"].set(12)
 	E.eq(rows["Drop"](), "This look doesn't exist on this planet type.")
@@ -325,7 +325,7 @@ test("every_new_row_changes_what_it_says", function()
 	rows["Drop"]()
 	E.eq(asked.look, nil, "random")
 	E.eq(asked.layout, nil, "random")
-	api.mission.practice = real
+	api.mission.drop = real
 	page_of("enemies")(page)
 	rows["Encounter difficulty"].set(15)
 	E.eq(api.effects.get("enemy_difficulty"), 15)

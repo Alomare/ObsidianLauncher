@@ -690,6 +690,95 @@ test("practice_starts_only_from_the_ship_and_pays_nothing", function()
 	E.eq(layout >= 0 and layout <= 214 * 10000000, true)
 end)
 
+-- The mission end and the ship as far as a drop needs them: the end marks the planet's mission done in
+-- place, queues war and leaderboard reports and pays XP, like the game's.
+local function drop_states(e, game)
+	local seen = {}
+	local save = rawget(_G, "SaveManager")
+	rawset(_G, "StateMissionEnd", {
+		on_enter = function(self, params)
+			seen.planet, seen.last = save:get("current_planet"), params.is_last_mission
+			local p = save:get("available_planets")[1].planets[1]
+			p.missions[1].completed = true
+			if save:get("current_planet") then save:get("current_planet").missions[1].completed = true end
+			save:set("completed_planets", { { enemy = 1 } })
+			save:user_set("player_xp", save:user_get("player_xp") + 900)
+			save:user_set("research_samples", 60)
+			save:user_set("boss_influence", { 9 })
+			save:user_set("leaderboard_stats", { { score = 1 } })
+		end,
+		save_stats = function(self)
+			seen.stats_planet = self.current_planet
+			save:set("mission_stats", { kills = 3 })
+		end,
+	})
+	rawset(_G, "StateMenu", { on_enter = function() seen.ship_planet = save:get("current_planet") end })
+	for _, m in ipairs({ "lua/states/state_mission_end", "lua/states/state_menu" }) do
+		e.opts.modules[m] = true
+		rawget(_G, "require")(m)
+	end
+	local planet = { name = "Planet", missions = { { completed = false } }, selected_mission_index = 1 }
+	game.save.common.current_planet = planet
+	game.save.common.available_planets = { { planets = { planet } } }
+	game.save.common.dropzone_position = { 1, 2 }
+	game.save.user.boss_influence = { 5 }
+	return seen
+end
+
+test("a_drop_pays_like_a_mission_and_leaves_the_campaign_alone", function()
+	local api, game, e, ui = start()
+	local seen = drop_states(e, game)
+	local common, user = game.save.common, game.save.user
+	E.eq(api.mission.drop({ time = 2, environment = 3, enemy = 2, kind = 1, difficulty = 15 }), false, "only from the ship")
+	ui.state = "menu"
+	rawset(math, "create_weak_unique_identifier", function() return "id" end)
+	E.eq(api.mission.drop({ time = 2, environment = 3, enemy = 2, kind = 1, difficulty = 15 }), true)
+	local params = game.changed[2]
+	E.eq(params.is_training, false, "a real mission, which pays")
+	E.eq(params.initial_host, "me")
+	E.eq(params.is_last_mission, false)
+	E.eq(common.dropzone_position, nil, "no campaign drop zone on this map")
+
+	local state = setmetatable({ mission_seed = params.mission_seed, current_planet = common.current_planet }, { __index = rawget(_G, "StateMissionEnd") })
+	state:on_enter({ mission_seed = params.mission_seed, is_last_mission = true })
+	E.eq(seen.planet, nil, "the mission end sees no planet")
+	E.eq(seen.last, false)
+	state:save_stats()
+	E.eq(seen.stats_planet, nil, "no planet to add the stats to")
+	E.eq(common.available_planets[1].planets[1].missions[1].completed, false, "changed in place, put back")
+	E.eq(common.current_planet.name, "Planet")
+	E.eq(common.current_planet.missions[1].completed, false)
+	E.eq(common.completed_planets, nil, "no war report")
+	E.eq(common.mission_stats, nil)
+	E.eq(user.leaderboard_stats, nil, "no leaderboard row")
+	E.eq(user.boss_influence[1], 5)
+	E.eq(user.player_xp, 1900, "the XP counts")
+	E.eq(user.research_samples, 60, "and the samples")
+
+	rawget(_G, "StateMenu").on_enter({})
+	E.eq(seen.ship_planet.name, "Planet")
+	E.eq(common.dropzone_position[2], 2, "the campaign's drop zone is back on the ship")
+
+	-- A campaign mission after it is the game's own again.
+	local next_seed = params.mission_seed + 1
+	local campaign = setmetatable({ mission_seed = next_seed, current_planet = common.current_planet }, { __index = rawget(_G, "StateMissionEnd") })
+	campaign:on_enter({ mission_seed = next_seed })
+	E.eq(seen.planet.name, "Planet")
+	E.eq(common.current_planet.missions[1].completed, true)
+end)
+
+test("practice_still_pays_nothing_and_keeps_no_copies", function()
+	local api, game, e, ui = start()
+	local seen = drop_states(e, game)
+	ui.state = "menu"
+	rawset(math, "create_weak_unique_identifier", function() return "id" end)
+	E.eq(api.mission.practice({ time = 2, environment = 3, enemy = 2, kind = 1, difficulty = 7 }), true)
+	local seed = game.changed[2].mission_seed
+	local state = setmetatable({ mission_seed = seed }, { __index = rawget(_G, "StateMissionEnd") })
+	state:on_enter({ mission_seed = seed })
+	E.eq(seen.planet.name, "Planet", "training is the game's own")
+end)
+
 test("a_seed_takes_a_look_and_a_layout", function()
 	local api, game = start()
 	local base = { time = 4, environment = 1, enemy = 1, kind = 1, difficulty = 9 }
