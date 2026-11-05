@@ -33,10 +33,10 @@
   --p1: rgba(250, 250, 249, 0.95); --p2: rgba(234, 235, 236, 0.95);
   --s1: #fafaf9; --s2: #eaebec;
   --n1: #fafaf9; --n2: #eaebec;
-  --btn: #d0d3d7; --btn-hi: #c2c6cb;
+  --btn: #c9cdd2; --btn-hi: #b9bec4;
   --bar: rgba(255, 255, 255, 0.55);
-  --tx: #1d1f22; --mu: #53575c; --ln: rgba(0, 0, 0, 0.1); --row: rgba(0, 0, 0, 0.035);
-  --goldtx: #8a5d00; --warn: #a54300; --go: #1d8a64; --well: rgba(0, 0, 0, 0.04);
+  --tx: #1d1f22; --mu: #474b50; --ln: rgba(0, 0, 0, 0.1); --row: rgba(0, 0, 0, 0.035);
+  --goldtx: #7a5200; --warn: #a54300; --go: #1d8a64; --well: rgba(0, 0, 0, 0.04);
   --client: #1d9a6c; --session: #dc3f33; --library: #9aa0a6; --unspecified: #111214; --expansion: #e0bb00;
   --scope-edge: rgba(0, 0, 0, 0.55);
   color-scheme: light;
@@ -121,7 +121,8 @@ button.nav-warn:hover { filter: brightness(1.2); text-decoration: underline; tex
 :root[data-theme="light"] .build-files li { background: rgba(0, 0, 0, 0.06); }
 .build-files .name { font-weight: 600; }
 .build-files .mono { font-size: 0.76rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.build-files .tag { font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase; padding: 0.1rem 0.45rem; color: var(--warn); border: 1px solid currentColor; }
+.build-files .tag { margin-left: 0; vertical-align: baseline; }
+.build-files .tag.bad { background: var(--danger); color: #fff; }
 .build-steps { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.25rem; }
 .modal.build .note { font-size: 0.8rem; }
 .modal.build .foot { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.2rem; }
@@ -136,7 +137,8 @@ button.nav-warn:hover { filter: brightness(1.2); text-decoration: underline; tex
   font-family: "Saira Variable", sans-serif; font-size: 0.8rem; letter-spacing: 0.2em; text-transform: uppercase;
   transition: filter var(--fast), background var(--fast);
 }
-:root[data-theme="light"] .btn { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08); }
+/* On the light theme a grey fill alone melts into the panels, so buttons get a darker edge and a shade at the foot. */
+:root[data-theme="light"] .btn { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.28), inset 0 -2px 0 rgba(0, 0, 0, 0.1); }
 .btn:hover:not(:disabled) { background: var(--btn-hi); }
 .actions .btn { clip-path: polygon(0.42rem 0, calc(100% - 0.42rem) 0, 100% 50%, calc(100% - 0.42rem) 100%, 0.42rem 100%, 0 50%); }
 .btn.go:hover:not(:disabled) { background: linear-gradient(180deg, #55dcac, #2bab7e); }
@@ -356,6 +358,10 @@ button.link:hover { filter: brightness(1.2); }
 .search .bare svg { width: 0.9rem; height: 0.9rem; }
 
 .modal.confirm { width: min(28rem, 92vw); }
+/* The startup update prompt carries the new version's notes, so the decision is made in one place. */
+.modal.confirm.update-ask { width: min(38rem, 92vw); }
+.update-notes { max-height: min(22rem, 48vh); overflow: auto; padding: 0.75rem 0.95rem; background: var(--well); box-shadow: inset 0 0 0 1px var(--ln); user-select: text; }
+.update-notes .md { font-size: 0.92rem; }
 .modal.confirm h2 { margin: 0; font-size: 1rem; }
 .modal.confirm p { margin: 0; color: var(--mu); line-height: 1.45; }
 .update-bar { height: 0.55rem; background: var(--row); overflow: hidden; }
@@ -532,6 +538,8 @@ button.link.small { font-size: 0.8rem; margin-top: 0.45rem; }
 .seg button + button { border-left: 1px solid var(--ln); }
 .seg button:hover { color: var(--tx); }
 .seg button.on { background: var(--gold); color: var(--on); font-weight: 600; }
+:root[data-theme="light"] .seg { border-color: rgba(0, 0, 0, 0.26); background: rgba(0, 0, 0, 0.05); }
+:root[data-theme="light"] .seg button + button { border-left-color: rgba(0, 0, 0, 0.18); }
 /* Settings: one column of groups under headings, split by thin lines, as in Audiodiver. */
 .set-page { display: flex; flex-direction: column; }
 .set-sec { display: flex; flex-direction: column; gap: 0.75rem; padding: 1.1rem 0.2rem; border-top: 1px solid var(--ln); }

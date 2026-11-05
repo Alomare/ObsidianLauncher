@@ -5,9 +5,9 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { t } from "./i18n";
 
-type Props = { title: string; text: string; confirm: string; onConfirm: () => void; onCancel: () => void; tone?: "warn" | "go"; children?: ReactNode; extra?: { label: string; onClick: () => void } };
+type Props = { title: string; text: string; confirm: string; cancel?: string; onConfirm: () => void; onCancel: () => void; tone?: "warn" | "go"; children?: ReactNode; className?: string };
 
-export function Confirm({ title, text, confirm, onConfirm, onCancel, tone = "warn", children, extra }: Props) {
+export function Confirm({ title, text, confirm, cancel, onConfirm, onCancel, tone = "warn", children, className }: Props) {
   const ok = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     ok.current?.focus();
@@ -17,13 +17,12 @@ export function Confirm({ title, text, confirm, onConfirm, onCancel, tone = "war
   }, [onCancel]);
   return createPortal(
     <div className="modal-back" onPointerDown={(e) => e.target === e.currentTarget && onCancel()}>
-      <div className="modal confirm" role="alertdialog" aria-modal="true" aria-label={title}>
+      <div className={`modal confirm${className ? ` ${className}` : ""}`} role="alertdialog" aria-modal="true" aria-label={title}>
         <h2 className="cap">{title}</h2>
         <p>{text}</p>
         {children}
         <div className="modal-foot">
-          {extra && <button className="btn" onClick={extra.onClick}>{extra.label}</button>}
-          <button className="btn" onClick={onCancel}>{t("app.cancel")}</button>
+          <button className="btn" onClick={onCancel}>{cancel ?? t("app.cancel")}</button>
           <button className={tone === "go" ? "btn play" : "btn danger"} ref={ok} onClick={onConfirm}>{confirm}</button>
         </div>
       </div>
