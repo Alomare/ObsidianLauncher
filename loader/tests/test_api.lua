@@ -2182,6 +2182,79 @@ test("near_lists_enemies_by_distance", function()
 	E.eq(api.enemies.near(5, { x = 100, y = 0, z = 0 })[1], game.enemies[2])
 end)
 
+test("a_chain_jumps_from_enemy_to_enemy_in_range", function()
+	local api, game = start()
+	local list = api.enemies.chain({ x = 0, y = 0, z = 0 }, 3, 5, 200)
+	E.eq(#list, 2, "the first within 5 m, then on to the next")
+	E.eq(list[1], game.enemies[1])
+	E.eq(list[2], game.enemies[2])
+	E.eq(#api.enemies.chain({ x = 0, y = 0, z = 0 }, 3, 5, 50), 1, "the second is 97 m on")
+	E.eq(#api.enemies.chain({ x = 0, y = 0, z = 0 }, 1, 5, 200), 1, "no more than asked")
+	E.eq(#api.enemies.chain({ x = 0, y = 0, z = 0 }, 3, 2, 200), 0, "none near the start")
+	E.eq(#api.enemies.chain(nil, 3, 5, 5), 0)
+end)
+
+-- A World that records particles, with the variable ids the game would give.
+local function particle_world(game)
+	local log = { made = {}, set = {}, linked = {}, stopped = {} }
+	rawset(_G, "World", {
+		find_particles_variable = function(_, name, var) return name .. ":" .. var end,
+		create_particles = function(world, name, pos)
+			log.made[#log.made + 1] = { world = world, name = name, pos = pos }
+			return #log.made
+		end,
+		set_particles_variable = function(_, id, var, v) log.set[#log.set + 1] = { id = id, var = var, v = v } end,
+		link_particles = function(_, id, unit, node, pose, policy) log.linked[#log.linked + 1] = { id = id, unit = unit, node = node, policy = policy } end,
+		stop_spawning_particles = function(_, id) log.stopped[#log.stopped + 1] = id end,
+	})
+	rawset(_G, "Matrix4x4", { identity = function() return "identity" end })
+	local U = rawget(_G, "Unit")
+	U.has_node = function(_, name) return name == "boss" end
+	U.node = function(_, name) return name == "boss" and 7 or 0 end
+	return log
+end
+
+test("an_arc_draws_a_bolt_between_each_pair_of_points", function()
+	local api, game = start()
+	local log = particle_world(game)
+	E.eq(api.world.arc({ { x = 0, y = 0, z = 1 }, { x = 3, y = 0, z = 1 }, { x = 3, y = 4, z = 1 } }), true)
+	E.eq(#log.made, 2, "one bolt for each jump")
+	E.eq(log.made[1].name, "effects/generated/wep_arclightning")
+	E.eq(log.made[1].world, "world")
+	E.eq(log.set[2].var, "effects/generated/wep_arclightning:end")
+	E.eq(log.set[2].v.x, 3)
+	E.eq(log.set[3].v.x, 1, "the default thickness")
+	E.eq(log.set[5].v.y, 4, "the second bolt ends at the third point")
+	E.eq(api.world.arc({ { x = 0, y = 0 }, { x = 1, y = 1 } }, { effect = "tesla", size = 2 }), true)
+	E.eq(log.made[3].name, "effects/generated/tesla_lightning")
+	E.eq(select(2, api.world.arc({ { x = 0, y = 0 } })), "bad_value")
+	E.eq(select(2, api.world.arc({ { x = 0, y = 0 }, { x = 0 / 0, y = 1 } })), "bad_type")
+	E.eq(select(2, api.world.arc({ { x = 0, y = 0 }, { x = 1, y = 1 } }, { effect = "shock" })), "unknown_effect", "not a bolt")
+	E.eq(select(2, api.world.arc({ { x = 0, y = 0 }, { x = 1, y = 1 } }, { size = 9 })), "out_of_range")
+	E.eq(#log.made, 3)
+end)
+
+test("an_effect_follows_a_unit_until_taken_off", function()
+	local api, game = start()
+	local log = particle_world(game)
+	local handle = api.world.attach_effect(game.me, "shock")
+	E.eq(type(handle), "number")
+	E.eq(log.made[1].name, "effects/generated/status_lightning_player")
+	E.eq(log.linked[1].unit, game.me)
+	E.eq(log.linked[1].node, 7, "on the body's centre")
+	E.eq(log.linked[1].policy, "destroy", "gone with the unit")
+	E.eq(select(2, api.world.attach_effect(game.me, "arc")), "unknown_effect", "bolts don't run")
+	E.eq(select(2, api.world.attach_effect(game.me, "shock", "head")), "no_node")
+	E.eq(api.world.detach_effect(handle), true)
+	E.eq(log.stopped[1], 1)
+	E.eq(select(2, api.world.detach_effect(handle)), "no_target")
+	-- A unit that died took the effect with it: only forgotten.
+	local second = api.world.attach_effect(game.me, "shock")
+	game.me.alive = false
+	E.eq(api.world.detach_effect(second), true)
+	E.eq(#log.stopped, 1)
+end)
+
 test("a_hit_from_a_mod_goes_as_a_weapons_does", function()
 	local api, game = start()
 	local other = game.enemies[2]
