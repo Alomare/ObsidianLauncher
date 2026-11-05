@@ -1,0 +1,61 @@
+# The Rust build cache for releases. A run started by a tag can only read caches saved on its own tag or
+# on the default branch, so the cache a tag run saved was never seen again and every release compiled
+# from scratch. This job builds what a release builds, on main, and saves it under the key the release
+# job reads ("windows"). It runs when main moves at a release, by hand, and twice a week so the cache
+# isn't evicted after 7 days unused.
+name: Build cache
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 5 * * 1,4"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-cache
+  cancel-in-progress: true
+
+jobs:
+  cache:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows
+
+      # The app build checks that the resources it bundles are there: the Kit and LuaJIT.
+      - name: The Obsidian Kit
+        run: python tools/starter_pack.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: The LuaJIT 2.0 compiler
+        shell: cmd
+        run: tools\build-luajit.cmd
+
+      # What the release compiles: the tests (debug), then the app (release, as tauri-action builds it).
+      - name: Compile the tests
+        run: cargo test --no-run
+
+      - name: Install the app's packages
+        working-directory: app
+        run: npm ci
+
+      - name: Compile the app
+        working-directory: app
+        run: npx tauri build --no-bundle
