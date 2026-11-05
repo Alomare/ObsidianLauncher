@@ -1,5 +1,5 @@
 ---
-title: Frequently Asked Questions
+title: F.A.Q
 group: FAQ
 summary: Short answers, each with a link to the page that covers the subject in full.
 ---
@@ -8,11 +8,11 @@ summary: Short answers, each with a link to the page that covers the subject in 
 
 ### Will a mod get me banned?
 
-HELLDIVERS has no anti-cheat, and Obsidian never edits a game file. Session mods are kept out of the Galactic War and out of vanilla lobbies, so other players never see their effects ([Scopes](wiki:scopes)).
+HELLDIVERS has no anti-cheat, and Obsidian never writes over a game file. Session mods are kept out of the Galactic War, and in a public lobby they switch off while a player there doesn't allow them ([Scopes](wiki:scopes)).
 
-### Why can't I find any lobbies?
+### Can I play with friends who don't use Obsidian?
 
-With session mods deployed, you only see other Obsidian players who run session mods. Deploy without session mods for normal matchmaking: you then see everyone, and your own lobby shows for everyone too ([Playing online](wiki:multiplayer#matchmaking)).
+Yes. Session mods don't change who you find or who can join you. In a friends-only or private lobby they run with anyone, and in a public lobby they switch off while a vanilla player is there. Data overrides and older imported mods can't switch off, so while you host a public lobby with them, vanilla players can't join it. The first time you load into the ship, a message says which case applies to you ([Playing online](wiki:multiplayer#matchmaking)).
 
 ### My friend and I both use Obsidian. Why are my session mods off?
 
@@ -24,7 +24,11 @@ Not while session content is deployed, and not when the content of an expansion 
 
 ### Is my save safe?
 
-Obsidian backs up the save folder before every deploy and keeps the last 10 backups ([Deploy and purge](wiki:deploy-and-purge#saves)).
+Before a deploy, Obsidian backs up the save folder when it changed since the last backup. The first backup and the 9 newest are kept, so the save from before any mod stays ([Deploy and purge](wiki:deploy-and-purge#saves)).
+
+### The bar says Game files changed. What now?
+
+Some game files differ from the build Obsidian knows, usually because a mod was copied straight into the game's `contents` folder. Deploy and Play still work. Click the warning to see which files differ and how to get the originals back ([Troubleshooting](wiki:troubleshooting#build-unknown)).
 
 ## Mods
 
@@ -42,7 +46,7 @@ No. Obsidian Patches removes the black bars on wide screens, and that option sta
 
 ### What is Obsidian Patches?
 
-A client mod that comes with Obsidian: it skips the intro, the login screen, war briefs and planet scanning, removes the black bars on wide screens, can speed up or skip the results screens after a mission, and fixes two animation faults of the game, after stratagem throws and dives. Each fix is an option. It starts on with most of the fixes enabled; find it in the Obsidian Kit folder at the top of the list.
+A client mod that comes with Obsidian, made of small fixes that are each an option. Starting on: no intro, login screen or planet scanning, no black bars on wide screens, faster results screens after a mission, a pause that freezes a solo game, and two animation fixes, the weapon recoil after a stratagem throw and the sprint pose after a dive. Ready to switch on: skipping war briefs, an aim cursor that stays visible, and a minimap that stays open. It sits in the Obsidian Kit folder at the top of the list.
 
 ## Making mods
 

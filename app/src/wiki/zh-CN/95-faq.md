@@ -8,11 +8,11 @@ summary: 简短的回答，每条都附有完整说明页面的链接。
 
 ### 使用模组会被封号吗？ {#will-a-mod-get-me-banned}
 
-HELLDIVERS 没有反作弊，Obsidian 也从不修改游戏文件。会话模组被隔离在银河战争和无模组大厅之外，其他玩家永远看不到它们的效果（[作用范围](wiki:scopes)）。
+HELLDIVERS 没有反作弊，Obsidian 也从不覆盖游戏文件。会话模组被隔离在银河战争之外；在公开大厅中，只要有玩家不允许它们，它们就会关闭（[作用范围](wiki:scopes)）。
 
-### 为什么我找不到任何大厅？ {#why-can-t-i-find-any-lobbies}
+### 能和不用 Obsidian 的朋友一起玩吗？ {#can-i-play-with-friends-who-don-t-use-obsidian}
 
-部署了会话模组时，你只能看到其他运行会话模组的 Obsidian 玩家。在不含会话模组的情况下部署，即可回到普通匹配：你能看到所有人，你自己的大厅也对所有人显示（[联机游戏](wiki:multiplayer#matchmaking)）。
+可以。会话模组不会改变你能找到谁，也不会改变谁能加入你。在仅限好友或私人大厅中，它们和任何人一起都会运行；在公开大厅中，只要有原版玩家在场，它们就会关闭。数据替换和导入的旧式模组无法关闭，因此你带着它们主持公开大厅时，原版玩家无法加入。第一次进入飞船时，会有一条消息告诉你属于哪种情况（[联机游戏](wiki:multiplayer#matchmaking)）。
 
 ### 我和朋友都用 Obsidian，为什么我的会话模组是关闭的？ {#my-friend-and-i-both-use-obsidian-why-are-my-session-mods-off}
 
@@ -24,7 +24,11 @@ HELLDIVERS 没有反作弊，Obsidian 也从不修改游戏文件。会话模组
 
 ### 我的存档安全吗？ {#is-my-save-safe}
 
-Obsidian 在每次部署前备份存档文件夹，并保留最近 10 份（[部署与清除](wiki:deploy-and-purge#saves)）。
+部署前，如果存档文件夹自上次备份后有变化，Obsidian 会先备份。第一份备份和最新的 9 份会保留，因此安装任何模组之前的存档一直都在（[部署与清除](wiki:deploy-and-purge#saves)）。
+
+### 顶部栏显示“游戏文件已更改”，怎么办？ {#the-bar-says-game-files-changed-what-now}
+
+部分游戏文件与 Obsidian 认识的版本不同，通常是因为有模组被直接复制进了游戏的 `contents` 文件夹。部署和开始游戏仍然可用。点击该提示即可查看哪些文件不同，以及如何恢复原始文件（[出现问题时](wiki:troubleshooting#build-unknown)）。
 
 ## 模组 {#mods}
 
@@ -42,7 +46,7 @@ Obsidian 在每次部署前备份存档文件夹，并保留最近 10 份（[部
 
 ### Obsidian Patches 是什么？ {#what-is-obsidian-patches}
 
-Obsidian 自带的客户端模组：跳过开场、登录界面、战争简报和行星扫描，去掉宽屏上的黑边，还可以加快或跳过任务结束后的结算画面，并修正游戏在投掷战略配备和扑倒之后的两处动画问题。每项改进都是一个选项。它默认启用，并开启大部分修正；位于列表顶部的 Obsidian Kit 文件夹中。
+Obsidian 自带的客户端模组，由一些小修正组成，每项都是一个选项。默认开启：跳过开场、登录界面和行星扫描，去掉宽屏上的黑边，加快任务结束后的结算画面，单人时暂停会冻结游戏，以及两处动画修正：投掷战略配备后的武器后坐力，和扑倒后的冲刺姿势。可以手动开启：跳过战争简报、瞄准光标始终显示、小地图保持打开。它位于列表顶部的 Obsidian Kit 文件夹中。
 
 ## 制作模组 {#making-mods}
 

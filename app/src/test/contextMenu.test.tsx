@@ -25,9 +25,19 @@ describe("ContextMenu colors", () => {
     const el = open([{ colors: COLORS, current: "#222222", pick: vi.fn() }]);
     const row = el.querySelectorAll(".ctx-colors button");
     expect(el.querySelectorAll(".ctx-colors")).toHaveLength(1);
-    expect(row).toHaveLength(3);
-    expect([...row].map((b) => b.getAttribute("aria-checked"))).toEqual(["false", "true", "false"]);
+    // The three colors, then the custom one.
+    expect(row).toHaveLength(4);
+    expect([...row].map((b) => b.getAttribute("aria-checked"))).toEqual(["false", "true", "false", "false"]);
     expect(el.querySelectorAll(".swatch.on")).toHaveLength(1);
+    expect(row[3].classList.contains("custom")).toBe(true);
+  });
+
+  it("marks the custom swatch, in that color, when the current color isn't in the row", () => {
+    const el = open([{ colors: COLORS, current: "#123456", pick: vi.fn() }]);
+    const on = el.querySelectorAll<HTMLButtonElement>(".ctx-colors .swatch.on");
+    expect(on).toHaveLength(1);
+    expect(on[0].classList.contains("custom")).toBe(true);
+    expect(on[0].style.background).toBe("rgb(18, 52, 86)");
   });
 
   it("picks a color and closes", () => {
@@ -48,7 +58,8 @@ describe("ContextMenu colors", () => {
     expect(document.activeElement).toBe(row[1]);
     press("ArrowLeft");
     press("ArrowLeft");
-    expect(document.activeElement).toBe(row[2]);
+    // Past the first, round to the last: the custom swatch.
+    expect(document.activeElement).toBe(row[3]);
     press("ArrowDown");
     expect(document.activeElement).toBe(last);
     press("ArrowDown");

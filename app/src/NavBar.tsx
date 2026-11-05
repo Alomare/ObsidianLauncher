@@ -1,5 +1,5 @@
-// The navigation bar: the tabs (Home, Mods, Wiki), then the "prepare to play" area: the Guardrails of the active
-// profile, Purge, Deploy and Play, and the Settings tab at the far end (spec section 3). Deploy turns green while changes wait.
+// The navigation bar: the tabs (Home, Mods), then the "prepare to play" area: the Guardrails of the active
+// profile, Purge, Deploy and Play, and the Wiki and Settings tabs as icons at the far end (spec section 3). Deploy turns green while changes wait.
 // When one of the three starts, one glow in its color crosses from Play toward the tabs, and fades out before them.
 import { type ComponentType, useLayoutEffect, useRef, useState } from "react";
 import { BuildDialog } from "./BuildDialog";
@@ -26,7 +26,8 @@ type Props = {
   onPlay: () => void;
 };
 
-const TABS: [Tab, ComponentType][] = [["home", HomeIcon], ["mods", ModsIcon], ["wiki", BookIcon]];
+// Home and Mods carry their names; the Wiki and Settings are icons at the far end (the user, 2026-11-04).
+const TABS: [Tab, ComponentType][] = [["home", HomeIcon], ["mods", ModsIcon]];
 
 export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, onPurge, onDeploy, onPlay }: Props) {
   const running = snap?.game === "running";
@@ -97,7 +98,10 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
           </button>
         </div>
       </div>
-      <div className="tabs" role="tablist">
+      <div className="tabs end-tabs" role="tablist">
+        <button role="tab" aria-selected={tab === "wiki"} aria-label={t("app.nav.wiki")} data-tip={t("app.nav.wiki")} className={tab === "wiki" ? "tab cur" : "tab"} onClick={() => onTab("wiki")}>
+          <BookIcon />
+        </button>
         <button role="tab" aria-selected={tab === "settings"} aria-label={updateFound ? `${t("app.nav.settings")}: ${t("app.status.updateFound")}` : t("app.nav.settings")}
           className={`tab${tab === "settings" ? " cur" : ""}${updateFound ? " lit" : ""}`} onClick={() => onTab("settings")}
           data-tip-title={updateFound ? t("app.nav.settings") : undefined} data-tip={updateFound ? t("app.status.updateFound") : t("app.nav.settings")}>

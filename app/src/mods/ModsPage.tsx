@@ -194,14 +194,14 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
   const sel = inOrder([...checked]);
   const waiting = snap.mods.filter((m) => offered(modUpdates.found, m)).map((m) => m.id);
   const askFolder = ask?.kind === "editFolder" || ask?.kind === "deleteFolder" ? folderOf(ask.id) : undefined;
+  // The panel shows a selected mod, or the conflicts; with neither, the list takes the whole width.
+  const panel = (view?.kind === "mod" && snap.mods.some((m) => m.id === view.id)) || view?.kind === "conflicts" || shownConflicts.length > 0;
 
   return (
     <div className="mods">
       <div className="head">
-        <h1 className="cap">{t("app.nav.mods")}</h1>
-        <button className="btn profile-btn" onClick={() => setProfiles(true)} data-tip-title={t("app.mods.profile")} data-tip={t("app.mods.profileHint")}>
-          {profileImage ? <Thumb image={profileImage} name={snap.profile} size="sm" /> : <ProfilesIcon />}
-          <span className="profile-label">{t("app.mods.profile")}</span>
+        <button className="btn profile-btn" onClick={() => setProfiles(true)} aria-label={`${t("app.mods.profile")}: ${snap.profile}`} data-tip-title={t("app.mods.profile")} data-tip={t("app.mods.profileHint")}>
+          {profileImage ? <Thumb image={profileImage} name={snap.profile} size="sm" /> : <span className="profile-chip"><ProfilesIcon /></span>}
           <span className="profile-name">{snap.profile}</span>
         </button>
         <button className="btn icon head-btn blue" onClick={() => setAsk({ kind: "newFolder", ids: [] })} aria-label={t("app.mods.createFolder")} data-tip-title={t("app.mods.createFolder")} data-tip={t("app.folder.newHint")}>
@@ -261,9 +261,13 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
             </div>
           )}
         </section>
-        <div className="split" role="separator" aria-orientation="vertical" aria-label={t("app.mods.resize")} onPointerDown={resize}
-          onDoubleClick={() => { setWidth(0); try { localStorage.removeItem(DRAWER_KEY); } catch { /* fine */ } }} data-tip={t("app.mods.resizeHint")} />
-        <Drawer view={view} mods={snap.mods} conflicts={shownConflicts} order={order} names={names} onOpen={(id) => setView({ kind: "mod", id })} onClose={() => setView(null)} />
+        {panel && (
+          <>
+            <div className="split" role="separator" aria-orientation="vertical" aria-label={t("app.mods.resize")} onPointerDown={resize}
+              onDoubleClick={() => { setWidth(0); try { localStorage.removeItem(DRAWER_KEY); } catch { /* fine */ } }} data-tip={t("app.mods.resizeHint")} />
+            <Drawer view={view} mods={snap.mods} conflicts={shownConflicts} order={order} names={names} onOpen={(id) => setView({ kind: "mod", id })} onClose={() => setView(null)} />
+          </>
+        )}
       </div>
       {profiles && <ProfilesDialog snap={snap} onClose={() => setProfiles(false)} />}
       {menu && <ContextMenu x={menu.x} y={menu.y} up={menu.up} items={menuItems(menu.target)} onClose={() => setMenu(null)} />}

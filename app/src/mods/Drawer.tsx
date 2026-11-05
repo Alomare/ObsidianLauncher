@@ -1,5 +1,6 @@
 // The drawer beside the mod table (spec 4.2): one mod's About, Options, Keys, Files and Dependencies,
-// or the conflicts. With nothing selected it shows the conflicts, or a hint about importing.
+// or the conflicts. With nothing selected it shows the conflicts; with no conflicts either, the Mods page
+// leaves it out (the user, 2026-11-04).
 import { useEffect, useMemo, useState } from "react";
 import { run } from "../api";
 import { Confirm } from "../Confirm";
@@ -33,11 +34,7 @@ export function Drawer({ view, mods, conflicts, order, names, onOpen, onClose }:
   const mod = view?.kind === "mod" ? mods.find((m) => m.id === view.id) : undefined;
   if (mod) return <ModDrawer key={mod.id} mod={mod} mods={mods} conflicts={conflicts} names={names} onOpen={onOpen} onClose={onClose} />;
   if (view?.kind === "conflicts" || conflicts.length) return <ConflictsView conflicts={conflicts} order={order} names={names} focus={view?.kind === "conflicts" ? view.focus : undefined} onClose={view ? onClose : undefined} />;
-  return (
-    <aside className="drawer idle">
-      <p className="muted">{t("app.drawer.hint")}</p>
-    </aside>
-  );
+  return null;
 }
 
 type Tab = "about" | "options" | "keys" | "files" | "deps";

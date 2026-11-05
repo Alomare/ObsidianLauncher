@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { deploy, play, purge } from "./actions";
 import { loadSnapshot, refresh, useSnapshot } from "./api";
 import { useLocked } from "./busy";
+import { inkOn } from "./colors";
 import { Confirm } from "./Confirm";
 import { pick, t } from "./i18n";
 import { listenForDrops, type DropState } from "./mods/dropImport";
@@ -35,12 +36,18 @@ export default function App() {
     if (document.documentElement.dataset.motion !== "off") setWave((w) => ({ tone, n: (w?.n ?? 0) + 1 }));
   };
   const ready = !!snap && !!settings;
-  // The color of the active profile tints the Profile button and the switches that are on.
+  // The color of the active profile tints the Profile button and the switches that are on; --pc-on is
+  // the ink that reads on it, as a custom color can be dark or light.
   const profileColor = snap?.profileRows.find((p) => p.name === snap.profile)?.color ?? null;
   useEffect(() => {
     const root = document.documentElement.style;
-    if (profileColor) root.setProperty("--pc", profileColor);
-    else root.removeProperty("--pc");
+    if (profileColor) {
+      root.setProperty("--pc", profileColor);
+      root.setProperty("--pc-on", inkOn(profileColor));
+    } else {
+      root.removeProperty("--pc");
+      root.removeProperty("--pc-on");
+    }
   }, [profileColor]);
   // The update checks run once per launch, as soon as the window knows whether it is a portable copy.
   useEffect(() => {
