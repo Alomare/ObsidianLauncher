@@ -42,7 +42,12 @@ jobs:
           cache: npm
           cache-dependency-path: app/package-lock.json
       - uses: dtolnay/rust-toolchain@stable
+      # Reads the cache that cache.yml keeps on main. A tag run's own save could never be read by a later
+      # tag, so it doesn't save.
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows
+          save-if: false
 
       - name: The Obsidian Kit
         run: python tools/starter_pack.py
