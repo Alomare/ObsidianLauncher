@@ -12,7 +12,7 @@ Every deploy replaces all the patches of the one before, so there's no need to p
 
 Each deploy runs these steps:
 
-1. Check that the game is the build Obsidian knows (see below).
+1. Check whether the game is the build Obsidian knows (see below).
 2. Back up your save folder, when it changed since the last backup. The first backup and the 9 newest are kept, so your save from before any mod stays.
 3. Work out which mod wins each resource, following the load order.
 4. Compile the Lua of every mod, and the loader, into code the game can run.
@@ -32,9 +32,11 @@ Purge deletes every file Obsidian wrote and checks that none is left. The game i
 
 ## The build check
 
-Obsidian only deploys to the Steam build of HELLDIVERS it was tested on. If the game files differ, deploy stops and the bar at the top says the build is unknown. The loader checks again every time the game starts and keeps every mod off on a build it doesn't know.
+Obsidian was made for one Steam build of HELLDIVERS. If some game files differ from it, the bar at the top says **Game files changed**. Click it to see which files differ and what to do. Deploy and Play still work, and Obsidian never writes over the game's own files.
 
-HD1 hasn't been updated since 2020, so this mostly catches game files changed by hand or by another mod tool. Verify the game files in Steam to fix it.
+HD1 hasn't been updated since 2020, so this almost always means a mod was copied straight into the `contents` folder. Obsidian's mods load on top of it, and where both change the same thing, Obsidian's wins. To get the known files back, purge, verify the game files in Steam, then add the copied mod with **Add mods**. Adding mods waits until the files match again, since it compares each mod with the original files.
+
+The loader checks the game's version every time the game starts. On a version it doesn't know, no mod runs and the game says so.
 
 ## Saves
 

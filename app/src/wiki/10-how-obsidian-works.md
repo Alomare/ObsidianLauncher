@@ -30,6 +30,8 @@ The loader also handles the multiplayer rules. In a public lobby, mods that chan
 | Wiki | These guides |
 | [Settings](app:settings) | Language, theme, game folder, updates |
 
+Home and Mods sit on the left of the bar. The Wiki (the book) and Settings (the cog) are the two icons at the right end.
+
 The bar at the top holds [Guardrails](wiki:guardrails), the shield, and three buttons:
 
 - **Purge** takes every Obsidian patch out of the game.

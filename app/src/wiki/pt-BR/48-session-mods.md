@@ -93,11 +93,11 @@ O `consent` de um jogador diz ao seu mod que ele o permite, não que o roda. Iss
 "every_player": true
 ```
 
-Um mod assim só roda quando todos os outros jogadores também o rodam, na mesma versão e com os mesmos valores de opção compartilhados. Quem só permite não conta. O Obsidian liga e desliga o mod como qualquer mod de sessão e diz ao jogador o motivo. Os jogadores dele também têm um grupo de matchmaking próprio, então só encontram uns aos outros.
+Um mod assim só roda quando todos os outros jogadores também o rodam, na mesma versão e com os mesmos valores de opção compartilhados. Quem só permite não conta. O Obsidian liga e desliga o mod como qualquer mod de sessão e diz ao jogador o motivo.
 
 `obsidian.session.cleared()` responde pelo mod que pergunta, e `obsidian.on_session` chama o mod quando o interruptor dele muda.
 
-A verificação roda quando o jogador já está no lobby. Convites ainda podem cruzar grupos, então deixe o jogo como estava até todos os jogadores estarem confirmados: num lobby maior, mantenha o limite normal até `obsidian.session.cleared()` ser `true`, e volte a ele quando `on_session` disser `false`.
+A verificação roda quando o jogador já está no lobby, e qualquer um pode entrar antes dela, então deixe o jogo como estava até todos os jogadores estarem confirmados: num lobby maior, mantenha o limite normal até `obsidian.session.cleared()` ser `true`, e volte a ele quando `on_session` disser `false`.
 
 ## Escrever uma expansão {#expansions}
 

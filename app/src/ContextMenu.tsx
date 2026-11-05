@@ -1,10 +1,11 @@
 // A right-click menu. Items run and close it; an item with `sub` opens a menu to the side on
-// hover or Enter, and `colors` is a row of swatches to pick from. Esc, a click outside, a scroll
+// hover or Enter, and `colors` is a row of swatches to pick from, ending in one for a custom color. Esc, a click outside, a scroll
 // or leaving the window closes it. It sits on the body, so a folded corner's mask can't cut it off.
 // `up` hangs it above y, for a button low in the window.
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ChevronIcon } from "./Icons";
+import { CustomSwatch } from "./mods/FolderDialog";
 
 export type MenuItem =
   | { label: string; icon?: ReactNode; danger?: boolean; disabled?: boolean; hint?: string; run?: () => void; sub?: MenuItem[]; swatch?: string }
@@ -83,6 +84,8 @@ function Menu({ x, y, up, items, onClose, root, keys }: { x: number; y: number; 
                     it.pick(c);
                   }} />
               ))}
+              {/* The picker outlives the menu, which closes as the picker takes focus. */}
+              <CustomSwatch role="menuitemradio" current={it.current} presets={it.colors} onPick={(c) => { onClose(); it.pick(c); }} />
             </div>
           ) : (
             <button key={i} role="menuitem" className={it.danger ? "danger" : undefined} disabled={it.disabled} aria-haspopup={it.sub ? "menu" : undefined}

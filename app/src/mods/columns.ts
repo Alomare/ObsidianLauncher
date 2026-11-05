@@ -6,8 +6,9 @@ export type Widths = Record<Col, number>;
 
 export const COLUMN_KEY = "obsidian.modColumns";
 const COLS: Col[] = ["version", "scope"];
-/** Version fits 12.4.0-beta.1 with the update arrow beside it. */
-export const DEFAULTS: Widths = { version: 7, scope: 3.2 };
+/** Version fits its header and 1.29.0 with the update arrow, so Scope sits close (the user, 2026-11-04);
+ *  a longer version ends in an ellipsis until the line is dragged. */
+export const DEFAULTS: Widths = { version: 5.2, scope: 3.2 };
 /** Version keeps room for its header; Scope for the diamond. */
 export const MINS: Widths = { version: 3.7, scope: 2.6 };
 /** What the Mod column keeps, so a name still shows. */

@@ -7,6 +7,7 @@ local expansion = require("obsidian/loader/expansion")
 local backend_block = require("obsidian/loader/backend_block")
 local guardrails = require("obsidian/loader/guardrails")
 local pool = require("obsidian/loader/pool")
+local status = require("obsidian/loader/status")
 local settings = require("obsidian/loader/settings")
 local game_text = require("obsidian/loader/game_text")
 local menu = require("obsidian/loader/menu")
@@ -386,13 +387,10 @@ function M.boot()
 
 	backend_block.setup(M, hooks)
 	guardrails.setup(M, hooks)
-	-- The multiplayer terminal lists only lobbies with the same build hash, so in a pool of Obsidian
-	-- players the filter titles say so. A player in the vanilla pool may list the open pool's too.
+	-- The lobby browser also lists the open pool's lobbies, and the public door keeps content that
+	-- can't switch off out of public lobbies with vanilla players.
 	pool.bridge(M, hooks, tag)
-	if tag then
-		game_text.replace(M, hooks, "campaign_public", "lobby_public")
-		game_text.replace(M, hooks, "campaign_friends", "lobby_friends")
-	end
+	status.setup(M, hooks)
 
 	B.rawset(B.G, "obsidian", api)
 	for _, mod in B.ipairs(deploy.mods or {}) do

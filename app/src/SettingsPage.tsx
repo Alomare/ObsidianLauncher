@@ -4,6 +4,7 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { useEffect, useState } from "react";
 import { call, errorText, run, setSnapshot, taskText } from "./api";
+import { BuildDialog } from "./BuildDialog";
 import { Confirm } from "./Confirm";
 import { withTask } from "./busy";
 import { FolderIcon } from "./Icons";
@@ -91,6 +92,7 @@ function SystemTab({ snap }: { snap: Snapshot }) {
     const picked = await open({ directory: true, defaultPath: snap.gameDir ?? undefined, title: t("app.settings.pickGame") });
     if (typeof picked === "string") run("set_game_dir", { path: picked });
   };
+  const [buildOpen, setBuildOpen] = useState(false);
   const check = async () => {
     setChecking(true);
     await run("check_game");
@@ -129,7 +131,9 @@ function SystemTab({ snap }: { snap: Snapshot }) {
           <button className="btn small" onClick={change}>{t("app.settings.changeFolder")}</button>
           {info?.chosenGameDir && <button className="btn small" onClick={() => run("set_game_dir", { path: null })} data-tip={t("app.settings.useSteamHint")}>{t("app.settings.useSteam")}</button>}
           <button className="btn small" onClick={check} disabled={checking || !snap.gameDir}>{t("app.settings.checkAgain")}</button>
+          {snap.game === "unknown" && <button className="btn small" onClick={() => setBuildOpen(true)} aria-haspopup="dialog">{t("app.settings.buildDetails")}</button>}
         </div>
+        {buildOpen && snap.game === "unknown" && <BuildDialog snap={snap} onClose={() => setBuildOpen(false)} />}
 
         {snap.gameDir && (
           <div className="other-patches">

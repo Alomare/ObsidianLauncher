@@ -1,9 +1,11 @@
 {
   "build_unknown": "Version du jeu inconnue, aucun mod n'est lancé. Mettez Obsidian à jour et redéployez.",
   "campaign_not_uploaded": "La progression n'a pas été envoyée à la Campagne galactique à cause des mods de session",
-  "lobby_friends": "Amis (Obsidian seulement)",
-  "lobby_public": "Public (Obsidian seulement)",
   "mod_failed": "%s a échoué et reste désactivé jusqu'au redémarrage du jeu.",
+  "status_clear": "Votre liste de mods est sans risque pour les joueurs sans mods. Vous pouvez rejoindre n'importe qui.",
+  "status_session": "Vos mods de session s'arrêteront si vous jouez dans une partie publique qui ne les autorise pas. Vous pouvez toujours jouer entre amis ou en privé.",
+  "status_expansion": "Certains de vos mods peuvent vous isoler des joueurs qui ne les ont pas.",
+  "status_isolated": "Certains de vos mods ne peuvent pas être désactivés. Vous êtes isolé des parties publiques sans mods.",
   "session_not_cleared": "D'autres joueurs ici utilisent des mods différents, et certains des vôtres modifient des fichiers du jeu qui ne peuvent pas être mis en pause. Envisagez de quitter cette partie.",
   "progress_frozen": "Votre progression est gelée jusqu'à la fermeture du jeu : rien de ce que vous gagnez ou dépensez n'est sauvegardé.",
   "achievements_blocked": "Les succès sont désactivés jusqu'à la fermeture du jeu.",

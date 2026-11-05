@@ -30,6 +30,8 @@ O loader também cuida das regras do multijogador. Num lobby público, mods que 
 | Wiki | Estes guias |
 | [Configurações](app:settings) | Idioma, tema, pasta do jogo, atualizações |
 
+Início e Mods ficam à esquerda da barra. A Wiki (o livro) e as Configurações (a engrenagem) são os dois ícones na ponta direita.
+
 A barra de cima tem as [Proteções](wiki:guardrails), o escudo, e três botões:
 
 - **Limpar** tira do jogo todos os patches do Obsidian.

@@ -5,9 +5,10 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { t } from "./i18n";
 
-type Props = { title: string; text: string; confirm: string; onConfirm: () => void; onCancel: () => void; tone?: "warn" | "go"; children?: ReactNode; extra?: { label: string; onClick: () => void } };
+/** `link` is a way elsewhere, set apart on the left as a text link so the two buttons stay the answer. */
+type Props = { title: string; text: string; confirm: string; cancel?: string; onConfirm: () => void; onCancel: () => void; tone?: "warn" | "go"; children?: ReactNode; link?: { label: string; onClick: () => void } };
 
-export function Confirm({ title, text, confirm, onConfirm, onCancel, tone = "warn", children, extra }: Props) {
+export function Confirm({ title, text, confirm, cancel, onConfirm, onCancel, tone = "warn", children, link }: Props) {
   const ok = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     ok.current?.focus();
@@ -22,8 +23,8 @@ export function Confirm({ title, text, confirm, onConfirm, onCancel, tone = "war
         <p>{text}</p>
         {children}
         <div className="modal-foot">
-          {extra && <button className="btn" onClick={extra.onClick}>{extra.label}</button>}
-          <button className="btn" onClick={onCancel}>{t("app.cancel")}</button>
+          {link && <button className="link foot-link" onClick={link.onClick}>{link.label}</button>}
+          <button className="btn" onClick={onCancel}>{cancel ?? t("app.cancel")}</button>
           <button className={tone === "go" ? "btn play" : "btn danger"} ref={ok} onClick={onConfirm}>{confirm}</button>
         </div>
       </div>

@@ -102,7 +102,7 @@ fn main() -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("Error: {e}");
-            if matches!(e, ObsidianError::UnsupportedBuild(_)) { ExitCode::from(2) } else { ExitCode::FAILURE }
+            ExitCode::FAILURE
         }
     }
 }

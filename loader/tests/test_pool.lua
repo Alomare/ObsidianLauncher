@@ -13,18 +13,18 @@ test("no_session_keeps_vanilla_hash", function()
 	E.eq(game_hash(), "3bd83d77c8ae")
 end)
 
-test("session_uses_the_open_tag", function()
-	E.new()
-	require("obsidian/loader/pool").apply(E.deploy({ has_session = true }))
-	E.eq(game_hash(), "3bd83d77c8aeaaaaaaaaaaaa")
+test("session_mods_keep_the_vanilla_hash", function()
+	for _, static in ipairs({ false, true }) do
+		E.new()
+		require("obsidian/loader/pool").apply(E.deploy({ has_session = true, has_static_session = static }))
+		E.eq(game_hash(), "3bd83d77c8ae", "vanilla friends can join, static " .. tostring(static))
+	end
 end)
 
-test("mods_every_player_needs_get_their_own_pool", function()
-	for _, consent in ipairs({ false, true }) do
-		E.new()
-		require("obsidian/loader/pool").apply(E.deploy({ has_session = true, hashes = { open = "aaaaaaaaaaaa", every = "bbbbbbbbbbbb" } }), consent)
-		E.eq(game_hash(), "3bd83d77c8aebbbbbbbbbbbb", "consent " .. tostring(consent))
-	end
+test("mods_every_player_needs_stay_in_the_vanilla_pool", function()
+	E.new()
+	require("obsidian/loader/pool").apply(E.deploy({ has_session = true, hashes = { open = "aaaaaaaaaaaa", every = "bbbbbbbbbbbb" } }))
+	E.eq(game_hash(), "3bd83d77c8ae", "they switch off live when someone lacks them")
 end)
 
 test("letting_others_in_alone_stays_in_the_vanilla_pool", function()
@@ -33,29 +33,14 @@ test("letting_others_in_alone_stays_in_the_vanilla_pool", function()
 	E.eq(game_hash(), "3bd83d77c8ae", "vanilla players still find the lobby")
 end)
 
-test("rewritten_hash_matches_build_info_pattern", function()
-	E.new()
-	require("obsidian/loader/pool").apply(E.deploy({ has_session = true }))
-	local rev = rawget(_G, "BUILD_REVISION_INFORMATION")
-	E.eq(string.match(rev, "parent: ([0-9]+):"), "32148")
-	E.eq(game_hash(), "3bd83d77c8aeaaaaaaaaaaaa")
-	E.has(rev, " tip\n [code] ok", "rest of the revision string")
-end)
-
-test("bad_tag_leaves_the_hash_vanilla", function()
-	E.new()
-	require("obsidian/loader/pool").apply(E.deploy({ has_session = true, hashes = { open = "XYZ" } }))
-	E.eq(game_hash(), "3bd83d77c8ae")
-end)
-
-test("boot_applies_the_pool_before_mods_start", function()
+test("boot_leaves_the_revision_alone_before_mods_start", function()
 	local e = E.new({
-		deploy = E.deploy({ has_session = true, mods = { E.mod("a", { scope = "session" }) } }),
+		deploy = E.deploy({ has_session = true, hashes = { open = "aaaaaaaaaaaa", every = "bbbbbbbbbbbb" }, mods = { E.mod("a", { scope = "session" }) } }),
 		mods = { ["obsidian/mods/a/main"] = "SEEN = BUILD_REVISION_INFORMATION" },
 	})
 	e:boot()
-	E.has(rawget(_G, "SEEN"), "3bd83d77c8aeaaaaaaaaaaaa")
-	E.has(e:log(), "pool: open aaaaaaaaaaaa")
+	E.has(rawget(_G, "SEEN"), "3bd83d77c8ae tip")
+	E.has(e:log(), "pool: vanilla")
 end)
 
 -- The multiplayer terminal lists only lobbies with the same build hash, so in an Obsidian pool the
@@ -72,11 +57,9 @@ local function booted(over, settings)
 	return rawget(_G, "LocalizationManager")
 end
 
-test("obsidian_pool_marks_the_lobby_filters", function()
-	local lm = booted({ has_session = true, modset = string.rep("a", 64) })
-	E.eq(lm:string("campaign_public"), "Public (Obsidian Only)")
-	E.eq(lm:string("campaign_friends"), "Friends (Obsidian Only)")
-	E.eq(lm:string("campaign_back"), "game:campaign_back", "other texts")
+test("session_mods_leave_the_lobby_filters", function()
+	local lm = booted({ has_session = true, has_static_session = true })
+	E.eq(lm:string("campaign_public"), "game:campaign_public", "vanilla lobbies are listed")
 end)
 
 test("consent_alone_leaves_the_lobby_filters", function()
@@ -138,10 +121,10 @@ test("letting_others_in_lists_the_open_pool_beside_vanilla_lobbies", function()
 	E.has(e:log(), "pool: open pool lobbies listed too")
 end)
 
-test("blocking_others_lists_vanilla_lobbies_only", function()
+test("blocking_others_still_lists_the_open_pool", function()
 	local t = terminal({ has_session = false }, "consent\t0\n")
 	t.browser:add_room({ build_game_hash = OPEN })
-	E.eq(t.added[1], OPEN, "the game's check leaves it out")
+	E.eq(t.added[1], VANILLA, "the guardrail is about the player's own lobby")
 end)
 
 test("letting_others_in_joins_an_open_pool_lobby_with_its_hash", function()
@@ -172,7 +155,7 @@ test("an_open_pool_room_picked_in_the_list_is_joined_with_its_hash", function()
 	E.eq(t.sent[1], OPEN, "the open pool room")
 	E.eq(t.sent[2], VANILLA, "the vanilla room")
 	E.eq(t.sent[3], VANILLA, "a lobby the player hosts now")
-	E.has(e:log(), "pool: joining an Obsidian lobby, with the open pool's hash")
+	E.has(e:log(), "pool: joining with the open pool's hash")
 end)
 
 test("the_hash_comes_back_when_the_join_fails", function()
@@ -187,13 +170,98 @@ test("the_hash_comes_back_when_the_join_fails", function()
 	E.eq(rawget(_G, "BUILD_GAME_HASH"), VANILLA)
 end)
 
-test("session_mods_keep_vanilla_lobbies_out", function()
+test("session_mods_that_switch_off_join_vanilla_lobbies", function()
 	local t = terminal({ has_session = true }, "consent\t1\n")
 	t.browser:add_room({ build_game_hash = VANILLA })
-	E.eq(t.added[1], VANILLA, "the game's check leaves it out")
-	t.lobby.room_data = VANILLA .. "|2"
+	E.eq(t.added[1], VANILLA)
+	t.lobby.room_data = VANILLA .. "|2|0"
 	t.browser:update_join()
-	E.eq(t.sent[1], OPEN)
+	E.eq(t.sent[1], VANILLA, "public or not, the session gate holds them back")
+end)
+
+-- Privacy values as GameSettings.room_privacy_settings has them in these tests.
+local PUBLIC, FRIENDS, PRIVATE = 0, 1, 2
+
+local function static_terminal()
+	local t, e = terminal({ has_session = true, has_static_session = true })
+	rawget(_G, "GameSettings").room_data_values = { "build_game_hash", "num_players", "privacy" }
+	rawget(_G, "GameSettings").room_privacy_settings = { public = PUBLIC, friends = FRIENDS, private = PRIVATE }
+	return t, e
+end
+
+test("static_session_content_joins_private_lobbies_with_the_game_hash", function()
+	local t = static_terminal()
+	t.lobby.room_data = VANILLA .. "|2|" .. PRIVATE
+	t.browser:update_join()
+	t.lobby.room_data = VANILLA .. "|2|" .. FRIENDS
+	t.browser:update_join()
+	E.eq(t.sent[1], VANILLA, "a private lobby")
+	E.eq(t.sent[2], VANILLA, "a friends-only lobby")
+end)
+
+test("static_session_content_stays_out_of_other_public_lobbies", function()
+	local t = static_terminal()
+	t.lobby.room_data = VANILLA .. "|2|" .. PUBLIC
+	t.browser:update_join()
+	t.lobby.room_data = nil
+	t.browser:add_room({ build_game_hash = VANILLA, address = 7, privacy = PRIVATE })
+	t.browser.join_address = 7
+	t.browser:update_join()
+	t.browser.join_address = nil
+	t.browser:update_join()
+	E.eq(t.sent[1], OPEN, "a vanilla host turns it away as another version")
+	E.eq(t.sent[2], VANILLA, "the room picked in the list is private")
+	E.eq(t.sent[3], OPEN, "unknown privacy counts as public")
+end)
+
+-- The host's side of the door: the room hash it shows and the join requests it answers.
+local function fake_state()
+	local S = { got = {} }
+	S.rpc_on_join_request = function(_, _, hash) S.got[#S.got + 1] = hash end
+	rawset(_G, "StateMenu", S)
+	return S
+end
+
+local function static_host(privacy)
+	local room = { privacy = privacy }
+	rawset(_G, "NetworkRoom", { set_data = function(_, key, value) room[key] = value end, get_data = function(_, key) return room[key] end })
+	fake_state()
+	local _, e = static_terminal()
+	local net = rawget(_G, "NetworkGlobal")
+	net.lobby.is_host = function() return true end
+	net.lobby.get_data = function(_, key) return room[key] end
+	return room, e
+end
+
+test("a_public_lobby_with_static_content_shows_the_open_pool_hash", function()
+	local room = static_host(nil)
+	local NR = rawget(_G, "NetworkRoom")
+	NR:set_data("build_game_hash", VANILLA)
+	E.eq(room.build_game_hash, OPEN, "privacy not set yet counts as public")
+	NR:set_data("privacy", PRIVATE)
+	E.eq(room.build_game_hash, VANILLA, "a private lobby shows the game's hash")
+	NR:set_data("privacy", PUBLIC)
+	E.eq(room.build_game_hash, OPEN)
+end)
+
+test("a_public_lobby_with_static_content_turns_vanilla_players_away", function()
+	local room, e = static_host(PUBLIC)
+	local S = rawget(_G, "StateMenu")
+	S:rpc_on_join_request("p1", VANILLA)
+	S:rpc_on_join_request("p2", OPEN)
+	room.privacy = FRIENDS
+	S:rpc_on_join_request("p3", VANILLA)
+	E.eq(S.got[1] ~= VANILLA, true, "the game answers wrong version")
+	E.eq(S.got[2], VANILLA, "an Obsidian player with the open pool's hash")
+	E.eq(S.got[3], VANILLA, "anyone may join a friends-only lobby")
+	E.has(e:log(), "pool: turned away a player without Obsidian from a public lobby")
+end)
+
+test("a_vanilla_pool_host_takes_the_open_pool_hash_as_its_own", function()
+	local S = fake_state()
+	terminal({ has_session = true })
+	S:rpc_on_join_request("p", OPEN)
+	E.eq(S.got[1], VANILLA, "a player from Obsidian 1.3.0's open pool")
 end)
 
 test("vanilla_pool_leaves_the_lobby_filters", function()

@@ -294,7 +294,10 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
     let _lock = hold_lock(data_dir)?;
     let contents = game.contents();
     let gate = check_build(&game.root, opts.known_builds)?;
-    let build = gate.build.clone().ok_or_else(|| ObsidianError::UnsupportedBuild(gate.clone()))?;
+    // A build Obsidian doesn't know still gets the deploy: the patches never touch the game's own
+    // files, and the loader keeps every mod off at boot when the game's version isn't the one it
+    // was made for. Mods copied over the game's files are the usual cause, and the app says so.
+    let build = gate.build.clone().unwrap_or_else(|| format!("unknown, differs in {}", gate.mismatches.join(", ")));
     finish_interrupted(&contents, data_dir)?;
     clear_leftovers(&contents)?;
     let previous = load_state(data_dir)?;
@@ -1003,13 +1006,13 @@ mod tests {
     }
 
     #[test]
-    fn gate_failure_writes_nothing() {
+    fn an_unknown_build_still_deploys() {
         let w = world();
         bundle::write_file(&w.game.contents().join("00000000000000aa"), &base(5)).unwrap();
-        let before = snapshot(&w.game.contents());
-        assert!(matches!(deploy(&w.game, &w.data, &w.opts), Err(ObsidianError::UnsupportedBuild(_))));
-        assert_eq!(snapshot(&w.game.contents()), before);
-        assert!(!w.data.join("backups").exists());
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        let s = status(&w.game, &w.data, w.opts.known_builds).unwrap();
+        assert!(!s.gate.supported());
+        assert!(s.deployed.unwrap().build.starts_with("unknown, differs in contents/00000000000000aa"));
     }
 
     #[test]
