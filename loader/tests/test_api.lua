@@ -3584,6 +3584,156 @@ test("a_bot_is_given_gear_and_help_as_the_player_is", function()
 	no_tampering(game)
 end)
 
+test("a_downed_bot_holds_and_mashes_interact_until_it_gets_up", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add()
+	local u = game.land(2)
+	game.step(1)
+	local t = u.master.input.input_data
+	E.eq(t.interact_button, 0, "a number the keyboard maps, at rest")
+	u.slave.health = { is_downed = true, is_dead = false, hitpoints = 0, max_hitpoints = 100 }
+	E.eq(bot:downed(), true)
+	bot:aim_at({ x = 1, y = 9 }):fire(true)
+	local presses = 0
+	for _ = 1, 12 do
+		game.step(1)
+		E.eq(t.interact_button, 1, "held, as the keyboard's E")
+		E.eq(t.aim.y, 0, "lies still: aiming leaves the states that read interact")
+		E.eq(t.fire_button, 0)
+		if t.interact then presses = presses + 1 end
+	end
+	E.eq(presses >= 2, true, "and pressed now and then, as a pad player mashes")
+	u.slave.health.is_downed = false
+	game.step(1)
+	E.eq(t.interact_button, 0, "up: let go")
+	E.eq(t.aim.y, 1, "and back to its orders")
+	E.eq(t.fire_button, 1, "fire held before comes back")
+	u.slave.health.is_downed = true
+	bot:auto_get_up(false)
+	game.step(1)
+	E.eq(t.interact_button, 0, "left down for a teammate")
+end)
+
+test("a_bot_helps_a_downed_helldiver_up_by_walking_to_them_and_pressing_interact", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 10, y = 1, z = 0 })
+	game.step(1)
+	local t = u.master.input.input_data
+	E.eq(select(2, bot:revive()), "no_one_downed", "no one is down")
+	E.eq(select(2, bot:revive(u)), "self")
+	E.eq(select(2, bot:revive(game.me)), "not_downed")
+	local h = game.me.slave.health
+	h.is_downed = true
+	local ended
+	E.eq(bot:revive(nil, function(ok, why) ended = { ok, why } end), true, "the nearest downed Helldiver")
+	E.eq(bot:helping(), "revive")
+	game.step(1)
+	E.eq(t.move.x, -1, "walks to the body")
+	E.eq(t.interact, false)
+	u.pos = { x = 1.6, y = 1, z = 0 }
+	game.step(1)
+	E.eq(t.move.x, 0, "stops beside it")
+	E.eq(t.aim.x, -1, "turns to it")
+	E.eq(t.interact, true, "and presses interact")
+	game.step(3)
+	E.eq(t.interact, false, "once")
+	h.is_downed = false
+	game.step(1)
+	E.eq(ended[1], true, "up")
+	E.eq(bot:helping(), false)
+	-- Presses that never help them up give up.
+	h.is_downed = true
+	bot:revive(game.me, function(ok, why) ended = { ok, why } end)
+	game.step(450)
+	E.eq(ended[2], "no_help_up")
+	-- Downed itself, it can't.
+	u.slave.health = { is_downed = true, is_dead = false }
+	E.eq(select(2, bot:revive(game.me)), "downed")
+	u.slave.health = nil
+	-- On its own: the nearest downed Helldiver within the radius, between other orders.
+	bot:follow(nil, 6):auto_revive(15)
+	game.step(25)
+	E.eq(bot:helping(), "revive")
+	E.eq(bot:auto_helping(), 15)
+	h.is_downed = false
+	game.step(1)
+	E.eq(bot:helping(), false)
+	bot:auto_revive(false)
+	h.is_downed = true
+	game.step(30)
+	E.eq(bot:helping(), false)
+	h.is_downed = false
+end)
+
+test("a_bot_heals_a_hurt_helldiver_with_the_rep80_and_takes_back_its_weapon", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 20, y = 1, z = 0 })
+	game.step(1)
+	local t = u.master.input.input_data
+	local rifle = { alive = true, owned = true, master = { firearm = {} }, slave = {} }
+	local inv = u.master.inventory
+	inv.primary_weapon, inv.current_weapon = rifle, rifle
+	local h = game.me.slave.health
+	h.max_hitpoints, h.hitpoints = 100, 50
+	E.eq(select(2, bot:heal_target()), "no_heal_tool")
+	local beam = { rounds = 300, num_mags = 1, weapon_info = { range = 12 } }
+	local tool = { alive = true, owned = true, master = { healbeam = beam }, slave = {} }
+	inv.support_weapon = tool
+	h.hitpoints = 100
+	E.eq(select(2, bot:heal_target()), "no_one_hurt", "everyone at full health")
+	h.hitpoints = 50
+	local ended
+	E.eq(bot:heal_target(nil, function(ok, why) ended = { ok, why } end), true)
+	E.eq(bot:helping(), "heal")
+	game.commands = {}
+	game.step(1)
+	local c = G.command(game, "inventory", "wield")
+	E.eq(c and c.data.weapon, "support_weapon", "takes the REP-80 out")
+	E.eq(c.data.force, true)
+	inv.current_weapon = tool
+	game.step(1)
+	E.eq(t.move.x, -1, "walks within range")
+	E.eq(t.aim.x, -1, "facing the target")
+	E.eq(t.fire_button, 0, "out of range: no beam")
+	u.pos = { x = 7, y = 1, z = 0 }
+	game.step(1)
+	E.eq(t.move.x, 0, "close enough")
+	E.eq(t.fire_button, 1, "holds fire")
+	beam.rounds = 0
+	game.step(1)
+	E.eq(t.fire_button, 0)
+	E.eq(t.reload_pressed, true, "an empty REP-80 reloads")
+	beam.rounds = 300
+	game.commands = {}
+	h.hitpoints = 100
+	game.step(1)
+	E.eq(ended[1], true, "full health")
+	E.eq(G.command(game, "inventory", "wield").data.weapon, "primary_weapon", "back to the rifle")
+	inv.current_weapon = rifle
+	-- A target that goes down needs a help up first.
+	h.hitpoints = 40
+	bot:heal_target(game.me, function(ok, why) ended = { ok, why } end)
+	h.is_downed = true
+	game.step(1)
+	E.eq(ended[2], "downed")
+	h.is_downed = false
+	-- On its own, under 80% health.
+	bot:auto_heal(20)
+	h.hitpoints = 90
+	game.step(25)
+	E.eq(bot:helping(), false, "barely hurt")
+	h.hitpoints = 60
+	game.step(25)
+	E.eq(bot:helping(), "heal")
+	E.eq(bot:stop_helping(), true)
+	bot:remove()
+end)
+
 -- The game's side of a stratagem call, as CharacterStateStratagems and CharacterStateStratagemsThrow
 -- run it: the menu while the button is held, one arrow a frame into the queue, the stratagem the queue
 -- makes, then a charge while the throw is held and the throw on release.
