@@ -4,7 +4,9 @@
 // drags to resize them.
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { run } from "../api";
+import { call, errorText, run } from "../api";
+import { notify } from "../notices";
+import { SortDialog, SortIcon, type SortPlan } from "./SortDialog";
 import { Confirm } from "../Confirm";
 import { ContextMenu, type MenuItem } from "../ContextMenu";
 import { CloseIcon, ExternalIcon, FolderAddIcon, FolderIcon, ImportIcon, LockIcon, PlusIcon, ProfilesIcon, SearchIcon, SwitchOffIcon, SwitchOnIcon, TrashIcon, UnlockIcon, UpdateIcon } from "../Icons";
@@ -57,6 +59,9 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
   const [addMenu, setAddMenu] = useState<{ x: number; y: number } | null>(null);
   const [ask, setAsk] = useState<Ask>(null);
   const [width, setWidth] = useState(savedWidth);
+  const [sortPlan, setSortPlan] = useState<SortPlan | null>(null);
+  /** The last sort, for Undo: the tree before it and the order it left. */
+  const [sorted, setSorted] = useState<{ before: Node[]; after: string; count: number } | null>(null);
   const modUpdates = useModUpdates();
   const body = useRef<HTMLDivElement>(null);
   const search = useRef<HTMLInputElement>(null);
@@ -98,6 +103,29 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
     await run("set_order", { ids, moves });
     setPending(null);
   };
+
+  // Sort Mods: the preview first, then the order it showed; Undo puts the tree from before back.
+  const openSort = () => call<SortPlan>("sort_preview").then(setSortPlan, (e) => notify("error", errorText(e)));
+  const applySort = async (plan: SortPlan) => {
+    const before = saved;
+    setSortPlan(null);
+    if (await run("apply_sort", { ids: plan.order, moved: plan.moves.map((m) => m.id) })) {
+      setSorted({ before, after: plan.order.join("\n"), count: plan.moves.length });
+    }
+  };
+  const undoSort = (s: { before: Node[] }) => {
+    setSorted(null);
+    arrange(s.before);
+  };
+  // The Undo bar goes with the next change to the order, and after a while.
+  useEffect(() => {
+    if (sorted && order.join("\n") !== sorted.after) setSorted(null);
+  }, [order, sorted]);
+  useEffect(() => {
+    if (!sorted) return;
+    const timer = setTimeout(() => setSorted(null), 15000);
+    return () => clearTimeout(timer);
+  }, [sorted]);
   const check = (ids: string[], on: boolean) =>
     setChecked((c) => {
       const n = new Set(c);
@@ -211,6 +239,11 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
           onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAddMenu({ x: r.left, y: r.bottom + 4 }); }}>
           <PlusIcon />
         </button>
+        {snap.mods.length > 1 && (
+          <button className="btn head-sort" onClick={openSort} data-tip-title={t("app.sort.title")} data-tip={t("app.sort.hint")}>
+            <SortIcon />{t("app.sort.button")}
+          </button>
+        )}
         {waiting.length > 0 && <button className="btn play head-update" onClick={() => updateMods(waiting, names)}><UpdateIcon />{t("app.mods.updateAll", waiting.length)}</button>}
         <label className="search">
           <SearchIcon />
@@ -260,6 +293,15 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
               </div>
             </div>
           )}
+          {sorted && sel.length === 0 && (
+            <div className="batch-dock">
+              <div className="batch sort-done" role="status">
+                <span className="batch-n">{sorted.count === 1 ? t("app.sort.doneOne") : t("app.sort.done", sorted.count)}</span>
+                <button className="btn small" onClick={() => undoSort(sorted)}>{t("app.sort.undo")}</button>
+                <button className="bare batch-x" onClick={() => setSorted(null)} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /></button>
+              </div>
+            </div>
+          )}
         </section>
         {panel && (
           <>
@@ -270,6 +312,10 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
         )}
       </div>
       {profiles && <ProfilesDialog snap={snap} onClose={() => setProfiles(false)} />}
+      {sortPlan && (
+        <SortDialog plan={sortPlan} name={(id) => names.get(id) ?? id} off={new Set(snap.mods.filter((m) => !m.on).map((m) => m.id))}
+          onApply={() => applySort(sortPlan)} onClose={() => setSortPlan(null)} />
+      )}
       {menu && <ContextMenu x={menu.x} y={menu.y} up={menu.up} items={menuItems(menu.target)} onClose={() => setMenu(null)} />}
       {addMenu && (
         <ContextMenu x={addMenu.x} y={addMenu.y} onClose={() => setAddMenu(null)} items={[

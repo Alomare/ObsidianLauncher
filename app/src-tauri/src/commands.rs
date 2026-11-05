@@ -177,6 +177,27 @@ pub async fn set_order(ctx: State<'_, Ctx>, ids: Vec<String>, moves: Option<Vec<
     fresh(&ctx)
 }
 
+/// What Sort Mods would do to the active profile's order, without changing it.
+#[tauri::command]
+pub async fn sort_preview(ctx: State<'_, Ctx>) -> CmdResult<obsidian_core::sort::SortPlan> {
+    let _turn = ctx.turn();
+    let lib = Library::open(&ctx.data)?;
+    let mut p = Profile::load(&ctx.data)?;
+    p.sync(&lib)?;
+    Ok(obsidian_core::sort::plan(&lib, &p)?)
+}
+
+/// Puts the load order in the order Sort Mods showed; `moved` names the mods it moved.
+#[tauri::command]
+pub async fn apply_sort(ctx: State<'_, Ctx>, ids: Vec<String>, moved: Vec<String>) -> CmdResult<Snapshot> {
+    let _turn = ctx.turn();
+    with_profile(&ctx.data, |p| {
+        p.apply_sort(&ids, &moved);
+        Ok(())
+    })?;
+    fresh(&ctx)
+}
+
 #[tauri::command]
 pub async fn use_profile(ctx: State<'_, Ctx>, name: String) -> CmdResult<Snapshot> {
     let _turn = ctx.turn();

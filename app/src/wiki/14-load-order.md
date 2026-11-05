@@ -8,6 +8,17 @@ summary: Which mod wins when two change the same thing, and how to keep a long l
 
 The number beside each mod is the place of that mod in the load order. When two enabled mods change the same game resource, the one lower in the list wins. Drag a mod up or down to change the order, or select it and use Alt+Up and Alt+Down.
 
+## Sort Mods
+
+A mod can ask for a place in the load order: first, last, before or after other mods, or before or after every mod that replaces game files. The **Sort** button at the top of the Mods tab puts the list in line with those requests, for mods that are on and off alike.
+
+Nothing moves until you choose **Apply**. The Sort Mods window first lists the whole new order, with each moved mod marked, the old and new place, and the reason. Hover over a reason that mentions files to see them. After Apply, **Undo** in the bar at the foot of the list puts the old order back.
+
+- Mods that ask for nothing keep their order, and as few mods move as possible.
+- When two orders move as many mods, the one where two mods replacing the same files lose less wins. The later mod takes a shared file whole, so the mod with fewer files goes later: it overwrites a smaller part of the other mod, and isn't lost entirely itself.
+- Requests that can't all hold, such as two mods that both ask to load last, aren't guessed at. Those mods stay where they are and the window names them under **Not moved**, so you can order them by hand.
+- Mods in a locked folder don't move, and no mod goes inside a locked folder. A moved mod that lands inside another folder joins it, and one that leaves its folder goes out of it.
+
 ## Conflicts
 
 A warning sign on a row means the mod shares resources with another enabled mod. Hover over it to see which mods and how many files; click it to open the list in the panel on the right.
@@ -37,6 +48,6 @@ The padlock before a folder's name locks it. A locked folder keeps the name, col
 
 The checkboxes on the left select mods for batch actions. Shift-click checks a range. With mods checked, the bar at the foot of the list can turn them on or off, move them to a folder, or remove them.
 
-A mod can ask for a place when it joins a profile: at the end of the list, or after another mod. After that the order is yours, and moving it stays moved.
+A mod also takes the place it asks for when it joins a profile. After that the order is yours: moving a mod keeps it moved until you sort again.
 
 The lists that tell the game which units exist are the exception. Mods that add a new weapon or unit each change those lists, so Obsidian merges them, and those mods work together in any order. Everyone in a game still needs the same mods.

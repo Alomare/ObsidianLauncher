@@ -26,6 +26,7 @@ pub mod profile_zip;
 pub mod profiles;
 pub mod report;
 pub mod settings;
+pub mod sort;
 pub mod starter;
 #[cfg(test)]
 pub(crate) mod testutil;

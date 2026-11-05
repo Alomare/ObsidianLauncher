@@ -311,15 +311,20 @@ impl Profile {
     /// Where a new mod goes: before the first mod that asks to load after it, unless it asks to load
     /// after one further down. Only a mod's arrival uses this: the order the player set stays.
     fn place_new(&self, m: &Manifest, installed: &[Manifest]) -> usize {
+        use crate::manifest::Position;
+        let mine = m.load_rules();
+        let rules_of = |e: &ProfileEntry| installed.iter().find(|o| o.id == e.id).map(|o| o.load_rules());
         let wants_after = |e: &ProfileEntry| {
-            installed.iter().find(|o| o.id == e.id).is_some_and(|o| o.load_after.contains(&m.id) || (m.load.is_none() && o.load.is_some()))
+            mine.before.contains(&e.id)
+                || rules_of(e).is_some_and(|o| o.after.contains(&m.id) || (mine.position != Some(Position::Last) && o.position == Some(Position::Last)))
         };
-        let mut before = self.mods.iter().position(wants_after).unwrap_or(self.mods.len());
+        let first = mine.position == Some(Position::First);
+        let mut before = if first { 0 } else { self.mods.iter().position(wants_after).unwrap_or(self.mods.len()) };
         // A folder's mods stay together, so the place before one inside a folder is before the folder.
         while before > 0 && before < self.mods.len() && self.mods[before].folder.is_some() && self.mods[before - 1].folder == self.mods[before].folder {
             before -= 1;
         }
-        let after = self.mods.iter().rposition(|e| m.load_after.contains(&e.id)).map_or(0, |i| i + 1);
+        let after = self.mods.iter().rposition(|e| mine.after.contains(&e.id) || rules_of(e).is_some_and(|o| o.before.contains(&m.id))).map_or(0, |i| i + 1);
         before.max(after)
     }
 }
@@ -390,6 +395,22 @@ mod tests {
     }
 
     #[test]
+    fn first_and_before_place_a_mod_on_arrival() {
+        let t = spaced_tempdir();
+        let lib = Library::open(&t.path().join("data")).unwrap();
+        lib.install(&staged(t.path(), "one", "1.0.0")).unwrap();
+        lib.install(&staged(t.path(), "two", "1.0.0")).unwrap();
+        let mut p = Profile::default();
+        p.sync(&lib).unwrap();
+        lib.install(&hinted(t.path(), "top", r#""load":{"position":"first"}"#)).unwrap();
+        p.sync(&lib).unwrap();
+        assert_eq!(order_of(&p), ["top", "one", "two"]);
+        lib.install(&hinted(t.path(), "pre-two", r#""load":{"before":["two"]}"#)).unwrap();
+        p.sync(&lib).unwrap();
+        assert_eq!(order_of(&p), ["top", "one", "pre-two", "two"]);
+    }
+
+    #[test]
     fn a_new_mod_goes_before_the_folder_that_holds_a_last_mod() {
         let t = spaced_tempdir();
         let lib = Library::open(&t.path().join("data")).unwrap();
@@ -410,7 +431,7 @@ mod tests {
     fn load_hints_are_checked() {
         let t = spaced_tempdir();
         let lib = Library::open(&t.path().join("data")).unwrap();
-        assert!(lib.install(&hinted(t.path(), "bad-load", r#""load":"first""#)).is_err() || load_manifest(&lib.mod_dir("bad-load")).is_err());
+        assert!(lib.install(&hinted(t.path(), "bad-load", r#""load":"middle""#)).is_err() || load_manifest(&lib.mod_dir("bad-load")).is_err());
         assert!(load_manifest(&hinted(t.path(), "bad-after", r#""load_after":["bad-after"]"#)).is_err());
     }
 

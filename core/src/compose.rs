@@ -450,7 +450,7 @@ type Slot = (Planned, Vec<(String, [u8; 32])>);
 const MERGED_TABLES: [&str; 4] = ["lua/generated/settings_paths", "lua/generated/units_with_settings", "lua/generated/unit_paths", "lua/generated/unit_path_to_network_object"];
 const MERGE_SCRIPT: &str = include_str!("../data/merge_tables.lua");
 
-fn merged_table(type_hash: u64, name_hash: u64) -> Option<&'static str> {
+pub(crate) fn merged_table(type_hash: u64, name_hash: u64) -> Option<&'static str> {
     (type_hash == hash_name("lua")).then(|| MERGED_TABLES.iter().find(|n| hash_name(n) == name_hash).copied()).flatten()
 }
 
