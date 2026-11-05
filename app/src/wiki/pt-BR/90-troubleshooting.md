@@ -20,9 +20,11 @@ Se o jogo parar depois disso, o Obsidian avisa que ele não fechou normalmente. 
 - Num mod de sessão, confira o lobby: num lobby público com jogadores sem mods, ou que bloqueiam mods de sessão, os mods de sessão desligam ([Jogar online](wiki:multiplayer)).
 - Leia os logs (abaixo). Um mod que falhou ao iniciar tem uma linha de erro ali.
 
-## "Versão desconhecida" {#build-unknown}
+## "Arquivos do jogo alterados" {#build-unknown}
 
-Os arquivos do jogo não batem com a versão que o Obsidian conhece, então nada é aplicado e o loader não inicia nenhum mod. Isso acontece quando um mod foi copiado direto para a pasta `contents` do jogo por cima dos arquivos originais. Use Limpar e depois verifique a integridade dos arquivos na Steam para trazer os originais de volta. Depois, adicione esse mod no Obsidian com **Adicionar mods**, que o aplica sem mexer nos originais.
+Alguns arquivos do jogo não batem com a versão que o Obsidian conhece. Isso acontece quando um mod foi copiado direto para a pasta `contents` do jogo por cima dos arquivos originais. Aplicar e Jogar continuam funcionando, e clicar no aviso lista os arquivos alterados. Use Limpar e depois verifique a integridade dos arquivos na Steam para trazer os originais de volta. Depois, adicione esse mod no Obsidian com **Adicionar mods**, que o aplica sem mexer nos originais.
+
+Se o próprio jogo disser que a versão é desconhecida, o programa do jogo não é a versão para a qual o Obsidian foi feito, e nenhum mod roda.
 
 ## Logs {#logs}
 

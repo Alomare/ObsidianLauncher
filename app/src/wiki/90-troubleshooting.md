@@ -20,9 +20,11 @@ If the game stops later, Obsidian tells you the game didn't close normally. A cr
 - For a session mod, check the lobby: in a public lobby with vanilla players, or players who block session mods, session mods switch off ([Playing online](wiki:multiplayer)).
 - Read the logs (below). A mod that failed at startup has an error line there.
 
-## "Build unknown"
+## "Game files changed" {#build-unknown}
 
-The game files don't match the build Obsidian knows, so nothing gets deployed and the loader starts no mod. This happens when a mod was copied straight into the game's `contents` folder over the original files. Purge, then verify the game files in Steam to put the originals back. Then add that mod in Obsidian with **Add mods** instead, which deploys it without touching the originals.
+Some game files don't match the build Obsidian knows. This happens when a mod was copied straight into the game's `contents` folder over the original files. Deploy and Play still work, and clicking the warning lists the changed files. Purge, then verify the game files in Steam to put the originals back. Then add that mod in Obsidian with **Add mods** instead, which deploys it without touching the originals.
+
+If the game itself says the version is unknown, the game program isn't the version Obsidian was made for, and no mod runs.
 
 ## Logs
 

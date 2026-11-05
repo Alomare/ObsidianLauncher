@@ -12,7 +12,7 @@ Cada aplicação substitui todos os patches da anterior, então não é preciso 
 
 Cada aplicação segue estes passos:
 
-1. Confere se o jogo é a versão que o Obsidian conhece (veja abaixo).
+1. Verifica se o jogo é a versão que o Obsidian conhece (veja abaixo).
 2. Faz backup da pasta de saves, quando ela mudou desde o último backup. O primeiro backup e os 9 mais novos ficam guardados, então o seu save de antes de qualquer mod continua lá.
 3. Decide qual mod vence cada recurso, seguindo a ordem de carregamento.
 4. Compila o Lua de cada mod, e do loader, em código que o jogo consegue rodar.
@@ -32,9 +32,11 @@ Limpar apaga todos os arquivos que o Obsidian gravou e confere que nenhum ficou 
 
 ## A verificação de versão {#the-build-check}
 
-O Obsidian só aplica na versão Steam do HELLDIVERS em que foi testado. Se os arquivos do jogo forem diferentes, a aplicação para e a barra de cima avisa que a versão é desconhecida. O loader confere de novo toda vez que o jogo abre e mantém todos os mods desligados numa versão que não conhece.
+O Obsidian foi feito para uma versão Steam do HELLDIVERS. Se alguns arquivos do jogo forem diferentes dela, a barra de cima mostra **Arquivos do jogo alterados**. Clique para ver quais arquivos mudaram e o que fazer. Aplicar e Jogar continuam funcionando, e o Obsidian nunca grava por cima dos arquivos do próprio jogo.
 
-O HD1 não recebe atualização desde 2020, então isso normalmente pega arquivos alterados à mão ou por outra ferramenta de mods. Verifique a integridade dos arquivos na Steam para resolver.
+O HD1 não recebe atualização desde 2020, então isso quase sempre quer dizer que um mod foi copiado direto para a pasta `contents`. Os mods do Obsidian carregam por cima dele, e onde os dois mudam a mesma coisa, o do Obsidian vence. Para ter os arquivos conhecidos de volta, use Limpar, verifique a integridade dos arquivos na Steam e depois adicione o mod copiado com **Adicionar mods**. Adicionar mods espera até os arquivos voltarem a bater, porque compara cada mod com os arquivos originais.
+
+O loader confere a versão do jogo toda vez que o jogo abre. Numa versão que ele não conhece, nenhum mod roda e o jogo avisa.
 
 ## Saves {#saves}
 

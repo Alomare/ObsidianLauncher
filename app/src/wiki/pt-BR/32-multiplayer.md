@@ -18,12 +18,11 @@ Mods de sessão não mudam quem você encontra nem quem pode entrar no seu lobby
 |---|---|
 | Sem mods de sessão, ou com mods de sessão que desligam na hora | Todo mundo. O seu lobby aparece para todo mundo. Expansões não mudam isso |
 | Mods de sessão que não desligam na hora | Todo mundo. Enquanto o seu lobby for público, só jogadores do Obsidian podem entrar, e você só entra em outro lobby público se o anfitrião também rodar conteúdo assim |
-| Um mod que todos os jogadores precisam ter aplicado | Só jogadores que rodam esse mesmo mod, na mesma versão |
 | Hospedando o conteúdo de uma expansão | O lobby só aparece para jogadores que rodam essa expansão, na mesma versão |
 
 Com uma expansão aplicada, a lista também mostra os lobbies de jogadores que estão no conteúdo dessa mesma expansão, qualquer que seja o grupo de matchmaking do jogador.
 
-Os filtros de lobby do terminal de multijogador mostram **(só Obsidian)** enquanto a lista mostra só jogadores do Obsidian, para que uma lista vazia não pareça defeito.
+Na primeira vez que você carrega a nave, uma mensagem diz qual caso vale para você: os seus mods não afetam outros jogadores, os seus mods de sessão desligam em alguns lobbies públicos, parte do seu conteúdo deixa jogadores sem Obsidian fora do seu lobby público, ou uma expansão pode separar você de jogadores que não a têm enquanto o conteúdo dela roda.
 
 ## Quando os mods de sessão rodam {#when-session-mods-run}
 
@@ -52,8 +51,6 @@ A verificação roda de novo sempre que alguém entra, sai ou muda a configuraç
 ## Mods que todos os jogadores precisam ter {#mods-every-player-needs}
 
 Alguns mods só funcionam quando todo mundo os tem, como um que deixa mais jogadores entrarem no lobby. O autor marca esses mods, e eles seguem uma regra mais rígida: o mod só roda quando todos os outros jogadores também o rodam, na mesma versão e com os mesmos valores de opção, em qualquer lobby, inclusive só para amigos. Não bloquear não conta para eles. Quando alguém sem o mod está no seu lobby, só esse mod desliga, e o jogo avisa. Os seus outros mods de sessão seguem as regras de sempre.
-
-Esses mods também têm um grupo de matchmaking próprio, então você só encontra jogadores que rodam os mesmos.
 
 > [!TIP]
 > Valores de opção que o autor marca como pessoais, como a distância da câmera, não contam quando o Obsidian compara os conjuntos. Um amigo pode escolher outra distância de câmera e ainda combinar com você.
