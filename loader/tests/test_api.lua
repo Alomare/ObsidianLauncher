@@ -2255,6 +2255,77 @@ test("an_effect_follows_a_unit_until_taken_off", function()
 	E.eq(#log.stopped, 1)
 end)
 
+-- An item with an explosion of its own, and a manager that hits the player and an enemy as it goes off.
+local function blasting(game)
+	local lsm = rawget(_G, "LuaSettingsManager")
+	local get = lsm.get_settings_by_unit_path
+	lsm.get_settings_by_unit_path = function(self, p)
+		if p == "equipment/wep_plasma_01" then return { explosive_info = { blast_power = 75, blast_radius = 2, center_power = 0, effect = "effects/generated/wep_plasma_explosion_01" } } end
+		return get(self, p)
+	end
+	local seen = {}
+	game.state.explosion_manager.do_explosion = function(_, unit, pos, info, attacker, owner)
+		seen[#seen + 1] = { pos = pos, info = info, owner = owner }
+		local aux = rawget(_G, "EntityAux")
+		aux.queue_command_interface(game.me, "damageable", "do_damage", { power = info.blast_power })
+		aux.queue_command_interface(game.enemies[1], "damageable", "do_damage", { power = info.blast_power })
+	end
+	return seen
+end
+
+local function damage_to(game, unit)
+	local n = 0
+	for _, c in ipairs(game.commands) do
+		if c.unit == unit and c.command == "do_damage" then n = n + 1 end
+	end
+	return n
+end
+
+test("a_blast_goes_off_as_the_items_own_and_can_spare_helldivers", function()
+	local api, game = start()
+	local seen = blasting(game)
+	E.eq(api.world.blast({ x = 1, y = 2, z = 0 }, "equipment/wep_plasma_01"), true)
+	E.eq(seen[1].info.blast_power, 75)
+	E.eq(seen[1].info.effect, "effects/generated/wep_plasma_explosion_01", "the item's own look")
+	E.eq(seen[1].owner, game.me, "the player's")
+	E.eq(damage_to(game, game.me), 1, "an explosion hurts players, as the game's do")
+	E.eq(api.world.blast({ x = 1, y = 2, z = 0 }, "equipment/wep_plasma_01", { scale = 2, spare_players = true }), true)
+	E.eq(seen[2].info.blast_power, 150)
+	E.eq(damage_to(game, game.me), 1, "spared this time")
+	E.eq(damage_to(game, game.enemies[1]), 2, "the enemy still takes both")
+	E.eq(rawget(_G, "EntityAux").queue_command_interface ~= nil, true, "the command is back afterwards")
+	E.eq(select(2, api.world.blast({ x = 0, y = 0 }, "characters/bug_scout/bug_scout")), "bad_value", "only items")
+	E.eq(select(2, api.world.blast({ x = 0, y = 0 }, "equipment/rifle")), "no_explosion")
+	E.eq(select(2, api.world.blast({ x = 0, y = 0 }, "equipment/wep_plasma_01", { scale = 50 })), "out_of_range")
+end)
+
+test("a_shot_lands_on_the_nearest_hit_and_can_pass_through_helldivers", function()
+	local api, game = start()
+	local seen = blasting(game)
+	local v3 = rawget(_G, "Vector3")
+	v3.length = v3.length or function(v) return math.sqrt(v.x * v.x + v.y * v.y + (v.z or 0) ^ 2) end
+	local enemy = game.enemies[1]
+	rawset(_G, "Actor", { unit = function(a) return a end })
+	rawget(_G, "PhysicsWorld").immediate_raycast = function(_, from, dir, range, mode, _, filter)
+		E.eq(mode, "all")
+		E.eq(filter, "damage_ray")
+		return { { v3(3, 0, 0), 3, nil, enemy }, { v3(1, 1, 0), 1.4, nil, game.me } }
+	end
+	local ok, landed, unit = api.world.shoot({ x = 0, y = 0, z = 0 }, { x = 10, y = 0, z = 0 }, { power = 120 })
+	E.eq(ok, true)
+	E.eq(unit, game.me, "the nearest, a player too without spare_players")
+	E.eq(damage_to(game, game.me), 0, "power only ever reaches enemies")
+	ok, landed, unit = api.world.shoot({ x = 0, y = 0, z = 0 }, { x = 10, y = 0, z = 0 }, { power = 120, spare_players = true, explosion = "equipment/wep_plasma_01" })
+	E.eq(unit, enemy, "through the player")
+	E.eq(landed.x, 3)
+	E.eq(damage_to(game, enemy), 2, "the shot, then the plasma's blast")
+	E.eq(damage_to(game, game.me), 0, "and the blast spared the player")
+	E.eq(seen[1].pos ~= nil, true)
+	rawget(_G, "PhysicsWorld").immediate_raycast = function() return {} end
+	E.eq(select(2, api.world.shoot({ x = 0, y = 0 }, { x = 5, y = 0 })), "no_target")
+	E.eq(select(2, api.world.shoot({ x = 0, y = 0 }, { x = 5, y = 0 }, { range = 500 })), "out_of_range")
+end)
+
 test("a_hit_from_a_mod_goes_as_a_weapons_does", function()
 	local api, game = start()
 	local other = game.enemies[2]
