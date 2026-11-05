@@ -486,7 +486,13 @@ pub fn sort(entries: &[Entry]) -> SortPlan {
             .flat_map(|u| g.succ[u].iter().map(move |&(v, k)| (u, v, k)))
             .filter(|&(u, v, _)| u == m || v == m)
             .collect();
-        let mut ks: Vec<usize> = incident.iter().filter(|&&(u, v, _)| v < u).map(|e| e.2).collect();
+        // A request against a mod that stays explains the move; one against a mod that moved too
+        // (such as a mod that asks to load last) only when nothing else does.
+        let other_end = |&(u, v, _): &(usize, usize, usize)| if u == m { v } else { u };
+        let mut ks: Vec<usize> = incident.iter().filter(|e| e.1 < e.0 && kept[other_end(e)]).map(|e| e.2).collect();
+        if ks.is_empty() {
+            ks = incident.iter().filter(|&&(u, v, _)| v < u).map(|e| e.2).collect();
+        }
         if ks.is_empty() {
             ks = incident.iter().filter(|&&(u, v, _)| (new_at[u] < new_at[v]) != (u < v)).map(|e| e.2).collect();
         }
@@ -684,6 +690,14 @@ mod tests {
         assert_eq!((ids(&p), moved(&p)), (vec!["y0", "y", "x"], vec!["x"]));
         assert_eq!(p.moves[0].rules, [Rule { owner: "x".into(), kind: RuleKind::After, other: Some("y".into()) }]);
         assert_eq!((p.moves[0].from, p.moves[0].to), (1, 2));
+    }
+
+    #[test]
+    fn the_reason_names_the_request_against_a_mod_that_stays() {
+        // `c` asks to load last and moves; `d` moves to come before `b`. The reason for `d` is `b`, not `c`.
+        let p = sort(&[last("c"), after("b", &["d"]), e("x"), e("y"), e("d")]);
+        let d = p.moves.iter().find(|m| m.id == "d").expect("d moves");
+        assert_eq!(d.rules, [Rule { owner: "b".into(), kind: RuleKind::After, other: Some("d".into()) }]);
     }
 
     #[test]
