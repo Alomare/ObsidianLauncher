@@ -17,27 +17,30 @@ function show(el: React.ReactElement) {
   root = createRoot(host);
   act(() => root!.render(el));
 }
-const buttons = () => [...document.querySelectorAll(".modal-foot button")].map((b) => b.textContent);
+const buttons = () => [...document.querySelectorAll(".modal-foot button.btn")].map((b) => b.textContent);
 
 describe("Confirm", () => {
   it("has two buttons, Cancel and the action, by default", () => {
     show(<Confirm title="Purge?" text="Removes every patch." confirm="Purge" onConfirm={() => {}} onCancel={() => {}} />);
     expect(buttons()).toEqual(["Cancel", "Purge"]);
+    expect(document.querySelector(".modal-foot .foot-link")).toBeNull();
   });
 
-  it("the update prompt says Later, shows the notes inside, and installs or closes", () => {
-    const install = vi.fn(), later = vi.fn();
+  it("the update prompt: Later and Install as buttons, the changelog only as a link, no notes inside", () => {
+    const install = vi.fn(), later = vi.fn(), changelog = vi.fn();
     show(
-      <Confirm className="update-ask" title="Obsidian 9.9.9 is out" text="Install it now?" confirm="Install" cancel="Later" tone="go" onConfirm={install} onCancel={later}>
-        <div className="update-notes"><p>Fixed a thing.</p></div>
-      </Confirm>,
+      <Confirm title="Obsidian 9.9.9 is out" text="Install it now?" confirm="Install" cancel="Later" tone="go"
+        onConfirm={install} onCancel={later} link={{ label: "Changelog", onClick: changelog }} />,
     );
-    expect(document.querySelector(".modal.confirm.update-ask")).not.toBeNull();
-    expect(document.querySelector(".modal .update-notes")?.textContent).toBe("Fixed a thing.");
     expect(buttons()).toEqual(["Later", "Install"]);
-    act(() => (document.querySelectorAll<HTMLButtonElement>(".modal-foot button")[1]).click());
+    expect(document.querySelector(".modal .md")).toBeNull();
+    const link = document.querySelector<HTMLButtonElement>(".modal-foot .foot-link")!;
+    expect(link.textContent).toBe("Changelog");
+    act(() => link.click());
+    expect(changelog).toHaveBeenCalledOnce();
+    act(() => document.querySelectorAll<HTMLButtonElement>(".modal-foot button.btn")[1].click());
     expect(install).toHaveBeenCalledOnce();
-    act(() => (document.querySelectorAll<HTMLButtonElement>(".modal-foot button")[0]).click());
+    act(() => document.querySelectorAll<HTMLButtonElement>(".modal-foot button.btn")[0].click());
     expect(later).toHaveBeenCalledOnce();
   });
 });

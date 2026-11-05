@@ -137,8 +137,11 @@ button.nav-warn:hover { filter: brightness(1.2); text-decoration: underline; tex
   font-family: "Saira Variable", sans-serif; font-size: 0.8rem; letter-spacing: 0.2em; text-transform: uppercase;
   transition: filter var(--fast), background var(--fast);
 }
-/* On the light theme a grey fill alone melts into the panels, so buttons get a darker edge and a shade at the foot. */
-:root[data-theme="light"] .btn { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.28), inset 0 -2px 0 rgba(0, 0, 0, 0.1); }
+/* On the light theme a grey fill alone melts into the panels, so buttons get a darker edge. The angled
+   buttons in the bar keep their colors alone, since the angles would cut an edge, and the profile
+   button keeps its own colored bar. The line across the fold is with the folded corners below. */
+:root[data-theme="light"] { --btn-edge: rgba(0, 0, 0, 0.28); }
+:root[data-theme="light"] .btn:not(.actions .btn):not(.profile-btn) { box-shadow: inset 0 0 0 1px var(--btn-edge); }
 .btn:hover:not(:disabled) { background: var(--btn-hi); }
 .actions .btn { clip-path: polygon(0.42rem 0, calc(100% - 0.42rem) 0, 100% 50%, calc(100% - 0.42rem) 100%, 0.42rem 100%, 0 50%); }
 .btn.go:hover:not(:disabled) { background: linear-gradient(180deg, #55dcac, #2bab7e); }
@@ -229,10 +232,10 @@ button.bare.scope:hover { background: var(--ln); }
 .scope.library i { background-color: var(--library); }
 .scope.unspecified i { background-color: var(--unspecified); }
 .scope.expansion i { background-color: var(--expansion); }
-/* Black on the dark theme, and yellow on the light one, get an edge to stand out. Library is grey
-   on the light theme (the user, 2026-11-03), which reads without one. */
-:root:not([data-theme="light"]) .scope.unspecified i,
-:root[data-theme="light"] .scope.expansion i { box-shadow: 0 0 0 1px var(--scope-edge); }
+/* Black on the dark theme gets an edge to stand out. On the light theme every diamond gets a thin dark
+   ring, so they all read alike (the user, 2026-11-04). */
+:root:not([data-theme="light"]) .scope.unspecified i { box-shadow: 0 0 0 1px var(--scope-edge); }
+:root[data-theme="light"] .scope i { box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.85); }
 /* The update check beside the switches: one mod, a folder, or the whole list in the header */
 .bare.up-ck { padding: 0.1rem; justify-self: center; }
 .up-ck svg { width: 1rem; height: 1rem; }
@@ -358,10 +361,8 @@ button.link:hover { filter: brightness(1.2); }
 .search .bare svg { width: 0.9rem; height: 0.9rem; }
 
 .modal.confirm { width: min(28rem, 92vw); }
-/* The startup update prompt carries the new version's notes, so the decision is made in one place. */
-.modal.confirm.update-ask { width: min(38rem, 92vw); }
-.update-notes { max-height: min(22rem, 48vh); overflow: auto; padding: 0.75rem 0.95rem; background: var(--well); box-shadow: inset 0 0 0 1px var(--ln); user-select: text; }
-.update-notes .md { font-size: 0.92rem; }
+/* A dialog's way elsewhere, such as the update prompt's link to the changelog: on the left, apart from the answer. */
+.modal-foot .foot-link { margin-right: auto; align-self: center; font-size: 0.9rem; }
 .modal.confirm h2 { margin: 0; font-size: 1rem; }
 .modal.confirm p { margin: 0; color: var(--mu); line-height: 1.45; }
 .update-bar { height: 0.55rem; background: var(--row); overflow: hidden; }
@@ -377,8 +378,9 @@ button.link:hover { filter: brightness(1.2); }
 .btn.choice { height: auto; width: 100%; padding: 0.65rem 1.1rem; flex-direction: column; align-items: flex-start; gap: 0.2rem; text-align: left; letter-spacing: 0.14em; }
 .btn.choice small { font-family: Barlow, "Microsoft YaHei", "PingFang SC", sans-serif; font-size: 0.82rem; font-weight: 500; letter-spacing: 0; text-transform: none; }
 
-/* Drawer (spec 4.2) */
-.drawer { width: var(--drawer-w, 25rem); flex: 0 1 auto; min-width: 13rem; display: flex; flex-direction: column; min-height: 0; background: linear-gradient(160deg, var(--p1), var(--p2)); border-top: 4px solid var(--gold); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); animation: drawer-in var(--enter) ease-out; }
+/* Drawer (spec 4.2). By default the list takes two thirds and the drawer one (the user, 2026-11-04);
+   a dragged width replaces that until a double-click on the line between them. */
+.drawer { width: var(--drawer-w, 33.333%); flex: 0 1 auto; min-width: 13rem; display: flex; flex-direction: column; min-height: 0; background: linear-gradient(160deg, var(--p1), var(--p2)); border-top: 4px solid var(--gold); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); animation: drawer-in var(--enter) ease-out; }
 .drawer.client { border-top-color: var(--client); }
 .drawer.library { border-top-color: var(--library); }
 .drawer.session { border-top-color: var(--session); }
@@ -894,6 +896,14 @@ button.thumb:hover { border-color: var(--gold); }
   border-top: 1px solid; border-top-color: inherit; transform: rotate(-45deg); pointer-events: none;
 }
 .key-btn::after { bottom: calc(var(--cut-sm) * 0.707 - 2.4px); }
+/* The light theme's button edge closes the same way. A button has no border, so the line sits on the
+   fold itself: its middle is 0.707 of the cut plus half a pixel in from the corner, on both axes. */
+:root[data-theme="light"] :is(.btn:not(.actions .btn):not(.home-tuck):not(.profile-btn):not(.head-btn), .btn.head-btn.add, .btn.head-btn.blue) { position: relative; }
+:root[data-theme="light"] :is(.btn:not(.actions .btn):not(.home-tuck):not(.profile-btn):not(.head-btn), .btn.head-btn.add, .btn.head-btn.blue)::after {
+  content: ""; position: absolute; right: calc(var(--cut-sm) * -0.293 - 0.15px); bottom: calc(var(--cut-sm) * 0.707 - 0.15px); width: calc(var(--cut-sm) * 2 + 1px);
+  /* A slanted line smooths lighter than a straight one, so it is a shade darker to match the edges. */
+  border-top: 1px solid rgba(0, 0, 0, 0.42); transform: rotate(-45deg); pointer-events: none;
+}
 
 /* Profiles dialog: New and Import beside the title, one labelled action per row (Use) and icon buttons for the rest */
 .profiles-tools { display: flex; gap: 0.5rem; }
