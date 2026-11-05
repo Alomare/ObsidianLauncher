@@ -2255,6 +2255,97 @@ test("an_effect_follows_a_unit_until_taken_off", function()
 	E.eq(#log.stopped, 1)
 end)
 
+test("effects_take_the_games_status_looks", function()
+	local api, game = start()
+	local log = particle_world(game)
+	E.eq(type(api.world.attach_effect(game.me, "fire")), "number")
+	E.eq(log.made[1].name, "effects/generated/status_fire")
+	E.eq(type(api.world.attach_effect(game.me, "poison")), "number")
+	E.eq(log.made[2].name, "effects/generated/status_poison")
+	E.eq(type(api.world.attach_effect(game.me, "confuse")), "number")
+	E.eq(type(api.world.attach_effect(game.me, "stun")), "number")
+	E.eq(select(2, api.world.attach_effect(game.me, "lava")), "unknown_effect")
+end)
+
+-- A teammate's player in the game's list, played on the machine "friend", with the player object's index.
+local function teammate(game, index)
+	local other = game.enemies[2]
+	local go = { avatar_unit = other, index = index }
+	function go:owned() return false end
+	function go:owner() return "friend" end
+	function go:exists() return true end
+	function go:get(k) return self[k] end
+	function go:has(k) return self[k] ~= nil end
+	game.state.players[#game.state.players + 1] = { player_go = go, pad_number = 1 }
+	return other
+end
+
+local function lobby_of(friend_data)
+	local lobby = rawget(_G, "NetworkGlobal").lobby
+	local data = { me = {}, friend = friend_data or {} }
+	lobby.members = function() return { "me", "friend" } end
+	lobby.set_member_data = function(_, key, value) data.me[key] = value end
+	lobby.member_data = function(_, peer, key) return (data[peer] or {})[key] end
+	return data
+end
+
+local DAMAGE_KEY = "obsidian.api:player_damage"
+
+test("damage_to_this_machines_player_lands_here", function()
+	local api, game = start()
+	game.commands = {}
+	E.eq(api.player.damage(game.me, 15, { through_armor = true, owner = game.enemies[1] }), true)
+	local hit = game.commands[1]
+	E.eq(hit.unit, game.me)
+	E.eq(hit.interface, "damageable")
+	E.eq(hit.command, "do_damage")
+	E.eq(hit.data.power, 15)
+	E.eq(hit.data.armorignore, true)
+	E.eq(hit.data.owner_unit, game.enemies[1], "from the enemy named")
+	E.eq(select(2, api.player.damage(game.me, -1)), "out_of_range")
+	E.eq(select(2, api.player.damage(game.me, 5, { statuses = { "nonsense" } })), "unknown_status")
+	E.eq(select(2, api.player.damage(game.enemies[1], 5)), "no_target", "only players")
+end)
+
+test("damage_to_a_teammate_goes_to_their_machine", function()
+	local api, game, e = start()
+	local data = lobby_of()
+	local other = teammate(game, 3)
+	e:frames(1)
+	E.eq(data.me[DAMAGE_KEY], "12345;", "a mission starts with an empty list")
+	game.commands = {}
+	E.eq(api.player.damage(other, 20, { through_armor = true, statuses = { "heavy_burn" } }), true)
+	E.eq(#game.commands, 0, "nothing lands on this machine")
+	E.eq(data.me[DAMAGE_KEY], "12345;1@3@20.0@a@heavy_burn", "the mission, the number, the player's index, the power, the flags and statuses")
+	for i = 2, 6 do api.player.damage(other, i) end
+	local count = select(2, data.me[DAMAGE_KEY]:gsub("@", "")) / 4
+	E.eq(count, 4, "the last four kept")
+end)
+
+test("a_teammates_request_lands_on_this_machines_player_once", function()
+	local api, game, e = start()
+	local friend = {}
+	lobby_of(friend)
+	game.record.player_go.index = 2
+	friend[DAMAGE_KEY] = "12345;4@2@30.0@@"
+	game.commands = {}
+	e:frames(10)
+	E.eq(#game.commands, 0, "the first look only notes where the requests are")
+	friend[DAMAGE_KEY] = "12345;4@2@30.0@@|5@2@12.5@a@heavy_burn|6@9@50.0@@"
+	e:frames(10)
+	E.eq(#game.commands, 1, "only the new one for this machine's player")
+	local hit = game.commands[1]
+	E.eq(hit.unit, game.me)
+	E.eq(hit.data.power, 12.5)
+	E.eq(hit.data.armorignore, true)
+	E.eq(hit.data.hit_status_effects[1], "heavy_burn")
+	e:frames(10)
+	E.eq(#game.commands, 1, "landed once")
+	friend[DAMAGE_KEY] = "999;7@2@30.0@@"
+	e:frames(10)
+	E.eq(#game.commands, 1, "another mission's requests never land")
+end)
+
 -- An item with an explosion of its own, and a manager that hits the player and an enemy as it goes off.
 local function blasting(game)
 	local lsm = rawget(_G, "LuaSettingsManager")
