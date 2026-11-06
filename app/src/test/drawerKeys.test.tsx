@@ -29,7 +29,7 @@ const api = (padValue = "thumbs") =>
     id: "obsidian.api", name: { en: "Obsidian API" }, description: { en: "" }, authors: [], version: "1.36.0", scope: "client", on: true,
     options: [choice("pad_open", padValue), { ...choice("other", "off"), label: { en: "Another choice" } }],
     keybinds: [
-      { id: "open", label: { en: "Open in-game overlay menu" }, default: "f6", key: null, clash: [], pad: "pad_open" },
+      { id: "open", label: { en: "Open in-game menu" }, default: "f6", key: null, clash: [], pad: "pad_open" },
       { id: "shot", label: { en: "Take a screenshot" }, default: "f7", key: "f9", clash: [], pad: null },
     ],
     files: [], import: null, source: null, updatable: false, image: null, customImage: false, folder: null, requires: [],
@@ -58,8 +58,8 @@ describe("the Keys tab", () => {
     const rows = [...show(api(), "keys").querySelectorAll(".keys .opt")];
     expect(rows).toHaveLength(2);
     const [open, shot] = rows;
-    expect(open.querySelector(".l")!.textContent).toBe("Open in-game overlay menu");
-    expect(open.querySelector(".d")!.textContent).toBe("The buttons that open the menu.");
+    expect(open.querySelector(".l")!.textContent).toBe("Open in-game menu");
+    expect(open.querySelector(".d"), "the name alone, then the two inputs").toBeNull();
     expect(open.querySelector(".key-col .key-btn")!.textContent).toBe("f6");
     const pad = open.querySelector<HTMLButtonElement>(".pad-col .select-btn")!;
     expect(pad.getAttribute("aria-label")).toBe("Open the menu with a controller: Both sticks pressed in (L3 + R3)");

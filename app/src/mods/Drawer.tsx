@@ -216,7 +216,6 @@ function KeysTab({ mod, names }: { mod: ModRow; names: Map<string, string> }) {
             <li key={k.id} className="opt">
               <div className="opt-text">
                 <div className="l">{label}</div>
-                {shown && pick(shown.description) && <div className="d">{pick(shown.description)}</div>}
                 {shown?.deploy && <div className="d note">{t("app.drawer.afterDeploy")}</div>}
                 {k.clash.length > 0 && <div className="d warn">{t("app.drawer.keyClash", [pick(mod.name, mod.id), ...k.clash.map((id) => names.get(id) ?? id)].join(", "))}</div>}
               </div>

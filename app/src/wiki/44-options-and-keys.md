@@ -89,4 +89,4 @@ The Keys tab has a column for the mouse and keyboard and one for a controller. W
 "keybinds": [ { "id": "toggle", "default": "f8", "pad": "pad_toggle", "label": { "en": "Turn the compass on or off" } } ]
 ```
 
-The app then shows the option in the keybind's row, under the controller column, and leaves it out of the Options tab. The option's description shows under the action's name. The mod reads the option like any other and watches the pad itself. A keybind with no `pad` shows a dash in that column. Obsidian versions without the controller column ignore `pad` and list the option under Options.
+The app then shows the option in the keybind's row, under the controller column, and leaves it out of the Options tab. The mod reads the option like any other and watches the pad itself. A keybind with no `pad` shows a dash in that column. Obsidian versions without the controller column ignore `pad` and list the option under Options.
