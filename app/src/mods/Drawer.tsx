@@ -3,6 +3,7 @@
 // leaves it out (the user, 2026-11-04).
 import { useEffect, useMemo, useState } from "react";
 import { run } from "../api";
+import { openColorPicker } from "../ColorPicker";
 import { Confirm } from "../Confirm";
 import { ArrowIcon, ChevronIcon, CloseIcon, ExternalIcon, FileIcon, InfoIcon, KeyboardIcon, LinkIcon, ResetIcon, SlidersIcon, TrashIcon } from "../Icons";
 import { language, pick, t } from "../i18n";
@@ -122,7 +123,12 @@ function OptionControl({ mod, o }: { mod: ModRow; o: OptionRow }) {
     return <Select value={String(o.value)} options={o.choices.map((c, i) => ({ value: c, label: pick(o.choiceLabels[i], c) }))} label={label} onChange={set} />;
   }
   if (o.kind === "color") {
-    return <input type="color" className="color-ctl" value={String(o.value)} aria-label={label} onChange={(e) => set(e.target.value)} />;
+    return (
+      <button className="color-ctl" aria-label={label} aria-haspopup="dialog" data-tip={String(o.value)}
+        onClick={(e) => openColorPicker(e.currentTarget, { current: String(o.value), title: label, onPick: set })}>
+        <i style={{ background: String(o.value) }} />
+      </button>
+    );
   }
   if (o.kind === "number") return <NumberControl o={o} label={label} onSet={set} />;
   if (o.kind === "key") return <KeyButton value={String(o.value)} label={label} onSet={set} />;

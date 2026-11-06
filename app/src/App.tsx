@@ -4,6 +4,7 @@ import { deploy, play, purge } from "./actions";
 import { loadSnapshot, refresh, useSnapshot } from "./api";
 import { useLocked } from "./busy";
 import { inkOn } from "./colors";
+import { ColorPickerHost } from "./ColorPicker";
 import { Confirm } from "./Confirm";
 import { pick, t } from "./i18n";
 import { listenForDrops, type DropState } from "./mods/dropImport";
@@ -115,6 +116,7 @@ export default function App() {
       <UpdateProgress />
       <DeployProgress />
       <Notices />
+      <ColorPickerHost />
       <Tooltip />
     </div>
   );

@@ -1,7 +1,7 @@
 // The folder dialogs: a name and a colour for a new or existing folder, and the question asked
 // before a folder with mods in it goes (keep the mods, or remove them too).
 import { useEffect, useRef, useState } from "react";
-import { pickColor } from "../colors";
+import { openColorPicker } from "../ColorPicker";
 import { t } from "../i18n";
 
 export const FOLDER_COLORS = ["#f0b429", "#e8891c", "#d64545", "#c062b8", "#9b7bd4", "#4a90d9", "#2fb889", "#8a9099"];
@@ -9,18 +9,19 @@ export const FOLDER_COLORS = ["#f0b429", "#e8891c", "#d64545", "#c062b8", "#9b7b
 /** A color outside the row's presets, as a folder or profile can have one. */
 export const isCustomColor = (c: string | null | undefined, presets: string[] = FOLDER_COLORS) => !!c && !presets.some((p) => p.toLowerCase() === c.toLowerCase());
 
-type SwatchProps = { current: string | null; presets?: string[]; onPick: (c: string) => void; onInput?: (c: string) => void; role?: "radio" | "menuitemradio" };
+type SwatchProps = { current: string | null; presets?: string[]; onPick: (c: string) => void; onInput?: (c: string) => void; onOpen?: () => void; role?: "radio" | "menuitemradio" };
 
 /**
- * The last swatch of a row: the system color picker for any color. It shows a color wheel until a
- * custom color is the current one, then that color, marked like a picked preset.
+ * The last swatch of a row: the color picker for any color. It shows a color wheel until a custom color
+ * is the current one, then that color, marked like a picked preset. `onOpen` runs as the picker opens,
+ * for a menu to close.
  */
-export function CustomSwatch({ current, presets = FOLDER_COLORS, onPick, onInput, role = "radio" }: SwatchProps) {
+export function CustomSwatch({ current, presets = FOLDER_COLORS, onPick, onInput, onOpen, role = "radio" }: SwatchProps) {
   const custom = isCustomColor(current, presets);
   return (
-    <button type="button" role={role} aria-checked={custom} aria-label={t("app.folder.customColor")} data-tip={t("app.folder.customColor")}
+    <button type="button" role={role} aria-checked={custom} aria-haspopup="dialog" aria-label={t("app.folder.customColor")} data-tip={t("app.folder.customColor")}
       className={custom ? "swatch custom on" : "swatch custom"} style={custom ? { background: current! } : undefined}
-      onClick={(e) => pickColor(e.currentTarget, current, onPick, onInput)} />
+      onClick={(e) => { openColorPicker(e.currentTarget, { current, title: t("app.folder.customColor"), onPick, onInput }); onOpen?.(); }} />
   );
 }
 

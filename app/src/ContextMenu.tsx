@@ -101,8 +101,8 @@ function Menu({ x, y, up, items, onClose, root, keys, label }: { x: number; y: n
                     it.pick(c);
                   }} />
               ))}
-              {/* The picker outlives the menu, which closes as the picker takes focus. */}
-              <CustomSwatch role="menuitemradio" current={it.current} presets={it.colors} onPick={(c) => { onClose(); it.pick(c); }} />
+              {/* The picker outlives the menu, which closes as the picker opens. */}
+              <CustomSwatch role="menuitemradio" current={it.current} presets={it.colors} onOpen={onClose} onPick={it.pick} />
             </div>
           ) : (
             <button key={i} role={it.checked === undefined ? "menuitem" : "menuitemradio"} aria-checked={it.checked} className={it.danger ? "danger" : undefined}

@@ -790,6 +790,28 @@ button.thumb:hover { border-color: var(--gold); }
 .ctx-colors { display: flex; gap: 0.3rem; padding: 0.35rem 0.6rem; }
 .ctx-colors .swatch { width: 1.25rem; height: 1.25rem; flex: none; }
 /* The custom color: a color wheel until one is picked, set off from the presets by a gap. */
+/* The color picker (ColorPicker.tsx): a panel like a menu's, with the field of saturation and brightness,
+   the hue strip, the color before and after with the hex code, and Cancel and Apply. The markers are
+   squares in white with a dark ring, so they show on any color. */
+.picker { position: fixed; z-index: 98; width: 15.5rem; display: flex; flex-direction: column; gap: 0.6rem; padding: 0.65rem 0.75rem 0.75rem;
+  border: 1px solid var(--ln); border-top: 2px solid var(--gold); animation: tip-in var(--pop) ease-out; }
+.picker-title { margin: 0; font-size: 0.72rem; letter-spacing: 0.16em; color: var(--mu); }
+.picker-area { position: relative; height: 8.5rem; cursor: crosshair; touch-action: none; box-shadow: inset 0 0 0 1px var(--ln);
+  background: linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, var(--hue)); }
+.picker-hue { position: relative; height: 0.9rem; cursor: ew-resize; touch-action: none; box-shadow: inset 0 0 0 1px var(--ln);
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
+.picker-dot, .picker-bar { position: absolute; pointer-events: none; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(0, 0, 0, 0.35); }
+.picker-dot { width: 0.85rem; height: 0.85rem; transform: translate(-50%, -50%); }
+.picker-bar { top: -0.2rem; bottom: -0.2rem; width: 0.45rem; transform: translateX(-50%); }
+.picker :is(.picker-area, .picker-hue):focus-visible { outline-offset: 2px; }
+.picker-row { display: flex; align-items: center; gap: 0.5rem; }
+.picker-preview { flex: none; display: flex; width: 3.2rem; height: 2rem; box-shadow: 0 0 0 1px var(--ln); }
+.picker-preview i { flex: 1; }
+.picker-hex { flex: 1; min-width: 0; height: 2rem; padding: 0 0.6rem; background: var(--row); border: 1px solid var(--ln); color: var(--tx); font-size: 0.85rem; outline: 0; text-transform: uppercase; }
+.picker-hex:focus { border-color: var(--gold); }
+.picker-foot { display: flex; justify-content: flex-end; gap: 0.5rem; }
+/* A color option in a mod's panel: the color is the button. */
+.color-ctl i { display: block; width: 100%; height: 100%; }
 .swatch.custom { margin-left: 0.35rem; background: conic-gradient(#f2574b, #f0b429, #f2d01e, #2fb889, #4a90d9, #9b7bd4, #c062b8, #f2574b); }
 .ctx-colors .swatch.custom { margin-left: 0.25rem; }
 
@@ -904,13 +926,11 @@ button.thumb:hover { border-color: var(--gold); }
 /* A color option: the swatch is the control */
 .color-ctl { width: 2.6rem; height: 1.8rem; padding: 0.15rem; background: var(--row); border: 1px solid var(--ln); cursor: pointer; }
 .color-ctl:hover { border-color: var(--gold); }
-.color-ctl::-webkit-color-swatch-wrapper { padding: 0; }
-.color-ctl::-webkit-color-swatch { border: 0; }
 
 /* Folded corners, as in the concept: square panels lose the top left and bottom right corners,
    buttons and fields the bottom right one. Elements with something drawn in a corner keep theirs. */
 :root { --cut: 0.5rem; --cut-sm: 0.32rem; }
-.list, .drawer, .set-section, .modal, .ctx, .select-list, .notice, .profile, .wiki-step, .tip, .batch {
+.list, .drawer, .set-section, .modal, .ctx, .picker, .select-list, .notice, .profile, .wiki-step, .tip, .batch {
   -webkit-mask: linear-gradient(135deg, transparent var(--cut), #000 calc(var(--cut) + 0.5px)), linear-gradient(315deg, transparent var(--cut), #000 calc(var(--cut) + 0.5px));
   -webkit-mask-composite: source-in; mask-composite: intersect;
 }
@@ -918,16 +938,16 @@ button.thumb:hover { border-color: var(--gold); }
    across each cut corner to close it. A panel's own colored edges stay on top. */
 :root { --edge: #484848; --edge-w: 1px; }
 :root[data-theme="light"] { --edge: #cfcfcf; }
-.modal, .ctx, .select-list, .tip, .notice, .batch, .wiki-step {
+.modal, .ctx, .picker, .select-list, .tip, .notice, .batch, .wiki-step {
   --edge-corners: linear-gradient(135deg, transparent var(--cut), var(--edge) var(--cut), var(--edge) calc(var(--cut) + var(--edge-w)), transparent calc(var(--cut) + var(--edge-w))),
     linear-gradient(315deg, transparent var(--cut), var(--edge) var(--cut), var(--edge) calc(var(--cut) + var(--edge-w)), transparent calc(var(--cut) + var(--edge-w)));
 }
-.modal, .ctx, .select-list, .tip { background: var(--edge-corners), linear-gradient(160deg, var(--s1), var(--s2)); background-origin: border-box; }
+.modal, .ctx, .picker, .select-list, .tip { background: var(--edge-corners), linear-gradient(160deg, var(--s1), var(--s2)); background-origin: border-box; }
 .notice { background: var(--edge-corners), linear-gradient(160deg, var(--n1), var(--n2)); background-origin: border-box; }
 .batch { background: var(--edge-corners), color-mix(in srgb, var(--gold) 9%, var(--s2)); background-origin: border-box; box-shadow: inset 0 2px 0 var(--gold), inset 0 0 0 var(--edge-w) var(--edge); }
 .wiki-step { background: var(--edge-corners), var(--row); background-origin: border-box; border-color: var(--edge); }
 .modal, .notice { box-shadow: inset 0 0 0 var(--edge-w) var(--edge); }
-.ctx, .select-list { border-color: var(--edge); border-top-color: var(--gold); box-shadow: none; }
+.ctx, .picker, .select-list { border-color: var(--edge); border-top-color: var(--gold); box-shadow: none; }
 .tip { box-shadow: inset 0 -2px 0 var(--gold), inset 0 0 0 var(--edge-w) var(--edge); }
 .tip.below { box-shadow: inset 0 2px 0 var(--gold), inset 0 0 0 var(--edge-w) var(--edge); }
 .btn:not(.actions .btn):not(.home-tuck), .search, .profile-btn, .select-btn, .key-btn, .wiki-find {
