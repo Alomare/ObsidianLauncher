@@ -497,7 +497,12 @@ impl Manifest {
             }
         }
         let options = self.option_specs()?;
-        crate::options::parse_keybinds(&self.keybinds)?;
+        for (i, k) in crate::options::parse_keybinds(&self.keybinds)?.iter().enumerate() {
+            let Some(pad) = &k.pad else { continue };
+            if !options.iter().any(|o| &o.id == pad && matches!(o.kind, crate::options::OptionKind::Choice(_))) {
+                return Err(bad(format!("keybinds[{i}]"), format!("pad: {pad} is not a choice option of this mod")));
+            }
+        }
         for (i, r) in self.resources.iter().enumerate() {
             let field = format!("resources[{i}]");
             if r.bundle.as_deref().is_some_and(|b| !is_hex16(b)) {
@@ -743,6 +748,23 @@ mod tests {
         assert_eq!(field_of(load_manifest(mod_with(&bad_default).path())), "options[0]");
         let bad_key = EXAMPLE.replace(r#""default": "f8""#, r#""default": "F 8""#);
         assert_eq!(field_of(load_manifest(mod_with(&bad_key).path())), "keybinds[0]");
+    }
+
+    #[test]
+    fn a_keybind_names_a_choice_option_as_its_controller_input() {
+        let with_pad = |pad: &str| {
+            EXAMPLE
+                .replace(r#""default": "f8""#, &format!(r#""default": "f8", "pad": {pad}"#))
+                .replace(r#"{ "id": "distance", "type": "number", "default": 5 }"#,
+                    r#"{ "id": "distance", "type": "number", "default": 5 }, { "id": "pad_toggle", "type": "choice", "choices": ["thumbs", "off"], "default": "thumbs" }"#)
+        };
+        let m = load_manifest(mod_with(&with_pad(r#""pad_toggle""#)).path()).unwrap();
+        assert_eq!(crate::options::parse_keybinds(&m.keybinds).unwrap()[0].pad.as_deref(), Some("pad_toggle"));
+        assert_eq!(field_of(load_manifest(mod_with(&with_pad(r#""nothing""#)).path())), "keybinds[0]", "no such option");
+        assert_eq!(field_of(load_manifest(mod_with(&with_pad(r#""distance""#)).path())), "keybinds[0]", "not a choice");
+        assert_eq!(field_of(load_manifest(mod_with(&with_pad("5")).path())), "keybinds[0]", "not an id");
+        let plain = load_manifest(mod_with(EXAMPLE).path()).unwrap();
+        assert_eq!(crate::options::parse_keybinds(&plain.keybinds).unwrap()[0].pad, None);
     }
 
     #[test]

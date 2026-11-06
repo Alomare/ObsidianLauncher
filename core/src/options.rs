@@ -105,9 +105,13 @@ pub fn parse_options(raw: &[Value]) -> Result<Vec<OptionSpec>> {
 pub struct KeybindSpec {
     pub id: String,
     pub default: String,
+    /// The choice option that holds the controller input for the same action, if any: the app shows
+    /// both in one row (`"pad": "<option id>"`).
+    pub pad: Option<String>,
 }
 
-/// Parses the `keybinds` array of a manifest: an id and a default key name each.
+/// Parses the `keybinds` array of a manifest: an id and a default key name each, and optionally the
+/// choice option with the controller input (`pad`). Manifest::validate checks that option exists.
 pub fn parse_keybinds(raw: &[Value]) -> Result<Vec<KeybindSpec>> {
     let mut out: Vec<KeybindSpec> = Vec::new();
     for (i, v) in raw.iter().enumerate() {
@@ -117,7 +121,11 @@ pub fn parse_keybinds(raw: &[Value]) -> Result<Vec<KeybindSpec>> {
             return Err(bad(format!("duplicate id {id}")));
         }
         let default = v.get("default").and_then(Value::as_str).filter(|s| is_key_name(s)).ok_or_else(|| bad("default must be a key name such as f8".into()))?;
-        out.push(KeybindSpec { id: id.to_string(), default: default.to_string() });
+        let pad = match v.get("pad") {
+            None | Some(Value::Null) => None,
+            Some(p) => Some(p.as_str().filter(|s| is_key_name(s)).ok_or_else(|| bad("pad must be the id of a choice option".into()))?.to_string()),
+        };
+        out.push(KeybindSpec { id: id.to_string(), default: default.to_string(), pad });
     }
     Ok(out)
 }

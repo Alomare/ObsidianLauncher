@@ -60,6 +60,9 @@ pub struct KeyRow {
     pub key: Option<String>,
     /// Other enabled mods using the same key.
     pub clash: Vec<String>,
+    /// The choice option with the controller input for the same action: the Keys tab shows it in this
+    /// row, and the Options tab leaves it out.
+    pub pad: Option<String>,
 }
 
 /// An image file and a stamp that changes when the file does, so the UI drops a stale copy.
@@ -303,7 +306,7 @@ pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Re
                 let key = profile.keys.get(&m.id).and_then(|s| s.get(&k.id)).cloned();
                 let effective = key.clone().unwrap_or_else(|| k.default.clone());
                 let clash = if e.enabled { used.get(&effective).into_iter().flatten().filter(|id| **id != m.id).cloned().collect() } else { Vec::new() };
-                KeyRow { id: k.id, label: localized(raw.get("label")), default: k.default, key, clash }
+                KeyRow { id: k.id, label: localized(raw.get("label")), default: k.default, key, clash, pad: k.pad }
             })
             .collect();
         // An imported legacy mod has no version number unless the Nexus file name gave one.
@@ -391,8 +394,9 @@ mod tests {
             let extra = if legacy { r#","legacy":true"# } else { "" };
             put(&d, "obsidian.json", &format!(
                 r##"{{"obsidian":1,"id":"{id}","version":"{version}","name":{{"en":"{id}"}},"scope":"client","entry":"main.lua"{extra},
-                   "options":[{{"id":"fast","type":"toggle","default":false,"label":{{"en":"Fast"}}}}],
-                   "keybinds":[{{"id":"toggle","default":"f8"}}],
+                   "options":[{{"id":"fast","type":"toggle","default":false,"label":{{"en":"Fast"}}}},
+                              {{"id":"pad_toggle","type":"choice","choices":["thumbs","off"],"default":"thumbs"}}],
+                   "keybinds":[{{"id":"toggle","default":"f8","pad":"pad_toggle"}}],
                    "resources":[{{"type":"#0000000000000001","name":"#00000000000000f0","bundle":"00000000000000aa","data":"r.bin"}}]}}"##
             ));
             put(&d, "main.lua", "return true\n");
@@ -415,6 +419,7 @@ mod tests {
         assert_eq!(two.version, None, "imports show no version");
         assert_eq!((a.options[0].value.clone(), a.options[0].label["en"].as_str(), a.options[0].deploy), (Value::Bool(true), "Fast", false));
         assert_eq!(a.keybinds[0].clash, vec!["legacy.two"], "both use f8");
+        assert_eq!(a.keybinds[0].pad.as_deref(), Some("pad_toggle"), "the keybind names its controller input");
         assert_eq!(s.conflicts.len(), 1);
         assert_eq!((s.conflicts[0].mods.clone(), s.conflicts[0].winner.as_str()), (vec!["legacy.two".to_string(), "a.one".to_string()], "a.one"));
         let order: Vec<&str> = s.mods.iter().map(|m| m.id.as_str()).filter(|id| !id.starts_with("obsidian.")).collect();

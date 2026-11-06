@@ -8,7 +8,8 @@ export type OptionRow = {
   min: number | null; max: number | null; step: number | null; choices: string[]; choiceLabels: Localized[];
   visible: boolean; deploy: boolean;
 };
-export type KeyRow = { id: string; label: Localized; default: string; key: string | null; clash: string[] };
+/** pad: the choice option with the controller input for the same action, shown in this row instead of under Options. */
+export type KeyRow = { id: string; label: Localized; default: string; key: string | null; clash: string[]; pad: string | null };
 export type ImportInfo = { date: string; file: string };
 export type ImageRef = { path: string; v: number };
 /** Every scope a manifest can give, as `Scope::name` in core/src/manifest.rs writes it. */

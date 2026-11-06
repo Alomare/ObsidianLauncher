@@ -78,3 +78,15 @@ end)
 ```
 
 The function runs once each time the key goes down. Players rebind keys in the app, which is where clashes between mods get sorted out. Key names are the ones the game uses, in lower case: `f8`, `k`, `insert`.
+
+### Controller input
+
+The Keys tab has a column for the mouse and keyboard and one for a controller. When an action also has a controller input, declare that input as a `choice` option and name the option in the keybind's `pad`:
+
+```json
+"options": [ { "id": "pad_toggle", "type": "choice", "default": "thumbs",
+               "choices": [ { "id": "thumbs", "label": { "en": "Both sticks pressed in" } }, { "id": "off", "label": { "en": "Off" } } ] } ],
+"keybinds": [ { "id": "toggle", "default": "f8", "pad": "pad_toggle", "label": { "en": "Turn the compass on or off" } } ]
+```
+
+The app then shows the option in the keybind's row, under the controller column, and leaves it out of the Options tab. The option's description shows under the action's name. The mod reads the option like any other and watches the pad itself. A keybind with no `pad` shows a dash in that column. Obsidian versions without the controller column ignore `pad` and list the option under Options.

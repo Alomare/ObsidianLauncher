@@ -438,6 +438,19 @@ button.link:hover { filter: brightness(1.2); }
 .opt .d.warn { color: var(--warn); }
 .opt-ctl { display: flex; align-items: center; gap: 0.3rem; flex: none; }
 .opt-ctl .bare:disabled { opacity: 0.3; cursor: default; }
+/* Keys: the action, then a mouse and keyboard column and a controller column, the head's icons over them. */
+.keys { --key-col: 6rem; --pad-col: minmax(7.5rem, 12rem); }
+.keys-head, .keys .opt { display: grid; grid-template-columns: minmax(0, 1fr) var(--key-col) var(--pad-col); column-gap: 0.7rem; align-items: center; }
+.keys-head { padding: 0.75rem 0.8rem 0.45rem; color: var(--mu); border-bottom: 1px solid var(--ln); }
+.keys-head > span { display: flex; justify-content: center; }
+.keys-head svg { width: 1.25rem; height: 1.25rem; }
+.keys .opt-ctl { min-width: 0; }
+.keys .pad-col { justify-content: center; }
+.keys .pad-col .select { flex: 1; min-width: 0; }
+.keys .pad-col .select-btn { width: 100%; }
+.keys .pad-col .select-value { flex: 1; min-width: 0; overflow: hidden; }
+.keys .pad-col .select-value > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.keys .pad-col .none { color: var(--mu); }
 .dep-hint { font-size: 0.8rem; line-height: 1.35; }
 .dep-head { margin: 0; padding: 0.3rem 0.8rem 0.2rem; font-size: 0.72rem; color: var(--mu); border-bottom: 1px solid var(--ln); }
 .opt .link { font-size: 0.92rem; font-weight: 600; }
