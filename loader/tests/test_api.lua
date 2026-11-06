@@ -4972,4 +4972,163 @@ test("a_bot_walks_to_a_seat_door_gets_in_gets_out_and_rides_along", function()
 	bot:ride_along(false)
 end)
 
+-- API 1.37.0: using things, carrying, voice lines and the jump pack.
+
+local function char_states(names)
+	local S = {}
+	for _, n in ipairs(names) do
+		S[n] = { name = n }
+		rawset(_G, n, S[n])
+	end
+	return S
+end
+
+test("a_bot_uses_a_thing_once_the_game_offers_it_and_usables_lists_them", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local S = char_states({ "CharacterStateIdle", "CharacterStateInteract" })
+	local sample = { alive = true, owned = true, pos = { x = 10, y = 1, z = 0 }, master = {}, slave = {} }
+	local box = { alive = true, owned = true, pos = { x = 40, y = 1, z = 0 }, master = {}, slave = {} }
+	game.slaves.research_sample_pickup = { [sample] = { state = { enabled = true } } }
+	game.slaves.ammo_pickup = { [box] = { state = { enabled = false } } }
+	local near = api.bots.usables({ x = 1, y = 1 }, 15)
+	E.eq(#near, 1, "within the radius")
+	E.eq(near[1].unit, sample)
+	E.eq(near[1].kind, "research_sample_pickup")
+	E.eq(near[1].enabled, true)
+	local all = api.bots.usables({ x = 1, y = 1 }, 100)
+	E.eq(#all, 2)
+	E.eq(all[2].enabled, false, "the game lets no one use it now")
+	E.eq(#api.bots.usables({ x = 1, y = 1 }, 100, { "ammo_pickup" }), 1, "only the kinds asked for")
+	local bot = api.bots.add()
+	E.eq(select(2, bot:use(sample)), "no_avatar")
+	local u = game.land(2, { x = 1, y = 1, z = 0 })
+	u.master.interactor = {}
+	local cs = u.master.character
+	cs.current_state = S.CharacterStateIdle
+	game.step(1)
+	local t = u.master.input.input_data
+	E.eq(select(2, bot:use(nil)), "no_target")
+	local done
+	E.eq(bot:use(sample, function(ok, why) done = { ok, why } end), true)
+	E.eq(bot:using(), sample)
+	game.step(1)
+	E.eq(t.move.x, 1, "walks to it")
+	E.eq(t.interact, false)
+	u.pos = { x = 9.5, y = 1, z = 0 }
+	game.step(1)
+	E.eq(t.move.x, 0.6, "within reach, a step onto it while the game offers nothing")
+	E.eq(t.interact, false, "no press before the game offers it")
+	u.master.interactor.interactable_unit = sample
+	game.step(1)
+	E.eq(t.interact, true, "pressed once offered")
+	E.eq(t.aim.x, 1, "facing it")
+	cs.current_state = S.CharacterStateInteract
+	game.step(1)
+	E.eq(done and done[1], true)
+	E.eq(done[2], "used")
+	E.eq(bot:using(), false)
+	-- A thing the game never offers this bot: an ammo box with the bot's ammo full.
+	cs.current_state = S.CharacterStateIdle
+	u.master.interactor.interactable_unit = nil
+	box.pos = { x = 10, y = 1, z = 0 }
+	bot:use(box, { reach = 1 }, function(ok, why) done = { ok, why } end)
+	game.step(160)
+	E.eq(done[1], false)
+	E.eq(done[2], "not_offered")
+	-- A thing that goes before the bot gets there.
+	box.pos = { x = 40, y = 1, z = 0 }
+	bot:use(box, function(ok, why) done = { ok, why } end)
+	box.alive = false
+	game.step(1)
+	E.eq(done[2], "gone")
+	E.eq(bot:cancel_use(), false, "nothing to cancel")
+end)
+
+test("a_bot_using_a_thing_presses_only_on_it", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local calls = {}
+	rawset(_G, "CharacterComponent", { handle_interact = function(_, unit) calls[#calls + 1] = unit end })
+	rawget(_G, "require")("lua/network/network_global")
+	local CC = rawget(_G, "CharacterComponent")
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 1, y = 1, z = 0 })
+	game.step(1)
+	local sample = { alive = true, owned = true, pos = { x = 2, y = 1, z = 0 }, master = {}, slave = {} }
+	local other = { alive = true, owned = true, pos = { x = 2, y = 1, z = 0 }, master = {}, slave = {} }
+	u.master.interactor = { interactable_unit = other, interactable_component = "weapon_pickup" }
+	CC.handle_interact(CC, u, {})
+	E.eq(#calls, 1, "a pickup goes ahead and starts the cooldown")
+	bot:use(sample)
+	u.master.interactor = { interactable_unit = sample, interactable_component = "weapon_pickup" }
+	CC.handle_interact(CC, u, {})
+	E.eq(#calls, 2, "the pickup it was sent to goes ahead of the cooldown")
+	u.master.interactor = { interactable_unit = other, interactable_component = "ammo_pickup" }
+	CC.handle_interact(CC, u, {})
+	E.eq(#calls, 2, "a press on something else is held back")
+end)
+
+test("a_bot_says_a_voice_line_and_drops_what_it_carries", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add()
+	E.eq(select(2, bot:say("yes")), "no_avatar")
+	local u = game.land(2, { x = 1, y = 1, z = 0 })
+	u.owned = true
+	E.eq(select(2, bot:say("hello")), "bad_word")
+	game.commands = {}
+	E.eq(bot:say("stay"), true)
+	local c = G.command(game, "customization", "communication_event")
+	E.eq(c and c.data.event, "stay")
+	E.eq(c.unit, u)
+	E.eq(bot:carrying(), nil)
+	E.eq(select(2, bot:drop()), "not_carrying")
+	local drive = { alive = true }
+	u.master.character.current_carry_unit = drive
+	E.eq(bot:carrying(), drive)
+	game.commands = {}
+	E.eq(bot:drop(), true)
+	E.eq(G.command(game, "character", "drop_carry").unit, u)
+end)
+
+test("a_bot_jumps_with_a_jump_pack_along_a_direction", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local S = char_states({ "CharacterStateIdle", "CharacterStateJump" })
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 1, y = 1, z = 0 })
+	local cs, inv = u.master.character, u.master.inventory
+	cs.current_state = S.CharacterStateIdle
+	game.step(1)
+	local t = u.master.input.input_data
+	E.eq(select(2, bot:jump({ x = 1, y = 0 })), "no_jump_pack")
+	local fuel = { num_uses = 0 }
+	local pack = { alive = true, owned = true, master = { ammo_backpack = fuel }, slave = {}, settings = { backpack_info = { enables_jump = true } } }
+	inv.backpack = pack
+	E.eq(select(2, bot:jump({ x = 1, y = 0 })), "no_fuel")
+	fuel.num_uses = 60
+	E.eq(select(2, bot:jump({ x = 0, y = 0 })), "bad_direction")
+	local done
+	E.eq(bot:jump({ x = 0, y = 3 }, function(ok, why) done = { ok, why } end), true)
+	E.eq(bot:jumping(), true)
+	E.eq(select(2, bot:jump({ x = 1, y = 0 })), "jumping")
+	game.step(1)
+	E.eq(t.dodge_pressed, true, "dodge with a jump pack is a jump")
+	E.eq(t.move.y, 1, "along the way asked")
+	cs.current_state = S.CharacterStateJump
+	game.step(3)
+	E.eq(done, nil, "in the air")
+	cs.current_state = S.CharacterStateIdle
+	game.step(1)
+	E.eq(done and done[1], true)
+	E.eq(done[2], "landed")
+	E.eq(bot:jumping(), false)
+	-- The game refuses a jump with no room ahead: the state never comes.
+	bot:jump({ x = 1, y = 0 }, function(ok, why) done = { ok, why } end)
+	game.step(80)
+	E.eq(done[1], false)
+	E.eq(done[2], "refused")
+end)
+
 return T
