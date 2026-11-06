@@ -653,6 +653,8 @@ button.link.small { font-size: 0.8rem; margin-top: 0.45rem; }
 .btn.head-tool svg { stroke-width: 2; }
 .btn.head-tool.go svg { stroke-width: 2.4; }
 .btn.head-update { margin-left: 0.3rem; }
+/* In a narrow window the search box gives up its room first, down to 7rem, and only then the profile name. */
+.mods .head .search { flex: 1 1 0; min-width: 7rem; max-width: 15rem; }
 /* Focus inside the edge, where the fold can't cut it off, and dark on the colored buttons. */
 .mods .head :is(.btn, .profile-btn):focus-visible { outline-offset: -2px; }
 .mods .head :is(.btn.go, .btn.play):focus-visible { outline-color: #1b1b1b; }

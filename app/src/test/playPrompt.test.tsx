@@ -164,7 +164,9 @@ describe("the Settings row", () => {
     await act(async () => go("settings"));
     const row = () => [...document.querySelectorAll<HTMLButtonElement>(".set-sec button[role=switch]")].find((b) => b.getAttribute("aria-label") === t("app.settings.askVanilla"))!;
     expect(row().getAttribute("aria-checked")).toBe("true");
-    expect(row().closest(".set-sec")!.querySelector("h2")!.textContent).toBe(t("app.settings.play"));
+    const group = row().closest(".set-sec")!;
+    expect(group.querySelector("h2 .cap")!.textContent).toBe(t("app.settings.play"));
+    expect(group.querySelector(".help-q")).not.toBeNull();
     await press(row());
     await vi.waitFor(() => expect(row().getAttribute("aria-checked")).toBe("false"));
     await press(row());

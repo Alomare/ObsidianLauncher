@@ -173,7 +173,7 @@ function SystemTab({ snap }: { snap: Snapshot }) {
         )}
       </Group>
 
-      <Group title={t("app.settings.play")}>
+      <Group title={t("app.settings.play")} help="deploy-and-purge#deploy">
         <label className="switch-line">
           <button role="switch" aria-checked={settings.askVanillaPlay} aria-label={t("app.settings.askVanilla")} className={settings.askVanillaPlay ? "sw on" : "sw"}
             onClick={() => updateSettings({ askVanillaPlay: !settings.askVanillaPlay })} />
