@@ -3942,6 +3942,118 @@ test("no_press_or_held_button_of_an_order_outlives_it", function()
 	E.eq(t.stratagems_pressed, false)
 end)
 
+test("a_spared_blast_drops_the_hits_its_overlap_answers_later", function()
+	local api, game = start()
+	blasting(game)
+	local answers = {}
+	rawget(_G, "PhysicsWorld").overlap = function(_, answer) answers[#answers + 1] = answer end
+	game.state.explosion_manager.do_explosion = function()
+		-- The game's way: the hits go out from the overlap's answer, on a later physics step.
+		rawget(_G, "PhysicsWorld").overlap(nil, function()
+			local aux = rawget(_G, "EntityAux")
+			aux.queue_command_interface(game.me, "damageable", "do_damage", { power = 75 })
+			aux.queue_command_interface(game.enemies[1], "damageable", "do_damage", { power = 75 })
+		end)
+	end
+	E.eq(api.world.blast({ x = 1, y = 2, z = 0 }, "equipment/wep_plasma_01", { spare_players = true }), true)
+	E.eq(#answers, 1)
+	answers[1]()
+	E.eq(damage_to(game, game.me), 0, "the player is spared when the answer comes")
+	E.eq(damage_to(game, game.enemies[1]), 1, "the enemy is hit")
+	E.eq(api.world.blast({ x = 1, y = 2, z = 0 }, "equipment/wep_plasma_01"), true)
+	answers[2]()
+	E.eq(damage_to(game, game.me), 1, "without spare_players the player is hit")
+end)
+
+test("a_bot_reloads_an_empty_magazine_and_an_overheated_laser_by_itself", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 5, y = 1, z = 0 })
+	local weapon = { alive = true, owned = true, master = { weapon = { reloadable = true, rounds = 3, num_mags = 2 } }, slave = {} }
+	u.master.inventory.current_weapon = weapon
+	rawget(_G, "EntityAux").state_master_interface = function(unit, i) return i == "weapon" and unit.master.weapon or nil end
+	bot:fire(true)
+	game.step(1)
+	local t = u.master.input.input_data
+	E.eq(t.reload_pressed, false, "rounds left")
+	E.eq(t.fire_button, 1)
+	weapon.master.weapon.rounds = 0
+	game.step(2)
+	E.eq(t.reload_pressed, true, "an empty magazine reloads")
+	E.eq(t.fire_button, 0, "with the trigger let go")
+	weapon.master.weapon.rounds, weapon.master.weapon.num_mags = 0, 0
+	game.step(80)
+	E.eq(t.fire_button, 1, "nothing left to load: back to firing")
+	E.eq(t.reload_pressed, false)
+	-- A laser: heat from 0 to 1, reloadable only at full heat with a radiator left.
+	weapon.master.weapon = { heat = 0.6, reloadable = false, num_mags = 2 }
+	game.step(80)
+	E.eq(t.reload_pressed, false, "warm, not overheated")
+	weapon.master.weapon.heat, weapon.master.weapon.reloadable = 1, true
+	game.step(2)
+	E.eq(t.reload_pressed, true, "an overheated laser swaps its radiator")
+	weapon.master.weapon.is_reloading = true
+	game.step(80)
+	E.eq(t.reload_pressed, false, "not twice")
+	weapon.master.weapon.is_reloading = false
+	bot:auto_reload(false)
+	game.step(80)
+	E.eq(t.reload_pressed, false, "left to the orders")
+	bot:auto_reload(true)
+	game.step(2)
+	E.eq(t.reload_pressed, true, "and back")
+end)
+
+test("a_bot_throws_a_grenade_at_a_point_with_the_charge_for_the_distance", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local S = {}
+	for _, n in ipairs({ "CharacterStateIdle", "CharacterStateThrow" }) do
+		S[n] = { name = n }
+		rawset(_G, n, S[n])
+	end
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 1, y = 1, z = 0 })
+	game.step(1)
+	local t = u.master.input.input_data
+	local cs, inv = u.master.character, u.master.inventory
+	cs.current_state = S.CharacterStateIdle
+	inv.num_grenades = 0
+	E.eq(select(2, bot:throw_at({ x = 1, y = 11 })), "no_grenades")
+	inv.num_grenades = 2
+	local done
+	bot:fight(25)
+	E.eq(bot:throw_at({ x = 1, y = 11 }, function(ok, why) done = { ok, why } end), true)
+	E.eq(bot:throwing(), true)
+	E.eq(bot:using_stratagem(), false, "a throw isn't a stratagem call")
+	E.eq(select(2, bot:throw_at({ x = 1, y = 11 })), "busy")
+	game.step(1)
+	E.eq(t.aim.y, 1, "faces the point")
+	E.eq(t.fire_button, 0, "the trigger let go")
+	game.step(1)
+	E.eq(t.throw, 1, "the button held")
+	cs.current_state, cs.grenade_charge, cs.has_thrown = S.CharacterStateThrow, 0.5, false
+	game.step(1)
+	E.eq(t.throw, 1, "charging: 10 m wants 1.5, more than full")
+	cs.grenade_charge = 1
+	game.step(1)
+	E.eq(t.throw, 0, "let go at full charge")
+	cs.has_thrown, cs.throw_done = true, true
+	game.step(1)
+	E.eq(t.fire_button, 0, "still in the throw: no trigger, or the state never ends")
+	cs.current_state = S.CharacterStateIdle
+	game.step(1)
+	E.eq(done[1], true, "thrown")
+	E.eq(bot:throwing(), false)
+	-- The plain throw lets go of the trigger too.
+	cs.current_state = S.CharacterStateIdle
+	bot:throw()
+	game.step(1)
+	E.eq(t.throw, 1)
+	E.eq(t.fire_button, 0, "no fire while throwing")
+end)
+
 -- The game's side of a stratagem call, as CharacterStateStratagems and CharacterStateStratagemsThrow
 -- run it: the menu while the button is held, one arrow a frame into the queue, the stratagem the queue
 -- makes, then a charge while the throw is held and the throw on release.
