@@ -13,9 +13,10 @@ const { ModsPage } = await import("../mods/ModsPage");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+/** A mod; one whose id starts with "gh." names a GitHub repository and can be checked for updates. */
 const mod = (id: string): ModRow => ({
   id, name: { en: id }, description: {}, authors: [], version: "1.0.0", scope: "client", on: true, options: [], keybinds: [], files: [],
-  import: null, source: null, updatable: false, image: null, customImage: false, folder: null, requires: [],
+  import: null, source: null, updatable: id.startsWith("gh."), image: null, customImage: false, folder: null, requires: [],
 });
 const row = (name: string, extra: Partial<ProfileRow> = {}): ProfileRow => ({ name, on: 0, blockPublic: false, guarded: false, image: null, color: null, ...extra });
 const snap = (ids: string[], profileRows: ProfileRow[] = [row("Default")]): Snapshot => ({
@@ -167,5 +168,61 @@ describe("the head of the Mods page", () => {
     await act(async () => sort.click());
     expect(invoke).toHaveBeenCalledWith("sort_preview", undefined);
     expect(document.querySelector(".modal.sort")).not.toBeNull();
+  });
+});
+
+describe("the list and the bar for checked mods", () => {
+  const tick = (id: string) => act(() => document.querySelector<HTMLButtonElement>(`[data-key="${id}"] .ck`)!.click());
+  const bar = () => document.querySelector<HTMLElement>(".batch[role=toolbar]");
+  const checkButton = () => [...bar()!.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === t("app.mods.checkUpdates"))!;
+
+  it("has no column of update checks: not in the header, the rows or a folder", () => {
+    show(snap(["gh.one", "b.two"]));
+    expect(document.querySelectorAll(".up-ck")).toHaveLength(0);
+    expect(document.querySelector(".th")!.children).toHaveLength(7);
+  });
+
+  it("holds the count, Turn on, Turn off, Check for Updates, Remove and Uncheck all, in that order, and no Actions", () => {
+    show(snap(["gh.one", "b.two"]));
+    tick("gh.one");
+    tick("b.two");
+    expect(bar()!.querySelector(".batch-n")!.textContent).toBe(t("app.mods.nChecked", 2));
+    const names = [...bar()!.querySelectorAll("button")].map((b) => b.getAttribute("aria-label") ?? b.textContent);
+    expect(names).toEqual([t("app.menu.enable"), t("app.menu.disable"), t("app.mods.checkUpdates"), t("app.menu.remove"), t("app.mods.uncheck")]);
+    expect(bar()!.querySelectorAll(".batch-sep")).toHaveLength(2);
+    expect(checkButton().querySelector("svg")).not.toBeNull();
+  });
+
+  it("checks only the checked mods that name a GitHub repository, and waits while the check runs", async () => {
+    let answer: (v: unknown) => void = () => {};
+    invoke.mockImplementation((cmd: string) => (cmd === "check_mod_updates" ? new Promise((r) => (answer = r)) : Promise.resolve(null)));
+    show(snap(["gh.one", "b.two", "gh.three"]));
+    tick("gh.one");
+    tick("b.two");
+    await act(async () => checkButton().click());
+    expect(invoke).toHaveBeenCalledWith("check_mod_updates", { ids: ["gh.one"], fresh: true });
+    expect(checkButton().disabled).toBe(true);
+    expect(checkButton().classList.contains("busy")).toBe(true);
+    expect(checkButton().getAttribute("aria-busy")).toBe("true");
+    await act(async () => answer([{ id: "gh.one", version: null, error: null }]));
+    expect(checkButton().disabled).toBe(false);
+    expect(checkButton().classList.contains("busy")).toBe(false);
+  });
+
+  it("is off, and says why, when no checked mod names a GitHub repository", () => {
+    show(snap(["gh.one", "b.two"]));
+    tick("b.two");
+    expect(checkButton().disabled).toBe(true);
+    expect(checkButton().dataset.tip).toBe(t("app.mods.checkUpdatesNone"));
+  });
+
+  it("leaves the rest to the menu of a checked row: a right click there acts on every checked mod", () => {
+    show(snap(["gh.one", "b.two", "c.three"]));
+    tick("gh.one");
+    tick("b.two");
+    act(() => document.querySelector(`[data-key="b.two"]`)!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 5, clientY: 5 })));
+    const labels = [...document.querySelectorAll(".ctx > button .ctx-label")].map((l) => l.textContent);
+    expect(labels).toContain(t("app.menu.moveToFolder"));
+    expect(labels).toContain(t("app.menu.removeN", 2));
   });
 });

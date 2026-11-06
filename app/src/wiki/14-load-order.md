@@ -46,7 +46,7 @@ The padlock before a folder's name locks it. A locked folder keeps the name, col
 
 ## Checking several mods
 
-The checkboxes on the left select mods for batch actions. Shift-click checks a range. With mods checked, the bar at the foot of the list can turn them on or off, move them to a folder, or remove them.
+The checkboxes on the left select mods for batch actions. Shift-click checks a range. With mods checked, the bar at the foot of the list can turn them on or off, check them for updates, or remove them. Right-click one of them for everything else, such as moving them all to a folder.
 
 A mod also takes the place it asks for when it joins a profile. After that the order is yours: moving a mod keeps it moved until you sort again.
 

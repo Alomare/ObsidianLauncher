@@ -216,9 +216,9 @@ button.nav-warn:hover { filter: brightness(1.2); text-decoration: underline; tex
 .table { --col-ver: 5.2rem; --col-scope: 3.2rem; flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .tbody { overflow: auto; min-height: 0; position: relative; }
 /* In a narrow list Version gives way first, down to its minimum, so the Mod column keeps 11rem, enough
-   for a name beside the badges in the same cell: 22.95rem is the lead columns, the update check, the
-   seven gaps and those 11rem. */
-.th, .tr { --lead: 1.3rem 1.25rem 2.9rem 1.2rem; display: grid; grid-template-columns: var(--lead) minmax(0, 1fr) 1.8rem clamp(3.7rem, min(30%, 100% - 22.95rem - var(--col-scope)), var(--col-ver)) var(--col-scope); gap: 0.5rem; align-items: center; padding: 0 0.8rem; }
+   for a name beside the badges in the same cell: 21.25rem is the lead columns, the conflict icon, the
+   six gaps and those 11rem. */
+.th, .tr { --lead: 1.3rem 1.25rem 2.9rem; display: grid; grid-template-columns: var(--lead) minmax(0, 1fr) 1.8rem clamp(3.7rem, min(30%, 100% - 21.25rem - var(--col-scope)), var(--col-ver)) var(--col-scope); gap: 0.5rem; align-items: center; padding: 0 0.8rem; }
 .th { padding-top: 0.35rem; padding-bottom: 0.35rem; font-size: 0.7rem; color: var(--mu); border-bottom: 1px solid var(--ln); }
 .tr { padding-top: 0.2rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--ln); cursor: pointer; outline-offset: -2px; touch-action: none; }
 .tr { transition: background var(--fast), transform 160ms ease-out; }
@@ -259,12 +259,6 @@ button.bare.scope:hover { background: var(--ln); }
    ring, so they all read alike (the user, 2026-11-04). */
 :root:not([data-theme="light"]) .scope.unspecified i { box-shadow: 0 0 0 1px var(--scope-edge); }
 :root[data-theme="light"] .scope i { box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.85); }
-/* The update check beside the switches: one mod, a folder, or the whole list in the header */
-.bare.up-ck { padding: 0.1rem; justify-self: center; }
-.up-ck svg { width: 1rem; height: 1rem; }
-/* One check at a time, so the others wait, but only the row being checked changes to look at. */
-.up-ck:disabled { cursor: default; }
-.up-ck.spin svg { animation: spin 0.9s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .sw { width: 2.6rem; height: 1.4rem; border-radius: 2px; background: rgba(0, 0, 0, 0.35); position: relative; border: 1px solid var(--ln); padding: 0; cursor: pointer; transition: background var(--fast), border-color var(--fast); }
@@ -424,6 +418,8 @@ button.link:hover { filter: brightness(1.2); }
 .bare.dh-remove:hover { color: #fff; background: var(--danger-hi); }
 .dh h2 { margin: 0; font-family: "Saira Variable", sans-serif; font-size: 1.15rem; font-weight: 660; overflow-wrap: anywhere; }
 .dh .meta { font-size: 0.8rem; color: var(--mu); margin-top: 0.25rem; }
+/* A newer version found: offered under the version, as in the row. */
+.ver-up.dh-update { margin-top: 0.45rem; font-family: "Saira Variable", sans-serif; font-size: 0.78rem; font-weight: 600; }
 .dtabs { display: flex; padding: 0 0.3rem; border-bottom: 1px solid var(--ln); }
 .dtabs button { flex: 1; min-width: 0; background: none; border: 0; padding: 0.42rem 0.3rem; color: var(--mu); cursor: pointer; position: relative; display: flex; align-items: center; justify-content: center; gap: 0.35rem; box-shadow: inset 0 0 0 var(--gold); transition: color var(--fast), box-shadow var(--fast); }
 .dtabs button + button::before { content: ""; position: absolute; left: 0; top: 24%; bottom: 24%; width: 1px; background: var(--ln); }
@@ -744,10 +740,21 @@ button.thumb:hover { border-color: var(--gold); }
 .drag-ghost { position: fixed; z-index: 90; pointer-events: none; padding: 0.35rem 0.7rem; background: linear-gradient(160deg, var(--s1), var(--s2)); border-left: 3px solid var(--gold); box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4); font-size: 0.82rem; font-weight: 660; max-width: 18rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Batch actions for the checked mods */
-.batch-dock { position: absolute; left: 0.7rem; right: 0.7rem; bottom: 0.7rem; filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.55)); animation: tip-in var(--pop) ease-out; }
-.list.batched .tbody { padding-bottom: 3.6rem; }
-.batch { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.8rem; background: color-mix(in srgb, var(--gold) 9%, var(--s2)); box-shadow: inset 0 2px 0 var(--gold); }
-.batch-n { font-family: "Saira Variable", sans-serif; font-weight: 660; font-size: 0.85rem; margin-right: 0.4rem; color: var(--goldtx); }
+/* The bar over the foot of the list while mods are checked, and after a sort: a panel like a notice's,
+   floating, with the rows fading out above it so it has room. The count comes first with the gold mark
+   of a selection, then the actions, Remove last, and the close button at the end. No colored outline:
+   a bright line read as part of the list, with no space above the bar. */
+.batch-dock { position: absolute; z-index: 2; left: 0.9rem; right: 0.9rem; bottom: 0.9rem; filter: drop-shadow(0 8px 18px var(--float-shadow)); animation: tip-in var(--pop) ease-out; }
+.list:has(.batch-dock)::after { content: ""; position: absolute; z-index: 1; left: 0; right: 0; bottom: 0; height: 5.4rem; pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--p2) 2.2rem); animation: fade var(--pop) ease-out; }
+.list.batched .tbody, .list:has(.batch-dock) .tbody { padding-bottom: 4.8rem; }
+.batch { display: flex; align-items: center; gap: 0.45rem; padding: 0.45rem 0.55rem 0.45rem 0.9rem; }
+.batch-n { display: inline-flex; align-items: center; gap: 0.55rem; margin-right: 0.15rem; font-family: "Saira Variable", sans-serif; font-weight: 660; font-size: 0.85rem; color: var(--tx); white-space: nowrap; }
+.batch-n::before { content: ""; flex: none; width: 0.45rem; height: 0.45rem; background: var(--gold); transform: rotate(45deg); }
+.batch-sep { flex: none; align-self: stretch; width: 1px; margin: 0.2rem 0.3rem; background: var(--ln); }
+/* A check under way: the arrows turn, and the button waits without fading. */
+.btn.busy:disabled { opacity: 1; cursor: progress; }
+.btn.busy svg { animation: spin 0.9s linear infinite; }
 .batch .btn.small { height: 1.8rem; padding: 0 0.8rem; gap: 0.4rem; }
 .batch .btn.small svg { width: 0.95rem; height: 0.95rem; }
 .batch .btn.small.icon { width: 2.3rem; padding: 0; }
@@ -944,7 +951,7 @@ button.thumb:hover { border-color: var(--gold); }
 }
 .modal, .ctx, .picker, .select-list, .tip { background: var(--edge-corners), linear-gradient(160deg, var(--s1), var(--s2)); background-origin: border-box; }
 .notice { background: var(--edge-corners), linear-gradient(160deg, var(--n1), var(--n2)); background-origin: border-box; }
-.batch { background: var(--edge-corners), color-mix(in srgb, var(--gold) 9%, var(--s2)); background-origin: border-box; box-shadow: inset 0 2px 0 var(--gold), inset 0 0 0 var(--edge-w) var(--edge); }
+.batch { background: var(--edge-corners), linear-gradient(160deg, var(--n1), var(--n2)); background-origin: border-box; box-shadow: inset 0 0 0 var(--edge-w) var(--edge); }
 .wiki-step { background: var(--edge-corners), var(--row); background-origin: border-box; border-color: var(--edge); }
 .modal, .notice { box-shadow: inset 0 0 0 var(--edge-w) var(--edge); }
 .ctx, .picker, .select-list { border-color: var(--edge); border-top-color: var(--gold); box-shadow: none; }

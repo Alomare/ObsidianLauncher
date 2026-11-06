@@ -5,12 +5,13 @@ import { useEffect, useMemo, useState } from "react";
 import { run } from "../api";
 import { openColorPicker } from "../ColorPicker";
 import { Confirm } from "../Confirm";
-import { ArrowIcon, ChevronIcon, CloseIcon, ExternalIcon, FileIcon, InfoIcon, KeyboardIcon, LinkIcon, ResetIcon, SlidersIcon, TrashIcon } from "../Icons";
+import { ArrowIcon, ChevronIcon, CloseIcon, ExternalIcon, FileIcon, InfoIcon, KeyboardIcon, LinkIcon, ResetIcon, SlidersIcon, TrashIcon, UpArrowIcon } from "../Icons";
 import { language, pick, t } from "../i18n";
 import { Markdown, parse } from "../Markdown";
 import { Select } from "../Select";
 import { changelog, type ChangelogEntry } from "../updates";
 import { loadMore, useModReleases } from "./modReleases";
+import { offered } from "./modUpdates";
 import { Thumb } from "../Thumb";
 import type { ConflictRow, KeyRow, ModRow, OptionRow } from "../types";
 import { overrides, type Override } from "./conflicts";
@@ -29,11 +30,14 @@ type Props = {
   names: Map<string, string>;
   onOpen: (id: string) => void;
   onClose: () => void;
+  /** New versions found by the last check, by mod id: the panel offers them too. */
+  updates: Record<string, string>;
+  onUpdate: (id: string) => void;
 };
 
-export function Drawer({ view, mods, conflicts, order, names, onOpen, onClose }: Props) {
+export function Drawer({ view, mods, conflicts, order, names, onOpen, onClose, updates, onUpdate }: Props) {
   const mod = view?.kind === "mod" ? mods.find((m) => m.id === view.id) : undefined;
-  if (mod) return <ModDrawer key={mod.id} mod={mod} mods={mods} conflicts={conflicts} names={names} onOpen={onOpen} onClose={onClose} />;
+  if (mod) return <ModDrawer key={mod.id} mod={mod} mods={mods} conflicts={conflicts} names={names} onOpen={onOpen} onClose={onClose} update={offered(updates, mod)} onUpdate={() => onUpdate(mod.id)} />;
   if (view?.kind === "conflicts" || conflicts.length) return <ConflictsView conflicts={conflicts} order={order} names={names} focus={view?.kind === "conflicts" ? view.focus : undefined} onClose={view ? onClose : undefined} />;
   return null;
 }
@@ -42,7 +46,7 @@ type Tab = "about" | "options" | "keys" | "files" | "deps";
 
 const TAB_ICONS: Record<Tab, () => React.JSX.Element> = { about: InfoIcon, options: SlidersIcon, keys: KeyboardIcon, files: FileIcon, deps: LinkIcon };
 
-function ModDrawer({ mod, mods, conflicts, names, onOpen, onClose }: { mod: ModRow; mods: ModRow[]; conflicts: ConflictRow[]; names: Map<string, string>; onOpen: (id: string) => void; onClose: () => void }) {
+function ModDrawer({ mod, mods, conflicts, names, onOpen, onClose, update, onUpdate }: { mod: ModRow; mods: ModRow[]; conflicts: ConflictRow[]; names: Map<string, string>; onOpen: (id: string) => void; onClose: () => void; update: string | null; onUpdate: () => void }) {
   const [tab, setTab] = useState<Tab>("about");
   const [ask, setAsk] = useState(false);
   const name = pick(mod.name, mod.id);
@@ -57,6 +61,11 @@ function ModDrawer({ mod, mods, conflicts, names, onOpen, onClose }: { mod: ModR
           <div className="meta">
             {[mod.authors.join(", "), mod.version ?? t("app.mods.imported"), t(`app.scope.${mod.scope}`)].filter(Boolean).join(" · ")}
           </div>
+          {update && (
+            <button className="ver-up dh-update" onClick={onUpdate} data-tip={t("app.mods.updateHint")}>
+              <span>{t("app.mods.updateTo", update)}</span><UpArrowIcon />
+            </button>
+          )}
         </div>
         <div className="dh-end">
           <button className="bare" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /></button>

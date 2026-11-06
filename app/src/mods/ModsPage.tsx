@@ -152,7 +152,7 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
   const folderOf = (id: string) => snap.folders.find((f) => f.id === id);
   const membersOf = (id: string) => snap.mods.filter((m) => m.folder === id).map((m) => m.id);
 
-  /** The actions for some mods: the menu of a row, and the batch bar's "More". */
+  /** The actions for some mods: the menu of a row, or of every checked mod on a right click (or the Menu key) on one of them. */
   const modItems = (ids: string[]): MenuItem[] => {
     const one = ids.length === 1 ? byId.get(ids[0]) : undefined;
     const allOn = ids.every((id) => byId.get(id)?.on);
@@ -236,6 +236,9 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
   };
 
   const sel = inOrder([...checked]);
+  /** Of the checked mods, those that name a repository GitHub can be asked about. One check runs at a time. */
+  const selUpdatable = sel.filter((id) => byId.get(id)?.updatable);
+  const checkingUpdates = modUpdates.checking.length > 0;
   const waiting = snap.mods.filter((m) => offered(modUpdates.found, m)).map((m) => m.id);
   const askFolder = ask?.kind === "editFolder" || ask?.kind === "deleteFolder" ? folderOf(ask.id) : undefined;
   // The panel shows a selected mod, or the conflicts; with neither, the list takes the whole width.
@@ -287,8 +290,7 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
             onCollapse={(id, collapsed) => run("edit_folder", { id, collapsed })}
             onLock={(id, locked) => run("edit_folder", { id, locked })}
             onMenu={(x, y, target) => setMenu({ x, y, target })}
-            updates={modUpdates.found} onUpdate={(id) => setAsk({ kind: "update", id })}
-            checking={modUpdates.checking} onCheckUpdates={(ids, what) => checkModUpdates(ids, names, { what })} />
+            updates={modUpdates.found} onUpdate={(id) => setAsk({ kind: "update", id })} />
           {rows.length === 0 && searching && <p className="empty">{t("app.mods.noMatch")}</p>}
           {snap.mods.length === 0 && (
             <div className="list-empty">
@@ -305,11 +307,15 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
             <div className="batch-dock">
               <div className="batch" role="toolbar" aria-label={t("app.mods.selection")}>
                 <span className="batch-n">{t("app.mods.nChecked", sel.length)}</span>
+                <span className="batch-sep" aria-hidden="true" />
                 <button className="btn small icon" onClick={() => run("set_enabled", { ids: sel, on: true })} aria-label={t("app.menu.enable")} data-tip={t("app.menu.enable")}><SwitchOnIcon /></button>
                 <button className="btn small icon" onClick={() => run("set_enabled", { ids: sel, on: false })} aria-label={t("app.menu.disable")} data-tip={t("app.menu.disable")}><SwitchOffIcon /></button>
-                <button className="btn small" data-pop onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.top - 4, up: true, target: { kind: "mod", id: sel[0] } }); }}>
-                  <FolderIcon />{t("app.mods.moreActions")}
+                <button className={checkingUpdates ? "btn small busy" : "btn small"} disabled={!selUpdatable.length || checkingUpdates} aria-busy={checkingUpdates}
+                  data-tip-title={t("app.mods.checkUpdates")} data-tip={selUpdatable.length ? t("app.mods.checkUpdatesHint") : t("app.mods.checkUpdatesNone")}
+                  onClick={() => checkModUpdates(selUpdatable, names, { what: selUpdatable.length === 1 ? names.get(selUpdatable[0]) : undefined })}>
+                  <UpdateIcon />{t("app.mods.checkUpdates")}
                 </button>
+                <span className="batch-sep" aria-hidden="true" />
                 <button className="btn small danger" onClick={() => setAsk({ kind: "remove", ids: sel })}><TrashIcon />{t("app.menu.remove")}</button>
                 <button className="bare batch-x" onClick={() => setChecked(new Set())} aria-label={t("app.mods.uncheck")} data-tip={t("app.mods.uncheck")}><CloseIcon /></button>
               </div>
@@ -329,7 +335,8 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
           <>
             <div className="split" role="separator" aria-orientation="vertical" aria-label={t("app.mods.resize")} onPointerDown={resize}
               onDoubleClick={() => { setWidth(0); try { localStorage.removeItem(DRAWER_KEY); } catch { /* fine */ } }} data-tip={t("app.mods.resizeHint")} />
-            <Drawer view={view} mods={snap.mods} conflicts={shownConflicts} order={order} names={names} onOpen={(id) => setView({ kind: "mod", id })} onClose={() => setView(null)} />
+            <Drawer view={view} mods={snap.mods} conflicts={shownConflicts} order={order} names={names} onOpen={(id) => setView({ kind: "mod", id })} onClose={() => setView(null)}
+              updates={modUpdates.found} onUpdate={(id) => setAsk({ kind: "update", id })} />
           </>
         )}
       </div>
