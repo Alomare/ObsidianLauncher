@@ -113,7 +113,7 @@ describe("sort text rules", () => {
     for (const [k, v] of keys) {
       expect(v, k).not.toMatch(/\bits\b|—|…|\.\.\.|\b(I|me|my|we|our)\b|Arsenal/i);
     }
-    for (const k of ["app.sort.button", "app.sort.apply", "app.sort.undo", "app.sort.title"]) {
+    for (const k of ["app.sort.apply", "app.sort.undo", "app.sort.title"]) {
       const v = (en as Record<string, string>)[k];
       expect(v.split(" ").every((w) => /^[A-Z]/.test(w)), k).toBe(true);
     }

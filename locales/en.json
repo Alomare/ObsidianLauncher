@@ -454,7 +454,6 @@
   "app.build.fix2": "In Steam, right-click HELLDIVERS, open Properties > Installed Files and choose Verify integrity of game files.",
   "app.build.fix3": "Add the mods you had copied in with Add mods, so Obsidian deploys them without touching the game's files.",
   "app.build.note": "Adding mods compares them with the original files, so it waits until the files match again.",
-  "app.sort.button": "Sort",
   "app.sort.title": "Sort Mods",
   "app.sort.hint": "Puts the load order in line with what each mod asks for, such as loading last or after another mod. The changes show before anything moves.",
   "app.sort.lead": "%s mods move. The rest keep their order.",

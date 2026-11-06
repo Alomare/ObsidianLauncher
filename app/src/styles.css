@@ -161,10 +161,10 @@ button.nav-warn:hover { filter: brightness(1.2); text-decoration: underline; tex
   transition: filter var(--fast), background var(--fast);
 }
 /* On the light theme a grey fill alone melts into the panels, so buttons get a darker edge. The angled
-   buttons in the bar keep their colors alone, since the angles would cut an edge, and the profile
-   button keeps its own colored bar. The line across the fold is with the folded corners below. */
+   buttons in the bar keep their colors alone, since the angles would cut an edge. The line across the
+   fold is with the folded corners below. */
 :root[data-theme="light"] { --btn-edge: rgba(0, 0, 0, 0.28); }
-:root[data-theme="light"] .btn:not(.actions .btn):not(.profile-btn) { box-shadow: inset 0 0 0 1px var(--btn-edge); }
+:root[data-theme="light"] .btn:not(.actions .btn) { box-shadow: inset 0 0 0 1px var(--btn-edge); }
 .btn:hover:not(:disabled) { background: var(--btn-hi); }
 .actions .btn { clip-path: polygon(0.42rem 0, calc(100% - 0.42rem) 0, 100% 50%, calc(100% - 0.42rem) 100%, 0.42rem 100%, 0 50%); }
 .btn.go:hover:not(:disabled) { background: linear-gradient(180deg, #55dcac, #2bab7e); }
@@ -627,27 +627,27 @@ button.link.small { font-size: 0.8rem; margin-top: 0.45rem; }
 .modal.profiles .head .close { margin-left: auto; }
 .modal.profiles .lead { font-size: 0.88rem; line-height: 1.45; }
 .modal.profiles .profile { box-shadow: none; background: var(--row); }
-/* The Profile button: the profile's icon on a chip of its color, and the name in the body text color, so it
-   reads on both themes whatever the color. A bar of the color runs along the foot. */
-.btn.profile-btn { height: 2.3rem; padding: 0 0.95rem 0 0.28rem; gap: 0.6rem; text-transform: none; letter-spacing: 0; font-family: inherit; font-size: 0.95rem; font-weight: 600; color: var(--tx); background: var(--btn); box-shadow: inset 0 -2px 0 var(--pc, var(--gold)); }
-.btn.profile-btn:hover:not(:disabled) { background: var(--btn-hi); }
-:root[data-theme="light"] .btn.profile-btn { box-shadow: inset 0 0 0 1px var(--btn-edge), inset 0 -2px 0 var(--pc, var(--gold)); }
+/* The Mods tools: the profile, Create Folder, Add mods and Sort Mods as one strip in the look of the search
+   box at the other end, a line between the parts and the fold at the end (with the folded corners below).
+   The chip in the profile's color is the only color in it. Focus shows inside a part, where the fold can't
+   cut it off. */
+.mods .head { gap: 0.5rem; }
+.tools { flex: 0 1 auto; min-width: 0; display: flex; height: 2.3rem; border: 1px solid var(--ln); background: var(--row); }
+.tools > button { flex: none; display: inline-flex; align-items: center; justify-content: center; height: 100%; padding: 0; border: 0; background: none; color: var(--tx); cursor: pointer; transition: background var(--fast); }
+.tools > button + button { border-left: 1px solid var(--ln); }
+.tools > button:hover, .tools > button[aria-expanded="true"] { background: var(--ln); }
+.tools > button:focus-visible { outline-offset: -2px; }
+.tools > .tool { width: 2.6rem; }
+.tool svg { width: 1.15rem; height: 1.15rem; stroke-width: 2; }
+/* The profile: its icon on a chip of its color, in the ink that reads on that color, then the name in the
+   body text color, so it reads on both themes whatever the color. A long name gives way first. */
+.tools > .profile-btn { flex: 0 1 auto; min-width: 0; justify-content: flex-start; gap: 0.6rem; padding: 0 0.95rem 0 0.28rem; font-size: 0.95rem; font-weight: 660; }
 .profile-chip { display: grid; place-items: center; width: 1.75rem; height: 1.75rem; flex: none; background: var(--pc, var(--gold)); color: var(--pc-on, #1b1b1b); }
 .profile-chip svg { width: 1.05rem; height: 1.05rem; }
-.profile-name { max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mods .head { gap: 0.45rem; }
-.btn.head-btn { height: 2.3rem; width: 2.6rem; }
-.btn.head-update { height: 2.3rem; padding: 0 1rem; gap: 0.5rem; min-width: 0; font-size: 0.8rem; }
+.profile-name { min-width: 0; max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Never narrower than its words, which would break the count onto a second line. */
+.btn.head-update { flex: none; height: 2.3rem; padding: 0 1rem; gap: 0.5rem; min-width: 0; font-size: 0.8rem; white-space: nowrap; }
 .btn.head-update svg { width: 1.05rem; height: 1.05rem; }
-.btn.head-sort { height: 2.3rem; padding: 0 1rem; gap: 0.5rem; min-width: 0; font-size: 0.8rem; }
-.btn.head-sort svg { width: 1.05rem; height: 1.05rem; }
-.btn.head-btn.add { min-width: 4.2rem; background: linear-gradient(180deg, #3fcf9c, #239a70); color: #0d1f18; }
-.btn.head-btn.add:hover:not(:disabled) { background: linear-gradient(180deg, #55dcac, #2bab7e); }
-.btn.head-btn.add svg { width: 1.2rem; height: 1.2rem; stroke-width: 2.4; }
-.btn.head-btn.blue { background: linear-gradient(180deg, #6aaef0, #3b7cc4); color: #0c1a2b; }
-.btn.head-btn.blue:hover:not(:disabled) { background: linear-gradient(180deg, #82bdf5, #4a90d9); }
-.btn.head-btn.blue svg { width: 1.2rem; height: 1.2rem; }
-.profile-name { font-weight: 660; }
 
 /* Mod and profile images: square, cropped to fill. */
 .thumb { --ts: 2.15rem; flex: none; width: var(--ts); height: var(--ts); display: grid; place-items: center; overflow: hidden; padding: 0; background: var(--row); border: 1px solid var(--ln); color: var(--mu); font-family: "Saira Variable", sans-serif; font-weight: 660; font-size: 1.05rem; }
@@ -917,20 +917,20 @@ button.thumb:hover { border-color: var(--gold); }
 .ctx, .select-list { border-color: var(--edge); border-top-color: var(--gold); box-shadow: none; }
 .tip { box-shadow: inset 0 -2px 0 var(--gold), inset 0 0 0 var(--edge-w) var(--edge); }
 .tip.below { box-shadow: inset 0 2px 0 var(--gold), inset 0 0 0 var(--edge-w) var(--edge); }
-.btn:not(.actions .btn):not(.home-tuck):not(.profile-btn):not(.head-btn), .btn.head-btn.add, .btn.head-btn.blue, .search, .select-btn, .key-btn, .wiki-find {
+.btn:not(.actions .btn):not(.home-tuck), .search, .tools, .select-btn, .key-btn, .wiki-find {
   -webkit-mask: linear-gradient(315deg, transparent var(--cut-sm), #000 calc(var(--cut-sm) + 0.5px));
 }
 /* The fold takes the border with it, so a line in the color of the border closes the outline */
-.search, .select-btn, .key-btn { position: relative; }
-.search::after, .select-btn::after, .key-btn::after {
+.search, .tools, .select-btn, .key-btn { position: relative; }
+.search::after, .tools::after, .select-btn::after, .key-btn::after {
   content: ""; position: absolute; right: calc(var(--cut-sm) * -0.293 - 0.7px); bottom: calc(var(--cut-sm) * 0.707 - 0.7px); width: calc(var(--cut-sm) * 2 + 1px);
   border-top: 1px solid; border-top-color: inherit; transform: rotate(-45deg); pointer-events: none;
 }
 .key-btn::after { bottom: calc(var(--cut-sm) * 0.707 - 2.4px); }
 /* The light theme's button edge closes the same way. A button has no border, so the line sits on the
    fold itself: its middle is 0.707 of the cut plus half a pixel in from the corner, on both axes. */
-:root[data-theme="light"] :is(.btn:not(.actions .btn):not(.home-tuck):not(.profile-btn):not(.head-btn), .btn.head-btn.add, .btn.head-btn.blue) { position: relative; }
-:root[data-theme="light"] :is(.btn:not(.actions .btn):not(.home-tuck):not(.profile-btn):not(.head-btn), .btn.head-btn.add, .btn.head-btn.blue)::after {
+:root[data-theme="light"] .btn:not(.actions .btn):not(.home-tuck) { position: relative; }
+:root[data-theme="light"] .btn:not(.actions .btn):not(.home-tuck)::after {
   content: ""; position: absolute; right: calc(var(--cut-sm) * -0.293 - 0.15px); bottom: calc(var(--cut-sm) * 0.707 - 0.15px); width: calc(var(--cut-sm) * 2 + 1px);
   /* A slanted line smooths lighter than a straight one, so it is a shade darker to match the edges. */
   border-top: 1px solid rgba(0, 0, 0, 0.42); transform: rotate(-45deg); pointer-events: none;

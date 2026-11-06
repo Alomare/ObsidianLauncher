@@ -228,22 +228,25 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
   return (
     <div className="mods">
       <div className="head">
-        <button className="btn profile-btn" onClick={() => setProfiles(true)} aria-label={`${t("app.mods.profile")}: ${snap.profile}`} data-tip-title={t("app.mods.profile")} data-tip={t("app.mods.profileHint")}>
-          {profileImage ? <Thumb image={profileImage} name={snap.profile} size="sm" /> : <span className="profile-chip"><ProfilesIcon /></span>}
-          <span className="profile-name">{snap.profile}</span>
-        </button>
-        <button className="btn icon head-btn blue" onClick={() => setAsk({ kind: "newFolder", ids: [] })} aria-label={t("app.mods.createFolder")} data-tip-title={t("app.mods.createFolder")} data-tip={t("app.folder.newHint")}>
-          <FolderAddIcon />
-        </button>
-        <button className="btn icon head-btn add" data-pop aria-label={t("app.mods.add")} data-tip-title={t("app.mods.add")} data-tip={t("app.mods.addHint")}
-          onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAddMenu({ x: r.left, y: r.bottom + 4 }); }}>
-          <PlusIcon />
-        </button>
-        {snap.mods.length > 1 && (
-          <button className="btn head-sort" onClick={openSort} data-tip-title={t("app.sort.title")} data-tip={t("app.sort.hint")}>
-            <SortIcon />{t("app.sort.button")}
+        {/* The profile and the tools for its list, as one strip. */}
+        <div className="tools">
+          <button className="profile-btn" onClick={() => setProfiles(true)} aria-haspopup="dialog" aria-label={`${t("app.mods.profile")}: ${snap.profile}`} data-tip-title={t("app.mods.profile")} data-tip={t("app.mods.profileHint")}>
+            {profileImage ? <Thumb image={profileImage} name={snap.profile} size="sm" /> : <span className="profile-chip"><ProfilesIcon /></span>}
+            <span className="profile-name">{snap.profile}</span>
           </button>
-        )}
+          <button className="tool" onClick={() => setAsk({ kind: "newFolder", ids: [] })} aria-haspopup="dialog" aria-label={t("app.mods.createFolder")} data-tip-title={t("app.mods.createFolder")} data-tip={t("app.folder.newHint")}>
+            <FolderAddIcon />
+          </button>
+          <button className="tool" data-pop aria-haspopup="menu" aria-expanded={!!addMenu} aria-label={t("app.mods.add")} data-tip-title={t("app.mods.add")} data-tip={t("app.mods.addHint")}
+            onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAddMenu({ x: r.left, y: r.bottom + 4 }); }}>
+            <PlusIcon />
+          </button>
+          {snap.mods.length > 1 && (
+            <button className="tool" onClick={openSort} aria-haspopup="dialog" aria-label={t("app.sort.title")} data-tip-title={t("app.sort.title")} data-tip={t("app.sort.hint")}>
+              <SortIcon />
+            </button>
+          )}
+        </div>
         {waiting.length > 0 && <button className="btn play head-update" onClick={() => updateMods(waiting, names)}><UpdateIcon />{t("app.mods.updateAll", waiting.length)}</button>}
         <label className="search">
           <SearchIcon />
