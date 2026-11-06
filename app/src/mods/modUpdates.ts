@@ -1,6 +1,7 @@
 // Mod updates from GitHub (design: 2026-10-30-obsidian-mod-updates-design.md). A check runs at startup
 // and when the player asks, for one mod, a folder or the whole list, and what it finds lasts until the
-// app closes. Nothing installs by itself.
+// app closes. Nothing installs by itself. The core keeps each answer: the startup check takes one from
+// the last few hours instead of asking GitHub again, and a check the player starts always asks.
 import { useSyncExternalStore } from "react";
 import { call, errorText, setSnapshot } from "../api";
 import { withTask } from "../busy";
@@ -41,7 +42,7 @@ export async function checkModUpdates(ids: string[], names: Map<string, string>,
   if (state.checking.length) return;
   set({ checking: ids });
   try {
-    const list = await withTask(t("app.task.check_mod_updates"), () => call<Checked[]>("check_mod_updates", { ids }));
+    const list = await withTask(t("app.task.check_mod_updates"), () => call<Checked[]>("check_mod_updates", { ids, fresh: !startup }));
     // What this check didn't ask about keeps its last answer.
     const found = Object.fromEntries(Object.entries(state.found).filter(([id]) => !ids.includes(id)));
     for (const c of list) if (c.version) found[c.id] = c.version;

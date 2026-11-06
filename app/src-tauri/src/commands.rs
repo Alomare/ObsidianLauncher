@@ -500,15 +500,18 @@ pub async fn mod_releases(ctx: State<'_, Ctx>, id: String, page: u32) -> CmdResu
 }
 
 /// Asks GitHub about the mods in `ids` that name a repository. Only reading the library takes a
-/// turn, so the other commands don't wait for the network.
+/// turn, so the other commands don't wait for the network. Every answer is kept in the data folder;
+/// the check at startup (`fresh: false`) takes one from the last few hours instead of asking again,
+/// and a check the player starts always asks.
 #[tauri::command]
-pub async fn check_mod_updates(ctx: State<'_, Ctx>, ids: Vec<String>) -> CmdResult<Vec<ModUpdate>> {
+pub async fn check_mod_updates(ctx: State<'_, Ctx>, ids: Vec<String>, fresh: Option<bool>) -> CmdResult<Vec<ModUpdate>> {
     let mut mods = {
         let _turn = ctx.turn();
         Library::open(&ctx.data)?.list()?
     };
     mods.retain(|m| ids.contains(&m.id));
-    let checked = updates::check(&GitHub::default(), &mods);
+    let trust = (!fresh.unwrap_or(true)).then_some(updates::TRUST_SECS);
+    let checked = updates::check_remembering(&GitHub::default(), &mods, &ctx.data.join(updates::MEMORY_FILE), trust, updates::now_secs());
     Ok(checked
         .into_iter()
         .map(|c| match c.result {
