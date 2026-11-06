@@ -74,6 +74,8 @@ button.bare:hover { color: var(--tx); }
 .tab:hover { color: var(--tx); }
 /* The tab icons in rem, so they follow the UI scale: 22.5px at 100 %, a quarter over the 18px they had. */
 .tab svg { flex: none; width: 1.28rem; height: 1.28rem; }
+/* The cog fills more of the square than the others, so a tenth smaller it looks the same size. */
+.tab.tab-settings svg { width: 1.15rem; height: 1.15rem; }
 .tab.cur { color: var(--tx); background: linear-gradient(0deg, rgba(240, 180, 41, 0.18), transparent); box-shadow: inset 0 -3px 0 var(--gold); }
 .nav-end { margin-left: auto; display: flex; align-items: center; gap: 0.7rem; }
 /* A small window at a big scale: the tabs keep their icons, then the warning and Play theirs. Their tooltips
@@ -616,7 +618,7 @@ button.link.small { font-size: 0.8rem; margin-top: 0.45rem; }
 .tip-title:only-child { margin: 0; }
 .tab.lit { position: relative; color: var(--goldtx); }
 /* At the top right corner of the cog, measured from the middle of the tab so it follows the icon. */
-.tab-dot { position: absolute; top: calc(50% - 0.98rem); left: calc(50% + 0.61rem); width: 0.48rem; height: 0.48rem; background: var(--gold); transform: rotate(45deg); animation: tab-dot 1.4s ease-in-out infinite alternate; }
+.tab-dot { position: absolute; top: calc(50% - 0.92rem); left: calc(50% + 0.55rem); width: 0.48rem; height: 0.48rem; background: var(--gold); transform: rotate(45deg); animation: tab-dot 1.4s ease-in-out infinite alternate; }
 @keyframes tab-dot { to { opacity: 0.35; } }
 .sb-btn.lit { color: var(--goldtx); font-weight: 600; }
 .sb-dot { width: 0.42rem; height: 0.42rem; background: var(--gold); transform: rotate(45deg); display: inline-block; }

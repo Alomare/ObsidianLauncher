@@ -47,7 +47,7 @@ export const CogIcon = () => (
   </Icon>
 );
 /** An eraser: Purge wipes what Obsidian wrote, back to vanilla. */
-export const PurgeIcon = () => <Icon width="21" height="21" strokeWidth="2"><path d="M9 20.5L2.8 14.3a1 1 0 0 1 0-1.4l9.5-9.5a1 1 0 0 1 1.4 0l6.8 6.8a1 1 0 0 1 0 1.4L11.6 20.5z" /><path d="M7.5 8.6l8.4 8.4M9 20.5h12" /></Icon>;
+export const PurgeIcon = () => <Icon width="22.7" height="22.7" strokeWidth="2"><path d="M9 20.5L2.8 14.3a1 1 0 0 1 0-1.4l9.5-9.5a1 1 0 0 1 1.4 0l6.8 6.8a1 1 0 0 1 0 1.4L11.6 20.5z" /><path d="M7.5 8.6l8.4 8.4M9 20.5h12" /></Icon>;
 /** A box with an arrow leaving it: the mods go out into the game. Drawn like Purge. */
 export const DeployIcon = () => <Icon width="24" height="24" strokeWidth="1.9"><path d="M9.5 9l6.5 3.5v7L9.5 23 3 19.5v-7z" /><path d="M3 12.5l6.5 3.5 6.5-3.5M9.5 16v7" /><path d="M13.5 9.5L21 2M15.5 2H21v5.5" /></Icon>;
 export const PlayIcon = () => <Icon fill="currentColor" stroke="none"><path d="M7 4.5v15l13-7.5z" /></Icon>;
