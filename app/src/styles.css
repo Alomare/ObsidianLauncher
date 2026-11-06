@@ -774,7 +774,11 @@ button.thumb:hover { border-color: var(--gold); }
 .ctx-ico { width: 1rem; display: inline-flex; justify-content: center; color: var(--mu); }
 .ctx-ico svg { width: 1rem; height: 1rem; }
 .ctx > button.danger .ctx-ico { color: inherit; }
-.ctx-swatch { width: 0.8rem; height: 0.8rem; display: block; }
+.ctx-swatch { width: 0.8rem; height: 0.8rem; display: block; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25); }
+/* One of a set of choices, as the profiles in the profile menu: the chosen one in gold. */
+.ctx > button[aria-checked="true"] .ctx-label { color: var(--goldtx); font-weight: 660; }
+.ctx-guards { display: inline-flex; gap: 0.3rem; margin-left: 1rem; }
+.ctx-guards .consent-ico { margin-left: 0; vertical-align: 0; }
 .ctx-label { flex: 1; }
 .ctx-hint { color: var(--mu); font-size: 0.75rem; }
 .ctx-more { display: inline-flex; color: var(--mu); transform: rotate(-90deg); }

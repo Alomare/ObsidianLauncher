@@ -9,10 +9,10 @@ import { notify } from "../notices";
 import { SortDialog, SortIcon, type SortPlan } from "./SortDialog";
 import { Confirm } from "../Confirm";
 import { ContextMenu, type MenuItem } from "../ContextMenu";
-import { ChevronIcon, CloseIcon, ExternalIcon, FolderAddIcon, FolderIcon, ImportIcon, LockIcon, PlusIcon, ProfilesIcon, SearchIcon, SwitchOffIcon, SwitchOnIcon, TrashIcon, UnlockIcon, UpdateIcon } from "../Icons";
+import { ChevronIcon, CloseIcon, ExternalIcon, FolderAddIcon, FolderIcon, ImportIcon, LockIcon, PlusIcon, ProfilesIcon, SearchIcon, SlidersIcon, SwitchOffIcon, SwitchOnIcon, TrashIcon, UnlockIcon, UpdateIcon } from "../Icons";
 import { language, pick, t } from "../i18n";
 import { useNav } from "../nav";
-import { ProfilesDialog } from "../ProfilesDialog";
+import { ProfileGuards, ProfilesDialog } from "../ProfilesDialog";
 import { Thumb } from "../Thumb";
 import type { ModRow, Snapshot } from "../types";
 import { winners } from "./conflicts";
@@ -57,6 +57,7 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [menu, setMenu] = useState<{ x: number; y: number; up?: boolean; target: MenuTarget } | null>(null);
   const [addMenu, setAddMenu] = useState<{ x: number; y: number } | null>(null);
+  const [profileMenu, setProfileMenu] = useState<{ x: number; y: number; opener: HTMLElement } | null>(null);
   const [ask, setAsk] = useState<Ask>(null);
   const [width, setWidth] = useState(savedWidth);
   const [sortPlan, setSortPlan] = useState<SortPlan | null>(null);
@@ -67,6 +68,21 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
   const search = useRef<HTMLInputElement>(null);
   const { tab } = useNav();
   const profileImage = snap.profileRows.find((p) => p.name === snap.profile)?.image ?? null;
+  /** Other profiles to switch to: the profile button opens a menu of them. */
+  const choose = snap.profileRows.length > 1;
+  const openProfileMenu = (el: HTMLElement) => {
+    const r = el.getBoundingClientRect();
+    setProfileMenu({ x: r.left, y: r.bottom + 4, opener: el });
+  };
+  /** Manage opens the profiles dialog; below it every profile, with its color and guardrails, switches on a click. */
+  const profileItems = (): MenuItem[] => [
+    { label: t("app.profiles.manage"), icon: <SlidersIcon />, run: () => setProfiles(true) },
+    "sep",
+    ...snap.profileRows.map((p): MenuItem => ({
+      label: p.name, swatch: p.color ?? "var(--gold)", checked: p.name === snap.profile, extra: <span className="ctx-guards"><ProfileGuards p={p} /></span>,
+      run: () => { if (p.name !== snap.profile) run("use_profile", { name: p.name }); },
+    })),
+  ];
 
   const byId = useMemo(() => new Map(snap.mods.map((m) => [m.id, m])), [snap.mods]);
   const lang = language();
@@ -228,11 +244,15 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
   return (
     <div className="mods">
       <div className="head">
-        {/* The profile as a choice, then the tools for its list: Sort and Create Folder as icons, Add as the main one. */}
-        <button className="profile-btn" onClick={() => setProfiles(true)} aria-haspopup="dialog" aria-label={`${t("app.mods.profile")}: ${snap.profile}`} data-tip-title={t("app.mods.profile")} data-tip={t("app.mods.profileHint")}>
+        {/* The profile as a choice, then the tools for its list: Sort and Create Folder as icons, Add as the main one.
+            With other profiles to switch to, the profile opens a menu of them; with one, the profiles dialog. */}
+        <button className="profile-btn" data-pop aria-haspopup={choose ? "menu" : "dialog"} aria-expanded={choose ? !!profileMenu : undefined}
+          aria-label={`${t("app.mods.profile")}: ${snap.profile}`} data-tip-title={t("app.mods.profile")} data-tip={t("app.mods.profileHint")}
+          onClick={(e) => (!choose ? setProfiles(true) : profileMenu ? setProfileMenu(null) : openProfileMenu(e.currentTarget))}
+          onKeyDown={(e) => { if (choose && (e.key === "ArrowDown" || e.key === "ArrowUp")) { e.preventDefault(); openProfileMenu(e.currentTarget); } }}>
           {profileImage ? <Thumb image={profileImage} name={snap.profile} size="sm" /> : <span className="profile-chip"><ProfilesIcon /></span>}
           <span className="profile-name">{snap.profile}</span>
-          <ChevronIcon />
+          {choose && <ChevronIcon />}
         </button>
         {snap.mods.length > 1 && (
           <button className="btn icon head-tool" onClick={openSort} aria-haspopup="dialog" aria-label={t("app.sort.title")} data-tip-title={t("app.sort.title")} data-tip={t("app.sort.hint")}>
@@ -319,6 +339,9 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
           onApply={() => applySort(sortPlan)} onClose={() => setSortPlan(null)} />
       )}
       {menu && <ContextMenu x={menu.x} y={menu.y} up={menu.up} items={menuItems(menu.target)} onClose={() => setMenu(null)} />}
+      {profileMenu && choose && (
+        <ContextMenu x={profileMenu.x} y={profileMenu.y} opener={profileMenu.opener} label={t("app.profiles.title")} onClose={() => setProfileMenu(null)} items={profileItems()} />
+      )}
       {addMenu && (
         <ContextMenu x={addMenu.x} y={addMenu.y} onClose={() => setAddMenu(null)} items={[
           { label: t("app.mods.importZip"), icon: <ImportIcon />, run: () => pickAndImport(false) },

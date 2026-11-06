@@ -257,6 +257,7 @@
   "app.profiles.rename": "Rename",
   "app.profiles.renameTitle": "Rename %s",
   "app.profiles.title": "Profiles",
+  "app.profiles.manage": "Manage Profiles",
   "app.profiles.use": "Use",
   "app.profiles.zipFilter": "Obsidian profile",
   "app.report.copied": "The report is on the clipboard, ready to paste into a bug report.",

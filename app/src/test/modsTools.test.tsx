@@ -2,7 +2,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { t } from "../i18n";
-import type { ModRow, Snapshot } from "../types";
+import type { ModRow, ProfileRow, Snapshot } from "../types";
 
 const invoke = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/api/core", () => ({ invoke, convertFileSrc: (p: string) => p }));
@@ -17,9 +17,9 @@ const mod = (id: string): ModRow => ({
   id, name: { en: id }, description: {}, authors: [], version: "1.0.0", scope: "client", on: true, options: [], keybinds: [], files: [],
   import: null, source: null, updatable: false, image: null, customImage: false, folder: null, requires: [],
 });
-const snap = (ids: string[]): Snapshot => ({
-  mods: ids.map(mod), folders: [], profile: "Default", profiles: ["Default"],
-  profileRows: [{ name: "Default", on: ids.length, blockPublic: false, guarded: false, image: null, color: null }],
+const row = (name: string, extra: Partial<ProfileRow> = {}): ProfileRow => ({ name, on: 0, blockPublic: false, guarded: false, image: null, color: null, ...extra });
+const snap = (ids: string[], profileRows: ProfileRow[] = [row("Default")]): Snapshot => ({
+  mods: ids.map(mod), folders: [], profile: "Default", profiles: profileRows.map((p) => p.name), profileRows,
   blockPublic: false, blockAchievements: false, freezeProgress: false, conflicts: [], changes: "UpToDate", deployed: true, game: "supported",
   gameChanges: [], gameDir: "C:\\Game", crashCulprit: null, broken: [], damagedProfiles: [], uncleanEnd: null, portable: false, version: "1.3.1",
 });
@@ -49,12 +49,80 @@ describe("the head of the Mods page", () => {
     expect(parts.map((b) => b.getAttribute("aria-haspopup"))).toEqual(["dialog", "dialog", "dialog", "menu"]);
   });
 
-  it("shows the profile as a choice: the chip, the name and an arrow", () => {
+  it("with one profile, shows the chip and the name with no arrow, and opens the profiles dialog", () => {
     const profile = show(snap(["a.one", "b.two"]))[0];
     expect(profile.classList.contains("profile-btn")).toBe(true);
     expect(profile.querySelector(".profile-chip")).not.toBeNull();
     expect(profile.textContent).toBe("Default");
-    expect(profile.querySelectorAll(":scope > svg")).toHaveLength(1);
+    expect(profile.querySelectorAll(":scope > svg")).toHaveLength(0);
+    expect(profile.getAttribute("aria-haspopup")).toBe("dialog");
+    act(() => profile.click());
+    expect(document.querySelector(".modal.profiles")).not.toBeNull();
+    expect(document.querySelector(".ctx")).toBeNull();
+  });
+
+  describe("with other profiles", () => {
+    const two = () => snap(["a.one", "b.two"], [row("Default", { color: "#123456" }), row("Fun", { blockPublic: true, guarded: true })]);
+    const items = () => [...document.querySelectorAll<HTMLButtonElement>(".ctx > button")];
+
+    it("shows an arrow and opens a menu: Manage Profiles, then every profile with its color and guardrails, the one in use checked", () => {
+      const profile = show(two())[0];
+      expect(profile.querySelectorAll(":scope > svg")).toHaveLength(1);
+      expect(profile.getAttribute("aria-haspopup")).toBe("menu");
+      expect(profile.getAttribute("aria-expanded")).toBe("false");
+      act(() => profile.click());
+      expect(profile.getAttribute("aria-expanded")).toBe("true");
+      expect(document.querySelector(".ctx")!.getAttribute("aria-label")).toBe(t("app.profiles.title"));
+      expect(items().map((b) => b.querySelector(".ctx-label")!.textContent)).toEqual([t("app.profiles.manage"), "Default", "Fun"]);
+      expect(items().map((b) => b.getAttribute("role"))).toEqual(["menuitem", "menuitemradio", "menuitemradio"]);
+      expect(items().map((b) => b.getAttribute("aria-checked"))).toEqual([null, "true", "false"]);
+      expect(items()[1].querySelector<HTMLElement>(".ctx-swatch")!.style.background).toBe("rgb(18, 52, 86)");
+      expect(items().slice(1).map((b) => b.querySelectorAll(".ctx-guards .consent-ico.on").length)).toEqual([0, 2]);
+      expect(items()[2].querySelectorAll(".ctx-guards [role=img]")).toHaveLength(2);
+    });
+
+    it("switches to a profile on a click, does nothing for the one in use, and Manage Profiles opens the dialog", async () => {
+      invoke.mockResolvedValue(two());
+      const profile = show(two())[0];
+      act(() => profile.click());
+      await act(async () => items()[2].click());
+      expect(invoke).toHaveBeenCalledWith("use_profile", { name: "Fun" });
+      expect(document.querySelector(".ctx")).toBeNull();
+      invoke.mockClear();
+      act(() => profile.click());
+      act(() => items()[1].click());
+      expect(invoke).not.toHaveBeenCalledWith("use_profile", expect.anything());
+      act(() => profile.click());
+      act(() => items()[0].click());
+      expect(document.querySelector(".modal.profiles")).not.toBeNull();
+    });
+
+    it("works from the keys: Arrow Down opens it at Manage, arrows, Home and End move, Esc closes it and the focus goes back", () => {
+      const profile = show(two())[0];
+      profile.focus();
+      act(() => profile.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
+      expect(document.activeElement).toBe(items()[0]);
+      const key = (k: string) => act(() => document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true })));
+      key("ArrowDown");
+      expect(document.activeElement).toBe(items()[1]);
+      key("End");
+      expect(document.activeElement).toBe(items()[2]);
+      key("ArrowDown");
+      expect(document.activeElement).toBe(items()[0]);
+      key("Home");
+      expect(document.activeElement).toBe(items()[0]);
+      act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
+      expect(document.querySelector(".ctx")).toBeNull();
+      expect(document.activeElement).toBe(profile);
+      expect(profile.getAttribute("aria-expanded")).toBe("false");
+    });
+
+    it("closes on a second click of the profile", () => {
+      const profile = show(two())[0];
+      act(() => profile.click());
+      act(() => profile.click());
+      expect(document.querySelector(".ctx")).toBeNull();
+    });
   });
 
   it("shows Sort and Create Folder as icons with a tooltip, and Add with a word in the color of the main action", () => {
