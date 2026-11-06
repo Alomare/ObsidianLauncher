@@ -6,7 +6,7 @@ summary: Importing a mod from a .zip or a folder, updating one, and removing one
 
 ## Importing
 
-Drag a mod folder or a `.zip` file onto the mod list in the [Mods](app:mods) tab, or click the green **+** beside Create Folder and pick one. Several files can go in at once, and a notification says what happened to each one.
+Drag a mod folder or a `.zip` file onto the mod list in the [Mods](app:mods) tab, or click the green **Add** button above the list and pick one. Several files can go in at once, and a notification says what happened to each one.
 
 Obsidian copies the mod into the library, so you can delete the download afterwards. Importing changes nothing in the game until you deploy.
 

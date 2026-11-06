@@ -10,7 +10,7 @@ The number beside each mod is the place of that mod in the load order. When two 
 
 ## Sort Mods
 
-A mod can ask for a place in the load order: first, last, before or after other mods, or before or after every mod that replaces game files. The **Sort** button at the top of the Mods tab puts the list in line with those requests, for mods that are on and off alike.
+A mod can ask for a place in the load order: first, last, before or after other mods, or before or after every mod that replaces game files. The **Sort Mods** button, right after the profile at the top of the Mods tab, puts the list in line with those requests, for mods that are on and off alike.
 
 Nothing moves until you choose **Apply**. The Sort Mods window first lists the whole new order, with each moved mod marked, the old and new place, and the reason. Hover over a reason that mentions files to see them. After Apply, **Undo** in the bar at the foot of the list puts the old order back.
 
@@ -35,7 +35,7 @@ A conflict is often fine. Two mods may change the same script on purpose, and th
 
 Folders group mods in the list. They change nothing in the game: the load order still runs from the top of the list to the bottom, through every folder.
 
-- The blue **Create Folder** button beside the Profile button makes one. Right-click checked mods to put them in a new folder.
+- The **Create Folder** button at the top of the Mods tab makes one. Right-click checked mods to put them in a new folder.
 - Drag mods onto a folder name to move them in, and drag the folder to move the mods in it together.
 - Click the arrow to fold a folder away.
 - Right-click a folder to rename it, change the color, or delete it. Deleting asks whether the mods go too or stay in the list.

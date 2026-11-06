@@ -18,7 +18,7 @@ Each deploy runs these steps:
 4. Compile the Lua of every mod, and the loader, into code the game can run.
 5. Write one patch per game bundle, and the list of deployed mods for the loader.
 
-**Play** starts the game with the mods you last deployed. It doesn't deploy, so changes that are waiting stay out of the game until you press **Deploy**.
+**Play** starts the game with the mods you last deployed. It doesn't deploy, so changes that are waiting stay out of the game until you press **Deploy**. With nothing deployed, Play asks first, as the game would start vanilla. **Don't ask again** stops the question, and **Ask before playing vanilla** in Settings, System brings it back.
 
 ## Purge
 
@@ -34,7 +34,7 @@ Purge deletes every file Obsidian wrote and checks that none is left. The game i
 
 Obsidian was made for one Steam build of HELLDIVERS. If some game files differ from it, the bar at the top says **Game files changed**. Click it to see which files differ and what to do. Deploy and Play still work, and Obsidian never writes over the game's own files.
 
-HD1 hasn't been updated since 2020, so this almost always means a mod was copied straight into the `contents` folder. Obsidian's mods load on top of it, and where both change the same thing, Obsidian's wins. To get the known files back, purge, verify the game files in Steam, then add the copied mod with **Add mods**. Adding mods waits until the files match again, since it compares each mod with the original files.
+HD1 hasn't been updated since 2020, so this almost always means a mod was copied straight into the `contents` folder. Obsidian's mods load on top of it, and where both change the same thing, Obsidian's wins. To get the known files back, purge, verify the game files in Steam, then add the copied mod with **Add**. Adding mods waits until the files match again, since it compares each mod with the original files.
 
 The loader checks the game's version every time the game starts. On a version it doesn't know, no mod runs and the game says so.
 

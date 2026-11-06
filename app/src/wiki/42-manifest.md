@@ -77,7 +77,7 @@ summary: Every field of the file that describes a mod.
 | `before_patches` | `true` to load before every mod that replaces game files (has `resources`). |
 | `after_patches` | `true` to load after every mod that replaces game files. |
 
-A new mod takes the place it asks for when it joins a profile. After that the player's order stands until the player clicks **Sort** on the Mods tab ([Sort Mods](wiki:load-order#sort-mods)), which moves only the mods that need it. Ids of mods the player doesn't have are skipped, and Sort Mods says so.
+A new mod takes the place it asks for when it joins a profile. After that the player's order stands until the player clicks **Sort Mods** on the Mods tab ([Sort Mods](wiki:load-order#sort-mods)), which moves only the mods that need it. Ids of mods the player doesn't have are skipped, and Sort Mods says so.
 
 Ask only for what the mod needs. Two mods that both ask to load last, or that ask to load after each other, can't both have their way: Sort Mods leaves them where they are and tells the player to order them by hand.
 
