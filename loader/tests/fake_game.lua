@@ -25,6 +25,7 @@ for component, list in pairs({
 	customization = "set_customization communication_event enable_heavy_armor disable_heavy_armor set_visible set_silhouette_color",
 	enemy_target = "enable disable",
 	enemy = "remove_from_group damage_taken",
+	interactor = "force_interaction",
 	research_sample_pickup = "interact",
 	show_on_map = "show",
 	stratagem = "set_thrown_direction",

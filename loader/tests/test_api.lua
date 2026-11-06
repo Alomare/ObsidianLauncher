@@ -4758,4 +4758,218 @@ test("obsidian_patches_binds_four_options_to_the_mods_page", function()
 	E.eq(type(page.rows[2].label), "table", "words by language")
 end)
 
+-- API 1.36.0: weapons by slot, one weapon on one target, fight's choices, launcher reloads and seats.
+
+test("a_bot_takes_out_the_weapon_of_a_slot_and_a_switch_is_one_tap", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add()
+	E.eq(select(2, bot:wield("support")), "no_avatar")
+	local u = game.land(2, { x = 5, y = 1, z = 0 })
+	game.step(1)
+	local t = u.master.input.input_data
+	local inv = u.master.inventory
+	local rifle = { alive = true, owned = true, master = { firearm = {} }, slave = {} }
+	local mg = { alive = true, owned = true, master = { firearm = {} }, slave = {} }
+	inv.primary_weapon, inv.current_weapon = rifle, rifle
+	E.eq(bot:wielding(), "primary_weapon")
+	E.eq(select(2, bot:wield("knife")), "bad_slot")
+	E.eq(select(2, bot:wield("support")), "no_weapon")
+	inv.support_weapon = mg
+	game.commands = {}
+	E.eq(bot:wield("support"), true)
+	game.step(1)
+	local c = G.command(game, "inventory", "wield")
+	E.eq(c and c.data.weapon, "support_weapon", "the machine gun comes out")
+	E.eq(c.data.force, true)
+	inv.current_weapon = mg
+	E.eq(bot:wielding(), "support_weapon")
+	-- The pad's switch button: the press and the release in one frame, which the game reads as a tap,
+	-- never as the button held (that one swaps the sidearm and the support weapon).
+	bot:switch()
+	game.step(1)
+	E.eq(t.switch_weapon_down, true)
+	E.eq(t.switch_weapon_up, true, "released in the same frame")
+	game.step(1)
+	E.eq(t.switch_weapon_down, false, "one frame only")
+	E.eq(t.switch_weapon_up, false)
+end)
+
+test("a_bot_fires_one_weapon_at_one_target_and_takes_back_the_one_from_before", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add()
+	local enemy = game.enemies[1]
+	E.eq(select(2, bot:use_weapon("support", enemy)), "no_avatar")
+	local u = game.land(2, { x = 3, y = 5, z = 0 })
+	game.step(1)
+	local t = u.master.input.input_data
+	local inv = u.master.inventory
+	local function gun(ws) return { alive = true, owned = true, master = { weapon = ws }, slave = {} } end
+	local rifle = gun({ reloadable = true, rounds = 30, num_mags = 3 })
+	local eat = gun({ reloadable = true, rounds = 1, num_mags = 0, fully_automatic = false })
+	inv.primary_weapon, inv.current_weapon = rifle, rifle
+	rawget(_G, "EntityAux").state_master_interface = function(unit, i) return i == "weapon" and unit.master.weapon or nil end
+	E.eq(select(2, bot:use_weapon("knife", enemy)), "bad_slot")
+	E.eq(select(2, bot:use_weapon("support", enemy)), "no_weapon")
+	inv.support_weapon = eat
+	E.eq(select(2, bot:use_weapon("support", nil)), "no_target")
+	local done
+	E.eq(bot:use_weapon("support", enemy, function(ok, why) done = { ok, why } end), true)
+	E.eq(select(2, bot:use_weapon("support", enemy)), "busy")
+	E.eq(bot:using_weapon(), "support_weapon")
+	E.eq(select(2, bot:using_weapon()), enemy)
+	game.commands = {}
+	game.step(1)
+	local c = G.command(game, "inventory", "wield")
+	E.eq(c and c.data.weapon, "support_weapon", "the launcher comes out")
+	E.eq(t.fire_button, 0, "no trigger before it's in hand")
+	inv.current_weapon = eat
+	game.step(1)
+	E.eq(t.aim.y, -1, "faces the target")
+	E.eq(t.fire_button, 1, "and pulls the trigger")
+	E.eq(t.move.x, 0, "standing still")
+	-- The rocket is out and the EAT leaves the slot.
+	inv.support_weapon, inv.current_weapon = nil, nil
+	game.step(1)
+	E.eq(done and done[1], true)
+	E.eq(done[2], "spent")
+	E.eq(bot:using_weapon(), false)
+	game.commands = {}
+	game.step(1)
+	c = G.command(game, "inventory", "wield")
+	E.eq(c and c.data.weapon, "primary_weapon", "back to the rifle")
+	-- cancel_weapon ends one early, and the rifle comes back as well.
+	inv.current_weapon, inv.support_weapon = rifle, eat
+	E.eq(bot:cancel_weapon(), false, "nothing to cancel")
+	bot:use_weapon("support", enemy, function(ok, why) done = { ok, why } end)
+	E.eq(bot:cancel_weapon(), true)
+	game.step(1)
+	E.eq(done[1], false)
+	E.eq(done[2], "cancelled")
+end)
+
+test("fight_keeps_a_chosen_weapon_out_and_shoots_only_the_enemies_a_mod_picks", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 4, y = 1, z = 0 })
+	game.step(1)
+	local t = u.master.input.input_data
+	local inv = u.master.inventory
+	local rifle = { alive = true, owned = true, master = { firearm = {} }, slave = {} }
+	local pistol = { alive = true, owned = true, master = { firearm = {} }, slave = {} }
+	inv.primary_weapon, inv.sidearm_weapon, inv.current_weapon = rifle, pistol, rifle
+	local asked = {}
+	bot:fight(25, { weapon = "sidearm", only = function(enemy) asked[#asked + 1] = enemy return false end })
+	game.commands = {}
+	game.step(1)
+	local c = G.command(game, "inventory", "wield")
+	E.eq(c and c.data.weapon, "sidearm_weapon", "the pistol comes out")
+	E.eq(t.fire_button, 0, "no enemy picked")
+	E.eq(asked[1], game.enemies[1], "only is asked about the enemies in reach")
+	E.eq(#bot:enemies_in_sight(25), 1)
+	E.eq(#bot:enemies_in_sight(25, function() return false end), 0)
+	E.eq(bot:sees(game.enemies[1]), true)
+	bot:fight(25, { only = function(enemy) return enemy == game.enemies[1] end })
+	game.step(20)
+	E.eq(t.fire_button, 1, "fires at the one it picks")
+	-- An error in only picks nothing, and is logged once.
+	bot:fight(25, { only = function() error("oops") end })
+	game.step(20)
+	E.eq(t.fire_button, 0)
+end)
+
+test("a_bot_reloads_a_launcher_only_from_the_backpack_it_wears", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 5, y = 1, z = 0 })
+	local ws = { reloadable = true, assisted_reload = true, rounds = 0, num_mags = 0 }
+	local launcher = { alive = true, owned = true, master = { weapon = ws }, slave = {} }
+	u.master.inventory.current_weapon = launcher
+	rawget(_G, "EntityAux").state_master_interface = function(unit, i) return i == "weapon" and unit.master.weapon or nil end
+	game.step(2)
+	local t = u.master.input.input_data
+	E.eq(t.reload_pressed, false, "no backpack: the reload is a teammate's")
+	ws.backpack_for_reload = { alive = true }
+	game.step(2)
+	E.eq(t.reload_pressed, true, "its own backpack loads it")
+	E.eq(t.fire_button, 0)
+end)
+
+test("enemy_info_gives_the_armor_and_the_large_mark", function()
+	local api, game = start()
+	game.enemies[1].settings = { health_info = { armor_min = 30, armor_max = 60, large = true } }
+	local info = api.enemies.info(game.enemies[1])
+	E.eq(info.armor_min, 30)
+	E.eq(info.armor_max, 60)
+	E.eq(info.large, true)
+	E.eq(api.enemies.info(game.enemies[2]).large, false)
+end)
+
+test("a_bot_walks_to_a_seat_door_gets_in_gets_out_and_rides_along", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local apc = game.apc
+	apc.pos = { x = 10, y = 1, z = 0 }
+	apc.settings.vehicle_info = { vehicle_type = "apc" }
+	apc.settings.seat_info = { { name = "driver", actor = "a_driver" }, { name = "gunner", actor = "a_gunner" } }
+	apc.slave.seat = { seated_units = {}, weapon_index_to_seat = {}, seat_weapon_units = {} }
+	rawget(_G, "Unit").actor = function(_, name) return "actor:" .. name end
+	local bot = api.bots.add()
+	E.eq(select(2, bot:enter_vehicle(apc)), "no_avatar")
+	local u = game.land(2, { x = 1, y = 5, z = 0 })
+	u.master.interactor = {}
+	game.step(1)
+	local t = u.master.input.input_data
+	E.eq(api.vehicles.kind(apc), "apc")
+	local seats = api.vehicles.seats(apc)
+	E.eq(#seats, 2)
+	E.eq(seats[1].drives, true)
+	E.eq(seats[2].free, true)
+	E.eq(select(2, bot:enter_vehicle(game.enemies[1])), "no_vehicle")
+	E.eq(select(2, bot:enter_vehicle(apc, 3)), "no_seat")
+	local done
+	E.eq(bot:enter_vehicle(apc, function(ok, why) done = { ok, why } end), true)
+	E.eq(select(2, bot:boarding()), 2, "a seat that doesn't steer first")
+	game.commands = {}
+	game.step(1)
+	E.eq(t.move.x > 0, true, "walks to the door")
+	E.eq(G.command(game, "interactor", "force_interaction"), nil, "not from afar")
+	u.pos = { x = 9, y = 1, z = 0 }
+	game.step(1)
+	local c = G.command(game, "interactor", "force_interaction")
+	E.eq(c and c.data.interactable_unit, apc, "at the door it asks for the seat")
+	E.eq(c.data.interactable_component, "seat")
+	E.eq(c.data.interactable_actor, "actor:a_gunner")
+	local cs = u.master.character
+	cs.current_seat_unit, cs.current_seat_index = apc, 2
+	apc.slave.seat.seated_units[2] = u
+	game.step(1)
+	E.eq(done and done[1], true, "seated")
+	E.eq(bot:seat(), apc)
+	E.eq(select(2, bot:seat()), 2)
+	E.eq(bot:boarding(), false)
+	E.eq(select(2, bot:enter_vehicle(apc)), "seated")
+	E.eq(api.vehicles.seat_of(u), apc)
+	-- Out: interact, as a player gets out.
+	E.eq(bot:leave_vehicle(), true)
+	game.step(1)
+	E.eq(t.interact, true, "interact pressed to get out")
+	cs.current_seat_unit, cs.current_seat_index = nil, nil
+	apc.slave.seat.seated_units[2] = nil
+	game.step(1)
+	E.eq(select(2, bot:leave_vehicle()), "not_seated")
+	-- Riding along: the player sits in the driver's seat, and the bot takes the free one.
+	bot:ride_along(true)
+	game.me.master.character.current_seat_unit, game.me.master.character.current_seat_index = apc, 1
+	apc.slave.seat.seated_units[1] = game.me
+	game.step(1)
+	local v, index = bot:boarding()
+	E.eq(v, apc, "rides along")
+	E.eq(index, 2)
+	bot:ride_along(false)
+end)
+
 return T
