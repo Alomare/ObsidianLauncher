@@ -9,7 +9,7 @@ import { notify } from "../notices";
 import { SortDialog, SortIcon, type SortPlan } from "./SortDialog";
 import { Confirm } from "../Confirm";
 import { ContextMenu, type MenuItem } from "../ContextMenu";
-import { CloseIcon, ExternalIcon, FolderAddIcon, FolderIcon, ImportIcon, LockIcon, PlusIcon, ProfilesIcon, SearchIcon, SwitchOffIcon, SwitchOnIcon, TrashIcon, UnlockIcon, UpdateIcon } from "../Icons";
+import { ChevronIcon, CloseIcon, ExternalIcon, FolderAddIcon, FolderIcon, ImportIcon, LockIcon, PlusIcon, ProfilesIcon, SearchIcon, SwitchOffIcon, SwitchOnIcon, TrashIcon, UnlockIcon, UpdateIcon } from "../Icons";
 import { language, pick, t } from "../i18n";
 import { useNav } from "../nav";
 import { ProfilesDialog } from "../ProfilesDialog";
@@ -228,25 +228,24 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
   return (
     <div className="mods">
       <div className="head">
-        {/* The profile and the tools for its list, as one strip. */}
-        <div className="tools">
-          <button className="profile-btn" onClick={() => setProfiles(true)} aria-haspopup="dialog" aria-label={`${t("app.mods.profile")}: ${snap.profile}`} data-tip-title={t("app.mods.profile")} data-tip={t("app.mods.profileHint")}>
-            {profileImage ? <Thumb image={profileImage} name={snap.profile} size="sm" /> : <span className="profile-chip"><ProfilesIcon /></span>}
-            <span className="profile-name">{snap.profile}</span>
+        {/* The profile as a choice, then the tools for its list: Sort and Create Folder as icons, Add as the main one. */}
+        <button className="profile-btn" onClick={() => setProfiles(true)} aria-haspopup="dialog" aria-label={`${t("app.mods.profile")}: ${snap.profile}`} data-tip-title={t("app.mods.profile")} data-tip={t("app.mods.profileHint")}>
+          {profileImage ? <Thumb image={profileImage} name={snap.profile} size="sm" /> : <span className="profile-chip"><ProfilesIcon /></span>}
+          <span className="profile-name">{snap.profile}</span>
+          <ChevronIcon />
+        </button>
+        {snap.mods.length > 1 && (
+          <button className="btn icon head-tool" onClick={openSort} aria-haspopup="dialog" aria-label={t("app.sort.title")} data-tip-title={t("app.sort.title")} data-tip={t("app.sort.hint")}>
+            <SortIcon />
           </button>
-          <button className="tool" onClick={() => setAsk({ kind: "newFolder", ids: [] })} aria-haspopup="dialog" aria-label={t("app.mods.createFolder")} data-tip-title={t("app.mods.createFolder")} data-tip={t("app.folder.newHint")}>
-            <FolderAddIcon />
-          </button>
-          <button className="tool" data-pop aria-haspopup="menu" aria-expanded={!!addMenu} aria-label={t("app.mods.add")} data-tip-title={t("app.mods.add")} data-tip={t("app.mods.addHint")}
-            onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAddMenu({ x: r.left, y: r.bottom + 4 }); }}>
-            <PlusIcon />
-          </button>
-          {snap.mods.length > 1 && (
-            <button className="tool" onClick={openSort} aria-haspopup="dialog" aria-label={t("app.sort.title")} data-tip-title={t("app.sort.title")} data-tip={t("app.sort.hint")}>
-              <SortIcon />
-            </button>
-          )}
-        </div>
+        )}
+        <button className="btn icon head-tool" onClick={() => setAsk({ kind: "newFolder", ids: [] })} aria-haspopup="dialog" aria-label={t("app.mods.createFolder")} data-tip-title={t("app.mods.createFolder")} data-tip={t("app.folder.newHint")}>
+          <FolderAddIcon />
+        </button>
+        <button className="btn go head-tool" data-pop aria-haspopup="menu" aria-expanded={!!addMenu} aria-label={t("app.mods.add")} data-tip-title={t("app.mods.add")} data-tip={t("app.mods.addHint")}
+          onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAddMenu({ x: r.left, y: r.bottom + 4 }); }}>
+          <PlusIcon /><span className="label">{t("app.mods.addButton")}</span>
+        </button>
         {waiting.length > 0 && <button className="btn play head-update" onClick={() => updateMods(waiting, names)}><UpdateIcon />{t("app.mods.updateAll", waiting.length)}</button>}
         <label className="search">
           <SearchIcon />

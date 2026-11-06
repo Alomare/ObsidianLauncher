@@ -627,27 +627,30 @@ button.link.small { font-size: 0.8rem; margin-top: 0.45rem; }
 .modal.profiles .head .close { margin-left: auto; }
 .modal.profiles .lead { font-size: 0.88rem; line-height: 1.45; }
 .modal.profiles .profile { box-shadow: none; background: var(--row); }
-/* The Mods tools: the profile, Create Folder, Add mods and Sort Mods as one strip in the look of the search
-   box at the other end, a line between the parts and the fold at the end (with the folded corners below).
-   The chip in the profile's color is the only color in it. Focus shows inside a part, where the fold can't
-   cut it off. */
-.mods .head { gap: 0.5rem; }
-.tools { flex: 0 1 auto; min-width: 0; display: flex; height: 2.3rem; border: 1px solid var(--ln); background: var(--row); }
-.tools > button { flex: none; display: inline-flex; align-items: center; justify-content: center; height: 100%; padding: 0; border: 0; background: none; color: var(--tx); cursor: pointer; transition: background var(--fast); }
-.tools > button + button { border-left: 1px solid var(--ln); }
-.tools > button:hover, .tools > button[aria-expanded="true"] { background: var(--ln); }
-.tools > button:focus-visible { outline-offset: -2px; }
-.tools > .tool { width: 2.6rem; }
-.tool svg { width: 1.15rem; height: 1.15rem; stroke-width: 2; }
-/* The profile: its icon on a chip of its color, in the ink that reads on that color, then the name in the
-   body text color, so it reads on both themes whatever the color. A long name gives way first. */
-.tools > .profile-btn { flex: 0 1 auto; min-width: 0; justify-content: flex-start; gap: 0.6rem; padding: 0 0.95rem 0 0.28rem; font-size: 0.95rem; font-weight: 660; }
+/* The head of the Mods tab. The profile is a choice, in the look of the search box at the other end, as a
+   select box is: a chip in the profile color, the name and an arrow. Then the tools: Sort and Create Folder
+   as icon buttons, and Add with a word, in the green of a go as the main one. Update All follows in gold
+   when there is one. All share one height, one type and the folded corner. */
+.mods .head { gap: 0.45rem; }
+.profile-btn { flex: 0 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: 0.6rem; height: 2.3rem; margin-right: 0.3rem; padding: 0 0.55rem 0 0.27rem;
+  border: 1px solid var(--ln); background: var(--row); color: var(--tx); font-size: 0.95rem; font-weight: 660; cursor: pointer; transition: border-color var(--fast); }
+.profile-btn:hover { border-color: var(--gold); }
+.profile-btn > svg { flex: none; width: 1rem; height: 1rem; color: var(--mu); }
+/* The profile's icon on a chip of its color, in the ink that reads on that color, then the name in the body
+   text color, so it reads on both themes whatever the color. A long name gives way first. */
 .profile-chip { display: grid; place-items: center; width: 1.75rem; height: 1.75rem; flex: none; background: var(--pc, var(--gold)); color: var(--pc-on, #1b1b1b); }
 .profile-chip svg { width: 1.05rem; height: 1.05rem; }
 .profile-name { min-width: 0; max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Never narrower than its words, which would break the count onto a second line. */
-.btn.head-update { flex: none; height: 2.3rem; padding: 0 1rem; gap: 0.5rem; min-width: 0; font-size: 0.8rem; white-space: nowrap; }
-.btn.head-update svg { width: 1.05rem; height: 1.05rem; }
+/* Never narrower than the words, which would break Update All's count onto a second line. */
+.mods .head .btn { flex: none; height: 2.3rem; min-width: 0; padding: 0 0.95rem; gap: 0.5rem; font-size: 0.76rem; letter-spacing: 0.15em; white-space: nowrap; }
+.mods .head .btn svg { flex: none; width: 1.1rem; height: 1.1rem; }
+.mods .head .btn.icon { width: 2.6rem; padding: 0; }
+.btn.head-tool svg { stroke-width: 2; }
+.btn.head-tool.go svg { stroke-width: 2.4; }
+.btn.head-update { margin-left: 0.3rem; }
+/* Focus inside the edge, where the fold can't cut it off, and dark on the colored buttons. */
+.mods .head :is(.btn, .profile-btn):focus-visible { outline-offset: -2px; }
+.mods .head :is(.btn.go, .btn.play):focus-visible { outline-color: #1b1b1b; }
 
 /* Mod and profile images: square, cropped to fill. */
 .thumb { --ts: 2.15rem; flex: none; width: var(--ts); height: var(--ts); display: grid; place-items: center; overflow: hidden; padding: 0; background: var(--row); border: 1px solid var(--ln); color: var(--mu); font-family: "Saira Variable", sans-serif; font-weight: 660; font-size: 1.05rem; }
@@ -917,12 +920,12 @@ button.thumb:hover { border-color: var(--gold); }
 .ctx, .select-list { border-color: var(--edge); border-top-color: var(--gold); box-shadow: none; }
 .tip { box-shadow: inset 0 -2px 0 var(--gold), inset 0 0 0 var(--edge-w) var(--edge); }
 .tip.below { box-shadow: inset 0 2px 0 var(--gold), inset 0 0 0 var(--edge-w) var(--edge); }
-.btn:not(.actions .btn):not(.home-tuck), .search, .tools, .select-btn, .key-btn, .wiki-find {
+.btn:not(.actions .btn):not(.home-tuck), .search, .profile-btn, .select-btn, .key-btn, .wiki-find {
   -webkit-mask: linear-gradient(315deg, transparent var(--cut-sm), #000 calc(var(--cut-sm) + 0.5px));
 }
 /* The fold takes the border with it, so a line in the color of the border closes the outline */
-.search, .tools, .select-btn, .key-btn { position: relative; }
-.search::after, .tools::after, .select-btn::after, .key-btn::after {
+.search, .profile-btn, .select-btn, .key-btn { position: relative; }
+.search::after, .profile-btn::after, .select-btn::after, .key-btn::after {
   content: ""; position: absolute; right: calc(var(--cut-sm) * -0.293 - 0.7px); bottom: calc(var(--cut-sm) * 0.707 - 0.7px); width: calc(var(--cut-sm) * 2 + 1px);
   border-top: 1px solid; border-top-color: inherit; transform: rotate(-45deg); pointer-events: none;
 }
