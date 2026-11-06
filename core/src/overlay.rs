@@ -4,10 +4,13 @@
 //! its part of the game in each of up to 9 languages: patching the game's bank for one footstep wrote up
 //! to 1.8 GB per bank. The game's `timpani_master` is its one list of sounds (570 KB, one language, in
 //! the boot bundle), and a clip record there names its clip by id alone. The engine finds that id in
-//! any loaded bank. So the clips a mod replaces go into one small bank of Obsidian's under new ids, in
-//! the bundle that holds the master and is never unloaded, and the master names the new ids where it
-//! named the old ones. The game's banks stay as they are. A language whose clips are the same as those
-//! of language 0 gets no variant of its own: the engine falls back to language 0.
+//! any loaded bank. So the master names new ids where it named the clips a mod replaces, and the clips
+//! go under those ids into a small bank of Obsidian's beside each bank they replace, in every bundle that
+//! holds it, so they load with it. The game's banks stay as they are. Not in the boot bundle: it loads
+//! before the game sets the language, so a resource there takes language 0 in every language (round J,
+//! 2026-11-06: an English-only beep played in French too), and the game keeps nothing with languages
+//! there. A language whose clips are the same as those of language 0 gets no variant of its own: the
+//! engine falls back to language 0.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -16,7 +19,7 @@ use crate::{ObsidianError, Result};
 
 /// The first word of a master.
 pub const MAGIC: u32 = 0x6191_4940;
-/// Obsidian's bank of new clips.
+/// Obsidian's banks of new clips: this, then `/<bank id>` of the bank they replace.
 pub const BANK_NAME: &str = "obsidian/timpani/clips";
 /// The bytes of a clip record: its kind (0), then the clip's id at `CLIP_AT`.
 const RECORD: usize = 72;
