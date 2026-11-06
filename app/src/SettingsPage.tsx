@@ -1,4 +1,4 @@
-// Settings (spec 4.4): System (game, other patches, language, updates, Obsidian Kit, data), Updates
+// Settings (spec 4.4): System (game, other patches, the question before Play, language, updates, Obsidian Kit, data), Updates
 // and Theme (colours, size, animations). One column of groups under headings, each with a "?" to the
 // Wiki, as in Audiodiver. App settings save to app.json at once. The subtab scrolls; the header stays.
 import { open } from "@tauri-apps/plugin-dialog";
@@ -171,6 +171,17 @@ function SystemTab({ snap }: { snap: Snapshot }) {
             </div>
           </div>
         )}
+      </Group>
+
+      <Group title={t("app.settings.play")}>
+        <label className="switch-line">
+          <button role="switch" aria-checked={settings.askVanillaPlay} aria-label={t("app.settings.askVanilla")} className={settings.askVanillaPlay ? "sw on" : "sw"}
+            onClick={() => updateSettings({ askVanillaPlay: !settings.askVanillaPlay })} />
+          <span>
+            <b>{t("app.settings.askVanilla")}</b>
+            <small>{t("app.settings.askVanillaHint")}</small>
+          </span>
+        </label>
       </Group>
 
       <Group title={t("app.settings.language")}>

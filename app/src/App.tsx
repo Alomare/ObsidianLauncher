@@ -1,5 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { deploy, play, purge } from "./actions";
 import { loadSnapshot, refresh, useSnapshot } from "./api";
 import { useLocked } from "./busy";
@@ -15,7 +15,8 @@ import { go as setTab, useNav } from "./nav";
 import { WikiPage } from "./WikiPage";
 import { SettingsPage, type SettingsTab } from "./SettingsPage";
 import { Notices } from "./NoticeList";
-import { loadSettings, useAppSettings } from "./settings";
+import { asksBeforePlay, PlayPrompt } from "./PlayPrompt";
+import { loadSettings, updateSettings, useAppSettings } from "./settings";
 import { StatusBar } from "./StatusBar";
 import { Tooltip } from "./Tooltip";
 import { installUpdate, startupUpdate, useUpdates } from "./updates";
@@ -30,11 +31,15 @@ export default function App() {
   const [dropping, setDropping] = useState<DropState>(null);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("system");
   const [askUpdate, setAskUpdate] = useState(false);
+  const [askPlay, setAskPlay] = useState(false);
+  // The same function on every render: the dialog puts the focus back on Yes when it gets a new one.
+  const cancelPlay = useCallback(() => setAskPlay(false), []);
   const [wave, setWave] = useState<Wave | null>(null);
   const update = useUpdates();
   const startWave = (tone: Wave["tone"]) => {
     if (document.documentElement.dataset.motion !== "off") setWave((w) => ({ tone, n: (w?.n ?? 0) + 1 }));
   };
+  const startPlay = () => { startWave("yellow"); play(); };
   const ready = !!snap && !!settings;
   // The color of the active profile tints the Profile button and the switches that are on; --pc-on is
   // the ink that reads on it, as a custom color can be dark or light.
@@ -78,7 +83,8 @@ export default function App() {
   return (
     <div className="app">
       <NavBar tab={tab} onTab={(to) => { if (to === "settings" && update.phase === "found") setSettingsTab("updates"); setTab(to); }} snap={snap} busy={busy} updateFound={update.phase === "found"} wave={wave} onWaveEnd={() => setWave(null)} onPurge={() => { startWave(snap?.deployed ? "red" : "grey"); purge(); }}
-        onDeploy={() => { startWave(snap?.changes === "Waiting" ? "green" : "grey"); deploy(); }} onPlay={() => { startWave("yellow"); play(); }} />
+        onDeploy={() => { startWave(snap?.changes === "Waiting" ? "green" : "grey"); deploy(); }}
+        onPlay={() => (snap && asksBeforePlay(snap, settings) ? setAskPlay(true) : startPlay())} />
       <main className={tab === "home" || tab === "wiki" ? "page bleed" : "page"}>
         {tab === "home" && <div className="view" key="home"><HomePage /></div>}
         {/* Mods stays mounted while hidden: a long list then costs nothing to come back to. */}
@@ -98,6 +104,13 @@ export default function App() {
           confirm={t("app.update.install")} cancel={t("app.update.later")}
           tone="go" onCancel={() => setAskUpdate(false)} onConfirm={() => { setAskUpdate(false); installUpdate(); }}
           link={{ label: t("app.update.changelog"), onClick: () => { setAskUpdate(false); setSettingsTab("updates"); setTab("settings"); } }} />
+      )}
+      {askPlay && (
+        <PlayPrompt onCancel={cancelPlay} onPlay={(dontAsk) => {
+          setAskPlay(false);
+          if (dontAsk) updateSettings({ askVanillaPlay: false });
+          startPlay();
+        }} />
       )}
       <UpdateProgress />
       <DeployProgress />

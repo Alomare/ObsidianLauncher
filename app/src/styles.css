@@ -390,6 +390,9 @@ button.link:hover { filter: brightness(1.2); }
 .modal-foot .foot-link { margin-right: auto; align-self: center; font-size: 0.9rem; }
 .modal.confirm h2 { margin: 0; font-size: 1rem; }
 .modal.confirm p { margin: 0; color: var(--mu); line-height: 1.45; }
+/* A check box with the words beside it, all one button: Don't ask again, in the question before Play. */
+.check-line { align-self: flex-start; display: inline-flex; align-items: center; gap: 0.55rem; padding: 0.1rem 0; border: 0; background: none; color: var(--tx); font-size: 0.9rem; cursor: pointer; }
+.check-line:hover .ck { border-color: var(--tx); }
 .update-bar { height: 0.55rem; background: var(--row); overflow: hidden; }
 .update-bar i { display: block; height: 100%; background: var(--go); transition: width 120ms linear; }
 .update-bar.waiting i { width: 35%; animation: update-wait 1.2s ease-in-out infinite alternate; }

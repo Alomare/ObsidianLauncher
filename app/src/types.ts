@@ -36,6 +36,8 @@ export type AppSettings = {
   theme: "default" | "light"; scale: 90 | 100 | 110 | 125;
   text: "small" | "normal" | "large"; motion: boolean | null; language: string | null;
   updates: "manual" | "prompt" | "auto"; gameDir: string | null;
+  /** Play asks first when no mods are deployed (PlayPrompt.tsx). */
+  askVanillaPlay: boolean;
 };
 
 export type CmdError = { code: string; message: string };

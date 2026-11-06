@@ -52,6 +52,8 @@ pub struct AppSettings {
     pub updates: UpdateMode,
     /// The game folder chosen in Settings; `None` searches the Steam libraries.
     pub game_dir: Option<PathBuf>,
+    /// Play asks first when no mods are deployed, as the game would start vanilla.
+    pub ask_vanilla_play: bool,
 }
 
 impl Default for AppSettings {
@@ -64,6 +66,7 @@ impl Default for AppSettings {
             language: None,
             updates: UpdateMode::Prompt,
             game_dir: None,
+            ask_vanilla_play: true,
         }
     }
 }
@@ -116,6 +119,17 @@ mod tests {
         std::fs::write(t.path().join(FILE), r#"{"theme":"dark","scale":125,"language":"pt-BR"}"#).unwrap();
         let s = AppSettings::load(t.path());
         assert_eq!((s.theme, s.scale, s.language.as_deref()), (Theme::Default, 125, Some("pt-BR")));
+    }
+
+    #[test]
+    fn the_question_before_a_vanilla_play_is_on_until_turned_off() {
+        let t = tempfile::tempdir().unwrap();
+        assert!(AppSettings::load(t.path()).ask_vanilla_play, "on in a new install");
+        std::fs::write(t.path().join(FILE), r#"{"theme":"light","scale":110}"#).unwrap();
+        assert!(AppSettings::load(t.path()).ask_vanilla_play, "on for settings saved before it existed");
+        AppSettings { ask_vanilla_play: false, ..Default::default() }.save(t.path()).unwrap();
+        assert!(std::fs::read_to_string(t.path().join(FILE)).unwrap().contains(r#""askVanillaPlay": false"#), "saved under the name the app sends");
+        assert!(!AppSettings::load(t.path()).ask_vanilla_play, "off stays off");
     }
 
     #[test]
