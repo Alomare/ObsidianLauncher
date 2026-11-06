@@ -21,6 +21,7 @@ pub mod luajit;
 pub mod manifest;
 pub mod modset;
 pub mod options;
+pub mod overlay;
 pub mod paths;
 pub mod profile_zip;
 pub mod profiles;
