@@ -135,6 +135,14 @@ describe("the head of the Mods page", () => {
     expect(tools[2].getAttribute("aria-label")).toContain(t("app.mods.addButton"));
   });
 
+  it("keeps the Version and Scope columns at fixed widths, with no line to drag, and drops widths an older build saved", () => {
+    localStorage.setItem("obsidian.modColumns", JSON.stringify({ version: 20, scope: 9 }));
+    show(snap(["a.one", "b.two"]));
+    expect(localStorage.getItem("obsidian.modColumns")).toBeNull();
+    expect(document.querySelector<HTMLElement>(".table")!.style.getPropertyValue("--col-ver")).toBe("");
+    expect(document.querySelectorAll(".th [role=separator], .col-grip")).toHaveLength(0);
+  });
+
   it("leaves Sort out while there is one mod to order", () => {
     expect(show(snap(["a.one"])).map((b) => b.getAttribute("aria-label"))).not.toContain(t("app.sort.title"));
   });

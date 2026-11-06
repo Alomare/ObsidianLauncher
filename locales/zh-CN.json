@@ -207,7 +207,6 @@
   "app.mods.removeNTitle": "移除 %s 个模组",
   "app.mods.reorderOff": "清除搜索后才能调整顺序。",
   "app.mods.resize": "调整面板大小",
-  "app.mods.resizeColumn": "调整“%s”列的宽度",
   "app.mods.resizeHint": "拖动调整大小，双击恢复。",
   "app.mods.search": "搜索模组",
   "app.mods.selection": "已勾选的模组",

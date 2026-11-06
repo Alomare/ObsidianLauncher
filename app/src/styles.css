@@ -211,7 +211,9 @@ button.nav-warn:hover { filter: brightness(1.2); text-decoration: underline; tex
 
 .mods-body { flex: 1; min-height: 0; display: flex; }
 .list { position: relative; flex: 1; min-width: 30rem; display: flex; flex-direction: column; background: linear-gradient(160deg, var(--p1), var(--p2)); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); }
-.table { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; }
+/* Version fits the header and 1.29.0 with the update arrow, so Scope sits close (the user, 2026-11-04). The
+   two widths are fixed; they used to drag, which the user dropped on 2026-11-06. */
+.table { --col-ver: 5.2rem; --col-scope: 3.2rem; flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .tbody { overflow: auto; min-height: 0; position: relative; }
 /* In a narrow list Version gives way first, down to its minimum, so the Mod column keeps 11rem, enough
    for a name beside the badges in the same cell: 22.95rem is the lead columns, the update check, the
@@ -242,12 +244,8 @@ button.nav-warn:hover { filter: brightness(1.2); text-decoration: underline; tex
 .scope { justify-self: center; display: flex; padding: 0.35rem; }
 button.bare.scope { padding: 0.35rem; border-radius: 2px; }
 button.bare.scope:hover { background: var(--ln); }
-/* A header cell the column's width wide, so the line at its left edge sits in the gap before it. */
-.th-col { position: relative; align-self: stretch; display: flex; align-items: center; white-space: nowrap; }
+.th-col { align-self: stretch; display: flex; align-items: center; white-space: nowrap; }
 .th-scope { justify-content: center; }
-.col-grip { position: absolute; top: -0.35rem; bottom: -0.35rem; left: -0.55rem; width: 0.6rem; cursor: col-resize; touch-action: none; }
-.col-grip::after { content: ""; position: absolute; top: 0.2rem; bottom: 0.2rem; left: 50%; width: 1px; margin-left: -0.5px; background: transparent; transition: background var(--fast); }
-.col-grip:hover::after, .col-grip:active::after { background: var(--mu); }
 /* Shaded as if lit from above: the gradient runs corner to corner, which the rotation turns upright. */
 .scope i {
   width: 0.6rem; height: 0.6rem; transform: rotate(45deg); display: inline-block; background-color: var(--client);
