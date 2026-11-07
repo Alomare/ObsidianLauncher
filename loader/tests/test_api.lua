@@ -5987,4 +5987,439 @@ test("operate_tells_the_interactor_the_terminal_when_the_game_offers_nothing", f
 	E.eq(c.data.interactable_actor, "panel")
 end)
 
+-- Hiding the game's stratagems.
+local function hide_world(e)
+	local s = rawget(_G, "LoadoutSettings")
+	s.default_loadout.stratagems = { "stratagem_reinforce", "stratagem_resupply", "stratagem_mortar" }
+	s.default_loadouts = { { stratagems = { "stratagem_reinforce", "stratagem_resupply" } }, { stratagems = { "stratagem_mortar" } } }
+	local function item(name) return { name = name } end
+	local function group(...)
+		local items = {}
+		for i, name in ipairs({ ... }) do items[i] = item(name) end
+		return { name = "g", items = items }
+	end
+	rawset(_G, "MenuScreenArmoryUnlocks", { on_enter = function(self)
+		self.available_items = { stratagems = { groups = { group("stratagem_resupply", "stratagem_mortar"), group("stratagem_resupply"), group("stratagem_jumppack") } } }
+	end })
+	local seen
+	rawset(_G, "MenuScreenLoadout", { setup_loadout = function(self, slot)
+		seen = rawget(_G, "SaveManager"):user_get("loadouts")
+		self.parent.players[slot].available_items = { stratagems = { groups = {
+			{ name = "stratagem_resupply", item_index = 1, items = { item("stratagem_resupply") } },
+			{ name = "stratagem_mortar", item_index = 1, items = { item("stratagem_mortar") } },
+			{ name = "stratagem_jumppack", item_index = 1, items = { item("stratagem_jumppack") } } } } }
+	end })
+	rawset(_G, "InventoryComponent", { set_loadout = function(self, unit, state) state.stratagems = { { id = 1 }, { id = 5 }, { id = 6 } } end })
+	hooked(e)
+	return function() return seen end
+end
+
+test("a_hidden_stratagem_leaves_the_arsenal_and_the_loadout_screen_and_comes_back", function()
+	local api, game, e = start()
+	wire_world(game)
+	hide_world(e)
+	E.eq(api.stratagems.is_hidden("stratagem_resupply"), false)
+	E.eq(api.stratagems.hide("stratagem_resupply"), true)
+	E.eq(api.stratagems.is_hidden("stratagem_resupply"), true)
+	local arsenal = {}
+	rawget(_G, "MenuScreenArmoryUnlocks").on_enter(arsenal, {})
+	local g = arsenal.available_items.stratagems.groups
+	E.eq(#g, 2, "a group left empty goes")
+	E.eq(joined(g[1].items), "stratagem_mortar")
+	E.eq(joined(g[2].items), "stratagem_jumppack")
+	local screen = { parent = { players = { {}, {} } } }
+	rawget(_G, "MenuScreenLoadout").setup_loadout(screen, 2)
+	local groups = screen.parent.players[2].available_items.stratagems.groups
+	E.eq(#groups, 2)
+	E.eq(groups[1].name, "stratagem_mortar")
+	local inv = {}
+	rawget(_G, "InventoryComponent").set_loadout({}, "unit", inv)
+	E.eq(#inv.stratagems, 2, "not in the mission inventory")
+	E.eq(inv.stratagems[1].id, 5)
+	E.eq(api.stratagems.unhide("stratagem_resupply"), true)
+	E.eq(api.stratagems.is_hidden("stratagem_resupply"), false)
+	rawget(_G, "MenuScreenArmoryUnlocks").on_enter(arsenal, {})
+	E.eq(#arsenal.available_items.stratagems.groups, 3)
+end)
+
+test("a_hidden_stratagem_is_replaced_in_the_default_loadouts_and_unhide_puts_it_back", function()
+	local api, game, e = start()
+	wire_world(game)
+	hide_world(e)
+	local s = rawget(_G, "LoadoutSettings")
+	E.eq(api.stratagems.hide("stratagem_resupply", { replace = "stratagem_jumppack" }), true)
+	E.eq(table.concat(s.default_loadout.stratagems, ","), "stratagem_reinforce,stratagem_jumppack,stratagem_mortar")
+	E.eq(table.concat(s.default_loadouts[1].stratagems, ","), "stratagem_reinforce,stratagem_jumppack")
+	E.eq(table.concat(s.default_loadouts[2].stratagems, ","), "stratagem_mortar", "a loadout without it is left alone")
+	api.stratagems.unhide("stratagem_resupply")
+	E.eq(table.concat(s.default_loadout.stratagems, ","), "stratagem_reinforce,stratagem_resupply,stratagem_mortar")
+	E.eq(table.concat(s.default_loadouts[1].stratagems, ","), "stratagem_reinforce,stratagem_resupply")
+	-- No replacement given: another one the loadout doesn't hold.
+	E.eq(api.stratagems.hide("stratagem_resupply"), true)
+	local list = s.default_loadout.stratagems
+	E.eq(#list, 3)
+	E.eq(list[1], "stratagem_reinforce")
+	E.eq(list[3], "stratagem_mortar")
+	E.eq(list[2] ~= "stratagem_resupply" and list[2] ~= "stratagem_reinforce" and list[2] ~= "stratagem_mortar", true, "a new one: " .. tostring(list[2]))
+	api.stratagems.unhide("stratagem_resupply")
+	E.eq(list[2], "stratagem_resupply")
+end)
+
+test("a_saved_loadout_that_holds_a_hidden_stratagem_swaps_that_entry_only", function()
+	local api, game, e = start()
+	wire_world(game)
+	local seen = hide_world(e)
+	game.save.user.loadouts = { { perk = "p", stratagems = { "stratagem_reinforce", "stratagem_resupply", "stratagem_mortar" } } }
+	game.save.user.loadout = { stratagems = { "stratagem_resupply" } }
+	E.eq(api.stratagems.hide("stratagem_resupply", { replace = "stratagem_jumppack" }), true)
+	rawget(_G, "MenuScreenLoadout").setup_loadout({ parent = { players = { { pad_number = 1 } } } }, 1)
+	E.eq(table.concat(seen()[1].stratagems, ","), "stratagem_reinforce,stratagem_jumppack,stratagem_mortar", "before the screen checks it")
+	E.eq(seen()[1].perk, "p", "the rest is kept")
+	local out = rawget(_G, "Boot").ensure_loadout(1, { stratagems = { "stratagem_resupply", "stratagem_mortar" } })
+	E.eq(out.stratagems[1], "stratagem_jumppack")
+end)
+
+test("hiding_is_checked_and_a_client_mod_cant", function()
+	local api, game, e = start()
+	wire_world(game)
+	hide_world(e)
+	E.eq(select(2, api.stratagems.hide("stratagem_nothing")), "not_available")
+	E.eq(select(2, api.stratagems.hide("stratagem_resupply", { replace = "stratagem_nothing" })), "not_available")
+	E.eq(select(2, api.stratagems.hide("stratagem_reinforce")), "static")
+	E.eq(select(2, api.stratagems.hide(5)), "bad_type")
+	local client = start({ scope = "client" })
+	E.eq(select(2, client.stratagems.hide("stratagem_resupply")), "needs_session")
+	E.eq(select(2, client.stratagems.unhide("stratagem_resupply")), "needs_session")
+end)
+
+test("a_session_that_stops_being_cleared_gives_hidden_stratagems_back_and_takes_them_again", function()
+	local lobby = { my_id = "me", members = { "me" }, data = {} }
+	local api, game, e = start({ lobby = lobby })
+	wire_world(game)
+	hide_world(e)
+	local s = rawget(_G, "LoadoutSettings")
+	api.stratagems.hide("stratagem_resupply", { replace = "stratagem_jumppack" })
+	e:frames(31)
+	lobby.members = { "me", "stranger" }
+	e:frames(31)
+	E.eq(s.default_loadout.stratagems[2], "stratagem_resupply", "default back")
+	local arsenal = {}
+	rawget(_G, "MenuScreenArmoryUnlocks").on_enter(arsenal, {})
+	E.eq(#arsenal.available_items.stratagems.groups, 3, "listed again")
+	E.eq(select(2, api.stratagems.hide("stratagem_mortar")), "not_cleared")
+	lobby.members = { "me" }
+	e:frames(31)
+	e:frames(2)
+	E.eq(s.default_loadout.stratagems[2], "stratagem_jumppack")
+end)
+
+-- Carried stratagems, shared cooldowns and codes two stratagems have.
+local function carry_world(game, e)
+	wire_world(game)
+	local s = rawget(_G, "LoadoutSettings")
+	s.stratagems[1].combo = { "down", "down", "up", "right" }
+	s.get_upgraded_stratagem = function(id, n)
+		local base = s.stratagems[id]
+		if not n or n == 0 then return base end
+		local out = {}
+		for k, v in pairs(base) do out[k] = v end
+		for i = 1, n do
+			for k, v in pairs(base.upgrades[i] or {}) do out[k] = v end
+		end
+		out.level = n
+		return out
+	end
+	-- As the game's: the slots a loadout names, then the commands that copy entries to other machines
+	-- and start a cooldown.
+	rawset(_G, "InventoryComponent", {
+		set_loadout = function(self, unit, ctx, from)
+			ctx.state.stratagems = { { id = 4, cooldown_timer = 0 }, { id = 1, cooldown_timer = 0 }, { id = 5, cooldown_timer = 0 } }
+			ctx.state.item_upgrades = { stratagem_resupply = 2 }
+		end,
+		command_slave = function(self, unit, ctx, name, data)
+			if name ~= "stratagem_cooldown" then return end
+			local list = ctx.state.stratagems
+			list[data.index] = list[data.index] or {}
+			local entry = list[data.index]
+			entry.id, entry.cooldown_timer, entry.upgrade_value = data.stratagem_id, data.cooldown_timer, data.upgrade_value
+			entry.loadout_info = s.get_upgraded_stratagem(data.stratagem_id, data.upgrade_value)
+		end,
+		command_master = function(self, unit, ctx, name, data)
+			if name ~= "throw_stratagem" then return end
+			for _, entry in ipairs(ctx.state.stratagems) do
+				if entry.id == data then entry.cooldown_timer = s.stratagems[data].cooldown_time end
+			end
+		end,
+	})
+	rawset(_G, "ProvinggroundsConditions", { remove_blacklisted_strats = function(list) return list end })
+	hooked(e)
+	return s
+end
+
+local SQUAD = { name = "test_squad", base = "stratagem_resupply", title = "Squad Supply", type = "special", unlock = "manual" }
+
+test("a_carried_stratagem_comes_after_the_loadout_at_the_level_of_its_base", function()
+	local api, game, e = start()
+	carry_world(game, e)
+	local made = api.stratagems.define(SQUAD)
+	E.eq(api.stratagems.is_carried("test_squad"), false)
+	E.eq(api.stratagems.carry("test_squad", { upgrade = "base" }), true)
+	E.eq(api.stratagems.is_carried("test_squad"), true)
+	local IC = rawget(_G, "InventoryComponent")
+	local ctx = { state = {} }
+	IC.set_loadout({}, "unit", ctx, { pad_number = 0 })
+	local list = ctx.state.stratagems
+	E.eq(#list, 4, "one more")
+	E.eq(list[4].id, made.id, "last")
+	E.eq(list[4].cooldown_timer, 0)
+	E.eq(list[4].upgrade_value, 2, "the Mk3 the player bought of the base")
+	E.eq(list[4].loadout_info.level, 2)
+	E.eq(ctx.state.item_upgrades.test_squad, 2, "where the call-in reads it")
+	-- The tutorial's and the game's fixed loadouts get nothing.
+	local fixed = { state = {} }
+	IC.set_loadout({}, "unit", fixed, nil, { stratagems = {} })
+	E.eq(#fixed.state.stratagems, 3)
+	-- A level of its own, within the stratagem's.
+	api.stratagems.carry("test_squad", { upgrade = 9 })
+	IC.set_loadout({}, "unit", ctx, { pad_number = 0 })
+	E.eq(ctx.state.stratagems[4].upgrade_value, 3)
+	api.stratagems.carry("test_squad")
+	IC.set_loadout({}, "unit", ctx, { pad_number = 0 })
+	E.eq(ctx.state.stratagems[4].upgrade_value, 0, "the player's own purchase: none")
+	E.eq(api.stratagems.uncarry("test_squad"), true)
+	IC.set_loadout({}, "unit", ctx, { pad_number = 0 })
+	E.eq(#ctx.state.stratagems, 3)
+	E.eq(api.stratagems.uncarry("test_squad"), true, "twice is fine")
+end)
+
+test("a_carried_stratagem_the_loadout_holds_isnt_added_twice_and_a_hidden_one_goes_first", function()
+	local api, game, e = start()
+	carry_world(game, e)
+	local made = api.stratagems.define(SQUAD)
+	E.eq(api.stratagems.carry("stratagem_mortar"), true, "one of the game's")
+	E.eq(api.stratagems.hide("stratagem_resupply"), true)
+	E.eq(api.stratagems.carry("test_squad", { upgrade = "base" }), true)
+	local ctx = { state = {} }
+	rawget(_G, "InventoryComponent").set_loadout({}, "unit", ctx, { pad_number = 0 })
+	local list = ctx.state.stratagems
+	E.eq(#list, 3, "Resupply out, the mortar once, the carried one in")
+	E.eq(list[1].id, 4)
+	E.eq(list[2].id, 5)
+	E.eq(list[3].id, made.id)
+end)
+
+test("carrying_is_checked_and_a_client_mod_cant", function()
+	local api, game, e = start()
+	carry_world(game, e)
+	E.eq(select(2, api.stratagems.carry("stratagem_nothing")), "not_available")
+	E.eq(select(2, api.stratagems.carry("stratagem_reinforce")), "static")
+	E.eq(select(2, api.stratagems.carry("stratagem_mortar", { upgrade = "mk2" })), "bad_type")
+	E.eq(select(2, api.stratagems.carry(5)), "bad_type")
+	E.eq(select(2, api.stratagems.share_cooldown("stratagem_nothing")), "not_available")
+	local client = start({ scope = "client" })
+	E.eq(select(2, client.stratagems.carry("stratagem_resupply")), "needs_session")
+	E.eq(select(2, client.stratagems.share_cooldown("stratagem_resupply")), "needs_session")
+end)
+
+test("a_stratagem_still_pending_can_be_carried", function()
+	local api, game, e = start()
+	wire_world(game)
+	local ready = no_list_yet()
+	E.eq(api.stratagems.define(SQUAD).pending, true)
+	E.eq(api.stratagems.carry("test_squad", { upgrade = "base" }), true, "nothing to check it against yet")
+	E.eq(api.stratagems.share_cooldown("test_squad"), true)
+	ready()
+	e:frames(1)
+	E.eq(api.stratagems.is_carried("test_squad"), true)
+end)
+
+test("a_carried_custom_stratagem_leaves_the_menus_and_saved_loadouts", function()
+	local api, game, e = start()
+	rawset(_G, "MenuScreenArmoryUnlocks", { on_enter = function(self)
+		self.available_items = { stratagems = { groups = { { name = "g", items = { { name = "stratagem_resupply" }, { name = "test_squad" } } } } } }
+	end })
+	local seen
+	rawset(_G, "MenuScreenLoadout", { setup_loadout = function(self, slot)
+		seen = rawget(_G, "SaveManager"):user_get("loadouts")
+	end })
+	carry_world(game, e)
+	api.stratagems.define(SQUAD)
+	game.save.user.loadouts = { { stratagems = { "stratagem_reinforce", "test_squad", "stratagem_mortar" } } }
+	local arsenal = {}
+	rawget(_G, "MenuScreenArmoryUnlocks").on_enter(arsenal, {})
+	E.eq(#arsenal.available_items.stratagems.groups[1].items, 2, "listed while not carried")
+	E.eq(api.stratagems.carry("test_squad"), true)
+	rawget(_G, "MenuScreenArmoryUnlocks").on_enter(arsenal, {})
+	local items = arsenal.available_items.stratagems.groups[1].items
+	E.eq(#items, 1)
+	E.eq(items[1].name, "stratagem_resupply")
+	rawget(_G, "MenuScreenLoadout").setup_loadout({ parent = { players = { { pad_number = 1 } } } }, 1)
+	local saved = seen[1].stratagems
+	E.eq(saved[1], "stratagem_reinforce")
+	E.eq(saved[2] ~= "test_squad", true, "another one in that slot: " .. tostring(saved[2]))
+	E.eq(saved[3], "stratagem_mortar")
+end)
+
+test("another_players_carried_entry_shows_as_the_custom_stratagem", function()
+	local api, game, e = start()
+	carry_world(game, e)
+	local made = api.stratagems.define(SQUAD)
+	api.stratagems.carry("test_squad", { upgrade = "base" })
+	local IC = rawget(_G, "InventoryComponent")
+	local slave = { state = { stratagems = {} } }
+	local function rpc(index, id, time)
+		IC.command_slave({}, "remote", slave, "stratagem_cooldown", { index = index, stratagem_id = id, upgrade_value = 0, cooldown_timer = time or 0 })
+	end
+	local list = slave.state.stratagems
+	-- The vanilla Resupply in a slot, then the carried one, which arrives as its base.
+	rpc(1, 4) rpc(2, 1) rpc(3, 5)
+	E.eq(list[2].id, made.id, "the last Resupply so far")
+	rpc(4, 1)
+	E.eq(list[2].id, 1, "the slot's Resupply")
+	E.eq(list[2].loadout_info.name, "stratagem_resupply")
+	E.eq(list[4].id, made.id, "the carried one")
+	E.eq(list[4].loadout_info.name, "test_squad", "the custom icon and words")
+	rpc(2, 1, 30)
+	E.eq(list[2].id, 1, "a later message keeps them apart")
+	rpc(4, 1, 30)
+	E.eq(list[4].id, made.id)
+	api.stratagems.uncarry("test_squad")
+	rpc(4, 1, 20)
+	E.eq(list[4].id, 1, "the base again once nothing is carried")
+end)
+
+test("the_proving_grounds_draw_no_hidden_carried_or_locked_stratagem", function()
+	local api, game, e = start()
+	carry_world(game, e)
+	api.stratagems.define(SQUAD)
+	api.stratagems.define({ name = "test_locked", base = "stratagem_mortar", title = "Locked", unlock = "manual" })
+	api.stratagems.define({ name = "test_open", base = "stratagem_mortar", title = "Open", unlock = "free" })
+	api.stratagems.hide("stratagem_resupply")
+	api.stratagems.carry("test_squad")
+	local pool = rawget(_G, "ProvinggroundsConditions").remove_blacklisted_strats({ "stratagem_resupply", "test_squad", "test_locked", "test_open", "stratagem_mortar" })
+	E.eq(table.concat(pool, ","), "test_open,stratagem_mortar")
+end)
+
+test("a_code_two_stratagems_have_calls_the_one_the_player_holds", function()
+	local api, game, e = start()
+	carry_world(game, e)
+	local made = api.stratagems.define(SQUAD)
+	E.eq(made ~= nil, true, "the base's code is no reason to refuse one")
+	local queue = { "down", "down", "up", "right" }
+	game.masters.character = { [game.me] = { state = { stratagems_queue = queue } } }
+	local inv = game.me.master.inventory
+	local function first() return 1 end
+	inv.stratagems = { { id = 4, cooldown_timer = 0 }, { id = made.id, cooldown_timer = 0 } }
+	E.eq(api.stratagems.find(first, queue), made.id, "the game's first is Resupply, which the player hasn't got")
+	inv.stratagems = { { id = 1, cooldown_timer = 0 }, { id = made.id, cooldown_timer = 0 } }
+	E.eq(api.stratagems.find(first, queue), 1, "both held and ready: the game's answer")
+	inv.stratagems = { { id = 1, cooldown_timer = 50 }, { id = made.id, cooldown_timer = 0 } }
+	E.eq(api.stratagems.find(first, queue), made.id, "the one that's ready")
+	E.eq(api.stratagems.find(first, { "down", "down", "up", "right" }), 1, "another player's queue: the game's answer")
+	inv.stratagems = { { id = 1, cooldown_timer = 0 } }
+	E.eq(api.stratagems.find(function() return 5 end, { "up" }), 5, "a code only one has")
+end)
+
+-- A unit of this machine with one entry, as the inventory's master state.
+local function local_player(game, id, time)
+	local u = { alive = true, owned = true, master = { inventory = { stratagems = { { id = id, cooldown_timer = time or 0 } } } }, slave = {} }
+	game.masters.inventory = game.masters.inventory or {}
+	game.masters.inventory[u] = { state = u.master.inventory }
+	return u
+end
+
+local function commands_for(game, u, command)
+	local out = {}
+	for _, c in ipairs(game.commands) do
+		if c.unit == u and c.component == "inventory" and c.command == command then out[#out + 1] = c end
+	end
+	return out
+end
+
+test("a_throw_here_sets_the_squad_cooldown_on_every_player_of_this_machine", function()
+	local api, game, e = start()
+	carry_world(game, e)
+	local made = api.stratagems.define(SQUAD)
+	E.eq(api.stratagems.share_cooldown("test_squad"), true)
+	E.eq(api.stratagems.is_shared("test_squad"), true)
+	local p1, p2 = local_player(game, made.id), local_player(game, made.id)
+	local other = local_player(game, 5)
+	e:frames(1)
+	game.commands = {}
+	rawget(_G, "InventoryComponent").command_master({}, p1, game.masters.inventory[p1], "throw_stratagem", made.id)
+	E.eq(p1.master.inventory.stratagems[1].cooldown_timer, 120)
+	e:frames(1)
+	local set = commands_for(game, p2, "set_stratagem_info")
+	E.eq(#set, 1, "the other player here")
+	E.eq(set[1].data.id, made.id)
+	E.eq(set[1].data.cooldown_timer, 120)
+	E.eq(#commands_for(game, p2, "broadcast_stratagem_cooldown"), 1, "and the other machines hear it")
+	E.eq(#commands_for(game, p1, "set_stratagem_info"), 0, "the thrower has it already")
+	E.eq(#commands_for(game, other, "set_stratagem_info"), 0, "a player without it")
+	no_tampering(game)
+	api.stratagems.unshare_cooldown("test_squad")
+	E.eq(api.stratagems.is_shared("test_squad"), false)
+	game.commands = {}
+	rawget(_G, "InventoryComponent").command_master({}, p2, game.masters.inventory[p2], "throw_stratagem", made.id)
+	e:frames(1)
+	E.eq(#commands_for(game, p1, "set_stratagem_info"), 0, "each player's own again")
+end)
+
+test("a_throw_on_another_machine_reaches_this_machines_players_once", function()
+	local api, game, e = start()
+	carry_world(game, e)
+	local made = api.stratagems.define(SQUAD)
+	api.stratagems.share_cooldown("test_squad")
+	local me = local_player(game, made.id)
+	local remote = { alive = true, owned = false, master = {}, slave = { inventory = { stratagems = { { id = made.id, cooldown_timer = 0 } } } } }
+	game.slaves.inventory = { [remote] = { state = remote.slave.inventory } }
+	local theirs = remote.slave.inventory.stratagems[1]
+	e:frames(2)
+	theirs.cooldown_timer = 118
+	e:frames(2)
+	E.eq(#commands_for(game, me, "set_stratagem_info"), 0, "a new entry may be a respawn copying old times in")
+	theirs.cooldown_timer = 0
+	e:frames(260)
+	theirs.cooldown_timer = 119.5
+	e:frames(2)
+	local set = commands_for(game, me, "set_stratagem_info")
+	E.eq(#set, 1)
+	E.eq(set[1].data.cooldown_timer, 119.5)
+	E.eq(#commands_for(game, me, "broadcast_stratagem_cooldown"), 1)
+	-- The game runs it: this player's entry is long now, and another machine's catch-up sends nothing back.
+	me.master.inventory.stratagems[1].cooldown_timer = 119
+	local friend = { alive = true, owned = false, master = {}, slave = { inventory = { stratagems = { { id = made.id, cooldown_timer = 0 } } } } }
+	game.slaves.inventory[friend] = { state = friend.slave.inventory }
+	e:frames(260)
+	game.commands = {}
+	friend.slave.inventory.stratagems[1].cooldown_timer = 118.5
+	e:frames(2)
+	E.eq(#commands_for(game, me, "set_stratagem_info"), 0, "no echo")
+	-- A cooldown running down is no throw.
+	theirs.cooldown_timer = 60
+	e:frames(2)
+	E.eq(#commands_for(game, me, "set_stratagem_info"), 0)
+end)
+
+test("a_lobby_that_isnt_cleared_carries_and_shares_nothing", function()
+	local lobby = { my_id = "me", members = { "me" }, data = {} }
+	local api, game, e = start({ lobby = lobby })
+	carry_world(game, e)
+	local made = api.stratagems.define(SQUAD)
+	api.stratagems.carry("test_squad")
+	api.stratagems.share_cooldown("test_squad")
+	local p1, p2 = local_player(game, made.id), local_player(game, made.id)
+	e:frames(31)
+	lobby.members = { "me", "stranger" }
+	e:frames(31)
+	local ctx = { state = {} }
+	rawget(_G, "InventoryComponent").set_loadout({}, "unit", ctx, { pad_number = 0 })
+	E.eq(#ctx.state.stratagems, 3)
+	game.commands = {}
+	rawget(_G, "InventoryComponent").command_master({}, p1, game.masters.inventory[p1], "throw_stratagem", made.id)
+	e:frames(2)
+	E.eq(#commands_for(game, p2, "set_stratagem_info"), 0)
+	E.eq(select(2, api.stratagems.carry("stratagem_mortar")), "not_cleared")
+end)
+
 return T
