@@ -127,7 +127,7 @@ test("the_menu_opens_on_every_page_with_the_key", function()
 end)
 
 test("no_page_writes_the_players_progression", function()
-	for _, p in ipairs({ "ui", "player", "weapons", "stratagems", "vehicles", "spawn", "enemies", "mission", "world", "editor", "console", "changes" }) do
+	for _, p in ipairs({ "ui", "player", "weapons", "stratagems", "vehicles", "bots", "spawn", "enemies", "mission", "world", "editor", "console", "changes" }) do
 		local src = assert(E.read("bundled/obsidian.trainer/pages/" .. p .. ".lua"))
 		for _, call in ipairs({ "progress%.", "api%.progress", "user_set", "SaveManager" }) do
 			E.eq(src:find(call) == nil, true, p .. " has " .. call)
@@ -308,13 +308,13 @@ test("every_new_row_changes_what_it_says", function()
 	E.eq(api.effects.is_on("auto_respawn"), true)
 	E.eq(rows["Auto-respawn"].get(), true)
 	rows["Auto-respawn"].set(false)
-	rows["Practice mission"](page)
+	rows["Choose a mission"](page)
 	E.eq(rows["Look"].choices[1].label, "Random")
 	E.eq(rows["Look"].choices[5].label, "Bug world")
 	E.eq(rows["Layout"].max, 215)
 	local asked
-	local real = api.mission.practice
-	api.mission.practice = function(choice) asked = choice return false, "look_not_here" end
+	local real = api.mission.drop
+	api.mission.drop = function(choice) asked = choice return false, "look_not_here" end
 	rows["Look"].set(5)
 	rows["Layout"].set(12)
 	E.eq(rows["Drop"](), "This look doesn't exist on this planet type.")
@@ -325,7 +325,7 @@ test("every_new_row_changes_what_it_says", function()
 	rows["Drop"]()
 	E.eq(asked.look, nil, "random")
 	E.eq(asked.layout, nil, "random")
-	api.mission.practice = real
+	api.mission.drop = real
 	page_of("enemies")(page)
 	rows["Encounter difficulty"].set(15)
 	E.eq(api.effects.get("enemy_difficulty"), 15)
@@ -368,7 +368,7 @@ end)
 test("every_text_a_page_asks_for_exists", function()
 	local en = keys_of("en")
 	local files = { "main.lua" }
-	for _, p in ipairs({ "ui", "player", "weapons", "stratagems", "vehicles", "spawn", "enemies", "mission", "world", "editor", "console", "changes" }) do
+	for _, p in ipairs({ "ui", "player", "weapons", "stratagems", "vehicles", "bots", "spawn", "enemies", "mission", "world", "editor", "console", "changes" }) do
 		files[#files + 1] = "pages/" .. p .. ".lua"
 	end
 	local checked = 0
@@ -391,8 +391,10 @@ test("every_reason_the_runtime_gives_has_a_text", function()
 	for _, name in ipairs({ "game", "edits", "console", "catalog", "world", "player", "gear", "stratagems", "enemies", "mission", "progress", "events", "combat", "vehicles", "lobby", "ui", "audio", "bots" }) do
 		local src = assert(E.read("bundled/obsidian.api/lib/" .. name .. ".lua"))
 		for reason in src:gmatch('return false, "([%w_]+)"') do
-			-- API 1.29.0's pose and flashlight answers: the Trainer calls neither.
-			if reason ~= "no_event" and reason ~= "no_flashlight" then
+			-- API 1.29.0's pose and flashlight answers, 1.31.0's effect answers and 1.32.0's blast: the Trainer
+			-- calls none of them.
+			local skip = { no_event = true, no_flashlight = true, unknown_effect = true, no_node = true, no_explosion = true }
+			if not skip[reason] then
 				E.eq(en["why_" .. reason] ~= nil, true, name .. " can answer " .. reason)
 			end
 		end
@@ -439,6 +441,94 @@ test("the_reset_column_undoes_everything_the_rows_can_change", function()
 	E.eq(table.concat(api.effects.active(), ","), "", "nothing left on")
 	E.eq(api.edits.count(), 0, "no edit left on the Changes page")
 	assert_clean(e, game, ui)
+end)
+
+-- A page that keeps its rows by label, for pressing them by hand.
+local function recorder()
+	local rows, page = {}, {}
+	function page:header() end
+	function page:label() end
+	function page:action(label, fn) rows[label] = fn end
+	function page:input(label, fn) rows[label] = fn end
+	function page:page(label, build) rows[label] = build end
+	function page:number(label, opts) rows[label] = opts end
+	function page:toggle(label, opts) rows[label] = opts end
+	function page:choice(label, opts) rows[label] = opts end
+	function page:refresh() end
+	return rows, page
+end
+
+test("a_bots_page_offers_every_bot_order_and_each_row_asks_the_bot", function()
+	local e, game = start()
+	e:core().current = e:core().mods_by_id["obsidian.trainer"]
+	local obsidian = rawget(_G, "obsidian")
+	local api = obsidian.import("obsidian.api")
+	local t = obsidian.text
+	-- A bot that answers every call and keeps what it was asked.
+	local calls = {}
+	local answers = {
+		hurts = function(_, slot) if slot == "support" then return 1800, 1300, 2860 end return 0, 0, 30 end,
+		position = function() return { x = 1, y = 1, z = 0 } end,
+		alive = function() return true end, fighting = function() return false end, seat = function() return nil end,
+		stratagems = function() return {} end, using_weapon = function() return false end, firing = function() return false end,
+		enemies_in_sight = function() return {} end, auto_helping = function() return false, false end,
+	}
+	local bot = setmetatable({ name = "Dummy" }, { __index = function(_, k)
+		return function(_, ...)
+			calls[#calls + 1] = { k, ... }
+			if answers[k] then return answers[k](...) end
+			return true
+		end
+	end })
+	local function asked(name)
+		for i = #calls, 1, -1 do
+			if calls[i][1] == name then return calls[i] end
+		end
+	end
+	local bots = e.loaded["obsidian/mods/obsidian.api/lib/bots"]
+	bots.all = function() return { bot } end
+	local root_rows, root = recorder()
+	e.loaded["obsidian/mods/obsidian.trainer/pages/bots"](root)
+	local rows, page = recorder()
+	root_rows["Dummy"](page)
+	-- Fighting: each weapon for what it can hurt keeps the rifle to what it gets through.
+	rows[t("bot_fight")].set("smart")
+	local fight = asked("fight")
+	E.eq(fight[2], 25)
+	E.eq(fight[3].weapon, "primary")
+	E.eq(fight[3].only("enemy"), false, "the rifle does 0 square to this one")
+	rows[t("bot_fight")].set("vehicle")
+	E.eq(asked("fight")[3].secondary, true)
+	rows[t("bot_fight")].set("off")
+	E.eq(asked("fight")[2], false)
+	rows[t("bot_avoid")].set(true)
+	E.eq(asked("avoid_shots")[2], true)
+	E.eq(rows[t("bot_avoid")].get(), true)
+	rows[t("bot_mech_spares")].set(true)
+	E.eq(asked("mech_friendly_fire")[2], false)
+	rows[t("bot_ride_along")].set(true)
+	E.eq(asked("ride_along")[2], true)
+	-- Weapons: the damage line for each slot against the enemy at the cursor.
+	local text = rows[t("bot_hurts")]()
+	E.eq(text:find(t("hurts_line", t("slot_support"), 1800, 1300, 2860), 1, true) ~= nil, true, text)
+	local sub_rows, sub = recorder()
+	rows[t("bot_wield")](sub)
+	E.eq(sub_rows[t("slot_support")](), t("done"))
+	E.eq(asked("wield")[2], "support")
+	E.eq(rows[t("bot_use_support")](), t("done"))
+	E.eq(asked("use_weapon")[2], "support")
+	-- Vehicles, things and the jump: each row reaches the bot or says why not.
+	for _, key in ipairs({ "bot_enter_vehicle", "bot_enter_driver", "bot_leave_vehicle", "bot_use_cursor", "bot_use_near", "bot_cancel_use",
+		"bot_drop", "bot_jump", "bot_refill_backpack", "bot_cancel_weapon" }) do
+		E.eq(type(rows[t(key)]()), "string", key)
+	end
+	E.eq(asked("leave_vehicle") ~= nil, true)
+	E.eq(asked("drop") ~= nil, true)
+	local jump = asked("jump")
+	E.eq(type(jump[2].x), "number", "toward the cursor")
+	rows[t("bot_say")](sub)
+	E.eq(sub_rows[t("say_taunt")](), t("done"))
+	E.eq(asked("say")[2], "taunt")
 end)
 
 test("spawning_stops_short_of_a_packed_map", function()

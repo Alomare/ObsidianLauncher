@@ -25,11 +25,12 @@ const mod = (source: string | null) =>
     options: [], keybinds: [], files: [], import: null, source, updatable: false, image: null, customImage: false, folder: null, requires: [],
   }) as ModRow;
 
-function show(m: ModRow) {
+function show(m: ModRow, updates: Record<string, string> = {}, onUpdate: (id: string) => void = () => {}) {
   const box = document.createElement("div");
   document.body.append(box);
   root = createRoot(box);
-  act(() => root!.render(<Drawer view={{ kind: "mod", id: m.id }} mods={[m]} conflicts={[]} order={[m.id]} names={new Map([[m.id, "Long Mod"]])} onOpen={() => {}} onClose={() => {}} />));
+  act(() => root!.render(<Drawer view={{ kind: "mod", id: m.id }} mods={[m]} conflicts={[]} order={[m.id]} names={new Map([[m.id, "Long Mod"]])} onOpen={() => {}} onClose={() => {}}
+    updates={updates} onUpdate={onUpdate} />));
   return box;
 }
 
@@ -51,5 +52,20 @@ describe("the About tab", () => {
 
   it("has_no_source_row_without_a_source", () => {
     expect(show(mod(null)).querySelector(".src-link")).toBeNull();
+  });
+});
+
+describe("the panel's update offer", () => {
+  it("offers a newer version found, as the row does, and asks through the same question", () => {
+    const onUpdate = vi.fn();
+    const offer = show(mod(SOURCE), { "someone.long-mod": "1.2.0" }, onUpdate).querySelector<HTMLButtonElement>(".dh .dh-update");
+    expect(offer?.textContent).toBe("Update to 1.2.0");
+    act(() => offer!.click());
+    expect(onUpdate).toHaveBeenCalledWith("someone.long-mod");
+  });
+
+  it("offers nothing without a newer version", () => {
+    expect(show(mod(SOURCE), { "someone.long-mod": "1.0.0" }).querySelector(".dh-update")).toBeNull();
+    expect(show(mod(SOURCE)).querySelector(".dh-update")).toBeNull();
   });
 });

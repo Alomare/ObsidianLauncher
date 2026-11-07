@@ -17,7 +17,7 @@ function apply(s: AppSettings) {
   listeners.forEach((f) => f());
 }
 
-const DEFAULTS: AppSettings = { theme: "default", scale: 100, text: "normal", motion: null, language: null, updates: "prompt", gameDir: null };
+export const DEFAULTS: AppSettings = { theme: "default", scale: 100, text: "normal", motion: null, language: null, updates: "prompt", gameDir: null, askVanillaPlay: true };
 
 /** Loads the saved settings. If that fails, or takes long (the first calls after a start can
  *  hang), the window opens with the defaults and takes the saved ones when they arrive. */

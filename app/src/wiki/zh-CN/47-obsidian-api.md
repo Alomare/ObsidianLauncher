@@ -133,7 +133,7 @@ end)
 | `api.gear` | `refill`、`give_weapon(slot, path, upgrade, unit)`、`give_backpack(path, upgrade, unit)`、`give_perk(name, unit)`、`remove_perk(unit)`、`add_perk(name, unit)`、`remove_extra_perk(name, unit)`、`extra_perks(unit)`、`refresh`、`weapons_of(owner)`、`tune(unit, component, changes)`、`add_drone(path, unit, upgrade)` |
 | `api.stratagems` | `reset_cooldowns`、`refill_uses`、`give`、`drop`、`call(name, pos, delay)`、`edit(name, field, value)`、`define(def)`、`custom()` |
 | `api.enemies` | `spawn`、`spawn_group`、`spawn_entity(path, pos)`、`kill_all`、`kill(unit)`、`list`、`info(unit)`、`nearest(pos)`、`apply_status(unit, template)`、`stun_near(radius)`、`near(radius, pos)`、`damage(unit, power, statuses)`、`set_hitpoints(unit, n)`、`despawn(unit)`、`load_faction(name)`、`set_pressure(t)`、`waves()`、`force_wave(name, pos)`、`carried()`（地图上的敌人，含尸体和生成队列）、`room()`（低于 `MAX_SAFE` 还能容纳的数量） |
-| `api.mission` | `finish_objectives`、`objectives()`、`mutator(name)`、`win`、`abort`、`practice` |
+| `api.mission` | `finish_objectives`、`objectives()`、`mutator(name)`、`win`、`abort`、`practice`、`drop` |
 | `api.vehicles` | `current()`、`driving()`、`repair()`、`refill()` |
 | `api.combat` | `scale{ players, enemies }` |
 | `api.events` | `on(name, fn)`、`off(name, fn)` |
@@ -443,6 +443,8 @@ bot:aim_at(pos)      -- 没有可战斗的目标时一直朝向某个位置
 命令：`follow(unit, distance)`、`go_to(pos, distance)`、`hold()`、`aim_at(pos)`、`fight(radius)`，以及用于读回命令的 `fighting()` 和 `firing()`。新的移动命令会替换上一个，`go_to` 在机器人到达后结束。
 
 装备和协助会像 `api.gear`、`api.stratagems` 和 `api.player` 给主玩家时那样给机器人，返回 `true`，或者返回 `false` 和原因，机器人没有身体时为 `"no_avatar"`：`give_weapon(slot, path, upgrade)`、`give_backpack(path, upgrade)`、`give_perk(name)`、`remove_perk()`、`refill()`、`give_stratagem(name)`、`call(name, pos, delay)`（由机器人发出的真实呼叫）、`heal()`、`teleport(pos)` 和 `weapons()`。
+
+`use_stratagem(name, pos, on_done)` 像玩家一样呼叫机器人栏位中的战略配备：按住战略配备键、输入代码、把信标投向 `pos`。它会消耗冷却和一次使用次数，`on_done(ok, reason)` 会收到结束方式。`stratagems()` 列出机器人携带的战略配备，`cancel_stratagem()` 停止呼叫。
 
 自行操控时可用：`move(dir)`、`aim(dir)`、`fire(on)`、`sprint(on)`、`reload()`、`dodge()`、`melee()`、`interact()`、`throw()` 和 `switch()`。方向是 `{ x, y }` 形式的世界方向。`unit()`、`alive()` 和 `remove()` 如其名。机器人直线走向目标，没有寻路，而且游戏会把本地玩家留在屏幕内，因此玩家机器人会停在视野边缘。
 

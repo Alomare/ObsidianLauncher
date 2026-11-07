@@ -288,10 +288,11 @@ pub struct Manifest {
     pub requires: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub conflicts: Vec<String>,
-    /// `"last"`: where this mod asks to sit when it joins a profile, and new mods go before it.
+    /// Where this mod asks to load: `"first"` or `"last"`, or rules with before and after (`LoadRules`).
+    /// A new mod takes its place on joining a profile, and Sort Mods puts the whole list in line.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub load: Option<String>,
-    /// Ids of mods this one asks to load after, when either joins a profile. The player's order wins after that.
+    pub load: Option<LoadRules>,
+    /// Ids of mods this one asks to load after: the form before `load.after`, read the same way.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub load_after: Vec<String>,
     #[serde(default = "one")]
@@ -306,6 +307,102 @@ pub struct Manifest {
 
 fn one() -> u32 {
     1
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Position {
+    First,
+    Last,
+}
+
+/// `load` in a manifest. The text `"first"` or `"last"` is short for `{ "position": ... }`, and Obsidian
+/// 1.3.1 and earlier read only `"last"`, so a position alone is written that way.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct LoadRules {
+    pub position: Option<Position>,
+    pub before: Vec<String>,
+    pub after: Vec<String>,
+    /// Before every mod that replaces game files (has resources).
+    pub before_patches: bool,
+    pub after_patches: bool,
+}
+
+impl LoadRules {
+    fn position_from(text: &str) -> std::result::Result<Position, String> {
+        match text {
+            "first" => Ok(Position::First),
+            "last" => Ok(Position::Last),
+            _ => Err(format!("load: position is \"first\" or \"last\", not \"{text}\"")),
+        }
+    }
+}
+
+impl TryFrom<Value> for LoadRules {
+    type Error = String;
+    fn try_from(v: Value) -> std::result::Result<Self, String> {
+        let obj = match v {
+            Value::String(s) => return Ok(LoadRules { position: Some(LoadRules::position_from(&s)?), ..Default::default() }),
+            Value::Object(o) => o,
+            _ => return Err("load is \"first\", \"last\" or an object with position, before, after, before_patches and after_patches".into()),
+        };
+        let mut rules = LoadRules::default();
+        for (key, value) in obj {
+            match key.as_str() {
+                "position" => rules.position = Some(LoadRules::position_from(value.as_str().ok_or("load: position is \"first\" or \"last\"")?)?),
+                "before" | "after" => {
+                    let ids = value
+                        .as_array()
+                        .and_then(|a| a.iter().map(|x| x.as_str().map(str::to_string)).collect::<Option<Vec<_>>>())
+                        .ok_or_else(|| format!("load: {key} is a list of mod ids"))?;
+                    if key == "before" { rules.before = ids } else { rules.after = ids }
+                }
+                "before_patches" | "after_patches" => {
+                    let on = value.as_bool().ok_or_else(|| format!("load: {key} is true or false"))?;
+                    if key == "before_patches" { rules.before_patches = on } else { rules.after_patches = on }
+                }
+                other => return Err(format!("load: {other} is not a field; use position, before, after, before_patches or after_patches")),
+            }
+        }
+        Ok(rules)
+    }
+}
+
+impl From<LoadRules> for Value {
+    fn from(r: LoadRules) -> Value {
+        let pos = r.position.map(|p| if p == Position::First { "first" } else { "last" });
+        if r.before.is_empty() && r.after.is_empty() && !r.before_patches && !r.after_patches && let Some(p) = pos {
+            return Value::String(p.into());
+        }
+        let mut o = serde_json::Map::new();
+        if let Some(p) = pos {
+            o.insert("position".into(), p.into());
+        }
+        if !r.before.is_empty() {
+            o.insert("before".into(), r.before.into());
+        }
+        if !r.after.is_empty() {
+            o.insert("after".into(), r.after.into());
+        }
+        if r.before_patches {
+            o.insert("before_patches".into(), true.into());
+        }
+        if r.after_patches {
+            o.insert("after_patches".into(), true.into());
+        }
+        Value::Object(o)
+    }
+}
+
+impl Serialize for LoadRules {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
+        Value::from(self.clone()).serialize(s)
+    }
+}
+
+impl<'de> Deserialize<'de> for LoadRules {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Self, D::Error> {
+        LoadRules::try_from(Value::deserialize(d)?).map_err(serde::de::Error::custom)
+    }
 }
 
 fn bad(field: impl Into<String>, reason: impl Into<String>) -> ObsidianError {
@@ -384,11 +481,28 @@ impl Manifest {
                 return Err(bad("load_after", format!("{id} is not the id of another mod")));
             }
         }
-        if self.load.as_deref().is_some_and(|l| l != "last") {
-            return Err(bad("load", "the only value is \"last\""));
+        if let Some(rules) = &self.load {
+            for (field, ids) in [("load.before", &rules.before), ("load.after", &rules.after)] {
+                for id in ids {
+                    if !valid_id(id) || *id == self.id {
+                        return Err(bad(field, format!("{id} is not the id of another mod")));
+                    }
+                }
+            }
+            if let Some(id) = rules.before.iter().find(|id| rules.after.contains(id) || self.load_after.contains(id)) {
+                return Err(bad("load", format!("{id} is both in before and in after")));
+            }
+            if rules.before_patches && rules.after_patches {
+                return Err(bad("load", "before_patches and after_patches can't both be true"));
+            }
         }
         let options = self.option_specs()?;
-        crate::options::parse_keybinds(&self.keybinds)?;
+        for (i, k) in crate::options::parse_keybinds(&self.keybinds)?.iter().enumerate() {
+            let Some(pad) = &k.pad else { continue };
+            if !options.iter().any(|o| &o.id == pad && matches!(o.kind, crate::options::OptionKind::Choice(_))) {
+                return Err(bad(format!("keybinds[{i}]"), format!("pad: {pad} is not a choice option of this mod")));
+            }
+        }
         for (i, r) in self.resources.iter().enumerate() {
             let field = format!("resources[{i}]");
             if r.bundle.as_deref().is_some_and(|b| !is_hex16(b)) {
@@ -403,6 +517,17 @@ impl Manifest {
             }
         }
         Ok(())
+    }
+
+    /// `load` with `load_after` folded in.
+    pub fn load_rules(&self) -> LoadRules {
+        let mut r = self.load.clone().unwrap_or_default();
+        for id in &self.load_after {
+            if !r.after.contains(id) {
+                r.after.push(id.clone());
+            }
+        }
+        r
     }
 
     pub fn option_specs(&self) -> Result<Vec<crate::options::OptionSpec>> {
@@ -626,6 +751,23 @@ mod tests {
     }
 
     #[test]
+    fn a_keybind_names_a_choice_option_as_its_controller_input() {
+        let with_pad = |pad: &str| {
+            EXAMPLE
+                .replace(r#""default": "f8""#, &format!(r#""default": "f8", "pad": {pad}"#))
+                .replace(r#"{ "id": "distance", "type": "number", "default": 5 }"#,
+                    r#"{ "id": "distance", "type": "number", "default": 5 }, { "id": "pad_toggle", "type": "choice", "choices": ["thumbs", "off"], "default": "thumbs" }"#)
+        };
+        let m = load_manifest(mod_with(&with_pad(r#""pad_toggle""#)).path()).unwrap();
+        assert_eq!(crate::options::parse_keybinds(&m.keybinds).unwrap()[0].pad.as_deref(), Some("pad_toggle"));
+        assert_eq!(field_of(load_manifest(mod_with(&with_pad(r#""nothing""#)).path())), "keybinds[0]", "no such option");
+        assert_eq!(field_of(load_manifest(mod_with(&with_pad(r#""distance""#)).path())), "keybinds[0]", "not a choice");
+        assert_eq!(field_of(load_manifest(mod_with(&with_pad("5")).path())), "keybinds[0]", "not an id");
+        let plain = load_manifest(mod_with(EXAMPLE).path()).unwrap();
+        assert_eq!(crate::options::parse_keybinds(&plain.keybinds).unwrap()[0].pad, None);
+    }
+
+    #[test]
     fn when_needs_a_declared_option_and_a_valid_value() {
         let unknown = EXAMPLE.replace(r#""data": "res/bar.texture""#, r#""data": "res/bar.texture", "when": {"sky": "day"}"#);
         assert_eq!(field_of(load_manifest(mod_with(&unknown).path())), "resources[1]");
@@ -633,6 +775,55 @@ mod tests {
         assert_eq!(field_of(load_manifest(mod_with(&invalid).path())), "resources[1]");
         let good = EXAMPLE.replace(r#""data": "res/bar.texture""#, r#""data": "res/bar.texture", "when": {"distance": 5}"#);
         assert!(load_manifest(mod_with(&good).path()).is_ok());
+    }
+
+    #[test]
+    fn load_reads_the_short_text_and_the_rules() {
+        let with = |load: &str| EXAMPLE.replace(r#""loader_api": 1,"#, &format!(r#""loader_api": 1, "load": {load},"#));
+        let last = load_manifest(mod_with(&with(r#""last""#)).path()).unwrap();
+        assert_eq!(last.load, Some(LoadRules { position: Some(Position::Last), ..Default::default() }));
+        let first = load_manifest(mod_with(&with(r#""first""#)).path()).unwrap();
+        assert_eq!(first.load.unwrap().position, Some(Position::First));
+
+        let d = mod_with(&with(r#"{ "position": "last", "before": ["a.b"], "after": ["c.d"], "before_patches": true }"#));
+        let m = load_manifest(d.path()).unwrap();
+        let rules = m.load.clone().unwrap();
+        assert_eq!((rules.position, rules.before.as_slice(), rules.after.as_slice(), rules.before_patches, rules.after_patches), (Some(Position::Last), &["a.b".to_string()][..], &["c.d".to_string()][..], true, false));
+        write_manifest(d.path(), &m).unwrap();
+        assert_eq!(load_manifest(d.path()).unwrap(), m, "it survives a round trip");
+
+        // A position alone is written as the text older Obsidian reads.
+        let d = mod_with(&with(r#"{ "position": "last" }"#));
+        let m = load_manifest(d.path()).unwrap();
+        write_manifest(d.path(), &m).unwrap();
+        assert!(std::fs::read_to_string(d.path().join(FILE)).unwrap().contains(r#""load": "last""#));
+    }
+
+    #[test]
+    fn load_after_folds_into_the_rules() {
+        let json = EXAMPLE.replace(r#""loader_api": 1,"#, r#""loader_api": 1, "load": { "after": ["x.y"] }, "load_after": ["x.y", "z.w"],"#);
+        let m = load_manifest(mod_with(&json).path()).unwrap();
+        assert_eq!(m.load_rules().after, ["x.y", "z.w"]);
+    }
+
+    #[test]
+    fn load_is_checked() {
+        for (load, why) in [
+            (r#""middle""#, "position"),
+            (r#"{ "position": "top" }"#, "position"),
+            (r#"{ "befor": ["a.b"] }"#, "befor"),
+            (r#"{ "before": "a.b" }"#, "list"),
+            (r#"{ "before_patches": "yes" }"#, "true or false"),
+            (r#"{ "before": ["Not An Id"] }"#, "not the id"),
+            (r#"{ "after": ["author.short-name"] }"#, "not the id"),
+            (r#"{ "before": ["a.b"], "after": ["a.b"] }"#, "both"),
+            (r#"{ "before_patches": true, "after_patches": true }"#, "both be true"),
+            ("3", "object"),
+        ] {
+            let json = EXAMPLE.replace(r#""loader_api": 1,"#, &format!(r#""loader_api": 1, "load": {load},"#));
+            let e = load_manifest(mod_with(&json).path()).unwrap_err().to_string();
+            assert!(e.contains(why), "{load}: {e}");
+        }
     }
 
     #[test]

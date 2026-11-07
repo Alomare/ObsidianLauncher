@@ -103,7 +103,7 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
           <BookIcon />
         </button>
         <button role="tab" aria-selected={tab === "settings"} aria-label={updateFound ? `${t("app.nav.settings")}: ${t("app.status.updateFound")}` : t("app.nav.settings")}
-          className={`tab${tab === "settings" ? " cur" : ""}${updateFound ? " lit" : ""}`} onClick={() => onTab("settings")}
+          className={`tab tab-settings${tab === "settings" ? " cur" : ""}${updateFound ? " lit" : ""}`} onClick={() => onTab("settings")}
           data-tip-title={updateFound ? t("app.nav.settings") : undefined} data-tip={updateFound ? t("app.status.updateFound") : t("app.nav.settings")}>
           <CogIcon />
           {updateFound && <i className="tab-dot" aria-hidden="true" />}

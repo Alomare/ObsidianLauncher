@@ -68,7 +68,7 @@ At deploy, Obsidian writes the streamed parts into a `.stream` file beside the p
 
 ## Single clips of a sound bank {#sound-bank-clips}
 
-A whole bank can pass a gigabyte across its languages. A mod that changes a few sounds can ship only those clips under `clips`, and Obsidian rebuilds the bank from the installed game at deploy:
+A whole bank can pass a gigabyte across its languages. A mod that changes a few sounds can ship only those clips under `clips`. At deploy, Obsidian points the game's list of sounds (`timpani_master`, in the boot bundle) at new ids for those clips, and puts the clips under the new ids into a small bank of Obsidian's beside the bank they replace. The game's banks stay as they are:
 
 ```json
 { "type": "timpani_bank", "name": "#e0f28740d6c19769",
@@ -81,11 +81,11 @@ A whole bank can pass a gigabyte across its languages. A mod that changes a few 
 
 - `clip` is the clip's id, `#` plus 16 hex digits. `lang` is the language flag from the table above, 0 if you leave it out.
 - `data` is what goes in the bank: the clip's 68-byte header and the first part of its audio. `stream` is the rest, if any.
-- A resource with `clips` has no `bundle`: Obsidian puts the bank in every bundle that holds it. Clips and languages you don't list stay as the game has them.
-- Two rows can use the same file. Mods can change different clips of one bank, and when two change the same clip, the later one in the load order wins. Over a mod that replaces the whole bank, clips apply to that mod's bank.
+- A resource with `clips` has no `bundle`: that small bank goes into every bundle that holds the game's bank and loads with it, in the language the game is set to. Clips and languages you don't list play as the game has them.
+- Two rows can use the same file. Mods can change different clips of one bank, and when two change the same clip, the later one in the load order wins. Over a mod that replaces the whole bank, that bank still deploys, and the languages you don't list play the clip as that mod has it.
 - Deploy refuses a clip or language the bank doesn't have, and a file whose header doesn't match its size.
 
-A game update counts as changes waiting, and a new deploy rebuilds the bank. The deployed patch is still as big as the whole bank: `clips` shrinks the download, not the space on disk.
+A game update counts as changes waiting, and a new deploy reads the game again. The deployed patch holds the list of sounds (about 0.2 MB) and the new clips, with the game's own clip for each language you leave out where that language plays other audio: one footstep in US English, which sits in two banks, takes about 4 MB of disk.
 
 ## Fields
 

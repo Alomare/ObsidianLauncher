@@ -47,7 +47,7 @@ export const CogIcon = () => (
   </Icon>
 );
 /** An eraser: Purge wipes what Obsidian wrote, back to vanilla. */
-export const PurgeIcon = () => <Icon width="21" height="21" strokeWidth="2"><path d="M9 20.5L2.8 14.3a1 1 0 0 1 0-1.4l9.5-9.5a1 1 0 0 1 1.4 0l6.8 6.8a1 1 0 0 1 0 1.4L11.6 20.5z" /><path d="M7.5 8.6l8.4 8.4M9 20.5h12" /></Icon>;
+export const PurgeIcon = () => <Icon width="22.7" height="22.7" strokeWidth="2"><path d="M9 20.5L2.8 14.3a1 1 0 0 1 0-1.4l9.5-9.5a1 1 0 0 1 1.4 0l6.8 6.8a1 1 0 0 1 0 1.4L11.6 20.5z" /><path d="M7.5 8.6l8.4 8.4M9 20.5h12" /></Icon>;
 /** A box with an arrow leaving it: the mods go out into the game. Drawn like Purge. */
 export const DeployIcon = () => <Icon width="24" height="24" strokeWidth="1.9"><path d="M9.5 9l6.5 3.5v7L9.5 23 3 19.5v-7z" /><path d="M3 12.5l6.5 3.5 6.5-3.5M9.5 16v7" /><path d="M13.5 9.5L21 2M15.5 2H21v5.5" /></Icon>;
 export const PlayIcon = () => <Icon fill="currentColor" stroke="none"><path d="M7 4.5v15l13-7.5z" /></Icon>;
@@ -77,6 +77,10 @@ export const ResetIcon = () => <Icon><path d="M4 4v6h6M4.5 15a8 8 0 1 0 1.5-8.5L
 export const InfoIcon = () => <Icon><circle cx="12" cy="12" r="8.5" /><path d="M12 11v5.5M12 7.6v.1" strokeWidth={2.4} /></Icon>;
 /** Three sliders. */
 export const SlidersIcon = () => <Icon><path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h7M15 17h5" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="12" r="2" /><circle cx="13" cy="17" r="2" /></Icon>;
+/** A keyboard with a mouse beside it: the Keys tab's mouse and keyboard column. */
+export const KeyboardMouseIcon = () => <Icon><rect x="1.5" y="7.5" width="14" height="10" rx="1.3" /><path d="M4.6 10.8h.01M8.5 10.8h.01M12.4 10.8h.01M6 14.4h5" /><rect x="17.5" y="7.5" width="5" height="10" rx="2.5" /><path d="M20 7.5v3.2" /></Icon>;
+/** A controller: the Keys tab's controller column. */
+export const GamepadIcon = () => <Icon><path d="M7.2 7h9.6a4.4 4.4 0 0 1 4.3 3.5l1 5.2a2.5 2.5 0 0 1-4.4 2.1L15.5 15.5h-7l-2.2 2.3a2.5 2.5 0 0 1-4.4-2.1l1-5.2A4.4 4.4 0 0 1 7.2 7z" /><path d="M7.8 9.8v3.4M6.1 11.5h3.4M15.6 10.6h.01M17.6 12.6h.01" /></Icon>;
 export const KeyboardIcon = () => <Icon><rect x="2.5" y="6" width="19" height="12" rx="1.5" /><path d="M6.5 10h.01M10 10h.01M14 10h.01M17.5 10h.01M6.5 14h.01M17.5 14h.01M10 14h4" /></Icon>;
 /** A sheet with a folded corner. */
 export const FileIcon = () => <Icon><path d="M6 3.5h8l4.5 4.5v12.5H6z" /><path d="M13.5 3.5v5h5" /></Icon>;

@@ -64,6 +64,8 @@ pub enum ObsidianError {
     BundleRequired { mod_id: String },
     #[error("a sound bank can't be read: {0}")]
     BadBank(String),
+    #[error("the game's list of sounds (timpani_master) can't be read: {0}")]
+    BadMaster(String),
     #[error("mod {mod_id} changes sound bank {bank}, and this game doesn't have it")]
     RecipeBank { mod_id: String, bank: String },
     #[error("mod {mod_id} changes sound bank {bank} in language {lang:#x}, and the bank doesn't have that language")]

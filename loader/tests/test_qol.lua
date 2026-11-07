@@ -126,9 +126,31 @@ test("skip_war_briefs_skips_the_recap", function()
 	E.eq(seen.recap, false)
 end)
 
+-- The war seen last, as the save keeps it, and the season the campaign is in now.
+local function war(seen_season, season)
+	rawset(_G, "SaveManager", { get = function(_, key) if key == "last_shown_recap_status" then return { { season = seen_season } } end end })
+	rawset(_G, "CampaignManager", { get_current_season = function() return season end })
+end
+
+test("skip_war_briefs_leaves_the_login_recap_of_a_wars_end", function()
+	local e = engine()
+	local seen = load_states(e)
+	war(2, 3)
+	rawget(_G, "StateMenu").on_enter({}, { show_recap = true })
+	E.eq(seen.recap, true, "the war seen last ended since")
+	E.has(e:log("obsidianqol"), "skip war briefs: the war's end is left to play")
+	war(3, 3)
+	rawget(_G, "StateMenu").on_enter({}, { show_recap = true })
+	E.eq(seen.recap, false, "the same war")
+	war(0, 3)
+	rawget(_G, "StateMenu").on_enter({}, { show_recap = true })
+	E.eq(seen.recap, false, "season 0, which the recap screen also ignores")
+end)
+
 -- The galaxy map's recap screen, as the game defines it when the campaign menu loads. params.events
 -- gives the screen something to play; params.war_over makes it the war's end; params.from_backend
--- leaves the snapshots to come later.
+-- leaves the snapshots to come later. go_to_recap is what the open map calls when the war moves.
+-- A new screen is one more object of the same hooked class.
 local function load_recap(e)
 	local recap = {}
 	function recap.on_enter(self, params)
@@ -143,7 +165,8 @@ local function load_recap(e)
 	rawset(_G, "MenuScreenCampaign", campaign)
 	e.opts.modules["lua/menu/menu_screen_campaign"] = true
 	rawget(_G, "require")("lua/menu/menu_screen_campaign")
-	return setmetatable({}, { __index = recap }), campaign
+	local function screen() return setmetatable({}, { __index = recap }) end
+	return screen(), campaign, screen
 end
 
 test("skip_war_briefs_leaves_the_galaxy_maps_brief_at_once", function()
@@ -154,16 +177,30 @@ test("skip_war_briefs_leaves_the_galaxy_maps_brief_at_once", function()
 	E.has(e:log("obsidianqol"), "skip war briefs: brief skipped")
 end)
 
-test("skip_war_briefs_plays_the_recap_the_player_asks_for_and_the_wars_end", function()
+test("skip_war_briefs_skips_the_brief_the_open_map_plays_when_the_war_moves", function()
 	local e = engine()
-	local screen, campaign = load_recap(e)
+	local _, campaign = load_recap(e)
 	campaign:go_to_recap()
-	E.eq(campaign.recap.wants_exit, false, "asked for")
-	screen:on_enter({ next_state = "start", events = true })
-	E.eq(screen.wants_exit, true, "the next one is skipped again")
-	local over = load_recap(e)
+	E.eq(campaign.recap.wants_exit, true, "a sector taken while the map is open")
+	campaign:go_to_recap()
+	E.eq(E.count(e:log("obsidianqol"), "skip war briefs: brief skipped"), 2, "each time")
+end)
+
+test("skip_war_briefs_plays_the_wars_end_and_the_debug_menus_recap", function()
+	local e = engine()
+	local _, _, screen = load_recap(e)
+	local over = screen()
 	over:on_enter({ next_state = "start", events = true, war_over = true })
-	E.eq(over.wants_exit, false, "the war's end goes on to the season end")
+	E.eq(over.wants_exit, false, "a war seen last in an earlier season goes on to the season end")
+	local ending = screen()
+	ending:on_enter({ season_end = true, show_recap = true, events = true })
+	E.eq(ending.wants_exit, false, "the season end on the ship")
+	local debug = screen()
+	debug:on_enter({ debug_recap = true, events = true })
+	E.eq(debug.wants_exit, false, "the debug menu")
+	local next_one = screen()
+	next_one:on_enter({ next_state = "start", events = true })
+	E.eq(next_one.wants_exit, true, "the next brief is skipped")
 end)
 
 test("skip_war_briefs_waits_for_the_snapshots_from_the_backend", function()
@@ -418,9 +455,11 @@ test("toggle_map_makes_the_map_binding_sticky_on_a_copy", function()
 	E.eq(#list, 3)
 end)
 
--- A unit whose animation state is a list of numbers, and the character and inventory states the fix reads.
+-- A Helldiver whose animation state is nine numbers, the recoil layer sixth, here in the launcher kind
+-- (13); another unit that isn't a Helldiver; and EquipmentComponent.update_slaves as the game has it,
+-- noting what the recoil layer held each time it plays on_wielded.
 local function recoil_game()
-	local g = { unit = { alive = true, pose = { 1, 2, 3, 4, 5, 7, 9 } }, set = 0, flows = {}, cs = {}, inv = { current_weapon = "rifle" } }
+	local g = { unit = { alive = true, pose = { 1, 2, 3, 4, 5, 13, 9, 0, 4 } }, other = { alive = true, pose = { 1, 2, 3, 4, 5, 13 } }, set = 0, wielded = {} }
 	rawset(_G, "Unit", {
 		alive = function(u) return u.alive end,
 		animation_get_state = function(u) return unpack(u.pose) end,
@@ -428,87 +467,75 @@ local function recoil_game()
 			u.pose = { ... }
 			g.set = g.set + 1
 		end,
-		flow_event = function(u, name) g.flows[#g.flows + 1] = { u, name } end,
 	})
-	rawset(_G, "EntityAux", { state = function(_, component) return component == "inventory" and g.inv or g.cs end })
-	for _, n in ipairs({ "CharacterStateIdle", "CharacterStateWalk", "CharacterStateFire", "CharacterStateStratagemsThrow", "CharacterStateSwitchWeapon" }) do rawset(_G, n, { name = n }) end
-	rawset(_G, "CharacterStateStratagems", { on_enter = function() end })
-	rawset(_G, "CharacterStateInteract", { on_enter = function() end })
+	rawset(_G, "EntityAux", { has_component = function(u, name) return name == "character" and u ~= g.other end })
+	rawset(_G, "EquipmentComponent", { update_slaves = function(self, slaves)
+		for weapon, ctx in pairs(slaves) do
+			local s = ctx.state
+			if s.wielded ~= s.was_wielded then
+				s.was_wielded = s.wielded
+				if s.wielded then g.wielded[#g.wielded + 1] = { weapon, s.wielder.pose[6] } end
+			end
+		end
+	end })
 	return g
 end
 
-test("recoil_fix_puts_the_weapon_pose_back_after_a_stratagem", function()
+-- The equipment slaves the game passes: one weapon, wielded now or before.
+local function slaves(weapon, wielder, wielded, was)
+	return { [weapon] = { state = { wielded = wielded, was_wielded = was, wielder = wielder } } }
+end
+
+local function take_in_hand(list) rawget(_G, "EquipmentComponent").update_slaves({}, list) end
+
+test("recoil_fix_puts_the_recoil_layer_at_the_start_before_a_weapon_is_taken_in_hand", function()
 	local g = recoil_game()
 	local e = engine()
-	local S, idle = rawget(_G, "CharacterStateStratagems"), rawget(_G, "CharacterStateIdle")
-	S.on_enter(g.unit, {}, idle)
-	g.unit.pose[6] = 12
-	g.cs.current_state = rawget(_G, "CharacterStateStratagemsThrow")
-	e:frames(30)
-	E.eq(g.set, 0, "nothing while throwing")
-	g.cs.current_state = idle
-	e:frames(19)
-	E.eq(g.set, 0, "the weapon comes back up first")
-	e:frames(2)
+	take_in_hand(slaves("rifle", g.unit, true, false))
+	E.eq(g.wielded[1][2], 3, "the start, when the weapon sets the layer up")
 	E.eq(g.set, 1)
-	E.eq(g.unit.pose[6], 7, "the weapon layer from before the menu")
-	E.eq(g.unit.pose[5], 5, "every other layer as it was")
-	E.eq(#g.unit.pose, 7)
-	e:frames(30)
-	E.eq(g.set, 1, "once")
-	-- A layer the throw left alone stays alone, and a weapon switch on the way drops the check.
-	S.on_enter(g.unit, {}, idle)
-	e:frames(30)
-	E.eq(g.set, 1, "nothing to put back")
-	S.on_enter(g.unit, {}, idle)
-	g.unit.pose[6], g.inv.current_weapon = 12, "pistol"
-	g.cs.current_state = rawget(_G, "CharacterStateSwitchWeapon")
-	e:frames(2)
-	g.cs.current_state = idle
-	e:frames(30)
-	E.eq(g.set, 1, "switched by the player")
-	E.eq(#g.flows, 0)
-	-- A pose kept mid-shot would fire the weapon again.
-	g.inv.current_weapon = "rifle"
-	S.on_enter(g.unit, {}, rawget(_G, "CharacterStateFire"))
-	e:frames(30)
-	E.eq(g.set, 1, "opened while firing")
-	E.eq(E.count(e:log("obsidianqol"), "recoil fix: weapon pose put back"), 1)
+	E.eq(table.concat(g.unit.pose, ","), "1,2,3,4,5,3,9,0,4", "every other layer as it was")
+	E.has(e:log("obsidianqol"), "recoil fix: weapon layer back from state 13")
+	-- A weapon set up for the first time has no was_wielded yet.
+	g.unit.pose[6] = 5
+	take_in_hand(slaves("pistol", g.unit, true, nil))
+	E.eq(g.wielded[2][2], 3, "a new weapon")
+	E.eq(g.set, 2)
 end)
 
-test("recoil_fix_sets_up_a_weapon_picked_up_from_the_ground", function()
+test("recoil_fix_leaves_the_layer_when_nothing_is_taken_in_hand", function()
+	local g = recoil_game()
+	engine()
+	g.unit.pose[6] = 3
+	take_in_hand(slaves("rifle", g.unit, true, false))
+	E.eq(g.set, 0, "already at the start")
+	g.unit.pose[6] = 4
+	take_in_hand(slaves("pistol", g.unit, true, true))
+	take_in_hand(slaves("pistol", g.unit, false, true))
+	take_in_hand(slaves("cannon", g.other, true, false))
+	g.unit.alive = false
+	take_in_hand(slaves("rifle", g.unit, true, false))
+	E.eq(g.set, 0, "kept in hand, put away, not a Helldiver, gone")
+	E.eq(g.unit.pose[6], 4)
+	E.eq(g.other.pose[6], 13)
+	E.eq(#g.wielded, 3, "the game still sets the weapons up")
+end)
+
+test("recoil_fix_lets_the_weapon_be_taken_in_hand_after_an_error", function()
 	local g = recoil_game()
 	local e = engine()
-	local idle = rawget(_G, "CharacterStateIdle")
-	g.cs.current_state = idle
-	rawget(_G, "CharacterStateInteract").on_enter(g.unit, {}, idle)
-	g.cs.current_state = nil
-	g.inv.current_weapon = "machinegun"
-	e:frames(10)
-	E.eq(#g.flows, 0, "not while picking it up")
-	g.cs.current_state = idle
-	e:frames(21)
-	E.eq(#g.flows, 1)
-	E.eq(g.flows[1][1], "machinegun", "the weapon picked up")
-	E.eq(g.flows[1][2], "on_wielded")
-	E.eq(g.set, 0, "no pose of another weapon put on it")
-	-- An interaction that keeps the weapon puts the pose back, as after a stratagem.
-	rawget(_G, "CharacterStateInteract").on_enter(g.unit, {}, idle)
-	g.unit.pose[6] = 12
-	e:frames(25)
-	E.eq(g.set, 1)
-	E.eq(g.unit.pose[6], 7)
-	E.eq(#g.flows, 1)
+	rawget(_G, "Unit").animation_get_state = function() error("broken") end
+	take_in_hand(slaves("rifle", g.unit, true, false))
+	E.eq(#g.wielded, 1)
+	E.has(e:log("obsidianqol"), "recoil fix:")
 end)
 
-test("recoil_fix_off_leaves_the_pose", function()
+test("recoil_fix_off_leaves_the_layer", function()
 	local g = recoil_game()
-	local e = engine({ "recoil_fix" })
-	rawget(_G, "CharacterStateStratagems").on_enter(g.unit, {}, rawget(_G, "CharacterStateIdle"))
-	g.unit.pose[6] = 12
-	g.cs.current_state = rawget(_G, "CharacterStateIdle")
-	e:frames(30)
+	engine({ "recoil_fix" })
+	take_in_hand(slaves("rifle", g.unit, true, false))
 	E.eq(g.set, 0)
+	E.eq(g.wielded[1][2], 13)
 end)
 
 -- The character states, and the animation events a unit gets.

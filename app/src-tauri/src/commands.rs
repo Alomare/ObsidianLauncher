@@ -177,6 +177,27 @@ pub async fn set_order(ctx: State<'_, Ctx>, ids: Vec<String>, moves: Option<Vec<
     fresh(&ctx)
 }
 
+/// What Sort Mods would do to the active profile's order, without changing it.
+#[tauri::command]
+pub async fn sort_preview(ctx: State<'_, Ctx>) -> CmdResult<obsidian_core::sort::SortPlan> {
+    let _turn = ctx.turn();
+    let lib = Library::open(&ctx.data)?;
+    let mut p = Profile::load(&ctx.data)?;
+    p.sync(&lib)?;
+    Ok(obsidian_core::sort::plan(&lib, &p)?)
+}
+
+/// Puts the load order in the order Sort Mods showed; `moved` names the mods it moved.
+#[tauri::command]
+pub async fn apply_sort(ctx: State<'_, Ctx>, ids: Vec<String>, moved: Vec<String>) -> CmdResult<Snapshot> {
+    let _turn = ctx.turn();
+    with_profile(&ctx.data, |p| {
+        p.apply_sort(&ids, &moved);
+        Ok(())
+    })?;
+    fresh(&ctx)
+}
+
 #[tauri::command]
 pub async fn use_profile(ctx: State<'_, Ctx>, name: String) -> CmdResult<Snapshot> {
     let _turn = ctx.turn();
@@ -479,15 +500,18 @@ pub async fn mod_releases(ctx: State<'_, Ctx>, id: String, page: u32) -> CmdResu
 }
 
 /// Asks GitHub about the mods in `ids` that name a repository. Only reading the library takes a
-/// turn, so the other commands don't wait for the network.
+/// turn, so the other commands don't wait for the network. Every answer is kept in the data folder;
+/// the check at startup (`fresh: false`) takes one from the last few hours instead of asking again,
+/// and a check the player starts always asks.
 #[tauri::command]
-pub async fn check_mod_updates(ctx: State<'_, Ctx>, ids: Vec<String>) -> CmdResult<Vec<ModUpdate>> {
+pub async fn check_mod_updates(ctx: State<'_, Ctx>, ids: Vec<String>, fresh: Option<bool>) -> CmdResult<Vec<ModUpdate>> {
     let mut mods = {
         let _turn = ctx.turn();
         Library::open(&ctx.data)?.list()?
     };
     mods.retain(|m| ids.contains(&m.id));
-    let checked = updates::check(&GitHub::default(), &mods);
+    let trust = (!fresh.unwrap_or(true)).then_some(updates::TRUST_SECS);
+    let checked = updates::check_remembering(&GitHub::default(), &mods, &ctx.data.join(updates::MEMORY_FILE), trust, updates::now_secs());
     Ok(checked
         .into_iter()
         .map(|c| match c.result {

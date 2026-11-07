@@ -3,13 +3,15 @@
 // leaves it out (the user, 2026-11-04).
 import { useEffect, useMemo, useState } from "react";
 import { run } from "../api";
+import { openColorPicker } from "../ColorPicker";
 import { Confirm } from "../Confirm";
-import { ArrowIcon, ChevronIcon, CloseIcon, ExternalIcon, FileIcon, InfoIcon, KeyboardIcon, LinkIcon, ResetIcon, SlidersIcon, TrashIcon } from "../Icons";
+import { ArrowIcon, ChevronIcon, CloseIcon, ExternalIcon, FileIcon, GamepadIcon, InfoIcon, KeyboardIcon, KeyboardMouseIcon, LinkIcon, ResetIcon, SlidersIcon, TrashIcon, UpArrowIcon } from "../Icons";
 import { language, pick, t } from "../i18n";
 import { Markdown, parse } from "../Markdown";
 import { Select } from "../Select";
 import { changelog, type ChangelogEntry } from "../updates";
 import { loadMore, useModReleases } from "./modReleases";
+import { offered } from "./modUpdates";
 import { Thumb } from "../Thumb";
 import type { ConflictRow, KeyRow, ModRow, OptionRow } from "../types";
 import { overrides, type Override } from "./conflicts";
@@ -28,11 +30,14 @@ type Props = {
   names: Map<string, string>;
   onOpen: (id: string) => void;
   onClose: () => void;
+  /** New versions found by the last check, by mod id: the panel offers them too. */
+  updates: Record<string, string>;
+  onUpdate: (id: string) => void;
 };
 
-export function Drawer({ view, mods, conflicts, order, names, onOpen, onClose }: Props) {
+export function Drawer({ view, mods, conflicts, order, names, onOpen, onClose, updates, onUpdate }: Props) {
   const mod = view?.kind === "mod" ? mods.find((m) => m.id === view.id) : undefined;
-  if (mod) return <ModDrawer key={mod.id} mod={mod} mods={mods} conflicts={conflicts} names={names} onOpen={onOpen} onClose={onClose} />;
+  if (mod) return <ModDrawer key={mod.id} mod={mod} mods={mods} conflicts={conflicts} names={names} onOpen={onOpen} onClose={onClose} update={offered(updates, mod)} onUpdate={() => onUpdate(mod.id)} />;
   if (view?.kind === "conflicts" || conflicts.length) return <ConflictsView conflicts={conflicts} order={order} names={names} focus={view?.kind === "conflicts" ? view.focus : undefined} onClose={view ? onClose : undefined} />;
   return null;
 }
@@ -41,12 +46,12 @@ type Tab = "about" | "options" | "keys" | "files" | "deps";
 
 const TAB_ICONS: Record<Tab, () => React.JSX.Element> = { about: InfoIcon, options: SlidersIcon, keys: KeyboardIcon, files: FileIcon, deps: LinkIcon };
 
-function ModDrawer({ mod, mods, conflicts, names, onOpen, onClose }: { mod: ModRow; mods: ModRow[]; conflicts: ConflictRow[]; names: Map<string, string>; onOpen: (id: string) => void; onClose: () => void }) {
+function ModDrawer({ mod, mods, conflicts, names, onOpen, onClose, update, onUpdate }: { mod: ModRow; mods: ModRow[]; conflicts: ConflictRow[]; names: Map<string, string>; onOpen: (id: string) => void; onClose: () => void; update: string | null; onUpdate: () => void }) {
   const [tab, setTab] = useState<Tab>("about");
   const [ask, setAsk] = useState(false);
   const name = pick(mod.name, mod.id);
   const { needs, neededBy } = dependencies(mod, mods);
-  const tabs: [Tab, number | null][] = [["about", null], ["options", mod.options.length], ["keys", mod.keybinds.length], ["files", mod.files.length], ["deps", needs.length + neededBy.length]];
+  const tabs: [Tab, number | null][] = [["about", null], ["options", ownOptions(mod).length], ["keys", mod.keybinds.length], ["files", mod.files.length], ["deps", needs.length + neededBy.length]];
   return (
     <aside className={`drawer ${mod.scope}`} aria-label={name}>
       <div className="dh">
@@ -56,6 +61,11 @@ function ModDrawer({ mod, mods, conflicts, names, onOpen, onClose }: { mod: ModR
           <div className="meta">
             {[mod.authors.join(", "), mod.version ?? t("app.mods.imported"), t(`app.scope.${mod.scope}`)].filter(Boolean).join(" · ")}
           </div>
+          {update && (
+            <button className="ver-up dh-update" onClick={onUpdate} data-tip={t("app.mods.updateHint")}>
+              <span>{t("app.mods.updateTo", update)}</span><UpArrowIcon />
+            </button>
+          )}
         </div>
         <div className="dh-end">
           <button className="bare" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /></button>
@@ -90,11 +100,18 @@ function ModDrawer({ mod, mods, conflicts, names, onOpen, onClose }: { mod: ModR
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
+/** The options the Options tab lists: all but those a keybind names as its controller input (the Keys tab shows those). */
+function ownOptions(mod: ModRow): OptionRow[] {
+  const pads = new Set(mod.keybinds.map((k) => k.pad));
+  return mod.options.filter((o) => !pads.has(o.id));
+}
+
 function OptionsTab({ mod }: { mod: ModRow }) {
-  if (!mod.options.length) return <p className="muted pad">{t("app.drawer.noOptions")}</p>;
+  const own = ownOptions(mod);
+  if (!own.length) return <p className="muted pad">{t("app.drawer.noOptions")}</p>;
   return (
     <ul className="opts">
-      {mod.options.filter((o) => o.visible).map((o) => (
+      {own.filter((o) => o.visible).map((o) => (
         <li key={o.id} className="opt">
           <div className="opt-text">
             <div className="l">{pick(o.label, o.id)}</div>
@@ -122,7 +139,12 @@ function OptionControl({ mod, o }: { mod: ModRow; o: OptionRow }) {
     return <Select value={String(o.value)} options={o.choices.map((c, i) => ({ value: c, label: pick(o.choiceLabels[i], c) }))} label={label} onChange={set} />;
   }
   if (o.kind === "color") {
-    return <input type="color" className="color-ctl" value={String(o.value)} aria-label={label} onChange={(e) => set(e.target.value)} />;
+    return (
+      <button className="color-ctl" aria-label={label} aria-haspopup="dialog" data-tip={String(o.value)}
+        onClick={(e) => openColorPicker(e.currentTarget, { current: String(o.value), title: label, onPick: set })}>
+        <i style={{ background: String(o.value) }} />
+      </button>
+    );
   }
   if (o.kind === "number") return <NumberControl o={o} label={label} onSet={set} />;
   if (o.kind === "key") return <KeyButton value={String(o.value)} label={label} onSet={set} />;
@@ -172,27 +194,58 @@ function KeyButton({ value, label, onSet, clash }: { value: string; label: strin
   );
 }
 
+/** One row per action: its key on the mouse and keyboard, and its controller input when the manifest names
+    one (a keybind's `pad`, a choice option), under a head with an icon over each column. */
 function KeysTab({ mod, names }: { mod: ModRow; names: Map<string, string> }) {
   if (!mod.keybinds.length) return <p className="muted pad">{t("app.drawer.noKeys")}</p>;
+  const options = new Map(mod.options.map((o) => [o.id, o]));
   return (
-    <ul className="opts">
-      {mod.keybinds.map((k: KeyRow) => {
-        const key = k.key ?? k.default;
-        return (
-          <li key={k.id} className="opt">
-            <div className="opt-text">
-              <div className="l">{pick(k.label, k.id)}</div>
-              {k.clash.length > 0 && <div className="d warn">{t("app.drawer.keyClash", [pick(mod.name, mod.id), ...k.clash.map((id) => names.get(id) ?? id)].join(", "))}</div>}
-            </div>
-            <div className="opt-ctl">
-              <KeyButton value={key} label={pick(k.label, k.id)} clash={k.clash.length > 0} onSet={(v) => run("set_key", { id: mod.id, keybind: k.id, key: v })} />
-              <button className="bare" disabled={k.key === null} onClick={() => run("set_key", { id: mod.id, keybind: k.id, key: null })}
-                aria-label={t("app.drawer.reset")} data-tip={t("app.drawer.resetKey", k.default)}><ResetIcon /></button>
-            </div>
-          </li>
-        );
-      })}
-    </ul>
+    <div className="keys">
+      <div className="keys-head">
+        <span />
+        <span role="img" aria-label={t("app.drawer.keyboard")} data-tip={t("app.drawer.keyboard")}><KeyboardMouseIcon /></span>
+        <span role="img" aria-label={t("app.drawer.controller")} data-tip={t("app.drawer.controller")}><GamepadIcon /></span>
+      </div>
+      <ul className="opts">
+        {mod.keybinds.map((k: KeyRow) => {
+          const key = k.key ?? k.default;
+          const label = pick(k.label, k.id);
+          const pad = k.pad ? options.get(k.pad) : undefined;
+          const shown = pad?.visible ? pad : undefined;
+          return (
+            <li key={k.id} className="opt">
+              <div className="opt-text">
+                <div className="l">{label}</div>
+                {shown?.deploy && <div className="d note">{t("app.drawer.afterDeploy")}</div>}
+                {k.clash.length > 0 && <div className="d warn">{t("app.drawer.keyClash", [pick(mod.name, mod.id), ...k.clash.map((id) => names.get(id) ?? id)].join(", "))}</div>}
+              </div>
+              <div className="opt-ctl key-col">
+                <KeyButton value={key} label={label} clash={k.clash.length > 0} onSet={(v) => run("set_key", { id: mod.id, keybind: k.id, key: v })} />
+                <button className="bare" disabled={k.key === null} onClick={() => run("set_key", { id: mod.id, keybind: k.id, key: null })}
+                  aria-label={t("app.drawer.reset")} data-tip={t("app.drawer.resetKey", k.default)}><ResetIcon /></button>
+              </div>
+              <div className="opt-ctl pad-col">
+                {shown ? <PadControl mod={mod} o={shown} /> : <span className="none" data-tip={t("app.drawer.noController")}>–</span>}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/** The controller input of a keybind: its choice option, narrowed to the column, the whole choice in a tooltip. */
+function PadControl({ mod, o }: { mod: ModRow; o: OptionRow }) {
+  const label = pick(o.label, o.id);
+  const options = o.choices.map((c, i) => ({ value: c, label: pick(o.choiceLabels[i], c) }));
+  const current = options.find((c) => c.value === String(o.value))?.label;
+  return (
+    <>
+      <Select value={String(o.value)} options={options} label={label} tip={current} onChange={(value) => run("set_option", { id: mod.id, option: o.id, value })} />
+      <button className="bare" disabled={same(o.value, o.default)} onClick={() => run("set_option", { id: mod.id, option: o.id, value: null })}
+        aria-label={t("app.drawer.reset")} data-tip={t("app.drawer.reset")}><ResetIcon /></button>
+    </>
   );
 }
 

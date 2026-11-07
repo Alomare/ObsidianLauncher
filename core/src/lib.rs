@@ -21,11 +21,13 @@ pub mod luajit;
 pub mod manifest;
 pub mod modset;
 pub mod options;
+pub mod overlay;
 pub mod paths;
 pub mod profile_zip;
 pub mod profiles;
 pub mod report;
 pub mod settings;
+pub mod sort;
 pub mod starter;
 #[cfg(test)]
 pub(crate) mod testutil;

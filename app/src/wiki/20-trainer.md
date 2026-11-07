@@ -48,7 +48,7 @@ The menu blocks the character while it's open, and it closes by itself when the 
 - **Bots:** Helldivers played by this machine, with a HUD slot or as bare bodies past four players. Orders for every bot or each one: follow the player, hold, walk to the cursor, come to the player, fight, face the cursor, shoot, throw, reload, enter a stratagem code the way a player does and throw the flare at the cursor, and call stratagems, plus weapons, backpacks, perks and stratagems to give them. Host only, in a mission.
 - **Spawn:** ammunition, supply crates and pickups on the spot, and flares at the cursor.
 - **Enemies:** stopping spawns, freezing, blinding or stunning enemies, killing them, spawning more, and setting how hard encounters and patrols push.
-- **Mission:** the objective list, finishing objectives, protecting convoys and escorts, fast extraction, skipping waits, Proving Grounds modifiers in any mission, the players in the lobby, research samples, and practice missions of any kind from the ship.
+- **Mission:** the objective list, finishing objectives, protecting convoys and escorts, fast extraction, skipping waits, Proving Grounds modifiers in any mission, the players in the lobby, research samples, and custom missions of any kind from the ship, which pay XP and samples and leave the campaign alone.
 - **World:** game speed, camera, HUD, fog, time of day and gravity, and the sound: volumes, and a **Soundtrack** page that plays any music track the screen has, silences or pauses it, and gives it back to the game.
 - **Editor:** the numbers of every weapon, grenade, backpack, stratagem, sentry, mine, strike, vehicle, enemy and status effect.
 - **Console:** the developer commands.

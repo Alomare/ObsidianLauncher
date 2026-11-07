@@ -62,6 +62,8 @@ pub fn run() {
             commands::set_app_settings,
             commands::set_enabled,
             commands::set_order,
+            commands::sort_preview,
+            commands::apply_sort,
             commands::use_profile,
             commands::import_paths,
             commands::check_mod_updates,

@@ -284,6 +284,10 @@ test("time_stops_and_slows_only_alone_and_comes_back_with_a_new_screen", functio
 	local lobby = rawget(_G, "NetworkGlobal").lobby
 	lobby.members = function() return { "me", "friend" } end
 	E.eq(select(2, api.world.time_scale(0)), "solo_only")
+	E.eq(api.world.time_scale(0, { lobby = true }), true, "a mod that holds every machine at once")
+	E.eq(rawget(_G, "PAUSED"), true)
+	E.eq(api.world.time_scale(1), true)
+	E.eq(rawget(_G, "PAUSED"), false)
 end)
 
 test("the_time_of_day_blends_and_goes_back_to_the_missions", function()

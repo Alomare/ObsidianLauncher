@@ -6,7 +6,7 @@ summary: Named sets of mods, order, options, color and the Guardrails, and how t
 
 A profile remembers which mods are on, the load order, the folders, every option value and key, the [Guardrails](wiki:guardrails) and a color. Switching profiles changes all of that at once. The library of mods is shared, so a mod only takes space once.
 
-Open the profiles with the **Profile** button at the top of the [Mods](app:mods) tab. From there you can make a new profile, copy one, rename one, delete one, or give one a picture and a color.
+Open the profiles with the **Profile** button at the top of the [Mods](app:mods) tab. Once there are two or more, the button lists them with their guardrails: click one to switch to it, or **Manage Profiles** to open the profiles. From there you can make a new profile, copy one, rename one, delete one, or give one a picture and a color.
 
 > [!TIP]
 > One profile for playing with friends and one for solo play is a common setup. The friends profile can leave out every session mod, so you stay in normal matchmaking.

@@ -1437,4 +1437,263 @@ mod tests {
         deploy(&w.game, &w.data, &w.opts).unwrap();
         assert_eq!(waiting(&w), ChangesWaiting::UpToDate, "a new deploy is all it takes");
     }
+
+    // The overlay (overlay.rs): the same game with a master in a bundle of its own, naming clips 9, 2, 5
+    // and 7 of the banks, and one no bank has.
+    const BOOT: &str = "00000000000000ff";
+
+    fn master_game(w: &World) -> Vec<u8> {
+        bank_game(w);
+        let m = crate::overlay::tests::master(&[Some(9), Some(2), None, Some(5), Some(7), Some(0x77), Some(5)]);
+        let entry = Entry { type_hash: crate::hash::hash_name("timpani_master"), name_hash: 0x3a, flags: 0, variants: vec![Variant { lang: 0, data: m.clone(), stream_size: 0 }] };
+        let other = Entry { type_hash: 1, name_hash: 0x3b, flags: 0, variants: vec![Variant { lang: 0, data: b"boot".to_vec(), stream_size: 0 }] };
+        bundle::write_file(&w.game.contents().join(BOOT), &Bundle { props: [9; 256], entries: vec![other, entry] }).unwrap();
+        m
+    }
+
+    fn new_id(clip: u64) -> u64 {
+        crate::hash::hash_name(&format!("obsidian/clip/{clip:016x}"))
+    }
+
+    /// The name of Obsidian's bank of new clips beside a bank of the game.
+    fn clips_beside(bank: u64) -> u64 {
+        crate::hash::hash_name(&format!("{}/{bank:016x}", crate::overlay::BANK_NAME))
+    }
+
+    /// Every resource of a bundle file, (type, name, language, bytes, bytes in its `.stream`).
+    fn variants_of(path: &Path) -> Vec<(u64, u64, u32, Vec<u8>, Vec<u8>)> {
+        let b = bundle::read_file(path).unwrap();
+        let stream = std::fs::read(beside_file(path, "stream")).unwrap_or_default();
+        let mut at = 0;
+        let mut out = Vec::new();
+        for e in &b.entries {
+            for v in &e.variants {
+                out.push((e.type_hash, e.name_hash, v.lang, v.data.clone(), stream[at..at + v.stream_size as usize].to_vec()));
+                at += v.stream_size as usize;
+            }
+        }
+        out
+    }
+
+    fn beside_file(path: &Path, suffix: &str) -> PathBuf {
+        super::beside(path, suffix)
+    }
+
+    /// The clips the deployed master names, in record order.
+    fn deployed_master(w: &World) -> Vec<u64> {
+        let p = bundle::read_file(&patch(w, &format!("{BOOT}.patch_0"))).unwrap();
+        let e = p.entries.iter().find(|e| e.type_hash == crate::hash::hash_name("timpani_master")).expect("the master");
+        crate::overlay::clip_places(&e.variants[0].data).unwrap().into_iter().map(|p| p.1).collect()
+    }
+
+    /// The languages of Obsidian's bank beside `bank`, in the patch of `bundle_name`.
+    fn overlay_langs(w: &World, bundle_name: &str, bank: u64) -> Vec<u32> {
+        let p = bundle::read_file(&patch(w, &format!("{bundle_name}.patch_0"))).unwrap();
+        p.entries.iter().find(|e| e.name_hash == clips_beside(bank)).expect("the bank of new clips").variants.iter().map(|v| v.lang).collect()
+    }
+
+    fn overlay_clip(w: &World, bundle_name: &str, bank: u64, lang: u32, clip: u64) -> (Vec<u8>, Vec<u8>) {
+        let (raw, stream, flags) = deployed(w, bundle_name, clips_beside(bank), lang);
+        assert_eq!(flags, 0);
+        let r = crate::bank::rows_of(&raw).unwrap().into_iter().find(|r| r.clip == new_id(clip)).expect("the clip");
+        (raw[r.off + crate::bank::CLIP_HEADER..r.off + r.size].to_vec(), stream[r.stream_off..r.stream_off + r.stream_size].to_vec())
+    }
+
+    /// What the game plays in `lang` for the master's clip record `record`, picked as the game picks: each
+    /// bundle's resources with its patch over them, in the language's own variant or else language 0's,
+    /// except in the boot bundle, which loads before the language is set and always takes language 0 (round
+    /// J). Then the first bank that has the clip the master names. Returns the clip's audio and its stream.
+    fn heard(w: &World, lang: u32, record: usize) -> (Vec<u8>, Vec<u8>) {
+        let contents = w.game.contents();
+        let mut files: Vec<String> = std::fs::read_dir(&contents).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|n| n.len() == 16).collect();
+        files.sort();
+        let mut master = None;
+        let mut banks = Vec::new();
+        for name in files {
+            let pick = |list: Vec<(u64, u64, u32, Vec<u8>, Vec<u8>)>| {
+                let mut by: BTreeMap<(u64, u64), Vec<(u32, Vec<u8>, Vec<u8>)>> = BTreeMap::new();
+                for (t, n, l, d, s) in list {
+                    by.entry((t, n)).or_default().push((l, d, s));
+                }
+                by
+            };
+            let mut here = pick(variants_of(&contents.join(&name)));
+            let patch = contents.join(format!("{name}.patch_0"));
+            if patch.is_file() {
+                here.extend(pick(variants_of(&patch)));
+            }
+            let want = if name == BOOT { 0 } else { lang };
+            for ((t, _), vs) in here {
+                let (_, d, s) = vs.iter().find(|v| v.0 == want).or_else(|| vs.iter().find(|v| v.0 == 0)).unwrap().clone();
+                if t == crate::hash::hash_name("timpani_master") {
+                    master = Some(d);
+                } else if t == timpani() {
+                    banks.push((d, s));
+                }
+            }
+        }
+        let clip = crate::overlay::clip_places(&master.expect("a master")).unwrap()[record].1;
+        for (raw, stream) in banks {
+            if let Some(r) = crate::bank::rows_of(&raw).unwrap().into_iter().find(|r| r.clip == clip) {
+                return (raw[r.off + crate::bank::CLIP_HEADER..r.off + r.size].to_vec(), stream[r.stream_off..r.stream_off + r.stream_size].to_vec());
+            }
+        }
+        panic!("no loaded bank has clip {clip:#x}: silence")
+    }
+
+    #[test]
+    fn a_recipe_deploys_as_new_clips_beside_the_bank_and_the_master_names_them() {
+        use crate::bank::tests::clip;
+        let w = world();
+        master_game(&w);
+        let before = snapshot(&w.game.contents());
+        add(&w, "rock", &clips_of(5, BANK, 256, true), &[("c.bin", &clip(b"new-five")), ("c.stream", b"NEW5")]);
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert_eq!(deployed_master(&w), [9, 2, new_id(5), 7, 0x77, new_id(5)], "every record of the clip names the new one");
+        let boot = bundle::read_file(&patch(&w, &format!("{BOOT}.patch_0"))).unwrap();
+        assert_eq!(boot.entries.len(), 1, "the boot bundle gets the master alone: a bank there would load before the language is set");
+        let cc = bundle::read_file(&patch(&w, "00000000000000cc.patch_0")).unwrap();
+        assert_eq!(cc.entries.iter().map(|e| e.name_hash).collect::<Vec<_>>(), [clips_beside(BANK)], "the game's bank isn't patched");
+        assert_eq!(overlay_langs(&w, "00000000000000cc", BANK), [0, 256], "French differs from the rest");
+        assert_eq!(overlay_clip(&w, "00000000000000cc", BANK, 256, 5), (b"new-five".to_vec(), b"NEW5".to_vec()));
+        assert_eq!(overlay_clip(&w, "00000000000000cc", BANK, 0, 5), (b"en-five".to_vec(), b"EN5".to_vec()));
+        assert_eq!(std::fs::read(patch(&w, "00000000000000cc.patch_0.stream")).unwrap(), b"EN5NEW5");
+        assert_eq!(heard(&w, 256, 2), (b"new-five".to_vec(), b"NEW5".to_vec()), "French hears the mod");
+        assert_eq!(heard(&w, 0, 2), (b"en-five".to_vec(), b"EN5".to_vec()), "English hears the game");
+        assert_eq!(heard(&w, 0, 0), (b"en-nine".to_vec(), b"EN9".to_vec()), "a clip no mod changes is the game's");
+        assert_eq!(waiting(&w), ChangesWaiting::UpToDate, "plan and deploy agree");
+        purge(&w.game, &w.data).unwrap();
+        assert_eq!(snapshot(&w.game.contents()), before);
+    }
+
+    #[test]
+    fn a_clip_changed_in_english_alone_plays_the_games_own_in_french() {
+        use crate::bank::tests::clip;
+        let w = world();
+        master_game(&w);
+        add(&w, "beep", &clips_of(5, BANK, 0, true), &[("c.bin", &clip(b"beep")), ("c.stream", b"BEEP")]);
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert_eq!(overlay_langs(&w, "00000000000000cc", BANK), [0, 256]);
+        assert_eq!(heard(&w, 0, 2), (b"beep".to_vec(), b"BEEP".to_vec()));
+        assert_eq!(heard(&w, 256, 2), (b"fr-five".to_vec(), b"FR5".to_vec()), "French keeps the game's own clip");
+        assert_eq!(heard(&w, 0x4000, 2), (b"beep".to_vec(), b"BEEP".to_vec()), "a language the bank lacks takes language 0, as the game does");
+    }
+
+    #[test]
+    fn a_clip_the_same_in_every_language_takes_one_variant() {
+        use crate::bank::tests::clip;
+        let w = world();
+        master_game(&w);
+        let both = format!(r##"{{"type":"timpani_bank","name":"#{BANK:016x}","clips":[{{"clip":"#0000000000000005","data":"c.bin"}},{{"clip":"#0000000000000005","lang":256,"data":"c.bin"}}]}}"##);
+        add(&w, "beep", &both, &[("c.bin", &clip(b"beep"))]);
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert_eq!(overlay_langs(&w, "00000000000000cc", BANK), [0], "French falls back to the first variant");
+        assert_eq!(heard(&w, 256, 2), (b"beep".to_vec(), Vec::new()));
+    }
+
+    #[test]
+    fn a_bank_in_two_bundles_gets_new_clips_beside_it_in_both() {
+        use crate::bank::tests::clip;
+        let w = world();
+        master_game(&w);
+        add(&w, "s", &clips_of(7, SHARED, 0, false), &[("c.bin", &clip(b"new"))]);
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        for b in ["00000000000000dd", "00000000000000ee"] {
+            let p = bundle::read_file(&patch(&w, &format!("{b}.patch_0"))).unwrap();
+            assert_eq!(p.entries.iter().map(|e| e.name_hash).collect::<Vec<_>>(), [clips_beside(SHARED)], "{b}");
+            assert_eq!((overlay_langs(&w, b, SHARED), overlay_clip(&w, b, SHARED, 0, 7)), (vec![0], (b"new".to_vec(), Vec::new())));
+        }
+        assert_eq!(deployed_master(&w), [9, 2, 5, new_id(7), 0x77, 5]);
+        assert!(!patch(&w, "00000000000000cc.patch_0").exists(), "a bank no mod changes keeps its bundle as it is");
+    }
+
+    #[test]
+    fn mods_on_one_clip_the_later_wins_in_the_overlay_too() {
+        use crate::bank::tests::clip;
+        let w = world();
+        master_game(&w);
+        add(&w, "a", &clips_of(5, BANK, 0, false), &[("c.bin", &clip(b"a-five"))]);
+        add(&w, "b", &clips_of(9, BANK, 0, false), &[("c.bin", &clip(b"b-nine"))]);
+        add(&w, "c", &clips_of(5, BANK, 0, false), &[("c.bin", &clip(b"c-five"))]);
+        let lib = Library::open(&w.data).unwrap();
+        let c = crate::compose::plan_for(&lib, &Profile::load(&w.data).unwrap(), Some(&w.game.contents())).unwrap();
+        let c: Vec<_> = c.conflicts.into_iter().filter(|c| c.name_hash == BANK).map(|c| (c.winner, c.losers)).collect();
+        assert_eq!(c, [("c".to_string(), vec!["a".to_string()])]);
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert_eq!((heard(&w, 0, 2).0, heard(&w, 0, 0).0), (b"c-five".to_vec(), b"b-nine".to_vec()));
+        assert_eq!(heard(&w, 256, 0).0, b"fr-nine", "French keeps the game's lines");
+        assert_eq!(waiting(&w), ChangesWaiting::UpToDate);
+    }
+
+    #[test]
+    fn a_whole_bank_below_still_deploys_and_gives_the_clips_it_has() {
+        use crate::bank::tests::{clip, make};
+        let w = world();
+        master_game(&w);
+        let (whole, whole_s) = make(&[(5, b"whole-five", b"W5"), (9, b"whole-nine", b"")]);
+        let res = format!(r##"{{"type":"timpani_bank","name":"#{BANK:016x}","bundle":"00000000000000cc","data":"w.bin","stream":"w.stream"}}"##);
+        add(&w, "whole", &res, &[("w.bin", &whole), ("w.stream", &whole_s)]);
+        add(&w, "top", &clips_of(9, BANK, 0, false), &[("c.bin", &clip(b"top-nine"))]);
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        let (en, en_s, _) = deployed(&w, "00000000000000cc", BANK, 0);
+        assert_eq!((en, en_s), (whole, whole_s), "the whole bank goes in as the mod has it");
+        assert_eq!((heard(&w, 0, 0).0, heard(&w, 256, 0).0), (b"top-nine".to_vec(), b"top-nine".to_vec()), "the mod's bank has one language");
+        assert_eq!(heard(&w, 256, 2).0, b"whole-five", "the clips the top mod leaves are the whole bank's");
+        assert_eq!(waiting(&w), ChangesWaiting::UpToDate);
+    }
+
+    #[test]
+    fn a_whole_master_of_a_mod_takes_the_new_ids() {
+        use crate::bank::tests::clip;
+        let w = world();
+        master_game(&w);
+        let theirs = crate::overlay::tests::master(&[Some(5), Some(2), Some(2)]);
+        let res = format!(r##"{{"type":"timpani_master","name":"#000000000000003a","bundle":"{BOOT}","data":"m.bin"}}"##);
+        add(&w, "sounds", &res, &[("m.bin", &theirs)]);
+        add(&w, "rock", &clips_of(5, BANK, 0, false), &[("c.bin", &clip(b"new-five"))]);
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert_eq!(deployed_master(&w), [new_id(5), 2, 2]);
+        assert_eq!(heard(&w, 0, 0).0, b"new-five");
+        assert_eq!(waiting(&w), ChangesWaiting::UpToDate);
+    }
+
+    #[test]
+    fn an_overlay_the_game_cant_take_is_refused_and_the_last_deploy_stays() {
+        use crate::bank::tests::clip;
+        let refused = |res: String, file: Vec<u8>| {
+            let w = world();
+            master_game(&w);
+            deploy(&w.game, &w.data, &w.opts).unwrap();
+            let before = snapshot(&w.game.contents());
+            add(&w, "m", &res, &[("c.bin", &file)]);
+            let e = deploy(&w.game, &w.data, &w.opts).unwrap_err();
+            assert_eq!(snapshot(&w.game.contents()), before, "{e}");
+            assert_eq!(waiting(&w), ChangesWaiting::Waiting, "{e}");
+            e
+        };
+        assert!(matches!(refused(clips_of(77, BANK, 0, false), clip(b"x")), ObsidianError::RecipeClip { ref clip, lang: 0, .. } if clip == "#000000000000004d"));
+        assert!(matches!(refused(clips_of(5, BANK, 512, false), clip(b"x")), ObsidianError::RecipeLanguage { lang: 512, .. }));
+        assert!(matches!(refused(clips_of(5, 0xbad, 0, false), clip(b"x")), ObsidianError::RecipeBank { ref bank, .. } if bank == "#0000000000000bad"));
+        assert!(matches!(refused(clips_of(5, BANK, 0, false), b"not a clip".to_vec()), ObsidianError::RecipeFile { ref file, .. } if file == "c.bin"));
+    }
+
+    #[test]
+    fn a_game_update_to_a_bank_or_the_master_is_changes_waiting() {
+        use crate::bank::tests::{clip, make};
+        let w = world();
+        let m = master_game(&w);
+        add(&w, "s", &clips_of(7, SHARED, 0, false), &[("c.bin", &clip(b"new"))]);
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert_eq!(waiting(&w), ChangesWaiting::UpToDate);
+        let (sh, _) = make(&[(7, b"patched by steam", b"")]);
+        let path = w.game.contents().join("00000000000000dd");
+        bundle::write_file(&path, &Bundle { props: [9; 256], entries: vec![Entry { type_hash: timpani(), name_hash: SHARED, flags: 0, variants: vec![Variant { lang: 0, data: sh, stream_size: 0 }] }] }).unwrap();
+        assert_eq!(waiting(&w), ChangesWaiting::Waiting);
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert_eq!(waiting(&w), ChangesWaiting::UpToDate);
+        let entry = Entry { type_hash: crate::hash::hash_name("timpani_master"), name_hash: 0x3a, flags: 0, variants: vec![Variant { lang: 0, data: [m.as_slice(), b"\0\0\0\0"].concat(), stream_size: 0 }] };
+        bundle::write_file(&w.game.contents().join(BOOT), &Bundle { props: [9; 256], entries: vec![entry] }).unwrap();
+        assert_eq!(waiting(&w), ChangesWaiting::Waiting, "a new master");
+    }
 }

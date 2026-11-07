@@ -4,13 +4,15 @@
 // drags to resize them.
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { run } from "../api";
+import { call, errorText, run } from "../api";
+import { notify } from "../notices";
+import { SortDialog, SortIcon, type SortPlan } from "./SortDialog";
 import { Confirm } from "../Confirm";
 import { ContextMenu, type MenuItem } from "../ContextMenu";
-import { CloseIcon, ExternalIcon, FolderAddIcon, FolderIcon, ImportIcon, LockIcon, PlusIcon, ProfilesIcon, SearchIcon, SwitchOffIcon, SwitchOnIcon, TrashIcon, UnlockIcon, UpdateIcon } from "../Icons";
+import { ChevronIcon, CloseIcon, ExternalIcon, FolderAddIcon, FolderIcon, ImportIcon, LockIcon, PlusIcon, ProfilesIcon, SearchIcon, SlidersIcon, SwitchOffIcon, SwitchOnIcon, TrashIcon, UnlockIcon, UpdateIcon } from "../Icons";
 import { language, pick, t } from "../i18n";
 import { useNav } from "../nav";
-import { ProfilesDialog } from "../ProfilesDialog";
+import { ProfileGuards, ProfilesDialog } from "../ProfilesDialog";
 import { Thumb } from "../Thumb";
 import type { ModRow, Snapshot } from "../types";
 import { winners } from "./conflicts";
@@ -55,13 +57,32 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [menu, setMenu] = useState<{ x: number; y: number; up?: boolean; target: MenuTarget } | null>(null);
   const [addMenu, setAddMenu] = useState<{ x: number; y: number } | null>(null);
+  const [profileMenu, setProfileMenu] = useState<{ x: number; y: number; opener: HTMLElement } | null>(null);
   const [ask, setAsk] = useState<Ask>(null);
   const [width, setWidth] = useState(savedWidth);
+  const [sortPlan, setSortPlan] = useState<SortPlan | null>(null);
+  /** The last sort, for Undo: the tree before it and the order it left. */
+  const [sorted, setSorted] = useState<{ before: Node[]; after: string; count: number } | null>(null);
   const modUpdates = useModUpdates();
   const body = useRef<HTMLDivElement>(null);
   const search = useRef<HTMLInputElement>(null);
   const { tab } = useNav();
   const profileImage = snap.profileRows.find((p) => p.name === snap.profile)?.image ?? null;
+  /** Other profiles to switch to: the profile button opens a menu of them. */
+  const choose = snap.profileRows.length > 1;
+  const openProfileMenu = (el: HTMLElement) => {
+    const r = el.getBoundingClientRect();
+    setProfileMenu({ x: r.left, y: r.bottom + 4, opener: el });
+  };
+  /** Manage opens the profiles dialog; below it every profile, with its color and guardrails, switches on a click. */
+  const profileItems = (): MenuItem[] => [
+    { label: t("app.profiles.manage"), icon: <SlidersIcon />, run: () => setProfiles(true) },
+    "sep",
+    ...snap.profileRows.map((p): MenuItem => ({
+      label: p.name, swatch: p.color ?? "var(--gold)", checked: p.name === snap.profile, extra: <span className="ctx-guards"><ProfileGuards p={p} /></span>,
+      run: () => { if (p.name !== snap.profile) run("use_profile", { name: p.name }); },
+    })),
+  ];
 
   const byId = useMemo(() => new Map(snap.mods.map((m) => [m.id, m])), [snap.mods]);
   const lang = language();
@@ -98,6 +119,29 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
     await run("set_order", { ids, moves });
     setPending(null);
   };
+
+  // Sort Mods: the preview first, then the order it showed; Undo puts the tree from before back.
+  const openSort = () => call<SortPlan>("sort_preview").then(setSortPlan, (e) => notify("error", errorText(e)));
+  const applySort = async (plan: SortPlan) => {
+    const before = saved;
+    setSortPlan(null);
+    if (await run("apply_sort", { ids: plan.order, moved: plan.moves.map((m) => m.id) })) {
+      setSorted({ before, after: plan.order.join("\n"), count: plan.moves.length });
+    }
+  };
+  const undoSort = (s: { before: Node[] }) => {
+    setSorted(null);
+    arrange(s.before);
+  };
+  // The Undo bar goes with the next change to the order, and after a while.
+  useEffect(() => {
+    if (sorted && order.join("\n") !== sorted.after) setSorted(null);
+  }, [order, sorted]);
+  useEffect(() => {
+    if (!sorted) return;
+    const timer = setTimeout(() => setSorted(null), 15000);
+    return () => clearTimeout(timer);
+  }, [sorted]);
   const check = (ids: string[], on: boolean) =>
     setChecked((c) => {
       const n = new Set(c);
@@ -108,7 +152,7 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
   const folderOf = (id: string) => snap.folders.find((f) => f.id === id);
   const membersOf = (id: string) => snap.mods.filter((m) => m.folder === id).map((m) => m.id);
 
-  /** The actions for some mods: the menu of a row, and the batch bar's "More". */
+  /** The actions for some mods: the menu of a row, or of every checked mod on a right click (or the Menu key) on one of them. */
   const modItems = (ids: string[]): MenuItem[] => {
     const one = ids.length === 1 ? byId.get(ids[0]) : undefined;
     const allOn = ids.every((id) => byId.get(id)?.on);
@@ -192,6 +236,9 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
   };
 
   const sel = inOrder([...checked]);
+  /** Of the checked mods, those that name a repository GitHub can be asked about. One check runs at a time. */
+  const selUpdatable = sel.filter((id) => byId.get(id)?.updatable);
+  const checkingUpdates = modUpdates.checking.length > 0;
   const waiting = snap.mods.filter((m) => offered(modUpdates.found, m)).map((m) => m.id);
   const askFolder = ask?.kind === "editFolder" || ask?.kind === "deleteFolder" ? folderOf(ask.id) : undefined;
   // The panel shows a selected mod, or the conflicts; with neither, the list takes the whole width.
@@ -200,16 +247,27 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
   return (
     <div className="mods">
       <div className="head">
-        <button className="btn profile-btn" onClick={() => setProfiles(true)} aria-label={`${t("app.mods.profile")}: ${snap.profile}`} data-tip-title={t("app.mods.profile")} data-tip={t("app.mods.profileHint")}>
+        {/* The profile as a choice, then the tools for its list: Sort and Create Folder as icons, Add as the main one.
+            With other profiles to switch to, the profile opens a menu of them; with one, the profiles dialog. */}
+        <button className="profile-btn" data-pop aria-haspopup={choose ? "menu" : "dialog"} aria-expanded={choose ? !!profileMenu : undefined}
+          aria-label={`${t("app.mods.profile")}: ${snap.profile}`} data-tip-title={t("app.mods.profile")} data-tip={t("app.mods.profileHint")}
+          onClick={(e) => (!choose ? setProfiles(true) : profileMenu ? setProfileMenu(null) : openProfileMenu(e.currentTarget))}
+          onKeyDown={(e) => { if (choose && (e.key === "ArrowDown" || e.key === "ArrowUp")) { e.preventDefault(); openProfileMenu(e.currentTarget); } }}>
           {profileImage ? <Thumb image={profileImage} name={snap.profile} size="sm" /> : <span className="profile-chip"><ProfilesIcon /></span>}
           <span className="profile-name">{snap.profile}</span>
+          {choose && <ChevronIcon />}
         </button>
-        <button className="btn icon head-btn blue" onClick={() => setAsk({ kind: "newFolder", ids: [] })} aria-label={t("app.mods.createFolder")} data-tip-title={t("app.mods.createFolder")} data-tip={t("app.folder.newHint")}>
+        {snap.mods.length > 1 && (
+          <button className="btn icon head-tool" onClick={openSort} aria-haspopup="dialog" aria-label={t("app.sort.title")} data-tip-title={t("app.sort.title")} data-tip={t("app.sort.hint")}>
+            <SortIcon />
+          </button>
+        )}
+        <button className="btn icon head-tool" onClick={() => setAsk({ kind: "newFolder", ids: [] })} aria-haspopup="dialog" aria-label={t("app.mods.createFolder")} data-tip-title={t("app.mods.createFolder")} data-tip={t("app.folder.newHint")}>
           <FolderAddIcon />
         </button>
-        <button className="btn icon head-btn add" data-pop aria-label={t("app.mods.add")} data-tip-title={t("app.mods.add")} data-tip={t("app.mods.addHint")}
+        <button className="btn go head-tool" data-pop aria-haspopup="menu" aria-expanded={!!addMenu} aria-label={t("app.mods.add")} data-tip-title={t("app.mods.add")} data-tip={t("app.mods.addHint")}
           onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAddMenu({ x: r.left, y: r.bottom + 4 }); }}>
-          <PlusIcon />
+          <PlusIcon /><span className="label">{t("app.mods.addButton")}</span>
         </button>
         {waiting.length > 0 && <button className="btn play head-update" onClick={() => updateMods(waiting, names)}><UpdateIcon />{t("app.mods.updateAll", waiting.length)}</button>}
         <label className="search">
@@ -232,8 +290,7 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
             onCollapse={(id, collapsed) => run("edit_folder", { id, collapsed })}
             onLock={(id, locked) => run("edit_folder", { id, locked })}
             onMenu={(x, y, target) => setMenu({ x, y, target })}
-            updates={modUpdates.found} onUpdate={(id) => setAsk({ kind: "update", id })}
-            checking={modUpdates.checking} onCheckUpdates={(ids, what) => checkModUpdates(ids, names, { what })} />
+            updates={modUpdates.found} onUpdate={(id) => setAsk({ kind: "update", id })} />
           {rows.length === 0 && searching && <p className="empty">{t("app.mods.noMatch")}</p>}
           {snap.mods.length === 0 && (
             <div className="list-empty">
@@ -250,13 +307,26 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
             <div className="batch-dock">
               <div className="batch" role="toolbar" aria-label={t("app.mods.selection")}>
                 <span className="batch-n">{t("app.mods.nChecked", sel.length)}</span>
+                <span className="batch-sep" aria-hidden="true" />
                 <button className="btn small icon" onClick={() => run("set_enabled", { ids: sel, on: true })} aria-label={t("app.menu.enable")} data-tip={t("app.menu.enable")}><SwitchOnIcon /></button>
                 <button className="btn small icon" onClick={() => run("set_enabled", { ids: sel, on: false })} aria-label={t("app.menu.disable")} data-tip={t("app.menu.disable")}><SwitchOffIcon /></button>
-                <button className="btn small" data-pop onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.top - 4, up: true, target: { kind: "mod", id: sel[0] } }); }}>
-                  <FolderIcon />{t("app.mods.moreActions")}
+                <button className={checkingUpdates ? "btn small busy" : "btn small"} disabled={!selUpdatable.length || checkingUpdates} aria-busy={checkingUpdates}
+                  data-tip-title={t("app.mods.checkUpdates")} data-tip={selUpdatable.length ? t("app.mods.checkUpdatesHint") : t("app.mods.checkUpdatesNone")}
+                  onClick={() => checkModUpdates(selUpdatable, names, { what: selUpdatable.length === 1 ? names.get(selUpdatable[0]) : undefined })}>
+                  <UpdateIcon />{t("app.mods.checkUpdates")}
                 </button>
+                <span className="batch-sep" aria-hidden="true" />
                 <button className="btn small danger" onClick={() => setAsk({ kind: "remove", ids: sel })}><TrashIcon />{t("app.menu.remove")}</button>
                 <button className="bare batch-x" onClick={() => setChecked(new Set())} aria-label={t("app.mods.uncheck")} data-tip={t("app.mods.uncheck")}><CloseIcon /></button>
+              </div>
+            </div>
+          )}
+          {sorted && sel.length === 0 && (
+            <div className="batch-dock">
+              <div className="batch sort-done" role="status">
+                <span className="batch-n">{sorted.count === 1 ? t("app.sort.doneOne") : t("app.sort.done", sorted.count)}</span>
+                <button className="btn small" onClick={() => undoSort(sorted)}>{t("app.sort.undo")}</button>
+                <button className="bare batch-x" onClick={() => setSorted(null)} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /></button>
               </div>
             </div>
           )}
@@ -265,12 +335,20 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
           <>
             <div className="split" role="separator" aria-orientation="vertical" aria-label={t("app.mods.resize")} onPointerDown={resize}
               onDoubleClick={() => { setWidth(0); try { localStorage.removeItem(DRAWER_KEY); } catch { /* fine */ } }} data-tip={t("app.mods.resizeHint")} />
-            <Drawer view={view} mods={snap.mods} conflicts={shownConflicts} order={order} names={names} onOpen={(id) => setView({ kind: "mod", id })} onClose={() => setView(null)} />
+            <Drawer view={view} mods={snap.mods} conflicts={shownConflicts} order={order} names={names} onOpen={(id) => setView({ kind: "mod", id })} onClose={() => setView(null)}
+              updates={modUpdates.found} onUpdate={(id) => setAsk({ kind: "update", id })} />
           </>
         )}
       </div>
       {profiles && <ProfilesDialog snap={snap} onClose={() => setProfiles(false)} />}
+      {sortPlan && (
+        <SortDialog plan={sortPlan} name={(id) => names.get(id) ?? id} off={new Set(snap.mods.filter((m) => !m.on).map((m) => m.id))}
+          onApply={() => applySort(sortPlan)} onClose={() => setSortPlan(null)} />
+      )}
       {menu && <ContextMenu x={menu.x} y={menu.y} up={menu.up} items={menuItems(menu.target)} onClose={() => setMenu(null)} />}
+      {profileMenu && choose && (
+        <ContextMenu x={profileMenu.x} y={profileMenu.y} opener={profileMenu.opener} label={t("app.profiles.title")} onClose={() => setProfileMenu(null)} items={profileItems()} />
+      )}
       {addMenu && (
         <ContextMenu x={addMenu.x} y={addMenu.y} onClose={() => setAddMenu(null)} items={[
           { label: t("app.mods.importZip"), icon: <ImportIcon />, run: () => pickAndImport(false) },

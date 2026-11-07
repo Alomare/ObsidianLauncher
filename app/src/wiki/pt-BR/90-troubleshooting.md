@@ -22,7 +22,7 @@ Se o jogo parar depois disso, o Obsidian avisa que ele não fechou normalmente. 
 
 ## "Arquivos do jogo alterados" {#build-unknown}
 
-Alguns arquivos do jogo não batem com a versão que o Obsidian conhece. Isso acontece quando um mod foi copiado direto para a pasta `contents` do jogo por cima dos arquivos originais. Aplicar e Jogar continuam funcionando, e clicar no aviso lista os arquivos alterados. Use Limpar e depois verifique a integridade dos arquivos na Steam para trazer os originais de volta. Depois, adicione esse mod no Obsidian com **Adicionar mods**, que o aplica sem mexer nos originais.
+Alguns arquivos do jogo não batem com a versão que o Obsidian conhece. Isso acontece quando um mod foi copiado direto para a pasta `contents` do jogo por cima dos arquivos originais. Aplicar e Jogar continuam funcionando, e clicar no aviso lista os arquivos alterados. Use Limpar e depois verifique a integridade dos arquivos na Steam para trazer os originais de volta. Depois, adicione esse mod no Obsidian com **Adicionar**, que o aplica sem mexer nos originais.
 
 Se o próprio jogo disser que a versão é desconhecida, o programa do jogo não é a versão para a qual o Obsidian foi feito, e nenhum mod roda.
 

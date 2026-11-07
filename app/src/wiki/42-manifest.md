@@ -48,13 +48,40 @@ summary: Every field of the file that describes a mod.
 | `entry` | no | The Lua script the loader starts. Mods that only replace game files leave it out. |
 | `modules` | no | More `.lua` files beside `entry`, which the mod loads with `obsidian.module`. Paths inside the mod folder. |
 | `requires` | no | Ids of mods this one needs. Switching the mod on switches them on, and they start first. Players see them in the mod's Dependencies tab. A deploy stops with a message if one is missing. |
-| `load` | no | `"last"` asks for the end of the load order when the mod joins a profile, and new mods then go before it. The player's order wins after that. |
-| `load_after` | no | Ids of mods this one asks to load after, when either joins a profile. The player's order wins after that. |
+| `load` | no | Where the mod asks to sit in the load order: `"first"`, `"last"`, or an object with more requests ([Load order requests](#load-order-requests)). |
+| `load_after` | no | Ids of mods this one asks to load after. The same as `after` inside `load`, kept for mods written before it. |
 | `loader_api` | no | The version of the [Loader API](wiki:loader-api) the mod needs. `1` when left out. |
 | `min_obsidian` | no | The oldest Obsidian the mod works with, such as `"1.1.0"`. An older one refuses the mod and asks the player to update. Obsidian before 1.1 doesn't read it. |
 | `options` | no | Settings players change in the app ([Options and keys](wiki:options-and-keys)). |
-| `keybinds` | no | Keys players can rebind in the app. |
+| `keybinds` | no | Keys players can rebind in the app. A keybind's `pad` names the choice option with the controller input for the same action ([Controller input](wiki:options-and-keys#controller-input)). |
 | `resources` | no | Game files the mod replaces or adds ([Replacing game files](wiki:resources)). |
+
+## Load order requests
+
+`load` takes `"first"` or `"last"` alone, or an object with any of these fields:
+
+```json
+"load": {
+  "position": "last",
+  "before": ["author.other-mod"],
+  "after": ["author.base-mod"],
+  "after_patches": true
+}
+```
+
+| Field | What it asks for |
+|---|---|
+| `position` | `"first"` for the top of the load order, `"last"` for the end. |
+| `before` | Ids of mods this one loads before. |
+| `after` | Ids of mods this one loads after, so this mod wins the files both replace. |
+| `before_patches` | `true` to load before every mod that replaces game files (has `resources`). |
+| `after_patches` | `true` to load after every mod that replaces game files. |
+
+A new mod takes the place it asks for when it joins a profile. After that the player's order stands until the player clicks **Sort Mods** on the Mods tab ([Sort Mods](wiki:load-order#sort-mods)), which moves only the mods that need it. Ids of mods the player doesn't have are skipped, and Sort Mods says so.
+
+Ask only for what the mod needs. Two mods that both ask to load last, or that ask to load after each other, can't both have their way: Sort Mods leaves them where they are and tells the player to order them by hand.
+
+Obsidian checks `load` on import: a position other than `first` or `last`, an unknown field, a mod's own id, or the same id in `before` and `after` is refused. Obsidian 1.3.1 and earlier read only `"last"`, and list a mod with any other `load` as one that can't be read.
 
 ## Text in several languages
 

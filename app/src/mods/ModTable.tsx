@@ -2,19 +2,17 @@
 // line shows where they land, and a folder's name lights up when they would go in at the end of that folder.
 // Dragging a checked mod takes every checked mod. After a move the rows slide to their places.
 // Alt+Up and Alt+Down move the focused mod or folder from the keyboard. A warning icon marks
-// mods in a conflict and opens the conflicts; a right click opens the menu. The column beside the
-// switches asks GitHub for updates to one mod, a folder or the whole list, as the checkboxes do.
-// The lines at the left of the Version and Scope headers drag to resize those columns (kept between
-// launches); a double click puts them back.
+// mods in a conflict and opens the conflicts; a right click opens the menu. A mod with a newer version
+// found shows it in gold in the Version column. Checked mods are checked for updates from the bar under the list.
+// The Version and Scope columns have fixed widths (styles.css, .table).
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type MutableRefObject, type PointerEvent } from "react";
-import { CheckIcon, ChevronIcon, LockIcon, UnlockIcon, UpArrowIcon, UpdateIcon, WarnIcon } from "../Icons";
+import { CheckIcon, ChevronIcon, LockIcon, UnlockIcon, UpArrowIcon, WarnIcon } from "../Icons";
 import { go } from "../nav";
 import { language, pick, t } from "../i18n";
 import { Thumb } from "../Thumb";
 import { offered } from "./modUpdates";
 import type { ConflictRow, ImageRef, ModRow } from "../types";
 import { conflictsByMod } from "./conflicts";
-import { drag as dragWidths, readWidths, reset as resetWidths, saveWidths, type Col, type Widths } from "./columns";
 import { dropSpot, folderDropIndex, lines, moveFolder, moveMods, nudge, pinned, type Line, type Node } from "./layout";
 
 export type MenuTarget = { kind: "mod"; id: string } | { kind: "folder"; id: string };
@@ -42,10 +40,6 @@ type Props = {
   /** New versions found by the last check, by mod id. */
   updates: Record<string, string>;
   onUpdate: (id: string) => void;
-  /** The mods of the update check under way. */
-  checking: string[];
-  /** `what` names the mod or folder; left out, the whole list. */
-  onCheckUpdates: (ids: string[], what?: string) => void;
 };
 
 type Drag = { key: string; folder: string | null; ids: string[]; x0: number; y0: number; moved: boolean; gap: number; onto: string | null; fixed: boolean };
@@ -67,19 +61,8 @@ function Check({ state, label, onChange }: { state: boolean | "mixed"; label: st
   );
 }
 
-/** Asks GitHub about what its row stands for. The arrows turn while that check runs. */
-function UpdateCheck({ label, spinning, off, onCheck }: { label: string; spinning: boolean; off: boolean; onCheck: () => void }) {
-  return (
-    <button className={spinning ? "bare up-ck spin" : "bare up-ck"} disabled={off} aria-label={label} data-tip-title={label} data-tip={t("app.mods.checkUpdatesHint")} {...stop} onClick={onCheck}>
-      <UpdateIcon />
-    </button>
-  );
-}
-
-/** The line at the left of a header cell: drag to move it, double-click to put the columns back. */
-function Grip({ label, onStart, onReset }: { label: string; onStart: (e: PointerEvent<HTMLDivElement>) => void; onReset: () => void }) {
-  return <div className="col-grip" role="separator" aria-orientation="vertical" aria-label={label} data-tip={t("app.mods.resizeHint")} onPointerDown={onStart} onDoubleClick={onReset} />;
-}
+/** Where builds that let the Version and Scope columns be dragged kept the widths. Nothing reads it now. */
+export const OLD_COLUMN_KEY = "obsidian.modColumns";
 
 /** What a row calls back into; kept in a ref so the rows never see new functions. */
 type Handlers = {
@@ -92,18 +75,17 @@ type Handlers = {
   toggle: (id: string, on: boolean) => void;
   conflicts: (id: string) => void;
   update: (id: string) => void;
-  checkUpdates: (ids: string[], what?: string) => void;
 };
 type RowProps = {
   id: string; folder: string | null; color: string | null; name: string; description: string; version: string | null; update: string | null;
   scope: string; on: boolean; imagePath: string | null; imageV: number; num: number; pinned: boolean; selected: boolean; checked: boolean;
-  lifted: boolean; leaving: boolean; tips: string | null; lose: boolean; updatable: boolean; spinning: boolean; checkOff: boolean; h: MutableRefObject<Handlers>;
+  lifted: boolean; leaving: boolean; tips: string | null; lose: boolean; h: MutableRefObject<Handlers>;
   /** The UI language: the row's texts change with it. */
   lang: string;
 };
 
 /** One mod. Every prop is a plain value, so a click elsewhere in a long list leaves this row alone. */
-const ModLine = memo(function ModLine({ id, folder, color, name, description, version, update, scope, on, imagePath, imageV, num, pinned: fixed, selected, checked, lifted, leaving, tips, lose, updatable, spinning, checkOff, h }: RowProps) {
+const ModLine = memo(function ModLine({ id, folder, color, name, description, version, update, scope, on, imagePath, imageV, num, pinned: fixed, selected, checked, lifted, leaving, tips, lose, h }: RowProps) {
   const line: Line = { kind: "mod", id, folder };
   const image: ImageRef | null = useMemo(() => (imagePath ? { path: imagePath, v: imageV } : null), [imagePath, imageV]);
   const cls = ["tr", folder && "in", fixed && "pinned", selected && "sel", checked && "checked", lifted && "lifted", leaving && "leaving"].filter(Boolean).join(" ");
@@ -115,7 +97,6 @@ const ModLine = memo(function ModLine({ id, folder, color, name, description, ve
       <span className="num">{num}</span>
       <button role="switch" aria-checked={on} aria-label={name} className={on ? "sw on" : "sw"} data-tip={t(on ? "app.mods.turnOff" : "app.mods.turnOn", name)}
         {...stop} onClick={() => h.current.toggle(id, !on)} />
-      {updatable ? <UpdateCheck label={t("app.mods.checkOne", name)} spinning={spinning} off={checkOff} onCheck={() => h.current.checkUpdates([id], name)} /> : <span />}
       <div className="mod-cell" data-tip-title={description ? name : undefined} data-tip={description || undefined}>
         <Thumb image={image} name={name} />
         <div className="who">
@@ -148,15 +129,14 @@ const SCOPE_ANCHORS: Record<string, string> = { client: "client-mods", session: 
 /** How long the mods of a closing folder take to fade before the rows below move up. */
 const CLOSE_MS = 140;
 
-export function ModTable({ tree: saved, rows, byId, order, names, conflicts, selected, checked, onCheck, onSelect, onToggle, onConflicts, onArrange, onCollapse, onLock, onMenu, updates, onUpdate, checking, onCheckUpdates }: Props) {
+export function ModTable({ tree: saved, rows, byId, order, names, conflicts, selected, checked, onCheck, onSelect, onToggle, onConflicts, onArrange, onCollapse, onLock, onMenu, updates, onUpdate }: Props) {
   const body = useRef<HTMLDivElement>(null);
   const drag = useRef<Drag | null>(null);
   const before = useRef<Map<string, number> | null>(null);
   const lastCheck = useRef<string | null>(null);
-  const modHead = useRef<HTMLSpanElement>(null);
-  const versionHead = useRef<HTMLSpanElement>(null);
-  const scopeHead = useRef<HTMLSpanElement>(null);
-  const [widths, setWidths] = useState<Widths>(readWidths);
+  useEffect(() => {
+    try { localStorage.removeItem(OLD_COLUMN_KEY); } catch { /* storage may be off; nothing reads the key */ }
+  }, []);
   const [marker, setMarker] = useState<Marker | null>(null);
   // Folders open and close on screen at once; the saved state follows.
   const [fold, setFold] = useState<Record<string, boolean>>({});
@@ -340,62 +320,21 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
     }
     return out;
   }, [conflicts, names]);
-  /** Drags the line at the left of a header cell: the widths follow the pointer and are kept when it lets go. */
-  const grip = (col: Col) => (e: PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
-    const el = e.currentTarget;
-    el.setPointerCapture(e.pointerId);
-    // Widths are worked out from what is on screen, in rem.
-    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-    const wide = (n: HTMLElement | null) => (n?.getBoundingClientRect().width ?? 0) / rem;
-    const start: Widths = { version: wide(versionHead.current), scope: wide(scopeHead.current) };
-    const mod = wide(modHead.current);
-    const x0 = e.clientX;
-    let last: Widths | null = null;
-    const move = (ev: globalThis.PointerEvent) => {
-      last = dragWidths(start, col, (ev.clientX - x0) / rem, mod);
-      setWidths(last);
-    };
-    const up = () => {
-      el.removeEventListener("pointermove", move);
-      el.removeEventListener("pointerup", up);
-      el.removeEventListener("pointercancel", up);
-      if (last) saveWidths(last);
-    };
-    el.addEventListener("pointermove", move);
-    el.addEventListener("pointerup", up);
-    el.addEventListener("pointercancel", up);
-  };
-  const regrip = (col: Col) => () => {
-    const next = resetWidths(widths, col);
-    setWidths(next);
-    saveWidths(next);
-  };
   const h = useRef<Handlers>(null!);
-  h.current = { down, move, up, key, menu, check, toggle: (id, on) => toggle([id], on), conflicts: onConflicts, update: onUpdate, checkUpdates: onCheckUpdates };
+  h.current = { down, move, up, key, menu, check, toggle: (id, on) => toggle([id], on), conflicts: onConflicts, update: onUpdate };
   const allState = visibleMods.length && visibleMods.every((id) => checked.has(id)) ? true : visibleMods.some((id) => checked.has(id)) ? "mixed" : false;
   const draggingKeys = new Set(drag.current?.moved ? (drag.current.folder ? [drag.current.key] : drag.current.ids) : []);
-  // The whole library, closed folders and all, unlike the checkbox above: a check leaves nothing out.
-  const updatable = order.filter((id) => byId.get(id)?.updatable);
-  const checkingNow = checking.length > 0;
 
   return (
-    <div className="table" role="table" style={{ "--col-ver": `${widths.version}rem`, "--col-scope": `${widths.scope}rem` } as CSSProperties}>
+    <div className="table" role="table">
       <div className="th cap" role="row">
         <Check state={allState} label={t("app.mods.checkAll")} onChange={(on) => onCheck(visibleMods, on)} />
         <span data-tip-title={t("app.mods.orderTitle")} data-tip={tree ? t("app.mods.orderHint") : t("app.mods.reorderOff")}>#</span>
         <span>{t("app.mods.colOn")}</span>
-        {updatable.length ? <UpdateCheck label={t("app.mods.checkUpdates")} spinning={updatable.every((id) => checking.includes(id))} off={checkingNow} onCheck={() => onCheckUpdates(updatable)} /> : <span />}
-        <span ref={modHead}>{t("app.mods.colMod")}</span>
+        <span>{t("app.mods.colMod")}</span>
         <span />
-        <span ref={versionHead} className="th-col">
-          {t("app.mods.colVersion")}
-          <Grip label={t("app.mods.resizeColumn", t("app.mods.colVersion"))} onStart={grip("version")} onReset={regrip("version")} />
-        </span>
-        <span ref={scopeHead} className="th-col th-scope">
-          {t("app.mods.colScope")}
-          <Grip label={t("app.mods.resizeColumn", t("app.mods.colScope"))} onStart={grip("scope")} onReset={regrip("scope")} />
-        </span>
+        <span className="th-col">{t("app.mods.colVersion")}</span>
+        <span className="th-col th-scope">{t("app.mods.colScope")}</span>
       </div>
       <div ref={body} className={marker ? "tbody dragging-list" : "tbody"}>
         {all.map((line) => {
@@ -404,7 +343,6 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
             const node = folders.get(f.id);
             const ids = node?.kind === "folder" ? node.ids : [];
             const state = ids.length && ids.every((id) => checked.has(id)) ? true : ids.some((id) => checked.has(id)) ? "mixed" : false;
-            const inFolder = ids.filter((id) => byId.get(id)?.updatable);
             const cls =["tr", "fr", f.collapsed && "closed", f.locked && "locked", marker?.onto === f.id && !f.locked && "onto", draggingKeys.has(keyOf(line)) && "lifted"].filter(Boolean).join(" ");
             return (
               <div key={keyOf(line)} data-key={keyOf(line)} role="row" tabIndex={0} className={cls} style={{ "--fc": f.color } as CSSProperties} aria-expanded={!f.collapsed}
@@ -412,7 +350,6 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
                 {ids.length ? <Check state={state} label={f.name} onChange={(v) => onCheck(ids, v)} /> : <span />}
                 <span className="fr-chev"><ChevronIcon /></span>
                 <span />
-                {inFolder.length ? <UpdateCheck label={t("app.mods.checkOne", f.name)} spinning={inFolder.every((id) => checking.includes(id))} off={checkingNow} onCheck={() => onCheckUpdates(inFolder, f.name)} /> : <span />}
                 <span className="fr-title">
                   <button className={f.locked ? "bare fr-lock on" : "bare fr-lock"} aria-pressed={f.locked} aria-label={t(f.locked ? "app.menu.unlock" : "app.menu.lock")}
                     data-tip-title={t(f.locked ? "app.folder.locked" : "app.menu.lock")} data-tip={t(f.locked ? "app.folder.lockedHint" : "app.folder.lockHint")}
@@ -436,7 +373,7 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
               description={pick(m.description)} version={m.version} update={offered(updates, m)} scope={m.scope} on={flips[m.id]?.on ?? m.on} imagePath={m.image?.path ?? null} imageV={m.image?.v ?? 0} num={position.get(m.id) ?? 0}
               pinned={!!folder && folder.kind === "folder" && folder.folder.locked} selected={selected === m.id} checked={checked.has(m.id)}
               lifted={draggingKeys.has(m.id)} leaving={leaving !== null && line.folder === leaving} tips={conflict?.tips ?? null} lose={conflict?.lose ?? false}
-              updatable={m.updatable} spinning={checking.includes(m.id)} checkOff={checkingNow} h={h} lang={language()} />
+              h={h} lang={language()} />
           );
         })}
         {marker && !marker.onto && <div className="drop-line" style={{ top: marker.y, ...(marker.color ? { ["--lc" as string]: marker.color } : {}) }} aria-hidden="true" />}

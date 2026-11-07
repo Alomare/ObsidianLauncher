@@ -133,7 +133,7 @@ end)
 | `api.gear` | `refill`, `give_weapon(slot, path, upgrade, unit)`, `give_backpack(path, upgrade, unit)`, `give_perk(name, unit)`, `remove_perk(unit)`, `add_perk(name, unit)`, `remove_extra_perk(name, unit)`, `extra_perks(unit)`, `refresh`, `weapons_of(owner)`, `tune(unit, component, changes)`, `add_drone(path, unit, upgrade)` |
 | `api.stratagems` | `reset_cooldowns`, `refill_uses`, `give`, `drop`, `call(name, pos, delay)`, `edit(name, field, value)`, `define(def)`, `custom()` |
 | `api.enemies` | `spawn`, `spawn_group`, `spawn_entity(path, pos)`, `kill_all`, `kill(unit)`, `list`, `info(unit)`, `nearest(pos)`, `apply_status(unit, template)`, `stun_near(radius)`, `near(radius, pos)`, `damage(unit, power, statuses)`, `set_hitpoints(unit, n)`, `despawn(unit)`, `load_faction(name)`, `set_pressure(t)`, `waves()`, `force_wave(name, pos)`, `carried()`, os inimigos no mapa com cadáveres e a fila de surgimento, e `room()`, quantos mais cabem abaixo de `MAX_SAFE` |
-| `api.mission` | `finish_objectives`, `objectives()`, `mutator(name)`, `win`, `abort`, `practice` |
+| `api.mission` | `finish_objectives`, `objectives()`, `mutator(name)`, `win`, `abort`, `practice`, `drop` |
 | `api.vehicles` | `current()`, `driving()`, `repair()`, `refill()` |
 | `api.combat` | `scale{ players, enemies }` |
 | `api.events` | `on(name, fn)`, `off(name, fn)` |
@@ -443,6 +443,8 @@ bot:aim_at(pos)      -- fica virado para um ponto enquanto não há nada para co
 Ordens: `follow(unit, distance)`, `go_to(pos, distance)`, `hold()`, `aim_at(pos)`, `fight(radius)`, e `fighting()` e `firing()` para lê-las de volta. Uma nova ordem de andar substitui a anterior, e `go_to` termina quando o bot chega.
 
 Equipamento e ajuda vão para o bot do jeito que `api.gear`, `api.stratagems` e `api.player` os dão ao jogador principal, e respondem `true` ou `false` e um motivo, `"no_avatar"` enquanto o bot não tem corpo: `give_weapon(slot, path, upgrade)`, `give_backpack(path, upgrade)`, `give_perk(name)`, `remove_perk()`, `refill()`, `give_stratagem(name)`, `call(name, pos, delay)` para uma chamada real do próprio bot, `heal()`, `teleport(pos)` e `weapons()`.
+
+`use_stratagem(name, pos, on_done)` chama um estratagema dos espaços do bot como um jogador faz: o botão de estratagema segurado, o código digitado, o sinalizador lançado em `pos`. Gasta a recarga e um uso, e `on_done(ok, reason)` informa como terminou. `stratagems()` lista o que o bot carrega, e `cancel_stratagem()` interrompe uma chamada.
 
 Para controlar um bot diretamente: `move(dir)`, `aim(dir)`, `fire(on)`, `sprint(on)`, `reload()`, `dodge()`, `melee()`, `interact()`, `throw()` e `switch()`. Direções são direções do mundo como `{ x, y }`. `unit()`, `alive()` e `remove()` fazem o que dizem. Bots andam em linha reta até o objetivo, sem busca de caminho, e o jogo mantém jogadores locais na tela, então um bot jogador para na borda da visão.
 

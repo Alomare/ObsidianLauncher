@@ -143,6 +143,132 @@ test("opens_and_closes_taking_every_input_user", function()
 	E.eq(#ui.texts, 0, "nothing drawn once closed")
 end)
 
+-- A frame with these pad buttons held, by the names ControllerSettings.pad gives them.
+local function pad(ui, ...)
+	ui.pad = {}
+	for _, name in ipairs({ ... }) do ui.pad[name] = true end
+	ui.frame()
+end
+
+test("a_pad_moves_through_the_rows_changes_them_and_goes_back", function()
+	local e, ui = start(PAGE)
+	local M = menu_of(e)
+	menu().open()
+	ui.frame()
+	E.eq(M.nav, true, "on the list")
+	pad(ui, "select")
+	E.eq(M.nav, false, "A goes into the page")
+	pad(ui)
+	pad(ui, "select")
+	E.eq(values().god, true, "A switches a toggle")
+	pad(ui, "select")
+	pad(ui, "select")
+	E.eq(values().god, true, "a held button is one press, wherever the pad reports what's held")
+	E.eq(ui.shown("LB"), true, "the guide shows the pad's buttons")
+	E.eq(ui.shown("Esc"), false)
+	pad(ui)
+	pad(ui, "down")
+	pad(ui, "right")
+	E.eq(values().speed, 7, "right steps a number")
+	pad(ui, "left")
+	E.eq(values().speed, 5)
+	pad(ui, "select")
+	E.eq(M.field, nil, "A types no number: a pad can't")
+	pad(ui)
+	pad(ui, "back")
+	E.eq(M.nav, true, "B goes up to the list")
+	pad(ui)
+	ui.tap("down")
+	E.eq(ui.shown("Esc"), true, "the keyboard brings its keys back to the guide")
+	pad(ui, "back")
+	E.eq(menu().is_open(), false, "and B on the list closes")
+end)
+
+test("a_held_pad_direction_repeats_after_a_moment", function()
+	local e, ui = start([[
+		local api = obsidian.import("obsidian.api")
+		api.menu.add("Long", function(page)
+			for i = 1, 40 do page:action("Row " .. i .. ".", function() end) end
+		end)
+	]])
+	local M = menu_of(e)
+	menu().open()
+	ui.frame()
+	pad(ui, "select")
+	pad(ui)
+	local frame = M.stack[#M.stack]
+	E.eq(frame.selected, 1)
+	for _ = 1, 10 do pad(ui, "down") end
+	E.eq(frame.selected, 2, "one step, then a wait")
+	for _ = 1, 30 do pad(ui, "down") end
+	E.eq(frame.selected > 4, true, "then steps while held")
+	pad(ui)
+	local at = frame.selected
+	pad(ui, "down")
+	E.eq(frame.selected, at + 1)
+end)
+
+test("a_pads_shoulder_buttons_switch_pages_across_mods", function()
+	local e, ui = start_mods({
+		{ id = "m1", name = "One", source = [[
+			local api = obsidian.import("obsidian.api")
+			api.menu.add("Alpha", function(page) page:action("A row", function() end) end)
+			api.menu.add("Beta", function(page) page:action("B row", function() end) end)
+		]] },
+		{ id = "m2", name = "Two", source = [[
+			local api = obsidian.import("obsidian.api")
+			api.menu.add("Gamma", function(page) page:action("G row", function() end) end)
+		]] },
+	})
+	local M = menu_of(e)
+	menu().open()
+	ui.frame()
+	local function title() return M.root and M.root.title end
+	E.eq(title(), "Alpha")
+	pad(ui, "right_shoulder")
+	E.eq(title(), "Beta", "RB: the next page")
+	E.eq(M.nav, false, "with the D-pad on its rows")
+	pad(ui)
+	M.closed.m2 = true
+	pad(ui, "right_shoulder")
+	E.eq(title(), "Gamma", "into the next mod's folder, which opens")
+	E.eq(M.closed.m2, nil)
+	pad(ui)
+	pad(ui, "right_shoulder")
+	E.eq(title(), "Alpha", "round to the first")
+	pad(ui)
+	pad(ui, "left_shoulder")
+	E.eq(title(), "Gamma", "LB: the page before")
+end)
+
+test("a_pads_buttons_pressed_together_open_and_close_the_window", function()
+	local e, ui = start(PAGE)
+	local held = {}
+	local p = { active = function() return true end, button_index = function(name) return name end,
+		button = function(name) return held[name] and 1 or 0 end }
+	rawset(_G, "Pads", { p })
+	local function hold(...)
+		held = {}
+		for _, n in ipairs({ ... }) do held[n] = true end
+		ui.frame()
+	end
+	hold("left_thumb")
+	E.eq(menu().is_open(), false, "one stick isn't the pair")
+	hold("left_thumb", "right_thumb")
+	E.eq(menu().is_open(), true, "both sticks pressed in")
+	E.eq(menu_of(e).device, "pad")
+	hold("left_thumb", "right_thumb")
+	E.eq(menu().is_open(), true, "held, it stays open")
+	hold()
+	hold("right_thumb", "left_thumb")
+	E.eq(menu().is_open(), false, "pressed again, it closes")
+	hold()
+	menu_of(e).pad_combo = "off"
+	hold("left_thumb", "right_thumb")
+	E.eq(menu().is_open(), false, "off in Obsidian, they do nothing")
+	rawset(_G, "Pads", nil)
+end)
+
 test("focus_is_taken_back_every_frame", function()
 	local e, ui = start(PAGE)
 	menu().open()
@@ -1011,6 +1137,65 @@ test("the_grip_resizes_the_window_and_more_rows_show", function()
 	E.eq(M.win.w, 500, "not narrower than the rows need")
 	E.eq(rows_shown(ui) >= 4, true, "not so short that no rows fit")
 	ui.release()
+end)
+
+test("the_list_and_the_help_have_bounds_that_keep_both_readable", function()
+	local e = start(PAGE)
+	local W = menu_of(e).split
+	E.eq(W.nav(178, 760), 178, "a width inside the bounds stays")
+	E.eq(W.nav(10, 760), W.NAV_MIN, "the list never vanishes")
+	E.eq(W.nav(9000, 2000), W.NAV_MAX, "nor takes the window")
+	E.eq(W.nav(9000, 500), 500 - W.PAGE_MIN, "a narrow window keeps room for the page")
+	E.eq(W.foot(0, 540), W.FOOT_MIN, "one line of help at the least")
+	E.eq(W.foot(9000, 320), 320 - 32 - 36 - 4 - 27 * 3, "three rows of the page at the least")
+	E.eq(W.help_lines(62), 2, "two lines at the default height")
+	E.eq(W.help_lines(W.FOOT_MIN), 1)
+	E.eq(W.help_lines(62 + 16 * 3), 5)
+end)
+
+test("the_edge_of_the_list_and_the_line_over_the_help_drag_and_are_remembered", function()
+	local e, ui = start(LONG)
+	open_root(ui)
+	click_on(ui, "Long")
+	local M = menu_of(e)
+	local kit, W = M.kit, M.split
+	local nav, foot = M.win.nav, M.win.foot
+	E.eq(nav, 178, "the list at the default width")
+	E.eq(foot, 62, "the foot at the default height")
+
+	local x, y = middle(e, M.hits.nav_edge)
+	ui.press(x, y)
+	ui.move(x + 60 * kit.scale, y)
+	near(M.win.nav, nav + 60, "the list follows the mouse")
+	near(M.hits.rows[1].x, M.win.x + nav + 60, "and the page starts where the list ends")
+	ui.move(x - 9000, y)
+	E.eq(M.win.nav, W.NAV_MIN, "not narrower than a short name needs")
+	ui.move(x + 9000, y)
+	E.eq(M.win.nav, math.min(W.NAV_MAX, M.win.w - W.PAGE_MIN), "not so wide that the page has no room")
+	ui.move(x + 40 * kit.scale, y)
+	ui.release()
+	near(M.win.nav, nav + 40, "let go, the width stays")
+
+	local before = rows_shown(ui)
+	x, y = middle(e, M.hits.divider)
+	ui.press(x, y)
+	ui.move(x, y + 32 * kit.scale)
+	near(M.win.foot, foot + 32, "the help gets two more lines of room")
+	E.eq(rows_shown(ui) < before, true, "and the page shows fewer rows")
+	ui.move(x, y - 9000)
+	E.eq(M.win.foot, W.FOOT_MIN, "one line of help at the least")
+	ui.move(x, y + 9000)
+	E.eq(rows_shown(ui), W.ROWS_MIN, "three rows of the page at the least")
+	ui.move(x, y + 32 * kit.scale)
+	ui.release()
+	near(M.win.foot, foot + 32, "let go, the height stays")
+
+	menu().close()
+	e.loaded["obsidian/loader/storage"].loaded = {}
+	M.win = nil
+	open_root(ui)
+	near(M.win.nav, nav + 40, "the width comes back from storage")
+	near(M.win.foot, foot + 32, "and the height")
 end)
 
 test("the_window_is_remembered", function()

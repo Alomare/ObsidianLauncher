@@ -44,7 +44,7 @@ describe("a check", () => {
   it("says how many mods have updates", async () => {
     invoke.mockResolvedValue([{ id: "a.mod", version: "1.1.0", error: null }, { id: "b.mod", version: null, error: null }]);
     await checkModUpdates(all, names);
-    expect(invoke).toHaveBeenCalledWith("check_mod_updates", { ids: all });
+    expect(invoke).toHaveBeenCalledWith("check_mod_updates", { ids: all, fresh: true });
     expect(notify.mock.calls).toEqual([["info", t("app.modUpdates.one")]]);
   });
 
@@ -53,7 +53,7 @@ describe("a check", () => {
     await checkModUpdates(all, names);
     invoke.mockResolvedValueOnce([{ id: "b.mod", version: null, error: null }]);
     await checkModUpdates(["b.mod"], names, { what: "Mod B" });
-    expect(invoke).toHaveBeenLastCalledWith("check_mod_updates", { ids: ["b.mod"] });
+    expect(invoke).toHaveBeenLastCalledWith("check_mod_updates", { ids: ["b.mod"], fresh: true });
     expect(notify).toHaveBeenLastCalledWith("info", t("app.modUpdates.noneFor", "Mod B"));
     let seen: ModUpdates | undefined;
     const Spy = () => {
@@ -88,6 +88,7 @@ describe("a check", () => {
   it("at startup, only speaks when it finds something", async () => {
     invoke.mockResolvedValue([{ id: "a.mod", version: null, error: null }, { id: "b.mod", version: null, error: failure }]);
     await checkModUpdates(all, names, { startup: true });
+    expect(invoke).toHaveBeenCalledWith("check_mod_updates", { ids: all, fresh: false });
     expect(notify).not.toHaveBeenCalled();
     invoke.mockRejectedValue("offline");
     await checkModUpdates(all, names, { startup: true });

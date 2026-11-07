@@ -6,7 +6,7 @@ summary: Importar um mod de um .zip ou de uma pasta, atualizar e remover.
 
 ## Importar {#importing}
 
-Arraste uma pasta de mod ou um arquivo `.zip` para a lista de mods na aba [Mods](app:mods), ou clique no **+** verde ao lado de Criar pasta e escolha um. Dá para importar vários de uma vez, e uma notificação diz o que aconteceu com cada um.
+Arraste uma pasta de mod ou um arquivo `.zip` para a lista de mods na aba [Mods](app:mods), ou clique no botão verde **Adicionar** acima da lista e escolha um. Dá para importar vários de uma vez, e uma notificação diz o que aconteceu com cada um.
 
 O Obsidian copia o mod para a biblioteca, então você pode apagar o download depois. Importar não muda nada no jogo até você aplicar.
 
@@ -33,9 +33,9 @@ Importe a versão nova do mesmo jeito. Um mod com o mesmo id substitui o que est
 
 ### Pelo GitHub {#from-github}
 
-Um mod pode indicar o repositório dele no GitHub. Quando indica, aparece um botão com duas setas na linha dele na aba [Mods](app:mods), entre o interruptor e o nome, que pergunta ao GitHub se há uma versão nova daquele mod. O mesmo botão numa pasta pergunta por todos os mods dela, e o do topo da lista pergunta por todos. Um mod com versão nova mostra um botão **Atualizar para** ao lado do nome. Clique nele e depois aplique ao jogo.
+Um mod pode indicar um repositório do GitHub. Para perguntar ao GitHub se há versões novas, marque os mods na aba [Mods](app:mods) (a caixa de uma pasta marca todos os mods dela, e a do topo da lista marca todos) e use **Procurar atualizações** na barra no pé da lista. Um mod com versão nova mostra a versão em dourado na coluna Versão, e **Atualizar para** nos detalhes do mod. Clique em qualquer um dos dois e depois aplique ao jogo.
 
-O Obsidian fala com o GitHub ao abrir e quando você clica, e só oferece uma versão mais alta do mesmo mod. Nada é instalado até você escolher. Um mod com versão nova mostra o número da versão numa caixa amarela com uma seta. Clique nela para ver a versão nova e um link para as novidades do mod, e depois confirme. **Atualizar todos** instala de uma vez todas as atualizações pendentes.
+O Obsidian pergunta ao GitHub quando você clica em **Procurar atualizações**, e ao abrir, a menos que tenha perguntado nas últimas seis horas. Ele só oferece uma versão mais alta do mesmo mod, e nada é instalado até você escolher. A caixa dourada da versão mostra a versão nova e um link para as novidades do mod, e depois pede confirmação. **Atualizar todos** instala de uma vez todas as atualizações pendentes.
 
 A aba Sobre, nos detalhes de um mod assim, lista o que mudou em cada versão, em **Notas de versão**. Clique numa versão para ler as mudanças; **Carregar mais** traz as mais antigas.
 

@@ -73,6 +73,34 @@ fn every_vanilla_bank_rebuilds_byte_for_byte() {
     assert_eq!(seen.len(), 56);
 }
 
+/// The game's master, as the overlay reads it: every clip record found, and a clip given a new id in
+/// every record that names it, with nothing else changed.
+#[test]
+#[ignore]
+fn the_vanilla_master_takes_new_clip_ids() {
+    use obsidian_core::overlay;
+    use std::collections::{BTreeMap, BTreeSet};
+    let game = std::env::var("OBSIDIAN_GAME_DIR").expect("OBSIDIAN_GAME_DIR");
+    let boot = std::path::Path::new(&game).join("contents").join("9e13b2414b41b842");
+    let master_type = obsidian_core::hash::hash_name("timpani_master");
+    let b = bundle::read_file(&boot).unwrap();
+    let masters: Vec<_> = b.entries.iter().filter(|e| e.type_hash == master_type).collect();
+    assert_eq!(masters.len(), 1, "one master, in the boot bundle");
+    assert_eq!(masters[0].variants.len(), 1, "for every language");
+    let m = &masters[0].variants[0].data;
+    let places = overlay::clip_places(m).unwrap();
+    let clips: BTreeSet<u64> = places.iter().map(|p| p.1).collect();
+    println!("{} clip records naming {} clips, {} bytes", places.len(), clips.len(), m.len());
+    assert_eq!((places.len(), clips.len()), (5412, 4825));
+    let rock = *clips.iter().next().unwrap();
+    let map = overlay::new_ids(&BTreeSet::from([rock]), &clips);
+    let again = overlay::remap(m, &map).unwrap();
+    let named = places.iter().filter(|p| p.1 == rock).count();
+    assert_eq!(overlay::clip_places(&again).unwrap().iter().filter(|p| p.1 == map[&rock]).count(), named);
+    assert_eq!((0..m.len()).filter(|&i| m[i] != again[i]).count() <= 8 * named, true, "only the ids change");
+    assert_eq!(overlay::remap(m, &BTreeMap::new()).unwrap(), *m);
+}
+
 /// How long the biggest bank takes to rebuild and write, and that what's written reads back.
 #[test]
 #[ignore]

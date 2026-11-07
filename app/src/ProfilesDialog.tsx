@@ -1,7 +1,7 @@
 // The profiles dialog, opened from the Profile button on the Mods page: every profile with what it
 // holds, and New, Import, Duplicate, Rename, Export, Delete and Use. A profile keeps the load order, which mods are
 // on, option values, keys and guardrails.
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { run } from "./api";
 import { Confirm } from "./Confirm";
 import { CloseIcon, CopyIcon, ExportIcon, ImportIcon, ModdersIcon, PaletteIcon, PenIcon, PlusIcon, ShieldIcon, TrashIcon } from "./Icons";
@@ -15,11 +15,26 @@ import type { ProfileRow, Snapshot } from "./types";
 
 type Ask = { kind: "new" } | { kind: "duplicate" | "rename" | "delete"; name: string } | null;
 
+/** A profile's guardrails as two icons, lit while on: other players' session mods blocked, and the account guarded. */
+export function ProfileGuards({ p }: { p: ProfileRow }) {
+  return (
+    <>
+      <span className={p.blockPublic ? "consent-ico on" : "consent-ico"} role="img" aria-label={t(p.blockPublic ? "app.profiles.blockPublicOn" : "app.profiles.blockPublicOff")}
+        data-tip={t(p.blockPublic ? "app.profiles.blockPublicOn" : "app.profiles.blockPublicOff")}><ModdersIcon /></span>
+      <span className={p.guarded ? "consent-ico on" : "consent-ico"} role="img" aria-label={t(p.guarded ? "app.profiles.guardedOn" : "app.profiles.guardedOff")}
+        data-tip={t(p.guarded ? "app.profiles.guardedOn" : "app.profiles.guardedOff")}><ShieldIcon filled={p.guarded} /></span>
+    </>
+  );
+}
+
 export function ProfilesDialog({ snap, onClose }: { snap: Snapshot; onClose: () => void }) {
   const [ask, setAsk] = useState<Ask>(null);
   const [colors, setColors] = useState<{ x: number; y: number; name: string; color: string | null } | null>(null);
+  const box = useRef<HTMLDivElement>(null);
   const close = () => setAsk(null);
   const last = snap.profileRows.length <= 1;
+  // The focus comes into the dialog, so the keys work from its first button on.
+  useEffect(() => box.current?.focus(), []);
   useEffect(() => {
     // Esc closes the question on top first, then the dialog.
     const key = (e: KeyboardEvent) => e.key === "Escape" && !ask && !colors && onClose();
@@ -34,7 +49,7 @@ export function ProfilesDialog({ snap, onClose }: { snap: Snapshot; onClose: () 
 
   return (
     <div className="modal-back" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-    <div className="modal profiles" role="dialog" aria-modal="true" aria-label={t("app.profiles.title")}>
+    <div className="modal profiles" role="dialog" aria-modal="true" aria-label={t("app.profiles.title")} ref={box} tabIndex={-1}>
       <div className="head">
         <h2 className="cap">{t("app.profiles.title")}</h2>
         <div className="profiles-tools">
@@ -54,10 +69,7 @@ export function ProfilesDialog({ snap, onClose }: { snap: Snapshot; onClose: () 
                 <div className="nm">
                   {p.name}
                   {active && <span className="tag">{t("app.profiles.active")}</span>}
-                  <span className={p.blockPublic ? "consent-ico on" : "consent-ico"} role="img" aria-label={t(p.blockPublic ? "app.profiles.blockPublicOn" : "app.profiles.blockPublicOff")}
-                    data-tip={t(p.blockPublic ? "app.profiles.blockPublicOn" : "app.profiles.blockPublicOff")}><ModdersIcon /></span>
-                  <span className={p.guarded ? "consent-ico on" : "consent-ico"} role="img" aria-label={t(p.guarded ? "app.profiles.guardedOn" : "app.profiles.guardedOff")}
-                    data-tip={t(p.guarded ? "app.profiles.guardedOn" : "app.profiles.guardedOff")}><ShieldIcon filled={p.guarded} /></span>
+                  <ProfileGuards p={p} />
                 </div>
                 <div className="sub">{t(p.on === 1 ? "app.profiles.oneOn" : "app.profiles.on", p.on)}</div>
               </div>

@@ -68,7 +68,7 @@ No deploy, o Obsidian grava as partes em stream num arquivo `.stream` ao lado do
 
 ## Clipes de um banco de som {#sound-bank-clips}
 
-Um banco inteiro pode passar de um gigabyte somando os idiomas. Um mod que muda poucos sons pode trazer só esses clipes em `clips`, e o Obsidian refaz o banco a partir do jogo instalado ao aplicar:
+Um banco inteiro pode passar de um gigabyte somando os idiomas. Um mod que muda poucos sons pode trazer só esses clipes em `clips`. Ao aplicar, o Obsidian aponta a lista de sons do jogo (`timpani_master`, no bundle de boot) para ids novos desses clipes, e coloca os clipes, com os ids novos, num pequeno banco do Obsidian ao lado do banco que eles substituem. Os bancos do jogo ficam como estão:
 
 ```json
 { "type": "timpani_bank", "name": "#e0f28740d6c19769",
@@ -81,11 +81,11 @@ Um banco inteiro pode passar de um gigabyte somando os idiomas. Um mod que muda 
 
 - `clip` é o id do clipe, `#` mais 16 dígitos hexadecimais. `lang` é o valor de idioma da tabela acima, 0 se você não informar.
 - `data` é o que vai no banco: o cabeçalho de 68 bytes do clipe e a primeira parte do áudio. `stream` é o resto, se houver.
-- Um recurso com `clips` não tem `bundle`: o Obsidian coloca o banco em todos os bundles que o têm. Clipes e idiomas que você não listar ficam como no jogo.
-- Duas linhas podem usar o mesmo arquivo. Mods podem mudar clipes diferentes do mesmo banco, e quando dois mudam o mesmo clipe, vale o último na ordem de carregamento. Sobre um mod que substitui o banco inteiro, os clipes valem para o banco desse mod.
+- Um recurso com `clips` não tem `bundle`: esse pequeno banco vai para todo bundle que contém o banco do jogo e carrega junto com ele, no idioma em que o jogo está configurado. Clipes e idiomas que você não listar tocam como no jogo.
+- Duas linhas podem usar o mesmo arquivo. Mods podem mudar clipes diferentes do mesmo banco, e quando dois mudam o mesmo clipe, vale o último na ordem de carregamento. Sobre um mod que substitui o banco inteiro, esse banco continua sendo aplicado, e os idiomas que você não listar tocam o clipe como esse mod o tem.
 - Aplicar recusa um clipe ou idioma que o banco não tem, e um arquivo cujo cabeçalho não bate com o tamanho.
 
-Uma atualização do jogo conta como mudanças esperando, e aplicar de novo refaz o banco. O patch aplicado continua do tamanho do banco inteiro: `clips` reduz o download, não o espaço em disco.
+Uma atualização do jogo conta como mudanças esperando, e aplicar de novo lê o jogo outra vez. O patch aplicado guarda a lista de sons (cerca de 0,2 MB) e os clipes novos, com o clipe original do jogo para cada idioma que você deixar de fora onde esse idioma toca outro áudio: um passo em inglês americano, que fica em dois bancos, ocupa cerca de 4 MB de disco.
 
 ## Campos {#fields}
 
