@@ -6145,6 +6145,13 @@ local function carry_world(game, e)
 			entry.loadout_info = s.get_upgraded_stratagem(data.stratagem_id, data.upgrade_value)
 		end,
 		command_master = function(self, unit, ctx, name, data)
+			if name == "stratagems" then
+				for i, from in ipairs(data) do
+					ctx.state.stratagems[i] = ctx.state.stratagems[i] or {}
+					for k, v in pairs(from) do ctx.state.stratagems[i][k] = v end
+				end
+				return
+			end
 			if name ~= "throw_stratagem" then return end
 			for _, entry in ipairs(ctx.state.stratagems) do
 				if entry.id == data then entry.cooldown_timer = s.stratagems[data].cooldown_time end
@@ -6158,7 +6165,7 @@ end
 
 local SQUAD = { name = "test_squad", base = "stratagem_resupply", title = "Squad Supply", type = "special", unlock = "manual" }
 
-test("a_carried_stratagem_comes_after_the_loadout_at_the_level_of_its_base", function()
+test("a_carried_stratagem_goes_right_after_the_always_present_ones_at_the_level_of_its_base", function()
 	local api, game, e = start()
 	carry_world(game, e)
 	local made = api.stratagems.define(SQUAD)
@@ -6170,10 +6177,13 @@ test("a_carried_stratagem_comes_after_the_loadout_at_the_level_of_its_base", fun
 	IC.set_loadout({}, "unit", ctx, { pad_number = 0 })
 	local list = ctx.state.stratagems
 	E.eq(#list, 4, "one more")
-	E.eq(list[4].id, made.id, "last")
-	E.eq(list[4].cooldown_timer, 0)
-	E.eq(list[4].upgrade_value, 2, "the Mk3 the player bought of the base")
-	E.eq(list[4].loadout_info.level, 2)
+	E.eq(list[1].id, 4, "Reinforce, always present")
+	E.eq(list[2].id, made.id, "beside it, so the HUD lists them together")
+	E.eq(list[3].id, 1, "then the loadout's slots")
+	E.eq(list[4].id, 5)
+	E.eq(list[2].cooldown_timer, 0)
+	E.eq(list[2].upgrade_value, 2, "the Mk3 the player bought of the base")
+	E.eq(list[2].loadout_info.level, 2)
 	E.eq(ctx.state.item_upgrades.test_squad, 2, "where the call-in reads it")
 	-- The tutorial's and the game's fixed loadouts get nothing.
 	local fixed = { state = {} }
@@ -6182,10 +6192,10 @@ test("a_carried_stratagem_comes_after_the_loadout_at_the_level_of_its_base", fun
 	-- A level of its own, within the stratagem's.
 	api.stratagems.carry("test_squad", { upgrade = 9 })
 	IC.set_loadout({}, "unit", ctx, { pad_number = 0 })
-	E.eq(ctx.state.stratagems[4].upgrade_value, 3)
+	E.eq(ctx.state.stratagems[2].upgrade_value, 3)
 	api.stratagems.carry("test_squad")
 	IC.set_loadout({}, "unit", ctx, { pad_number = 0 })
-	E.eq(ctx.state.stratagems[4].upgrade_value, 0, "the player's own purchase: none")
+	E.eq(ctx.state.stratagems[2].upgrade_value, 0, "the player's own purchase: none")
 	E.eq(api.stratagems.uncarry("test_squad"), true)
 	IC.set_loadout({}, "unit", ctx, { pad_number = 0 })
 	E.eq(#ctx.state.stratagems, 3)
@@ -6204,8 +6214,32 @@ test("a_carried_stratagem_the_loadout_holds_isnt_added_twice_and_a_hidden_one_go
 	local list = ctx.state.stratagems
 	E.eq(#list, 3, "Resupply out, the mortar once, the carried one in")
 	E.eq(list[1].id, 4)
-	E.eq(list[2].id, 5)
-	E.eq(list[3].id, made.id)
+	E.eq(list[2].id, made.id)
+	E.eq(list[3].id, 5)
+end)
+
+test("a_respawn_copying_an_old_list_without_the_carried_entry_keeps_every_entry_in_place", function()
+	local api, game, e = start()
+	carry_world(game, e)
+	local made = api.stratagems.define(SQUAD)
+	api.stratagems.carry("test_squad")
+	local IC = rawget(_G, "InventoryComponent")
+	local ctx = { state = {} }
+	IC.set_loadout({}, "unit", ctx, { pad_number = 0 })
+	-- The player spawned before it was carried: the old list hasn't got it.
+	local old = { { id = 4, cooldown_timer = 0 }, { id = 1, cooldown_timer = 50 }, { id = 5, cooldown_timer = 20 } }
+	IC.command_master({}, "unit", ctx, "stratagems", old)
+	local list = ctx.state.stratagems
+	E.eq(#list, 4)
+	E.eq(list[2].id, made.id, "kept")
+	E.eq(list[3].id, 1) E.eq(list[3].cooldown_timer, 50, "each old time on the right entry")
+	E.eq(list[4].id, 5) E.eq(list[4].cooldown_timer, 20)
+	E.eq(#old, 3, "the dead player's list is left alone")
+	-- An old list with it is copied as it is.
+	IC.set_loadout({}, "unit", ctx, { pad_number = 0 })
+	IC.command_master({}, "unit", ctx, "stratagems", { { id = 4, cooldown_timer = 0 }, { id = made.id, cooldown_timer = 30 }, { id = 1, cooldown_timer = 0 }, { id = 5, cooldown_timer = 0 } })
+	E.eq(ctx.state.stratagems[2].cooldown_timer, 30)
+	E.eq(#ctx.state.stratagems, 4)
 end)
 
 test("carrying_is_checked_and_a_client_mod_cant", function()
@@ -6271,21 +6305,21 @@ test("another_players_carried_entry_shows_as_the_custom_stratagem", function()
 		IC.command_slave({}, "remote", slave, "stratagem_cooldown", { index = index, stratagem_id = id, upgrade_value = 0, cooldown_timer = time or 0 })
 	end
 	local list = slave.state.stratagems
-	-- The vanilla Resupply in a slot, then the carried one, which arrives as its base.
-	rpc(1, 4) rpc(2, 1) rpc(3, 5)
-	E.eq(list[2].id, made.id, "the last Resupply so far")
-	rpc(4, 1)
-	E.eq(list[2].id, 1, "the slot's Resupply")
-	E.eq(list[2].loadout_info.name, "stratagem_resupply")
-	E.eq(list[4].id, made.id, "the carried one")
-	E.eq(list[4].loadout_info.name, "test_squad", "the custom icon and words")
-	rpc(2, 1, 30)
-	E.eq(list[2].id, 1, "a later message keeps them apart")
+	-- Reinforce, the carried one (which arrives as the base), a mortar, then the standard Resupply in a slot.
+	rpc(1, 4) rpc(2, 1)
+	E.eq(list[2].id, made.id, "known as soon as it comes")
+	E.eq(list[2].loadout_info.name, "test_squad", "the custom icon and words")
+	rpc(3, 5) rpc(4, 1)
+	E.eq(list[4].id, 1, "the slot's Resupply")
+	E.eq(list[4].loadout_info.name, "stratagem_resupply")
+	E.eq(list[2].id, made.id)
 	rpc(4, 1, 30)
-	E.eq(list[4].id, made.id)
+	E.eq(list[4].id, 1, "a later message keeps them apart")
+	rpc(2, 1, 30)
+	E.eq(list[2].id, made.id)
 	api.stratagems.uncarry("test_squad")
-	rpc(4, 1, 20)
-	E.eq(list[4].id, 1, "the base again once nothing is carried")
+	rpc(2, 1, 20)
+	E.eq(list[2].id, 1, "the base again once nothing is carried")
 end)
 
 test("the_proving_grounds_draw_no_hidden_carried_or_locked_stratagem", function()
@@ -6371,6 +6405,8 @@ test("a_throw_on_another_machine_reaches_this_machines_players_once", function()
 	local made = api.stratagems.define(SQUAD)
 	api.stratagems.share_cooldown("test_squad")
 	local me = local_player(game, made.id)
+	-- This player has been here a while, so only a throw changes the time.
+	e:frames(400)
 	local remote = { alive = true, owned = false, master = {}, slave = { inventory = { stratagems = { { id = made.id, cooldown_timer = 0 } } } } }
 	game.slaves.inventory = { [remote] = { state = remote.slave.inventory } }
 	local theirs = remote.slave.inventory.stratagems[1]
@@ -6420,6 +6456,86 @@ test("a_lobby_that_isnt_cleared_carries_and_shares_nothing", function()
 	e:frames(2)
 	E.eq(#commands_for(game, p2, "set_stratagem_info"), 0)
 	E.eq(select(2, api.stratagems.carry("stratagem_mortar")), "not_cleared")
+end)
+
+test("the_loadout_screen_offers_no_hidden_or_carried_stratagem_in_the_lists_it_reads", function()
+	local api, game, e = start()
+	-- As the game's: each player's lists go in option_menus[slot], not on the player's record.
+	rawset(_G, "MenuScreenLoadout", { setup_loadout = function(self, slot)
+		self.option_menus[slot] = { available_items = { stratagems = { groups = {
+			{ name = "stratagem_resupply", item_index = 1, items = { { name = "stratagem_resupply" } } },
+			{ name = "test_squad", item_index = 1, items = { { name = "test_squad" } } },
+			{ name = "stratagem_mortar", item_index = 1, items = { { name = "stratagem_mortar" } } } } } } }
+	end })
+	carry_world(game, e)
+	api.stratagems.define(SQUAD)
+	api.stratagems.hide("stratagem_resupply")
+	api.stratagems.carry("test_squad")
+	local screen = { option_menus = {}, parent = { players = { { pad_number = 0 }, { pad_number = 1 } } } }
+	rawget(_G, "MenuScreenLoadout").setup_loadout(screen, 2)
+	local groups = screen.option_menus[2].available_items.stratagems.groups
+	E.eq(#groups, 1)
+	E.eq(groups[1].name, "stratagem_mortar")
+	E.eq(screen.parent.players[2].available_items, nil, "the player's record is left alone")
+end)
+
+test("a_player_joining_during_a_mission_takes_the_squads_remaining_cooldown", function()
+	local api, game, e = start()
+	carry_world(game, e)
+	local made = api.stratagems.define(SQUAD)
+	api.stratagems.share_cooldown("test_squad")
+	local p1 = local_player(game, made.id, 0)
+	e:frames(400)
+	-- p1 threw a while ago and is half done.
+	p1.master.inventory.stratagems[1].cooldown_timer = 60
+	e:frames(2)
+	game.commands = {}
+	-- A second player on this machine joins with it ready.
+	local p2 = local_player(game, made.id, 0)
+	e:frames(1)
+	local set = commands_for(game, p2, "set_stratagem_info")
+	E.eq(#set, 1, "at once")
+	E.eq(set[1].data.cooldown_timer, 60)
+	E.eq(#commands_for(game, p2, "broadcast_stratagem_cooldown"), 1)
+	E.eq(#commands_for(game, p1, "set_stratagem_info"), 0)
+	e:frames(1)
+	E.eq(#commands_for(game, p2, "set_stratagem_info"), 1, "once, while the game takes the command")
+	-- After a while a new entry's time is the owner's: only a throw changes it.
+	p2.master.inventory.stratagems[1].cooldown_timer = 0
+	e:frames(400)
+	E.eq(#commands_for(game, p2, "set_stratagem_info"), 1)
+	no_tampering(game)
+end)
+
+test("a_player_joining_another_machine_takes_the_time_this_machines_players_show_there", function()
+	local api, game, e = start()
+	carry_world(game, e)
+	local made = api.stratagems.define(SQUAD)
+	api.stratagems.share_cooldown("test_squad")
+	-- This machine has just joined: the player here is new, and so are the others as it sees them.
+	local me = local_player(game, made.id, 0)
+	local remote = { alive = true, owned = false, master = {}, slave = { inventory = { stratagems = { { id = made.id, cooldown_timer = 95 } } } } }
+	game.slaves.inventory = { [remote] = { state = remote.slave.inventory } }
+	e:frames(1)
+	local set = commands_for(game, me, "set_stratagem_info")
+	E.eq(#set, 1, "no wait for a throw")
+	E.eq(set[1].data.cooldown_timer, 95)
+end)
+
+test("a_new_entry_already_as_long_as_the_squads_is_left_alone", function()
+	local api, game, e = start()
+	carry_world(game, e)
+	local made = api.stratagems.define(SQUAD)
+	api.stratagems.share_cooldown("test_squad")
+	local remote = { alive = true, owned = false, master = {}, slave = { inventory = { stratagems = { { id = made.id, cooldown_timer = 95 } } } } }
+	game.slaves.inventory = { [remote] = { state = remote.slave.inventory } }
+	local me = local_player(game, made.id, 94)
+	e:frames(3)
+	E.eq(#commands_for(game, me, "set_stratagem_info"), 0)
+	local fresh = local_player(game, made.id, 0)
+	remote.slave.inventory.stratagems[1].cooldown_timer = 0
+	e:frames(1)
+	E.eq(commands_for(game, fresh, "set_stratagem_info")[1].data.cooldown_timer, 94, "the longest known: this machine's own player")
 end)
 
 return T
