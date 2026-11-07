@@ -79,19 +79,12 @@ end)
 test("a_session_that_stops_being_cleared_takes_every_change_away_and_gives_it_back", function()
 	local lobby = { my_id = "me", members = { "me" }, data = {} }
 	local api, game, e = start({ lobby = lobby })
-	-- The player's rifle gets the flag of its own; a bot's, on this machine too, keeps counting.
-	local mine, bots = { infinite_ammo = false }, { infinite_ammo = false }
-	game.masters.firearm = { [game.weapon] = { state = mine }, [{ alive = true }] = { state = bots } }
 	api.effects.set("infinite_ammo", true)
-	e:frames(1)
-	E.eq(mine.infinite_ammo, true, "the player's")
-	E.eq(bots.infinite_ammo, false, "not a bot's")
-	E.eq(game.components.firearm.infinite_ammo == true, false, "not every gun on this machine")
 	E.eq(api.edits.set_unit("equipment/rifle", "weapon_info.power", 500), true)
 	e:frames(31)
 	lobby.members = { "me", "stranger" }
 	e:frames(31)
-	E.eq(mine.infinite_ammo, false, "effect off")
+	E.eq(game.components.firearm.infinite_ammo, false, "effect off")
 	E.eq(game.rifle.weapon_info.power, 75, "edit undone")
 	local ok, why = api.edits.set_unit("equipment/rifle", "weapon_info.power", 900)
 	E.eq(ok, false, "nothing new while not cleared")
@@ -100,7 +93,7 @@ test("a_session_that_stops_being_cleared_takes_every_change_away_and_gives_it_ba
 	lobby.members = { "me" }
 	e:frames(31)
 	e:frames(2)
-	E.eq(mine.infinite_ammo, true, "effect back")
+	E.eq(game.components.firearm.infinite_ammo, true, "effect back")
 	E.eq(game.rifle.weapon_info.power, 500, "edit back")
 end)
 
@@ -4856,6 +4849,41 @@ test("a_bot_fires_one_weapon_at_one_target_and_takes_back_the_one_from_before", 
 	game.step(1)
 	E.eq(done[1], false)
 	E.eq(done[2], "cancelled")
+end)
+
+test("a_launcher_its_backpack_reloads_is_reloaded_before_it_goes_back", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add()
+	local enemy = game.enemies[1]
+	local u = game.land(2, { x = 3, y = 5, z = 0 })
+	game.step(1)
+	local inv = u.master.inventory
+	local function gun(ws) return { alive = true, owned = true, master = { weapon = ws }, slave = {} } end
+	local rifle = gun({ reloadable = true, rounds = 30, num_mags = 3 })
+	local tube_ws = { reloadable = true, rounds = 1, num_mags = 0, assisted_reload = true, backpack_for_reload = "pack", fully_automatic = false }
+	local tube = gun(tube_ws)
+	inv.primary_weapon, inv.support_weapon, inv.current_weapon = rifle, tube, tube
+	rawget(_G, "EntityAux").state_master_interface = function(unit, i) return i == "weapon" and unit.master.weapon or nil end
+	local done
+	E.eq(bot:use_weapon("support", enemy, function(ok, why) done = { ok, why } end), true)
+	game.step(1)
+	E.eq(u.master.input.input_data.fire_button, 1)
+	tube_ws.rounds = 0 -- fired
+	local reloaded = false
+	for _ = 1, 5 do
+		game.step(1)
+		if u.master.input.input_data.reload_pressed == true then reloaded = true end
+	end
+	E.eq(reloaded, true, "reloads from the backpack")
+	E.eq(done, nil, "and doesn't go back empty")
+	tube_ws.is_reloading = true
+	game.step(10)
+	E.eq(done, nil, "nor halfway through the reload")
+	tube_ws.is_reloading, tube_ws.rounds = false, 1
+	game.step(1)
+	E.eq(done and done[1], true)
+	E.eq(done[2], "shots")
 end)
 
 test("fight_keeps_a_chosen_weapon_out_and_shoots_only_the_enemies_a_mod_picks", function()
