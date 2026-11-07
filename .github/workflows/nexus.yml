@@ -1,7 +1,7 @@
 # Uploads a release's installer and portable ZIP to Nexus Mods, as new versions of the Setup and Portable files
-# already on the mod page. The mod's version follows, and the release text becomes each version's changelog: one line per
-# manager change, without the Obsidian Kit's updates. The files' titles and descriptions are the ones on the page, set by
-# hand there, and stay as they are (tools/nexus_release.py).
+# already on the mod page. The mod's version follows. No changelog is sent: the two uploads each added one, so every
+# version showed it twice. The files' titles and descriptions are the ones on
+# the page, set by hand there, and stay as they are (tools/nexus_release.py).
 # It runs when a release is published (the Release workflow makes a draft; publishing it starts this), and by
 # hand from the Actions tab for a tag that's already out. Drafts and pre-releases are never uploaded.
 #
@@ -65,16 +65,6 @@ jobs:
           test -s "$PORTABLE" || { echo "::error::$PORTABLE is missing from the release $TAG."; exit 1; }
           { echo "VERSION=$VERSION"; echo "SETUP=$SETUP"; echo "PORTABLE=$PORTABLE"; } >> "$GITHUB_ENV"
 
-      - name: Changelog from the release text
-        id: notes
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body -q .body > body.md
-          python3 tools/nexus_release.py changelog body.md > notes.txt
-          test -s notes.txt || echo "Version ${VERSION}." > notes.txt
-          { echo 'text<<NOTES_END'; cat notes.txt; echo 'NOTES_END'; } >> "$GITHUB_OUTPUT"
-
       - name: The files' titles and descriptions on the page now
         id: page
         run: python3 tools/nexus_release.py files >> "$GITHUB_OUTPUT"
@@ -98,7 +88,6 @@ jobs:
           allow_mod_manager_download: true
           update_mod_version: true
           mod_id: ${{ env.NEXUS_MOD_ID }}
-          changelog: ${{ steps.notes.outputs.text }}
 
       - name: Upload Obsidian Mod Manager Portable
         uses: Nexus-Mods/upload-action@98532f7670c27cbecc78fae03fa3e278147827e2  # v1.0.0-beta.11
@@ -115,4 +104,3 @@ jobs:
           allow_mod_manager_download: true
           update_mod_version: false
           mod_id: ${{ env.NEXUS_MOD_ID }}
-          changelog: ${{ steps.notes.outputs.text }}
