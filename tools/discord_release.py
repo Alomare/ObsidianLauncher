@@ -25,7 +25,7 @@ GOLD = 0xF0B429  # --gold in app/src/styles.css
 # that runs, so a run from dev shows the same picture as one from main.
 RAW = f"https://raw.githubusercontent.com/{REPO}/{os.environ.get('GITHUB_SHA', 'main')}"
 AVATAR = f"{RAW}/assets/discord-avatar.png"
-# The banner (a smaller copy of branding/banner.jpg) goes under the text of a feature release, x.y.0, not a patch.
+# The banner (a smaller copy of branding/banner2.jpg) goes under the text of a feature release, x.y.0, not a patch.
 BANNER = f"{RAW}/assets/discord-banner.jpg"
 LIMIT = 4096  # Discord's cap on an embed description
 # Obsidian Kit updates (the Obsidian API, Trainer and Patches highlights) stay out: the kit has its own changelogs.
