@@ -79,12 +79,19 @@ end)
 test("a_session_that_stops_being_cleared_takes_every_change_away_and_gives_it_back", function()
 	local lobby = { my_id = "me", members = { "me" }, data = {} }
 	local api, game, e = start({ lobby = lobby })
+	-- The player's rifle gets the flag of its own; a bot's, on this machine too, keeps counting.
+	local mine, bots = { infinite_ammo = false }, { infinite_ammo = false }
+	game.masters.firearm = { [game.weapon] = { state = mine }, [{ alive = true }] = { state = bots } }
 	api.effects.set("infinite_ammo", true)
+	e:frames(1)
+	E.eq(mine.infinite_ammo, true, "the player's")
+	E.eq(bots.infinite_ammo, false, "not a bot's")
+	E.eq(game.components.firearm.infinite_ammo == true, false, "not every gun on this machine")
 	E.eq(api.edits.set_unit("equipment/rifle", "weapon_info.power", 500), true)
 	e:frames(31)
 	lobby.members = { "me", "stranger" }
 	e:frames(31)
-	E.eq(game.components.firearm.infinite_ammo, false, "effect off")
+	E.eq(mine.infinite_ammo, false, "effect off")
 	E.eq(game.rifle.weapon_info.power, 75, "edit undone")
 	local ok, why = api.edits.set_unit("equipment/rifle", "weapon_info.power", 900)
 	E.eq(ok, false, "nothing new while not cleared")
@@ -93,7 +100,7 @@ test("a_session_that_stops_being_cleared_takes_every_change_away_and_gives_it_ba
 	lobby.members = { "me" }
 	e:frames(31)
 	e:frames(2)
-	E.eq(game.components.firearm.infinite_ammo, true, "effect back")
+	E.eq(mine.infinite_ammo, true, "effect back")
 	E.eq(game.rifle.weapon_info.power, 500, "edit back")
 end)
 
@@ -3298,6 +3305,8 @@ test("a_bot_fights_and_follows_by_itself", function()
 	E.eq(t.move.x, 0, "and stops near")
 	bot:fight(25)
 	game.step(1)
+	E.eq(t.fire_button, 0, "not before the aim settles")
+	game.step(10)
 	E.eq(t.fire_button, 1)
 	E.eq(math.abs(t.aim.x - (-1 / math.sqrt(2))) < 1e-6, true, "aims at the nearest enemy")
 	bot:fight(false)
@@ -3894,7 +3903,7 @@ test("a_fighting_bot_holds_fire_while_a_helldiver_is_in_the_line_of_fire", funct
 	E.eq(t.aim.x, -1, "aims at the enemy")
 	E.eq(t.fire_button, 0, "with the player in between")
 	game.me.pos = { x = 1, y = 5, z = 0 }
-	game.step(1)
+	game.step(10)
 	E.eq(t.fire_button, 1, "fires once the line is clear")
 end)
 
@@ -4872,8 +4881,12 @@ test("fight_keeps_a_chosen_weapon_out_and_shoots_only_the_enemies_a_mod_picks", 
 	E.eq(#bot:enemies_in_sight(25, function() return false end), 0)
 	E.eq(bot:sees(game.enemies[1]), true)
 	bot:fight(25, { only = function(enemy) return enemy == game.enemies[1] end })
-	game.step(20)
-	E.eq(t.fire_button, 1, "fires at the one it picks")
+	local shots = 0
+	for _ = 1, 20 do
+		game.step(1)
+		if t.fire_button == 1 then shots = shots + 1 end
+	end
+	E.eq(shots > 0, true, "fires at the one it picks")
 	-- An error in only picks nothing, and is logged once.
 	bot:fight(25, { only = function() error("oops") end })
 	game.step(20)
@@ -5188,6 +5201,138 @@ test("charging_reads_an_enemys_aim_before_the_shot_and_a_bot_gets_out_of_the_lin
 	game.step(7)
 	E.eq(bot:avoiding(), false)
 	bot:avoid_shots(false)
+end)
+
+test("a_fighting_bot_fires_only_facing_the_target_and_a_mech_lines_up_its_arm", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	with_turns()
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 4, y = 1, z = 0 })
+	u.rot = 0 -- facing +y; the enemy is at (3, 0), down and to the left
+	bot:fight(25)
+	game.step(15)
+	local t = u.master.input.input_data
+	E.eq(t.fire_button, 0, "still turning")
+	u.rot = 3 * math.pi / 4
+	game.step(2)
+	E.eq(t.fire_button, 1, "faces it now")
+	-- In the exosuit: the gun sits 1 metre to the right of the middle and fires straight ahead.
+	local mech = game.mech
+	mech.pos, mech.rot = { x = 0, y = 0, z = 0 }, 0
+	mech.settings.seat_info = { { name = "pilot", actor = "a_pilot" } }
+	mech.master.firearm = {}
+	game.masters.firearm = { [mech] = { state = { ray_source_offset = { x = 1, y = 0, z = 0 }, attach_node = 0 } } }
+	u.pos = { x = 0, y = 0, z = 0 }
+	game.enemies[1].pos = { x = 0, y = 10, z = 0 }
+	game.me.pos = { x = 6, y = -6, z = 0 } -- out of the line of fire
+	local cs = u.master.character
+	cs.current_seat_unit, cs.current_seat_index = mech, 1
+	bot.in_seat = nil
+	game.step(1)
+	t = u.master.input.input_data
+	E.eq(t.fire_button, 0, "facing the enemy, the arm misses to the right")
+	E.eq(t.aim.x < -0.05, true, "so it turns left a little")
+	mech.rot = math.atan2(1, 10)
+	game.step(1)
+	E.eq(u.master.input.input_data.fire_button, 1, "the arm's line runs through it")
+end)
+
+test("a_driving_bot_eases_off_and_stops_near_a_point_instead_of_circling", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	with_turns()
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 0, y = 0, z = 0 })
+	local apc = game.apc
+	apc.pos, apc.rot = { x = 0, y = 0, z = 0 }, 0
+	apc.settings.vehicle_info = { vehicle_type = "apc" }
+	apc.settings.seat_info = { { name = "driver", actor = "a_driver" } }
+	apc.slave.seat = { seated_units = { u }, weapon_index_to_seat = {}, seat_weapon_units = {} }
+	local cs = u.master.character
+	cs.current_seat_unit, cs.current_seat_index = apc, 1
+	bot:go_to({ x = 0, y = 30 })
+	game.step(1)
+	local t = u.master.input.input_data
+	E.eq(t.fire_button, 1, "full throttle far off")
+	bot:go_to({ x = 0, y = 6 })
+	game.step(1)
+	E.eq(t.fire_button > 0.3 and t.fire_button < 1, true, "easing off near it")
+	bot:go_to({ x = 0, y = 3 })
+	game.step(1)
+	E.eq(t.fire_button, 0, "close enough")
+	bot:go_to({ x = 0, y = -6 })
+	game.step(1)
+	E.eq(t.fire_button, 0, "just behind: taken as reached, no circle")
+end)
+
+test("a_bot_whose_own_reload_is_offered_takes_out_the_primary_to_pick_a_thing_up", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local idle = { name = "CharacterStateIdle" }
+	rawset(_G, "CharacterStateIdle", idle)
+	rawset(_G, "CharacterStateInteract", { name = "CharacterStateInteract" })
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 0, y = 0, z = 0 })
+	u.master.character.current_state = idle
+	local rifle = { alive = true, master = {}, slave = {} }
+	local tube = { alive = true, master = {}, slave = {} }
+	local inv = u.master.inventory
+	inv.primary_weapon, inv.support_weapon, inv.current_weapon = rifle, tube, tube
+	local eat = { alive = true, owned = true, pos = { x = 0.5, y = 0, z = 0 }, master = {}, slave = {} }
+	u.master.interactor = { interactable_unit = u }
+	E.eq(bot:use(eat), true)
+	game.commands = {}
+	game.step(2)
+	local c = G.command(game, "inventory", "wield")
+	E.eq(c and c.data.weapon, "primary_weapon", "the rifle comes out, so the game offers the thing")
+	E.eq(bot:using(), eat, "still on the way to it")
+end)
+
+test("a_body_in_the_way_doesnt_block_a_shot_and_frozen_enemies_still_die", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 0, y = 0, z = 0 })
+	local target = game.enemies[1]
+	local body = { alive = true, master = {}, slave = { health = { is_dead = true } } }
+	local wall = { alive = true, master = {}, slave = {} }
+	local in_the_way = body
+	rawset(_G, "Actor", { unit = function(a) return a end })
+	local v3 = rawget(_G, "Vector3")
+	v3.length = v3.length or function(v) return math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) end
+	rawget(_G, "PhysicsWorld").immediate_raycast = function()
+		return { { nil, 1, nil, in_the_way }, { nil, 3, nil, target } }
+	end
+	game.state.world_proxy = { get_physics_world = function() return "pw" end }
+	E.eq(bot:sees(target), true, "a dead body is no cover")
+	in_the_way = wall
+	E.eq(bot:sees(target), false, "a wall is")
+	-- Frozen: the dead run their own update, the living don't.
+	local ran = {}
+	local dead_ctx = { state = { health_state = { is_dead = true } } }
+	local live_ctx = { state = { health_state = { is_dead = false } } }
+	local comp = {
+		entity_manager = {
+			has_entities = function() return true end,
+			get_master_entities = function() return { dead = dead_ctx, live = live_ctx } end,
+			get_slave_entities = function() return { dead = dead_ctx, live = live_ctx } end,
+		},
+		update_masters = function(_, m) for k in pairs(m) do ran[#ran + 1] = "m:" .. k end end,
+		write_game_objects = function() end,
+		update_slaves = function(_, s) for k in pairs(s) do ran[#ran + 1] = "s:" .. k end end,
+	}
+	local aux = rawget(_G, "EntityAux")
+	local real = aux.get_component
+	aux.get_component = function(name) if name == "enemy" then return comp end return real(name) end
+	api.effects.set("freeze", true)
+	e:frames(1)
+	table.sort(ran)
+	E.eq(table.concat(ran, ","), "m:dead,s:dead")
+	api.effects.set("freeze", false)
+	ran = {}
+	e:frames(1)
+	E.eq(#ran, 0, "unfrozen, the game's own update does it")
 end)
 
 -- API 1.37.0: using things, carrying, voice lines and the jump pack.
