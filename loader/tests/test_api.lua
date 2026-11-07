@@ -5039,6 +5039,157 @@ test("a_bot_in_a_mech_can_spare_helldivers_and_still_hurt_enemies", function()
 	E.eq(hit(game.me, 10), 10)
 end)
 
+-- A unit with a turn about z: forward is (-sin, cos), as the fake Quaternion.rotate turns (0, 1).
+local function with_turns()
+	local units, quat = rawget(_G, "Unit"), rawget(_G, "Quaternion")
+	units.world_rotation = function(u) return u.rot or 0 end
+	units.node = function() return 1 end
+	quat.forward = function(r) return rawget(_G, "Vector3")(-math.sin(r), math.cos(r), 0) end
+end
+
+test("hurts_weighs_a_weapons_power_against_armor_square_glancing_and_on_the_weak_spot", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add()
+	E.eq(select(2, bot:hurts(game.enemies[1])), "no_avatar")
+	local u = game.land(2)
+	local function weapon() return { alive = true, master = {}, slave = {} } end
+	local rifle, eat, tube, recoilless, piercer = weapon(), weapon(), weapon(), weapon(), weapon()
+	game.masters.firearm = {
+		[rifle] = { state = { weapon_info = { power = 75, attributes = {} } } },
+		[eat] = { state = { weapon_info = { power = 2800, attributes = {} } } },
+		[recoilless] = { state = { weapon_info = { power = 3000, attributes = { ignore_armor = true } } } },
+		[piercer] = { state = { weapon_info = { power = 75, attributes = { armorpiercing = true } } } },
+	}
+	game.masters.launcher = { [tube] = { state = { weapon_info = { power = 1, projectile = "gameobjects/rocket" } } } }
+	eat.settings = { explosive_info = { center_power = 0, blast_power = 150 } }
+	local lsm = rawget(_G, "LuaSettingsManager")
+	local real = lsm.get_settings_by_unit_path
+	lsm.get_settings_by_unit_path = function(self, p)
+		if p == "gameobjects/rocket" then return { explosive_info = { center_power = 600, blast_power = 250, armorpiercing = true } } end
+		return real(self, p)
+	end
+	local inv = u.master.inventory
+	inv.primary_weapon, inv.support_weapon, inv.sidearm_weapon, inv.current_weapon = rifle, eat, tube, rifle
+	local health = { armor_min = 1000, armor_max = 1500, hitpoints = 2000, damage_zones = { { armor_min = 45, armor_max = 45 }, { armor_min = 5, disabled = true } } }
+	local tank = { alive = true, master = { health = health }, slave = { health = health } }
+	local function three(...) return table.concat({ ... }, " ") end
+	E.eq(three(bot:hurts(tank, "primary")), "0 0 30", "the rifle only through the weak spot")
+	E.eq(three(bot:hurts(tank)), "0 0 30", "the weapon in hand")
+	E.eq(three(bot:hurts(tank, "support")), "1800 1300 2860", "the blast lands square, after the hit")
+	E.eq(three(bot:hurts(tank, "sidearm")), "0 0 570", "a launcher counts its rocket, piercing")
+	E.eq(three(api.gear.hurts(recoilless, tank)), "3000 3000 3000", "armor ignored")
+	local soft = { alive = true, master = { health = { armor_min = 20, armor_max = 40 } }, slave = {} }
+	E.eq(three(api.gear.hurts(rifle, soft)), "55 35 55")
+	E.eq(three(api.gear.hurts(piercer, soft)), "70 50 70", "piercing takes 15 off")
+	E.eq(select(2, bot:hurts(tank, "melee")), "bad_slot")
+	inv.sidearm_weapon = nil
+	E.eq(select(2, bot:hurts(tank, "sidearm")), "no_weapon")
+	E.eq(select(2, bot:hurts({ alive = true, master = {}, slave = {} }, "primary")), "no_target")
+end)
+
+test("a_bot_in_a_mech_paces_its_rockets_fires_them_facing_and_at_the_enemies_picked", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	with_turns()
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 4, y = 1, z = 0 })
+	local mech = game.mech
+	mech.settings.vehicle_info.has_grenade_launcher = true
+	mech.settings.seat_info = { { name = "pilot", actor = "a_pilot" } }
+	mech.rot = 3 * math.pi / 4
+	local cs = u.master.character
+	cs.current_seat_unit, cs.current_seat_index = mech, 1
+	local t
+	local function presses(frames)
+		local n, was = 0, false
+		for _ = 1, frames do
+			game.step(1)
+			t = u.master.input.input_data
+			local on = t.throw == 1
+			if on and not was then n = n + 1 end
+			was = on
+		end
+		return n
+	end
+	bot:fight(25, { secondary = true })
+	E.eq(presses(150), 3, "one rocket each second, not the whole rack")
+	bot:fight(25, { secondary = { every = 0 } })
+	game.step(2)
+	E.eq(u.master.input.input_data.throw, 1, "held when asked to")
+	mech.rot = 0
+	game.step(1)
+	E.eq(u.master.input.input_data.throw, 0, "not while the mech faces away")
+	mech.rot = 3 * math.pi / 4
+	bot:fight(25, { secondary = { every = 0, only = function() return false end } })
+	game.step(1)
+	E.eq(u.master.input.input_data.throw, 0, "only the enemies picked")
+	-- A gun on the mech for the rest, rockets for what the gun is no use against.
+	mech.master.firearm = {}
+	bot:fight(25, { only = function() return false end, secondary = { every = 0, only = function() return true end } })
+	bot.in_seat = nil
+	game.step(1)
+	t = u.master.input.input_data
+	E.eq(t.throw, 1)
+	E.eq(t.fire_button, 0, "the gun leaves it alone")
+	bot:fight(false)
+	bot:throw()
+	game.step(3)
+	E.eq(u.master.input.input_data.throw, 0, "a grenade asked for in a seat is dropped")
+end)
+
+test("charging_reads_an_enemys_aim_before_the_shot_and_a_bot_gets_out_of_the_line", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	with_turns()
+	local hunter = game.enemies[1]
+	hunter.rot = math.pi / 2
+	hunter.settings = { enemy_info = {
+		shoot_events = { { disable_fire = true, time = 0 }, { time = 3 }, { disable_fire = true, time = 0.1 }, { disable_fire = true, time = 2 } },
+		shoot_effect = { particle = "effects/illuminate_hunter_beam" } } }
+	E.eq(api.enemies.charging(hunter), nil, "not shooting")
+	local shot = { has_started = true, is_firing = false, current_event_index = 1, current_event_timer = 1 }
+	hunter.slave.enemy.shoot_event = shot
+	local c = api.enemies.charging(hunter)
+	E.eq(c.time, 2)
+	E.eq(c.effect, "effects/illuminate_hunter_beam")
+	E.eq(c.from.x, 3)
+	E.eq(math.abs(c.to.x - (3 - 100)) < 1e-6 and math.abs(c.to.y) < 1e-6, true, "the full length along its front")
+	hunter.slave.enemy.particle_end_position = { x = -20, y = 0, z = 0 }
+	E.eq(api.enemies.charging(hunter).to.x, -20, "or what the line hits")
+	local pad = rawget(_G, "ControllerSettings").pad
+	pad[#pad + 1] = { func = "pressed", output_name = "dodge_pressed" }
+	local bot = api.bots.add()
+	local u = game.land(2, { x = -5, y = 0.5, z = 0 })
+	E.eq(bot:avoid_shots(true), bot)
+	game.step(1)
+	local t = u.master.input.input_data
+	E.eq(t.move.x, 0)
+	E.eq(t.move.y, 1, "straight out to the side it stands on")
+	E.eq(bot:avoiding(), true)
+	E.eq(t.dodge_pressed == true, false, "no dive while there's time")
+	shot.current_event_timer = 2.8
+	local dove = 0
+	for _ = 1, 10 do
+		game.step(1)
+		if u.master.input.input_data.dodge_pressed == true then dove = dove + 1 end
+	end
+	E.eq(dove, 2, "one dive just before the shot, a press held two frames")
+	shot.is_firing = true
+	E.eq(api.enemies.charging(hunter), nil, "firing")
+	game.step(7)
+	E.eq(bot:avoiding(), false)
+	E.eq(u.master.input.input_data.move.y, 0, "back to its orders")
+	shot.is_firing, shot.current_event_index = false, 3
+	E.eq(api.enemies.charging(hunter), nil, "after the first shot")
+	-- Out of the line, nothing to do.
+	shot.current_event_index, shot.current_event_timer = 1, 0
+	u.pos = { x = -5, y = 6, z = 0 }
+	game.step(7)
+	E.eq(bot:avoiding(), false)
+	bot:avoid_shots(false)
+end)
+
 -- API 1.37.0: using things, carrying, voice lines and the jump pack.
 
 local function char_states(names)
