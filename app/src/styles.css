@@ -442,7 +442,9 @@ button.link:hover { filter: brightness(1.2); }
 /* The action takes the room left, and the two inputs sit side by side at the right, a fixed width each so
    the head's icons stay over them. */
 .keys { --key-col: 6.4rem; --pad-col: 8.5rem; }
-.keys-head, .keys .opt { display: grid; grid-template-columns: minmax(0, 1fr) var(--key-col) var(--pad-col); column-gap: 0.4rem; align-items: center; }
+.keys-head, .keys .opt { display: grid; grid-template-columns: minmax(0, 1fr) var(--key-col) var(--pad-col); column-gap: 0.15rem; align-items: center; }
+/* The key fills its column like the controller choice does, so only the small gap sits between the two. */
+.keys .key-col .key-btn { flex: 1; }
 .keys .opt-text { padding-right: 0.5rem; }
 .keys-head { padding: 0.75rem 0.8rem 0.45rem; color: var(--mu); border-bottom: 1px solid var(--ln); }
 .keys-head > span { display: flex; justify-content: center; }
