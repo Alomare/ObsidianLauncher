@@ -6,7 +6,9 @@ set NoDefaultCurrentDirectoryInExePath=
 set ROOT=%~dp0..
 set SRC=%ROOT%\target\luajit-src
 set OUT=%ROOT%\target\luajit
-if not exist "%SRC%" git clone --quiet https://github.com/LuaJIT/LuaJIT "%SRC%" || exit /b 1
+rem A Rust cache can bring back the folder without a working .git, and git would then act on Obsidian's own repository.
+if not exist "%SRC%\.git\HEAD" if exist "%SRC%" rmdir /s /q "%SRC%"
+if not exist "%SRC%\.git\HEAD" git clone --quiet https://github.com/LuaJIT/LuaJIT "%SRC%" || exit /b 1
 git -C "%SRC%" checkout --quiet 2410b57 || exit /b 1
 for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath`) do set VS=%%i
 call "%VS%\VC\Auxiliary\Build\vcvars64.bat" >nul || exit /b 1
