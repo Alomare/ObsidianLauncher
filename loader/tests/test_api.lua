@@ -4972,6 +4972,73 @@ test("a_bot_walks_to_a_seat_door_gets_in_gets_out_and_rides_along", function()
 	bot:ride_along(false)
 end)
 
+test("bots_stand_at_rest_while_session_mods_are_off_and_take_their_orders_again_once_cleared", function()
+	local lobby = { my_id = "me", members = { "me" }, data = {} }
+	local api, game, e = start({ lobby = lobby })
+	bot_world(game, e)
+	local bot = api.bots.add()
+	local u = game.land(2)
+	bot:move({ x = 1, y = 0 }):fire(true)
+	game.step(1)
+	E.eq(u.master.input.input_data.fire_button, 1)
+	lobby.members = { "me", "stranger" }
+	game.step(31)
+	local t = u.master.input.input_data
+	E.eq(t.is_active, false, "the game resets the character and skips it")
+	E.eq(t.fire_button, 0)
+	E.eq(t.move, nil, "no engine vector left to go stale")
+	game.step(5)
+	E.eq(u.master.input.input_data, t, "nothing drives it meanwhile")
+	lobby.members = { "me" }
+	game.step(31)
+	t = u.master.input.input_data
+	E.eq(t.is_active, true)
+	E.eq(t.fire_button, 1, "the orders it had")
+	E.eq(t.move.x, 1)
+end)
+
+test("a_bot_in_a_mech_can_spare_helldivers_and_still_hurt_enemies", function()
+	local lobby = { my_id = "me", members = { "me" }, data = {} }
+	local api, game, e = start({ lobby = lobby })
+	local H = fake_hits(game)
+	hooked(e)
+	bot_world(game, e)
+	local bot = api.bots.add()
+	local u = game.land(2)
+	local cs = u.master.character
+	local function hit(victim, power, master)
+		local before = victim.slave.health.hitpoints
+		local fn = master == false and H.filter_slave_command or H.command_master
+		fn(H, victim, nil, "do_damage", { power = power, owner_unit = u, attacker_unit = game.mech })
+		return before - victim.slave.health.hitpoints
+	end
+	cs.current_seat_unit, cs.current_seat_index = game.mech, 1
+	game.step(1)
+	E.eq(hit(game.me, 10), 10, "the game's own way by default")
+	E.eq(bot:mech_friendly_fire(false), bot)
+	E.eq(hit(game.me, 10), 0, "a player this machine runs")
+	E.eq(hit(game.me, 10, false), 0, "one another machine runs: that machine takes the lower sum")
+	E.eq(hit(game.enemies[1], 5), 5, "enemies take the hit")
+	E.eq(hit(game.me, 0), 0)
+	-- Out of the mech: a shell still in the air for 2 seconds, then the bot's own shots hurt again.
+	cs.current_seat_unit, cs.current_seat_index = nil, nil
+	game.step(60)
+	E.eq(hit(game.me, 10), 0)
+	game.step(120)
+	E.eq(hit(game.me, 10), 10)
+	-- Only while session mods are cleared.
+	cs.current_seat_unit, cs.current_seat_index = game.mech, 1
+	game.step(1)
+	E.eq(hit(game.me, 10), 0)
+	lobby.members = { "me", "stranger" }
+	game.step(31)
+	E.eq(hit(game.me, 10), 10, "sparing a player changes the game")
+	lobby.members = { "me" }
+	game.step(31)
+	E.eq(bot:mech_friendly_fire(true), bot)
+	E.eq(hit(game.me, 10), 10)
+end)
+
 -- API 1.37.0: using things, carrying, voice lines and the jump pack.
 
 local function char_states(names)
