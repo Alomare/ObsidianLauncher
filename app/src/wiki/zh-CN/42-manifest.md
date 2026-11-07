@@ -48,13 +48,40 @@ summary: 描述模组的文件中的每个字段。
 | `entry` | 否 | 加载器启动的 Lua 脚本。只替换游戏文件的模组可省略。 |
 | `modules` | 否 | `entry` 之外的其他 `.lua` 文件，模组用 `obsidian.module` 加载。路径位于模组文件夹内。 |
 | `requires` | 否 | 本模组需要的模组 id。启用本模组时会同时启用它们，并先启动它们。玩家可在模组的“依赖”标签页中看到它们。缺少时部署会停止并给出提示。 |
-| `load` | 否 | `"last"` 表示模组加入配置时排到加载顺序末尾，之后的新模组会排在它之前。此后以玩家的顺序为准。 |
-| `load_after` | 否 | 本模组希望排在其后加载的模组 id，在任一方加入配置时生效。此后以玩家的顺序为准。 |
+| `load` | 否 | 模组希望在加载顺序中所处的位置：`"first"`、`"last"`，或包含更多请求的对象（[加载顺序请求](#load-order-requests)）。 |
+| `load_after` | 否 | 本模组希望排在其后加载的模组 id。等同于 `load` 中的 `after`，为在它之前编写的模组保留。 |
 | `loader_api` | 否 | 模组需要的[加载器 API](wiki:loader-api)版本，省略时为 `1`。 |
 | `min_obsidian` | 否 | 模组可用的最低 Obsidian 版本，例如 `"1.1.0"`。更旧的版本会拒绝该模组并提示玩家更新。1.1 之前的 Obsidian 不读取此字段。 |
 | `options` | 否 | 玩家在应用中更改的设置（[选项和按键](wiki:options-and-keys)）。 |
-| `keybinds` | 否 | 玩家可在应用中重新绑定的按键。 |
+| `keybinds` | 否 | 玩家可在应用中重新绑定的按键。按键的 `pad` 指定一个 `choice` 选项，该选项包含同一操作的手柄输入（[手柄输入](wiki:options-and-keys#controller-input)）。 |
 | `resources` | 否 | 模组替换或添加的游戏文件（[替换游戏文件](wiki:resources)）。 |
+
+## 加载顺序请求 {#load-order-requests}
+
+`load` 可以单独取 `"first"` 或 `"last"`，也可以是包含以下任意字段的对象：
+
+```json
+"load": {
+  "position": "last",
+  "before": ["author.other-mod"],
+  "after": ["author.base-mod"],
+  "after_patches": true
+}
+```
+
+| 字段 | 请求的内容 |
+|---|---|
+| `position` | `"first"` 表示加载顺序的顶部，`"last"` 表示末尾。 |
+| `before` | 本模组要在其之前加载的模组 id。 |
+| `after` | 本模组要在其之后加载的模组 id，这样两者都替换的文件以本模组为准。 |
+| `before_patches` | 设为 `true` 表示在所有替换游戏文件的模组（带有 `resources`）之前加载。 |
+| `after_patches` | 设为 `true` 表示在所有替换游戏文件的模组之后加载。 |
+
+新模组加入配置时会排到它请求的位置。此后以玩家的顺序为准，直到玩家在模组标签页点击 **排序模组**（[排序模组](wiki:load-order#sort-mods)），它只移动需要移动的模组。玩家没有的模组 id 会被跳过，排序模组会说明这一点。
+
+只请求模组真正需要的。两个都请求最后加载的模组，或互相请求在对方之后加载的模组，无法同时如愿：排序模组会把它们留在原处，并提示玩家手动排序。
+
+Obsidian 在导入时检查 `load`：`first` 或 `last` 以外的位置、未知字段、模组自己的 id，或同时出现在 `before` 和 `after` 中的 id 都会被拒绝。Obsidian 1.3.1 及更早版本只读取 `"last"`，并会把带有其他 `load` 的模组列为无法读取的模组。
 
 ## 多语言文本 {#text-in-several-languages}
 

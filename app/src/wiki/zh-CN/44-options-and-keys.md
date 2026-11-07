@@ -78,3 +78,15 @@ end)
 ```
 
 每次按键按下时函数运行一次。玩家在应用中重新绑定按键，模组之间的按键冲突也在那里解决。按键名使用游戏中的名称，小写：`f8`、`k`、`insert`。
+
+### 手柄输入 {#controller-input}
+
+“按键”标签页有一列用于鼠标和键盘，另一列用于手柄。如果某个操作也有手柄输入，请把该输入声明为 `choice` 选项，并在按键的 `pad` 中写上该选项：
+
+```json
+"options": [ { "id": "pad_toggle", "type": "choice", "default": "thumbs",
+               "choices": [ { "id": "thumbs", "label": { "en": "Both sticks pressed in", "zh-CN": "同时按下两个摇杆" } }, { "id": "off", "label": { "en": "Off", "zh-CN": "关闭" } } ] } ],
+"keybinds": [ { "id": "toggle", "default": "f8", "pad": "pad_toggle", "label": { "en": "Turn the compass on or off", "zh-CN": "开关指南针" } } ]
+```
+
+应用随后会在该按键的行中、手柄列下显示这个选项，并且不在“选项”标签页中列出它。模组像读取其他选项一样读取它，并自行监听手柄。没有 `pad` 的按键在该列显示一个短横线。没有手柄列的 Obsidian 版本会忽略 `pad`，并在“选项”中列出该选项。

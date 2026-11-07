@@ -78,3 +78,15 @@ end)
 ```
 
 A função roda uma vez a cada vez que a tecla desce. Os jogadores trocam as teclas no app, que é onde os choques entre mods se resolvem. Os nomes de tecla são os que o jogo usa, em minúsculas: `f8`, `k`, `insert`.
+
+### Entrada de controle {#controller-input}
+
+A aba Teclas tem uma coluna para mouse e teclado e outra para controle. Quando uma ação também tem uma entrada de controle, declare essa entrada como uma opção `choice` e indique a opção no `pad` da tecla:
+
+```json
+"options": [ { "id": "pad_toggle", "type": "choice", "default": "thumbs",
+               "choices": [ { "id": "thumbs", "label": { "en": "Both sticks pressed in", "pt-BR": "Os dois analógicos pressionados" } }, { "id": "off", "label": { "en": "Off", "pt-BR": "Desligado" } } ] } ],
+"keybinds": [ { "id": "toggle", "default": "f8", "pad": "pad_toggle", "label": { "en": "Turn the compass on or off", "pt-BR": "Ligar ou desligar a bússola" } } ]
+```
+
+O app então mostra a opção na linha da tecla, na coluna de controle, e a deixa fora da aba Opções. O mod lê a opção como qualquer outra e acompanha o controle por conta própria. Uma tecla sem `pad` mostra um traço nessa coluna. Versões do Obsidian sem a coluna de controle ignoram `pad` e listam a opção em Opções.

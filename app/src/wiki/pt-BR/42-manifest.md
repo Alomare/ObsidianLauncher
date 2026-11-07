@@ -48,13 +48,40 @@ O `obsidian.json` fica no topo da pasta do mod, ou no topo do `.zip`. O Obsidian
 | `entry` | não | O script Lua que o loader inicia. Mods que só substituem arquivos do jogo não usam. |
 | `modules` | não | Mais arquivos `.lua` além do `entry`, que o mod carrega com `obsidian.module`. Caminhos dentro da pasta do mod. |
 | `requires` | não | Ids dos mods de que este precisa. Ligar o mod liga esses também, e eles iniciam primeiro. Os jogadores os veem na aba Dependências do mod. A aplicação para com uma mensagem se faltar algum. |
-| `load` | não | `"last"` pede o fim da ordem de carregamento quando o mod entra num perfil, e os mods novos vão antes dele. Depois disso vale a ordem do jogador. |
-| `load_after` | não | Ids dos mods depois dos quais este pede para carregar, quando qualquer um deles entra num perfil. Depois disso vale a ordem do jogador. |
+| `load` | não | Onde o mod pede para ficar na ordem de carregamento: `"first"`, `"last"` ou um objeto com mais pedidos ([Pedidos de ordem de carregamento](#load-order-requests)). |
+| `load_after` | não | Ids dos mods depois dos quais este pede para carregar. O mesmo que `after` dentro de `load`, mantido para mods escritos antes dele. |
 | `loader_api` | não | A versão da [API do loader](wiki:loader-api) de que o mod precisa. `1` se ficar de fora. |
 | `min_obsidian` | não | O Obsidian mais antigo com que o mod funciona, como `"1.1.0"`. Um mais antigo recusa o mod e pede ao jogador que atualize. Obsidian antes do 1.1 não lê este campo. |
 | `options` | não | Configurações que os jogadores mudam no app ([Opções e teclas](wiki:options-and-keys)). |
-| `keybinds` | não | Teclas que os jogadores podem trocar no app. |
+| `keybinds` | não | Teclas que os jogadores podem trocar no app. O `pad` de uma tecla indica a opção `choice` com a entrada de controle da mesma ação ([Entrada de controle](wiki:options-and-keys#controller-input)). |
 | `resources` | não | Arquivos do jogo que o mod substitui ou adiciona ([Substituir arquivos do jogo](wiki:resources)). |
+
+## Pedidos de ordem de carregamento {#load-order-requests}
+
+`load` aceita `"first"` ou `"last"` sozinhos, ou um objeto com qualquer um destes campos:
+
+```json
+"load": {
+  "position": "last",
+  "before": ["author.other-mod"],
+  "after": ["author.base-mod"],
+  "after_patches": true
+}
+```
+
+| Campo | O que pede |
+|---|---|
+| `position` | `"first"` para o topo da ordem de carregamento, `"last"` para o fim. |
+| `before` | Ids dos mods antes dos quais este carrega. |
+| `after` | Ids dos mods depois dos quais este carrega, para que este mod vença nos arquivos que os dois substituem. |
+| `before_patches` | `true` para carregar antes de todo mod que substitui arquivos do jogo (tem `resources`). |
+| `after_patches` | `true` para carregar depois de todo mod que substitui arquivos do jogo. |
+
+Um mod novo fica no lugar que pede quando entra num perfil. Depois disso vale a ordem do jogador, até ele clicar em **Ordenar mods** na aba Mods ([Ordenar mods](wiki:load-order#sort-mods)), que move só os mods que precisam. Ids de mods que o jogador não tem são ignorados, e Ordenar mods avisa.
+
+Peça só o que o mod precisa. Dois mods que pedem os dois para carregar por último, ou que pedem para carregar um depois do outro, não podem ser atendidos ao mesmo tempo: Ordenar mods os deixa onde estão e diz ao jogador para ordená-los à mão.
+
+O Obsidian verifica `load` ao importar: uma posição diferente de `first` ou `last`, um campo desconhecido, o próprio id do mod, ou o mesmo id em `before` e `after` é recusado. O Obsidian 1.3.1 e anteriores só leem `"last"`, e listam um mod com qualquer outro `load` como um que não pode ser lido.
 
 ## Texto em vários idiomas {#text-in-several-languages}
 
