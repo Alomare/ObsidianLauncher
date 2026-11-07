@@ -26,6 +26,7 @@ for component, list in pairs({
 	enemy_target = "enable disable",
 	enemy = "remove_from_group damage_taken",
 	interactor = "force_interaction",
+	camera_target = "activate deactivate",
 	research_sample_pickup = "interact",
 	show_on_map = "show",
 	stratagem = "set_thrown_direction",

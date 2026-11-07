@@ -5522,4 +5522,469 @@ test("a_bot_jumps_with_a_jump_pack_along_a_direction", function()
 	E.eq(done[2], "refused")
 end)
 
+-- API Next: terminals, deliveries, team ammo, reinforcing, the shuttle, satchels, hazards, hold areas.
+
+test("a_bot_works_a_terminal_one_arrow_a_frame_and_one_press_a_frame", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local S = char_states({ "CharacterStateIdle", "CharacterStateInteractObjective" })
+	rawget(_G, "ControllerSettings").pad[#rawget(_G, "ControllerSettings").pad + 1] = { func = "pressed", output_name = "stratagem_up" }
+	for _, d in ipairs({ "down", "left", "right" }) do
+		rawget(_G, "ControllerSettings").pad[#rawget(_G, "ControllerSettings").pad + 1] = { func = "pressed", output_name = "stratagem_" .. d }
+	end
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 1, y = 1, z = 0 })
+	local cs = u.master.character
+	cs.current_state = S.CharacterStateIdle
+	u.master.interactor = {}
+	local term = { alive = true, owned = true, pos = { x = 1.5, y = 1, z = 0 }, master = {}, slave = { objective_interact_object = {} } }
+	local st = { mission_state = "pending", enabled = true, event_duration = 0, progress = 0, current_stage_index = 1,
+		current_stage = { interact_type = "combo", combo = { "up", "left", "up" } } }
+	game.step(1)
+	E.eq(select(2, bot:operate(term)), "not_owned", "another machine runs it")
+	game.masters.objective_interact_object = { [term] = { state = st } }
+	E.eq(select(2, bot:operate({ alive = true, pos = { x = 0, y = 0, z = 0 }, master = {}, slave = {} })), "no_target")
+	local done
+	E.eq(bot:operate(term, { arrow_gap = 0 }, function(ok, why) done = { ok, why } end), true)
+	local t = u.master.input.input_data
+	game.step(1)
+	E.eq(t.interact, false, "no press before the game offers it")
+	u.master.interactor.interactable_unit = term
+	game.step(1)
+	E.eq(t.interact, true, "the first press")
+	cs.current_state = S.CharacterStateInteractObjective
+	cs.current_interact_objective_unit = term
+	st.interacting_unit = u
+	game.step(1)
+	E.eq(t.stratagem_up, true, "the first arrow")
+	E.eq(t.interact, false)
+	game.step(1)
+	E.eq(t.stratagem_up, false, "one frame, then it waits for the game to count it")
+	E.eq(t.stratagem_left, false)
+	st.progress = 1
+	game.step(1)
+	E.eq(t.stratagem_left, true, "the next arrow once the first counted")
+	game.step(1)
+	E.eq(t.stratagem_left, false)
+	-- An arrow counted wrong: the code back at its start, and entered again.
+	st.progress = 0
+	game.step(1)
+	E.eq(t.stratagem_up, true, "from the start")
+	E.eq(select(3, bot:operating()), "combo")
+	-- A mash stage: one press a frame, at the rate asked.
+	st.current_stage_index, st.progress = 2, 0
+	st.current_stage = { interact_type = "buttonmash", target_interacts = 6 }
+	local presses = 0
+	for _ = 1, 60 do
+		game.step(1)
+		if t.interact then presses = presses + 1 end
+		E.eq(t.move.x, 0, "the sticks stay at rest")
+	end
+	E.eq(presses >= 6 and presses <= 10, true, "about 8 a second: " .. presses)
+	-- An event between stages: the bot stands by.
+	st.event_duration = 3
+	game.step(10)
+	E.eq(t.interact, false)
+	st.event_duration = 0
+	game.commands = {}
+	st.mission_state = "complete"
+	game.step(1)
+	E.eq(done and done[1], true)
+	E.eq(done[2], "complete")
+	E.eq(G.command(game, "character", "exit_interact_objective").unit, u, "steps out at the end")
+	-- Someone else at it.
+	st.mission_state = "pending"
+	cs.current_state = S.CharacterStateIdle
+	cs.current_interact_objective_unit = nil
+	st.interacting_unit = game.me
+	bot:operate(term, function(ok, why) done = { ok, why } end)
+	game.step(1)
+	E.eq(done[2], "busy")
+end)
+
+test("a_wrong_arrow_count_stops_operate_and_a_carry_stage_asks_for_deliver", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local S = char_states({ "CharacterStateIdle", "CharacterStateInteractObjective" })
+	local pad = rawget(_G, "ControllerSettings").pad
+	for _, d in ipairs({ "up", "down", "left", "right" }) do pad[#pad + 1] = { func = "pressed", output_name = "stratagem_" .. d } end
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 1, y = 1, z = 0 })
+	local cs = u.master.character
+	local term = { alive = true, owned = true, pos = { x = 1.5, y = 1, z = 0 }, master = {}, slave = { extract_beacon = {} } }
+	local st = { enabled = true, progress = 0, combo = { "down", "down", "up" }, interacting_unit = u }
+	game.masters.extract_beacon = { [term] = { state = st } }
+	cs.current_state, cs.current_interact_objective_unit = S.CharacterStateInteractObjective, term
+	local done
+	bot:operate(term, { tries = 2, arrow_gap = 0 }, function(ok, why) done = { ok, why } end)
+	game.step(1)
+	st.progress = 2
+	game.step(2)
+	st.progress = 0
+	game.step(2)
+	st.progress = 2
+	game.step(2)
+	st.progress = 0
+	game.step(2)
+	E.eq(done and done[2], "wrong_code")
+	-- The beacon is done once its code is in.
+	st.progress, st.activated = 3, true
+	E.eq(select(2, bot:operate(term)), "complete")
+	-- A terminal stage that asks for carried things.
+	local t2 = { alive = true, owned = true, pos = { x = 1.5, y = 1, z = 0 }, master = {}, slave = { objective_interact_object = {} } }
+	game.masters.objective_interact_object = { [t2] = { state = { mission_state = "pending", enabled = true, event_duration = 0, progress = 0,
+		current_stage_index = 3, current_stage = { interact_type = "carry_units" }, interacting_unit = u } } }
+	cs.current_interact_objective_unit = t2
+	bot:operate(t2, function(ok, why) done = { ok, why } end)
+	game.step(1)
+	E.eq(done[2], "needs_carry")
+end)
+
+test("a_forced_use_tells_the_interactor_the_thing_and_an_actor_of_its_own", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local S = char_states({ "CharacterStateIdle", "CharacterStateInteract" })
+	local units = rawget(_G, "Unit")
+	units.num_actors = function(x) return x.actors and #x.actors or 0 end
+	units.actor = function(x, i) return x.actors[i + 1] end
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 1, y = 1, z = 0 })
+	u.master.character.current_state = S.CharacterStateIdle
+	u.master.interactor = {}
+	local box = { alive = true, owned = true, pos = { x = 1.6, y = 1, z = 0 }, master = {}, slave = { ammo_pickup = {} }, actors = { "box actor" } }
+	game.commands = {}
+	bot:use(box, { force = true })
+	game.step(2)
+	local c = G.command(game, "interactor", "force_interaction")
+	E.eq(c and c.data.interactable_unit, box, "no wait for the game to offer it")
+	E.eq(c.data.interactable_component, "ammo_pickup")
+	E.eq(c.data.interactable_actor, "box actor")
+	local done
+	local bare = { alive = true, owned = true, pos = { x = 1.6, y = 1, z = 0 }, master = {}, slave = { ammo_pickup = {} }, actors = {} }
+	bot:use(bare, { force = true }, function(ok, why) done = { ok, why } end)
+	game.step(2)
+	E.eq(done and done[2], "not_usable", "a thing with no actor")
+end)
+
+test("a_bot_loads_a_teammates_launcher_and_takes_ammo_by_the_games_own_rule", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local S = char_states({ "CharacterStateIdle", "CharacterStateInteract" })
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 1, y = 1, z = 0 })
+	u.master.character.current_state = S.CharacterStateIdle
+	u.master.interactor = {}
+	local answer = nil
+	local mate = { alive = true, owned = true, pos = { x = 2, y = 1, z = 0 }, master = { inventory = {} }, slave = {} }
+	mate.slave.interactable_character = { can_interact = function(who) E.eq(who, u) return answer end, interact_info_name = "x" }
+	E.eq(select(2, bot:load(game.me)), "no_target", "no interactable on that unit")
+	E.eq(select(2, bot:load(mate)), "not_loadable")
+	answer = "assisted_reload"
+	E.eq(bot:load(mate), true)
+	E.eq(mate.slave.interactable_character.interact_info_name, "x", "the prompt is left as it was")
+	E.eq(bot:using(), mate)
+	bot:cancel_use()
+	-- Ammo: a teammate's ammo backpack, by the same rule, and the bot's own only with the weapon empty.
+	local lsm = rawget(_G, "LuaSettingsManager")
+	local real = lsm.get_settings_by_unit
+	local pack = { alive = true, owned = true, master = {}, slave = {} }
+	lsm.get_settings_by_unit = function(self, x) if x == pack then return { backpack_info = { self_service = true } } end return real(self, x) end
+	E.eq(select(2, bot:take_ammo(mate)), "no_ammo_pack")
+	mate.master.inventory.backpack = pack
+	E.eq(select(2, bot:take_ammo(mate)), "not_needed", "the game wouldn't refill this bot")
+	answer = "self_service_reload"
+	E.eq(bot:take_ammo(mate), true)
+	bot:cancel_use()
+	u.slave.interactable_character = { can_interact = function() return nil end }
+	u.master.inventory.backpack = pack
+	E.eq(select(2, bot:take_ammo()), "not_needed", "a weapon with a magazine left")
+	lsm.get_settings_by_unit = real
+end)
+
+test("a_bot_delivers_a_carried_thing_to_the_nearest_drop_off", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local S = char_states({ "CharacterStateIdle", "CharacterStateCarry" })
+	local units = rawget(_G, "Unit")
+	units.node = function() return 2 end
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 1, y = 1, z = 0 })
+	local cs = u.master.character
+	cs.current_state = S.CharacterStateIdle
+	u.master.interactor = {}
+	local drive = { alive = true, owned = true, pos = { x = 2, y = 1, z = 0 }, master = {}, slave = { objective_carry_object = {} } }
+	local cst = { mission_state = "pending" }
+	game.masters.objective_carry_object = { [drive] = { state = cst } }
+	game.slaves.objective_carry_object = { [drive] = { state = cst } }
+	local spot = { alive = true, owned = true, pos = { x = 21, y = 1, z = 0 }, master = {}, slave = {} }
+	game.slaves.droppoint = { [spot] = { state = {}, settings = { droppoint_info = { droppoint_joints = { "j1" } } } } }
+	local offs = api.mission.drop_offs(drive)
+	E.eq(#offs, 1)
+	E.eq(offs[1].kind, "droppoint")
+	E.eq(offs[1].position.x, 21)
+	E.eq(select(2, bot:deliver(spot)), "no_target", "not a thing to carry")
+	local done
+	E.eq(bot:deliver(drive, function(ok, why) done = { ok, why } end), true)
+	E.eq(select(2, bot:delivering()), "pick")
+	u.master.interactor.interactable_unit = drive
+	game.step(3)
+	E.eq(u.master.input.input_data.interact, true, "picks it up")
+	cs.current_state, cs.current_carry_unit = S.CharacterStateCarry, drive
+	cst.carrier = u
+	game.step(2)
+	E.eq(select(2, bot:delivering()), "walk")
+	E.eq(u.master.input.input_data.move.x, 1, "walks it to the drop point")
+	u.pos = { x = 20.5, y = 1, z = 0 }
+	game.commands = {}
+	game.step(1)
+	E.eq(G.command(game, "character", "drop_carry").unit, u, "puts it down there")
+	cs.current_state, cs.current_carry_unit, cst.carrier = S.CharacterStateIdle, nil, nil
+	game.step(5)
+	E.eq(done, nil, "waits for the game to count it")
+	cst.mission_state = "complete"
+	game.step(1)
+	E.eq(done and done[1], true)
+	E.eq(done[2], "delivered")
+	-- Down too far from where the game counts it.
+	cst.mission_state = "pending"
+	cs.current_state, cs.current_carry_unit = S.CharacterStateCarry, drive
+	bot:deliver(drive, { x = 20.5, y = 1 }, function(ok, why) done = { ok, why } end)
+	game.step(2)
+	cs.current_state, cs.current_carry_unit = S.CharacterStateIdle, nil
+	game.step(200)
+	E.eq(done[2], "not_delivered")
+end)
+
+test("extraction_reads_the_beacon_and_shuttle_and_a_bot_boards_at_the_door", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	E.eq(api.mission.extraction(), nil, "nothing called yet")
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 1, y = 1, z = 0 })
+	E.eq(select(2, bot:board()), "no_shuttle")
+	local beacon = { alive = true, owned = true, pos = { x = 5, y = 5, z = 0 }, master = {}, slave = {} }
+	game.slaves.extract_beacon = { [beacon] = { state = {} } }
+	game.masters.extract_beacon = { [beacon] = { state = { enabled = true, activated = true, progress = 6, combo = { 1, 2, 3, 4, 5, 6 }, extraction_timer = 42 } } }
+	local lz = { alive = true, owned = true, pos = { x = 30, y = 5, z = 0 }, master = {}, slave = {} }
+	local lst = { shuttle_state = 4, active_lz = lz, shuttle_position = { x = 30, y = 5, z = 0 }, avatars_in_dropship = 0 }
+	game.slaves.objective_extract_lz = { [lz] = { state = lst } }
+	local ex = api.mission.extraction()
+	E.eq(ex.beacon.activated, true)
+	E.eq(ex.beacon.code_length, 6)
+	E.eq(ex.beacon.countdown, 42)
+	E.eq(ex.shuttle.state, 4)
+	E.eq(ex.shuttle.landed, false)
+	E.eq(ex.shuttle.position.x, 30)
+	local done
+	E.eq(bot:board(function(ok, why) done = { ok, why } end), true)
+	game.step(1)
+	E.eq(u.master.input.input_data.move.x > 0.9, true, "walks to the landing zone")
+	u.pos = { x = 30, y = 4, z = 0 }
+	game.step(1)
+	E.eq(u.master.input.input_data.move.y < 0, true, "steps off the spot it comes down on")
+	lst.shuttle_state, lst.abandon_timer = 6, 20
+	E.eq(api.mission.extraction().shuttle.time_left, 20)
+	local comp = { extracted_units = {} }
+	local aux = rawget(_G, "EntityAux")
+	local real = aux.get_component
+	aux.get_component = function(name) if name == "objective_extract_lz" then return comp end return real(name) end
+	comp.extracted_units[u] = true
+	game.step(1)
+	E.eq(done and done[1], true)
+	E.eq(done[2], "aboard")
+	E.eq(api.mission.aboard(u), true)
+	comp.extracted_units[u] = nil
+	bot:board(function(ok, why) done = { ok, why } end)
+	lst.shuttle_state = 7
+	game.step(1)
+	E.eq(done[2], "left")
+	aux.get_component = real
+end)
+
+test("a_bot_reinforces_only_with_someone_to_bring_back", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add()
+	game.land(2, { x = 1, y = 1, z = 0 })
+	E.eq(#api.bots.dead(), 0)
+	E.eq(select(2, bot:reinforce()), "no_one_dead")
+	local second = api.bots.add({ name = "Second" })
+	E.eq(second.kind, "player")
+	local dead = api.bots.dead()
+	E.eq(#dead, 1, "a record with no body that hasn't left counts, as the game counts it")
+	E.eq(dead[1].bot, second)
+	E.eq(dead[1].name, "Second")
+	-- With someone to bring back, it's the reinforce stratagem's call.
+	local ok, why = bot:reinforce({ x = 3, y = 3 })
+	E.eq(ok == true or why == "not_held", true, tostring(why))
+end)
+
+test("a_bot_sets_off_its_satchel_charges_with_the_satchel_in_hand", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local S = char_states({ "CharacterStateIdle" })
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 1, y = 1, z = 0 })
+	u.master.character.current_state = S.CharacterStateIdle
+	local inv = u.master.inventory
+	local rifle = { alive = true, master = {}, slave = {} }
+	inv.primary_weapon, inv.current_weapon = rifle, rifle
+	E.eq(select(2, bot:detonate()), "no_satchel")
+	E.eq(bot:charges_out(), nil)
+	local tw = { child_units = {} }
+	local satchel = { alive = true, master = { throwable_weapon = tw }, slave = {} }
+	inv.support_weapon = satchel
+	E.eq(select(2, bot:detonate()), "none_out")
+	tw.child_units = { "a", "b" }
+	E.eq(bot:charges_out(), 2)
+	game.commands = {}
+	E.eq(bot:detonate(), true)
+	game.step(1)
+	E.eq(G.command(game, "inventory", "wield").data.weapon, "support_weapon", "the satchel comes out first")
+	inv.current_weapon = satchel
+	local pressed = 0
+	for _ = 1, 40 do
+		game.step(1)
+		if u.master.input.input_data.reload_pressed then pressed = pressed + 1 end
+	end
+	E.eq(pressed, 1, "one frame of reload")
+end)
+
+test("hazards_list_mines_fires_and_armed_hellbombs_and_areas_list_hold_zones", function()
+	local api, game = start()
+	local mine = { alive = true, owned = true, pos = { x = 3, y = 1, z = 0 }, master = {}, slave = {} }
+	local fire = { alive = true, owned = true, pos = { x = 6, y = 1, z = 0 }, master = {}, slave = {} }
+	local bomb = { alive = true, owned = true, pos = { x = 9, y = 1, z = 0 }, master = {}, slave = {} }
+	local far = { alive = true, owned = true, pos = { x = 90, y = 1, z = 0 }, master = {}, slave = {} }
+	game.slaves.mine = { [mine] = { state = { armed = true }, settings = { explosive_info = { blast_radius = 5 } } },
+		[far] = { state = {}, settings = { explosive_info = { blast_radius = 5 } } } }
+	game.slaves.spawn_area_effect = { [fire] = { state = { explosive_info = { blast_radius = 3 }, time_until_end = 12, field_active = true } } }
+	game.slaves.hellbomb = { [bomb] = { state = { is_armed = true, detonation_timer = 4 } } }
+	local h = api.bots.hazards({ x = 1, y = 1 }, 30)
+	E.eq(#h, 3)
+	E.eq(h[1].kind, "mine")
+	E.eq(h[1].radius, 5)
+	E.eq(h[1].active, true)
+	E.eq(h[2].kind, "fire")
+	E.eq(h[2].time_left, 12)
+	E.eq(h[3].kind, "hellbomb")
+	E.eq(h[3].time_left, 4)
+	E.eq(#api.bots.hazards({ x = 1, y = 1 }, 30, { "fire" }), 1)
+	local hold = { alive = true, owned = true, pos = { x = 40, y = 1, z = 0 }, master = {}, slave = {} }
+	local st = { mission_state = "pending", percent_done = 0.25, num_characters_in_radius = 1, num_characters = 3, current_stage = { hold_radius = 8 } }
+	game.slaves.objective_hold_object = { [hold] = { state = st } }
+	game.masters.objective_hold_object = { [hold] = { state = st } }
+	local a = api.mission.areas()
+	E.eq(#a, 1)
+	E.eq(a[1].kind, "hold")
+	E.eq(a[1].radius, 8)
+	E.eq(a[1].done, 0.25)
+	E.eq(a[1].inside, 1)
+end)
+
+test("use_weapon_can_walk_on_the_orders_and_rest_the_weapon_afterwards", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add()
+	local enemy = game.enemies[1]
+	local u = game.land(2, { x = 3, y = 5, z = 0 })
+	game.step(1)
+	local t = u.master.input.input_data
+	local inv = u.master.inventory
+	local function gun(ws) return { alive = true, owned = true, master = { weapon = ws }, slave = {} } end
+	local rifle = gun({ reloadable = true, rounds = 30, num_mags = 3 })
+	local tube = gun({ reloadable = true, rounds = 1, num_mags = 2, fully_automatic = false })
+	inv.primary_weapon, inv.support_weapon, inv.current_weapon = rifle, tube, tube
+	rawget(_G, "EntityAux").state_master_interface = function(unit, i) return i == "weapon" and unit.master.weapon or nil end
+	bot:go_to({ x = 30, y = 5 })
+	local done
+	E.eq(bot:use_weapon("support", enemy, { move = true, rest = 5 }, function(ok, why) done = { ok, why } end), true)
+	game.step(1)
+	E.eq(t.move.x, 1, "walks on while it aims")
+	E.eq(t.fire_button, 1)
+	E.eq(t.aim.y, -1)
+	tube.master.weapon.is_reloading = true
+	game.step(1)
+	E.eq(t.aim.x == 0 and t.aim.y == 0, true, "faces the walk through a reload")
+	tube.master.weapon.is_reloading, tube.master.weapon.rounds = false, 0
+	tube.master.weapon.is_reloading = false
+	game.commands = {}
+	tube.master.weapon.rounds = 0
+	game.step(1)
+	tube.master.weapon.rounds = 1
+	bot:cancel_weapon()
+	game.step(1)
+	E.eq(done and done[2], "cancelled")
+	E.eq(bot:resting("support") > 4, true, "it fired, so it rests")
+	E.eq(select(2, bot:use_weapon("support", enemy)), "resting")
+	game.commands = {}
+	game.step(1)
+	local c = G.command(game, "inventory", "wield")
+	E.eq(c and c.data.weapon, "primary_weapon", "put away even though it was out before")
+	-- fight's weapon waits out the rest.
+	inv.current_weapon = rifle
+	bot:fight(25, { weapon = "support" })
+	game.commands = {}
+	game.step(30)
+	E.eq(G.command(game, "inventory", "wield"), nil, "not taken out while it rests")
+	game.step(320)
+	E.eq(bot:resting("support"), false)
+	E.eq(G.command(game, "inventory", "wield").data.weapon, "support_weapon", "back once rested")
+	E.eq(bot:resting("knife"), false)
+end)
+
+test("a_bot_out_of_the_camera_stays_out_and_comes_back_on_true", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add({ free_camera = true })
+	E.eq(bot:in_camera(), false)
+	local u = game.land(2, { x = 1, y = 1, z = 0 })
+	u.master.camera_target = { active = true }
+	u.master.mover = { keep_inside_screen = true }
+	game.commands = {}
+	game.step(1)
+	E.eq(G.command(game, "camera_target", "deactivate").unit, u, "out of the framing")
+	local c = G.command(game, "mover", "keep_inside_screen")
+	E.eq(c and c.data, false, "and off the leash")
+	u.master.camera_target.active, u.master.mover.keep_inside_screen = false, false
+	game.commands = {}
+	game.step(5)
+	E.eq(#game.commands, 0, "nothing more while it stays out")
+	-- A seat or a reinforcement switches the target on again; the bot goes out once more.
+	u.master.camera_target.active = true
+	game.step(1)
+	E.eq(G.command(game, "camera_target", "deactivate") ~= nil, true)
+	u.master.camera_target.active = false
+	game.commands = {}
+	E.eq(bot:camera(true), bot)
+	E.eq(bot:in_camera(), true)
+	E.eq(G.command(game, "camera_target", "activate").unit, u)
+	E.eq(G.command(game, "mover", "keep_inside_screen").data, true)
+end)
+
+test("operate_tells_the_interactor_the_terminal_when_the_game_offers_nothing", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local S = char_states({ "CharacterStateIdle", "CharacterStateInteractObjective" })
+	local units = rawget(_G, "Unit")
+	units.num_actors = function(x) return x.actors and #x.actors or 0 end
+	units.actor = function(x, i) return x.actors[i + 1] end
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 1, y = 1, z = 0 })
+	u.master.character.current_state = S.CharacterStateIdle
+	u.master.interactor = {}
+	local term = { alive = true, owned = true, pos = { x = 1.5, y = 1, z = 0 }, master = {}, slave = { objective_interact_object = {} }, actors = { "panel" } }
+	game.masters.objective_interact_object = { [term] = { state = { mission_state = "pending", enabled = true, event_duration = 0, progress = 0,
+		current_stage_index = 1, current_stage = { interact_type = "buttonmash", target_interacts = 3 } } } }
+	bot:operate(term)
+	game.commands = {}
+	game.step(60)
+	E.eq(G.command(game, "interactor", "force_interaction"), nil, "a moment for the game to offer it")
+	game.step(100)
+	local c = G.command(game, "interactor", "force_interaction")
+	E.eq(c and c.data.interactable_unit, term, "then the interactor is told")
+	E.eq(c.data.interactable_component, "objective_interact_object")
+	E.eq(c.data.interactable_actor, "panel")
+end)
+
 return T
