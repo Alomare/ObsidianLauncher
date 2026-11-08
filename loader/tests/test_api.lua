@@ -7457,9 +7457,14 @@ test("fight_threat_saves_the_support_weapon_and_holds_a_blast_that_would_catch_a
 	local bug = game.enemies[1]
 	bug.slave.health.armor_min, bug.slave.health.armor_max = 0, 0
 	bug.master.health = bug.slave.health
+	bug.pos = { x = 12, y = 0, z = 0 }
 	bot:fight(25, { weapon = "threat" })
-	game.step(40)
-	E.eq(u.master.input.input_data.fire_button, 1, "fires with the rifle")
+	local fired = false
+	for _ = 1, 40 do
+		game.step(1)
+		if u.master.input.input_data.fire_button == 1 then fired = true end
+	end
+	E.eq(fired, true, "fires with the rifle")
 	local wields = commands_of(game, "wield")
 	E.eq(wields[#wields] and wields[#wields].data.weapon or "primary_weapon", "primary_weapon")
 	-- An armored one, away from the player standing by, the support weapon out...
@@ -7505,6 +7510,149 @@ test("auto_grenades_throws_at_a_big_enemy_and_holds_with_a_friend_in_the_blast",
 	E.eq(thrown, true, "the blast clear: one goes")
 	E.eq(u.master.input.input_data.fire_button, 0, "holding fire while it throws")
 	bot:auto_grenades(false)
+	bot:fight(false)
+end)
+
+test("brain_engages_threats_only_and_bursts", function()
+	local api = start()
+	local b = api.brain
+	E.eq(b.engages({ d = 10 }), true)
+	E.eq(b.engages({ d = 24 }), false, "a far enemy that hasn't noticed anyone")
+	E.eq(b.engages({ d = 24, aware = true }), true, "already after the squad")
+	E.eq(b.engages({ d = 24, large = true }), true, "a large one is worth it further out")
+	local s = {}
+	local on, off = 0, 0
+	for _ = 1, 100 do
+		if b.burst(s, 0.05) then on = on + 1 else off = off + 1 end
+	end
+	E.eq(on > 30 and off > 30, true, "on and off in turn")
+end)
+
+test("nav_keeps_a_body_off_the_rim_stands_with_no_route_and_flags_a_detour", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local function pit(x, y) return x >= 4 and x <= 7 and y > -6 and y < 6 end
+	ground_rays(pit)
+	local path = api.nav.path({ x = 0, y = 0, z = 0 }, { x = 12, y = 0, z = 0 })
+	for _, q in ipairs(path) do
+		local rim = pit(q.x + 1, q.y) or pit(q.x - 1, q.y) or pit(q.x, q.y + 1) or pit(q.x, q.y - 1)
+		E.eq(rim, false, "a body-width off the rim, with room to keep it")
+	end
+	-- A straight walk that shaves the rim is refused.
+	E.eq((api.nav.walk_clear({ x = 0, y = 6.5, z = 0 }, { x = 12, y = 6.5, z = 0 })), false)
+	E.eq((api.nav.walk_clear({ x = 0, y = 8, z = 0 }, { x = 12, y = 8, z = 0 })), true)
+	-- A goal a long way round flags the detour; a route state finds it within some frames.
+	local s = api.nav.new_route()
+	for _ = 1, 40 do
+		api.nav.frame(0.016)
+		api.nav.route(s, { x = 3, y = 0, z = 0 }, 8, 0, 0.016)
+	end
+	E.eq(api.nav.detouring(s), true)
+	-- An island with no way off: no route across, and the guard won't take the step.
+	ground_rays(function(x, y) return math.abs(x) > 3 or math.abs(y) > 3 end)
+	local s2 = api.nav.new_route()
+	local gx = api.nav.route(s2, { x = 0, y = 0, z = 0 }, 20, 0, 0.016)
+	E.eq(gx == nil or gx <= 3.5, true, "stands, or stays on the ground it has")
+	E.eq(api.nav.safe_heading({ x = 2.8, y = 0, z = 0 }, 1, 0, 2) == 1, false, "no straight step east at the very rim")
+end)
+
+test("the_step_guard_is_last_and_a_fall_goes_back_to_solid_ground", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add({ bare = true })
+	local u = game.bare
+	body_health(u)
+	u.master.mover = { velocity = { x = 7, y = 0, z = 0 } }
+	local function pit(x, y) return x >= 4 and y > -30 and y < 30 end
+	ground_rays(pit)
+	rawget(_G, "Unit").mover = function() return {} end
+	rawget(_G, "Unit").mover_fits_at = function() return true end
+	bot:navigate(true):movement({ seed = 2 })
+	-- At sprint speed the guard looks further: 3 metres short of the rim is too close heading straight at it.
+	u.pos = { x = 1.2, y = 0, z = 0 }
+	bot:move({ x = 1, y = 0 })
+	game.step(2)
+	local mv = u.master.input.input_data.move
+	E.eq(mv.x < 0.5, true, "turned or stopped, not eased on toward the rim")
+	-- Knocked over the rim: back to the last solid spot.
+	bot:hold()
+	u.pos = { x = 0, y = 0, z = 0 }
+	game.step(30)
+	u.pos = { x = 5, y = 0, z = -0.9 }
+	game.step(1)
+	u.pos = { x = 5, y = 0, z = -1 }
+	game.step(1)
+	local sent = commands_of(game, "position_teleport")
+	E.eq(#sent, 1, "one rescue")
+	E.eq(sent[1].data.x, 0)
+	bot:navigate(false)
+end)
+
+test("a_bare_bot_out_of_view_gets_the_games_arrow_and_no_card", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	rawset(_G, "Vector2", function(x, y) return { x = x, y = y } end)
+	local bot = api.bots.add({ bare = true, name = "Lost" })
+	local u = game.bare
+	body_health(u)
+	local arrows, texts = {}, {}
+	local gui = { screen_resolution = { width = 1920, height = 1080 }, ui_scale = 1 }
+	function gui:set_current_font() end
+	function gui:set_ignore_position_scale() end
+	function gui:set_ignore_size_scale() end
+	function gui:text(text) texts[#texts + 1] = text end
+	function gui:rotated_image(name, pos) arrows[#arrows + 1] = { name = name, pos = pos } end
+	local hud = { hd_gui = gui, plugins_enabled = true, gui_metrics_cacher = { get_text_extents = function() return 60, 20 end } }
+	rawget(_G, "CameraManager").get_viewport = function() return { world_to_viewport = function(_, p) return { x = p.x * 10, y = 7, z = p.y * 10 } end } end
+	u.pos = { x = -50, y = 1, z = 0 }
+	rawget(_G, "Hud").update(hud, 0.016)
+	E.eq(#arrows, 1)
+	E.eq(arrows[1].name, "icon_outofscreen_player_01")
+	E.eq(arrows[1].pos.x >= 96, true, "held inside the screen's edge, as the game holds it")
+	E.eq(texts[1], "Lost")
+	-- In view: the name, no arrow.
+	u.pos = { x = 4, y = 4, z = 0 }
+	arrows, texts = {}, {}
+	rawget(_G, "Hud").update(hud, 0.016)
+	E.eq(#arrows, 0) E.eq(texts[1], "Lost")
+end)
+
+test("add_ammo_goes_through_the_games_set_ammo", function()
+	local api, game, e = start()
+	local bot, u, w = armed_bot(api, game, e)
+	local sent = {}
+	local aux = rawget(_G, "EntityAux")
+	aux.has_interface = function() return true end
+	aux.queue_command_master_interface = function(weapon, iface, cmd, data) sent[#sent + 1] = { weapon = weapon, iface = iface, cmd = cmd, data = data } end
+	E.eq(bot:add_ammo("primary", 2), true)
+	E.eq(sent[1].weapon, w.rifle) E.eq(sent[1].iface, "weapon") E.eq(sent[1].cmd, "set_ammo")
+	E.eq(sent[1].data.num_mags, 6, "added to the four it had") E.eq(sent[1].data.num_rounds, nil)
+	E.eq(bot:add_ammo("support", nil, 1), true)
+	E.eq(sent[2].data.num_rounds, 101)
+	E.eq(select(2, bot:add_ammo("nope", 1)), "bad_slot")
+end)
+
+test("a_threat_fight_holds_fire_on_far_quiet_enemies_and_bursts_the_rifle", function()
+	local api, game, e = start()
+	local bot, u, w = armed_bot(api, game, e)
+	w.inv.current_weapon = w.rifle
+	rawget(_G, "EntityAux").state_master_interface = function(unit) return w.ammo[unit] end
+	local bug = game.enemies[1]
+	bot:fight(25, { weapon = "threat" })
+	-- 22 metres off and not after anyone: left alone.
+	game.step(40)
+	E.eq(u.master.input.input_data.fire_button, 0, "no shot at a far quiet enemy")
+	bug.pos = { x = 12, y = 0, z = 0 }
+	local on, off = 0, 0
+	for _ = 1, 150 do
+		game.step(1)
+		if u.master.input.input_data.fire_button == 1 then on = on + 1 else off = off + 1 end
+	end
+	E.eq(on > 20 and off > 20, true, "short bursts")
+	-- The target falls: the trigger comes off at once.
+	game.enemies[1].slave.health.is_dead = true
+	game.step(1)
+	E.eq(u.master.input.input_data.fire_button, 0, "stops with the target")
 	bot:fight(false)
 end)
 
