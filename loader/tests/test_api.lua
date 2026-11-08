@@ -2492,6 +2492,22 @@ test("a_projectile_flies_as_the_games_own_missile_with_the_thrower_as_owner", fu
 	E.eq(type(api.world.PROJECTILES), "table", "the list is there for mods to read")
 end)
 
+test("a_projectile_can_be_handed_a_target_only_if_the_target_is_alive", function()
+	local api, game = start()
+	launching(game)
+	local enemy = { alive = true, master = { health = {} }, slave = { health = { is_dead = false } } }
+	local unit = api.world.projectile("air_support_missile", { x = 0, y = 0, z = 25 }, { target = enemy })
+	local sent = commands_on(game, unit)
+	E.eq(#sent, 3, "velocity, target, arm")
+	E.eq(sent[2].component .. " " .. sent[2].command, "homing set_target_unit")
+	E.eq(sent[2].data, enemy)
+	-- Gone, dead, or without health: the missile looks for one itself.
+	for _, bad in ipairs({ { alive = false, master = {}, slave = {} }, { alive = true, master = { health = {} }, slave = { health = { is_dead = true } } }, { alive = true, master = {}, slave = {} } }) do
+		unit = api.world.projectile("air_support_missile", { x = 0, y = 0, z = 25 }, { target = bad })
+		E.eq(#commands_on(game, unit), 2, "no target command")
+	end
+end)
+
 test("a_projectile_refuses_what_could_stop_the_game", function()
 	local api, game = start()
 	local fired = launching(game)
