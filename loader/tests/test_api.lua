@@ -7190,4 +7190,322 @@ test("a_custom_stratagem_sits_with_its_own_type_or_where_after_says", function()
 	E.eq(green.id, #before + 3)
 end)
 
+-- Pathing, the fight rules and the tentacles (1.45.0).
+
+test("brain_saves_support_weapons_for_what_deserves_them", function()
+	local api = start()
+	local b = api.brain
+	local function slots(heavy, blast)
+		return { primary_weapon = { ready = true, reach = 30, hurt = 75 },
+			support_weapon = { ready = true, reach = 30, hurt = 300, heavy = heavy, blast = blast, min_range = blast and blast + 1.5 or nil },
+			sidearm_weapon = { ready = true, reach = 20, hurt = 40 } }
+	end
+	E.eq(b.pick_weapon(slots(), { d = 10, group = 1 }), "primary_weapon", "a lone small enemy: the rifle, though the support hurts more")
+	E.eq(b.pick_weapon(slots(), { d = 10, group = 1, armored = true }), "support_weapon", "armored")
+	E.eq(b.pick_weapon(slots(), { d = 10, group = 3 }), "support_weapon", "a group, for a sustained weapon")
+	E.eq(b.pick_weapon(slots(true), { d = 10, group = 3 }), "primary_weapon", "a heavy weapon is not spent on a small group")
+	E.eq(b.pick_weapon(slots(true), { d = 10, group = 1 }), "primary_weapon", "nor on one small enemy")
+	E.eq(b.pick_weapon(slots(true), { d = 10, group = 1, large = true }), "support_weapon", "a large enemy deserves it")
+	E.eq(b.pick_weapon(slots(true), { d = 10, group = 5 }), "support_weapon", "a big group too")
+	E.eq(b.pick_weapon(slots(true, 3), { d = 10, group = 1, large = true, friend_near = true }), "primary_weapon", "not with a friend in the blast")
+	E.eq(b.pick_weapon(slots(true, 3), { d = 3, group = 1, large = true }), "primary_weapon", "not this close with a blast")
+	local empty = slots()
+	empty.primary_weapon.ready = false
+	E.eq(b.pick_weapon(empty, { d = 25, group = 1 }), "support_weapon", "the rifle empty: a sustained support weapon carries on")
+	local empty_heavy = slots(true)
+	empty_heavy.primary_weapon.ready = false
+	E.eq(b.pick_weapon(empty_heavy, { d = 25, group = 1 }), "sidearm_weapon", "not a heavy one: the sidearm doesn't reach but is what is left")
+	E.eq(b.pick_weapon(slots(), { d = 45, group = 1 }), "primary_weapon", "nothing reaches: the primary to wait with")
+end)
+
+test("brain_commits_to_a_target_aims_by_spread_and_clears_friends", function()
+	local api = start()
+	local b = api.brain
+	E.eq(b.keeps(nil), false)
+	E.eq(b.keeps({ d = 10 }, 30, 0, { d = 9 }), true, "not for one a little nearer")
+	E.eq(b.keeps({ d = 10 }, 30, 2, nil), false, "gone unseen")
+	E.eq(b.keeps({ d = 35 }, 30, 0, nil), false, "out of reach")
+	E.eq(b.keeps({ d = 18 }, 30, 0, { d = 4 }), false, "something on top of the bot")
+	E.eq(b.keeps({ d = 18 }, 30, 0, { d = 16, large = true }), true, "a large one a bit nearer isn't enough to switch")
+	E.eq(b.keeps({ d = 18 }, 30, 0, { d = 6, large = true, attacking = true }), false, "much the better target")
+	E.eq(b.aim_window(100, 0), b.MIN_WINDOW, "a straight weapon needs the barrel on a far target")
+	E.eq(b.aim_window(5, 40) <= b.MAX_WINDOW, true)
+	E.eq(b.aim_window(10, 10) > b.aim_window(10, 0), true, "spread widens the window")
+	local me, there = { x = 0, y = 0 }, { x = 10, y = 0 }
+	E.eq(b.line_clear(me, there, { { x = 5, y = 3 } }, 1.2), true)
+	E.eq(b.line_clear(me, there, { { x = 5, y = 0.5 } }, 1.2), false, "in the line")
+	E.eq(b.line_clear(me, there, { { x = -3, y = 0 } }, 1.2), true, "behind the shooter")
+	E.eq(b.blast_clear(me, there, 3, { { x = 20, y = 0 } }, 1), true)
+	E.eq(b.blast_clear(me, there, 3, { { x = 12, y = 1 } }, 1), false, "a friend in the blast")
+	E.eq(b.blast_clear(me, { x = 3, y = 0 }, 3, {}, 1), false, "the shooter in the blast")
+	E.eq(b.blast_clear(me, there, nil, { { x = 10, y = 0 } }), true, "no blast")
+	local px, py = b.separate({ x = 0, y = 0 }, { { x = 1, y = 0 } }, 2.5)
+	E.eq(px < 0, true, "pushed away") E.eq(py, 0)
+end)
+
+test("brain_moves_with_hysteresis_and_varied_spots", function()
+	local api = start()
+	local b = api.brain
+	local going, speed = b.arrive(2, false)
+	E.eq(going, false, "standing, close: stays")
+	going, speed = b.arrive(5, false)
+	E.eq(going, true) E.eq(speed, 1)
+	going = b.arrive(2, true)
+	E.eq(going, true, "walking goes on to the spot")
+	going = b.arrive(1, true)
+	E.eq(going, false, "there")
+	E.eq(b.sprints(20, false, 5, false), true, "far behind")
+	E.eq(b.sprints(10, true, 5, false), true, "keeps on until close")
+	E.eq(b.sprints(7, true, 5, false), false, "caught up")
+	E.eq(b.sprints(10, false, 5, false), false, "not started this close")
+	E.eq(b.sprints(20, true, 0.2, false), false, "no breath left")
+	E.eq(b.sprints(20, false, 5, true), false, "standing to fight")
+	E.eq(b.sprints(30, false, 5, true), true, "too far even so")
+	local a, c = b.slot(1, 6), b.slot(2, 6)
+	E.eq(a.side ~= c.side or a.back ~= c.back, true, "two bots, two spots")
+	local s = {}
+	local fwd = b.fight_step(s, 2, 30, 0.1, 0.5)
+	E.eq(fwd, -1, "too close: back off")
+	fwd = b.fight_step(s, 40, 30, 0.1, 0.5)
+	E.eq(fwd, 1, "into reach")
+	E.eq(select(2, b.fight_step(s, 10, 30, 0.1, 0.5, true)), 0, "a weapon fired from a stand: stands")
+	-- A strafe, then a pause.
+	local moved, stood = false, false
+	for _ = 1, 60 do
+		local _, side = b.fight_step(s, 10, 30, 0.1, 0.3)
+		if side ~= 0 then moved = true else stood = true end
+	end
+	E.eq(moved, true) E.eq(stood, true)
+end)
+
+test("brain_grenades_keep_friends_out_of_the_blast_and_smoke_covers", function()
+	local api = start()
+	local b = api.brain
+	local function facts(over)
+		local f = { count = 2, cooldown = 0, shooter = { x = 0, y = 0 }, point = { x = 10, y = 0 }, d = 10, group = 3, blast = 3.5, friends = {} }
+		for k, v in pairs(over or {}) do f[k] = v end
+		return f
+	end
+	local spot = b.grenade("frag", facts())
+	E.eq(spot.x, 10)
+	E.eq(b.grenade("frag", facts({ count = 0 })), nil, "none left")
+	E.eq(b.grenade("frag", facts({ cooldown = 3 })), nil, "waiting")
+	E.eq(b.grenade("frag", facts({ d = 5, point = { x = 5, y = 0 } })), nil, "too close")
+	E.eq(b.grenade("frag", facts({ group = 1 })), nil, "not on a lone small enemy")
+	E.eq(b.grenade("frag", facts({ group = 1, big = true })) ~= nil, true, "a big one is worth it")
+	E.eq(b.grenade("frag", facts({ friends = { { x = 11, y = 1 } } })), nil, "a friend at the target")
+	E.eq(b.grenade("frag", facts({ friends = { { x = 5, y = 0 } } })), nil, "a friend where a short throw lands")
+	E.eq(b.grenade("smoke", facts()), nil, "no smoke before shots come in")
+	local cover = b.grenade("smoke", facts({ under_fire = true, enemies = 3 }))
+	E.eq(cover.x, 6, "between the bot and them")
+end)
+
+test("nav_grid_search_goes_around_what_is_blocked", function()
+	local api = start()
+	local function wall(x, y) return x == 5 and y > -4 and y < 4 end
+	local path = api.nav.search_grid(0, 0, 10, 0, wall)
+	E.eq(path[#path].x, 10)
+	local around = false
+	for _, c in ipairs(path) do
+		E.eq(wall(c.x, c.y), false)
+		if math.abs(c.y) >= 4 then around = true end
+	end
+	E.eq(around, true)
+	E.eq(api.nav.search_grid(0, 0, 10, 0, function(x) return x == 5 end, 500), nil, "no way through a wall with no end, within the limit")
+end)
+
+local function ground_rays(pit, wall)
+	local actor = { alive = true }
+	rawset(_G, "Actor", { unit = function() return actor end })
+	rawget(_G, "Unit").has_data = function() return true end
+	local v3 = rawget(_G, "Vector3")
+	rawget(_G, "PhysicsWorld").immediate_raycast = function(_, from, dir, range)
+		if dir.z < -0.5 then
+			if pit(from.x, from.y) then return false end
+			return true, v3(from.x, from.y, 0), 3, v3(0, 0, 1), actor
+		end
+		for t = 0, range, 0.25 do
+			if wall and wall(from.x + dir.x * t, from.y + dir.y * t) then return true, v3(from.x, from.y, 0), t, v3(0, 0, 1), actor end
+		end
+		return false
+	end
+end
+
+test("nav_walkable_path_and_a_step_guard_keep_off_a_pit_and_walls", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local function pit(x, y) return x >= 4 and x <= 7 and y > -6 and y < 6 end
+	ground_rays(pit)
+	E.eq((api.nav.walkable({ x = 0, y = 0, z = 0 })), true)
+	E.eq(select(2, api.nav.walkable({ x = 5, y = 0, z = 0 })), "pit", "no ground: lava or a drop")
+	E.eq(select(2, api.nav.walk_clear({ x = 0, y = 0, z = 0 }, { x = 10, y = 0, z = 0 })), "pit")
+	E.eq((api.nav.walk_clear({ x = 0, y = 8, z = 0 }, { x = 10, y = 8, z = 0 })), true)
+	local path, status = api.nav.path({ x = 0, y = 0, z = 0 }, { x = 12, y = 0, z = 0 })
+	E.eq(status, "full")
+	local around = false
+	for _, q in ipairs(path) do
+		E.eq(pit(q.x, q.y), false, "the route stays off the pit")
+		if math.abs(q.y) >= 6 then around = true end
+	end
+	E.eq(around, true, "round the end of it")
+	-- A wall is rounded too.
+	ground_rays(function() return false end, function(x, y) return x >= 4.4 and x <= 4.6 and math.abs(y) < 5 end)
+	local routed = api.nav.path({ x = 0, y = 0.5, z = 0 }, { x = 8, y = 0.5, z = 0 })
+	E.eq(type(routed), "table")
+	-- Too far for one search, and nothing to cast with.
+	E.eq(select(2, api.nav.path({ x = 0, y = 0 }, { x = 200, y = 0 })), "far")
+end)
+
+test("a_navigating_bot_walks_around_a_pit_and_never_onto_it", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add({ bare = true })
+	local u = game.bare
+	body_health(u)
+	u.pos = { x = 2, y = 0, z = 0 }
+	local function pit(x, y) return x >= 4 and x <= 7 and y > -6 and y < 6 end
+	ground_rays(pit)
+	E.eq(bot:navigating(), false)
+	E.eq(bot:navigate(true), bot)
+	E.eq(bot:navigating(), true)
+	-- Headed straight at the pit from next to it: turned aside.
+	u.pos = { x = 3, y = 0, z = 0 }
+	bot:move({ x = 1, y = 0 })
+	game.step(3)
+	local mv = u.master.input.input_data.move
+	E.eq(mv.x < 0.99, true, "not straight on")
+	E.eq(math.abs(mv.y) > 0.1, true, "aside")
+	-- A go_to finds the way around.
+	u.pos = { x = 0, y = 0, z = 0 }
+	bot:hold()
+	bot:go_to({ x = 12, y = 0 })
+	local turned = false
+	for _ = 1, 90 do
+		game.step(1)
+		local q = u.master.input.input_data.move
+		if math.abs(q.y) > 0.3 then turned = true end
+		E.eq(pit(u.pos.x, u.pos.y), false)
+	end
+	E.eq(turned, true, "the search found the way round")
+	bot:navigate(false)
+	E.eq(bot:navigating(), false)
+end)
+
+test("bare_bots_are_out_of_the_camera_by_default_and_movement_smooths_and_spaces_them", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add({ bare = true })
+	local u = game.bare
+	body_health(u)
+	u.master.camera_target = { active = true }
+	u.master.mover = { keep_inside_screen = true }
+	game.step(1)
+	local camera = commands_of(game, "deactivate")
+	E.eq(#camera > 0, true, "off the camera target")
+	E.eq(#commands_of(game, "keep_inside_screen") > 0, true, "off the leash")
+	E.eq(bot:in_camera(), false)
+	-- Moving smoothly: the stick doesn't jump to the new way in one frame.
+	E.eq(bot:movement({ seed = 3 }), bot)
+	bot:move({ x = 1, y = 0 })
+	game.step(1)
+	local first = u.master.input.input_data.move.x
+	E.eq(first > 0 and first < 1, true, "eased, not snapped")
+	game.step(60)
+	E.eq(u.master.input.input_data.move.x > 0.9, true, "and gets there")
+	E.eq(bot:movement(false), bot)
+end)
+
+test("tentacles_count_as_hazards_and_a_bot_gets_out_of_their_reach", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local pad = rawget(_G, "ControllerSettings").pad
+	pad[#pad + 1] = { func = "pressed", output_name = "dodge_pressed" }
+	local tent = { alive = true, owned = true, pos = { x = 0, y = 0, z = 0 }, master = {}, slave = {} }
+	game.slaves.melee_turret = { [tent] = { state = { health_state = { is_dead = false } } } }
+	local found = api.enemies.tentacles({ x = 1, y = 0 }, 30)
+	E.eq(#found, 1) E.eq(found[1].unit, tent) E.eq(found[1].reach, 5)
+	local h = api.bots.hazards({ x = 1, y = 0 }, 30)
+	E.eq(h[1].kind, "tentacle") E.eq(h[1].radius, 5)
+	local bot = api.bots.add({ bare = true })
+	local u = game.bare
+	body_health(u)
+	u.pos = { x = 3, y = 0, z = 0 }
+	bot:avoid_shots(true, { melee = true })
+	local dove = 0
+	for _ = 1, 8 do
+		game.step(1)
+		if u.master.input.input_data.dodge_pressed == true then dove = dove + 1 end
+	end
+	E.eq(bot:avoiding(), true)
+	E.eq(u.master.input.input_data.move.x, 1, "straight away from it")
+	E.eq(dove, 2, "one dive, held two frames")
+	-- A dead one no longer counts.
+	game.slaves.melee_turret[tent].state.health_state.is_dead = true
+	E.eq(#api.enemies.tentacles({ x = 1, y = 0 }, 30), 0)
+end)
+
+test("fight_threat_saves_the_support_weapon_and_holds_a_blast_that_would_catch_a_friend", function()
+	local api, game, e = start()
+	local bot, u, w = armed_bot(api, game, e)
+	w.inv.current_weapon = w.rifle
+	local ls = rawget(_G, "LoadoutSettings")
+	ls.get_upgraded_settings = function(unit)
+		if unit == w.mg then return { explosive_info = { blast_power = 200, blast_radius = 3 } } end
+		return {}
+	end
+	-- One small bug at 22 metres: the rifle stays out and fires.
+	local bug = game.enemies[1]
+	bug.slave.health.armor_min, bug.slave.health.armor_max = 0, 0
+	bug.master.health = bug.slave.health
+	bot:fight(25, { weapon = "threat" })
+	game.step(40)
+	E.eq(u.master.input.input_data.fire_button, 1, "fires with the rifle")
+	local wields = commands_of(game, "wield")
+	E.eq(wields[#wields] and wields[#wields].data.weapon or "primary_weapon", "primary_weapon")
+	-- An armored one, away from the player standing by, the support weapon out...
+	bug.pos = { x = 12, y = 0, z = 0 }
+	bug.slave.health.armor_min, bug.slave.health.armor_max = 60, 80
+	game.step(1)
+	bot:fight(25, { weapon = "threat" })
+	game.step(40)
+	wields = commands_of(game, "wield")
+	E.eq(wields[#wields].data.weapon, "support_weapon", "this one deserves it")
+	-- ...with the bot aimed: a friend beside the bug holds the blast weapon's fire.
+	w.inv.current_weapon = w.mg
+	bot:fight(25, { weapon = "threat" })
+	game.step(30)
+	E.eq(u.master.input.input_data.fire_button, 1, "fires it while the blast is clear")
+	local friend = { alive = true, owned = true, pos = { x = 13, y = 1, z = 0 }, master = {}, slave = { health = {} } }
+	game.slaves.character = { [friend] = { state = {} } }
+	game.step(5)
+	E.eq(u.master.input.input_data.fire_button, 0, "a friend in the blast: no shot")
+	bot:fight(false)
+end)
+
+test("auto_grenades_throws_at_a_big_enemy_and_holds_with_a_friend_in_the_blast", function()
+	local api, game, e = start()
+	local bot, u, w = armed_bot(api, game, e)
+	w.inv.current_weapon, w.inv.num_grenades = w.rifle, 2
+	local bug = game.enemies[1]
+	bug.pos = { x = 15, y = 0, z = 0 }
+	bug.slave.health.hitpoints = 2000
+	bug.master.health = bug.slave.health
+	local friend = { alive = true, owned = true, pos = { x = 16, y = 1, z = 0 }, master = {}, slave = { health = {} } }
+	game.slaves.character = { [friend] = { state = {} } }
+	bot:fight(25, { weapon = "threat" })
+	E.eq(bot:auto_grenades(true), bot)
+	game.step(60)
+	E.eq(bot:throwing(), false, "a friend beside the target: no grenade")
+	game.slaves.character = {}
+	local thrown = false
+	for _ = 1, 60 do
+		game.step(1)
+		if bot:throwing() then thrown = true end
+	end
+	E.eq(thrown, true, "the blast clear: one goes")
+	E.eq(u.master.input.input_data.fire_button, 0, "holding fire while it throws")
+	bot:auto_grenades(false)
+	bot:fight(false)
+end)
+
 return T
