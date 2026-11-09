@@ -68,54 +68,56 @@ export function ArsenalTab({ draft, onEdit }: { draft: EditorState; onEdit: (e: 
           <span className="ar-count">{count(every)}</span>
         </div>
 
-        {nothing && <p className="muted pad">{t("app.saves.noMatch")}</p>}
+        <div className="ar-scroll">
+          {nothing && <p className="muted pad">{t("app.saves.noMatch")}</p>}
 
-        {weapons.length > 0 && (
-          <section className="ar-sec">
-            <h3 className="rec-h cap">{t("app.saves.arsenal.weapons")}<span className="rec-h-n">{count(weaponsAll)}</span></h3>
-            <div className="ar-grid">{weapons.map((i) => tile(i, "weapon"))}</div>
-          </section>
-        )}
+          {weapons.length > 0 && (
+            <section className="ar-sec">
+              <h3 className="rec-h cap">{t("app.saves.arsenal.weapons")}<span className="rec-h-n">{count(weaponsAll)}</span></h3>
+              <div className="ar-grid">{weapons.map((i) => tile(i, "weapon"))}</div>
+            </section>
+          )}
 
-        {strats.length > 0 && (
-          <section className="ar-sec">
-            <h3 className="rec-h cap">{t("app.saves.stratagems")}<span className="rec-h-n">{count(draft.stratagems)}</span></h3>
-            <div className="ar-sgroups">
-              {strats.map((g) => {
-                const all = draft.stratagems.filter((i) => i.category === g.category);
-                return (
-                  <div key={g.category ?? ""} className="ar-sg" style={{ flexGrow: all.length, "--cols": Math.min(all.length, all.length > 4 ? 4 : 2) } as CSSProperties}>
-                    <div className="ar-sg-head cap"><span>{g.category ? label(`app.saves.cat.${g.category}`, g.category) : ""}</span><span>{all.filter((i) => i.owned).length}/{all.length}</span></div>
-                    <div className="ar-sgrid">{g.items.map((i) => tile(i, "stratagem"))}</div>
+          {strats.length > 0 && (
+            <section className="ar-sec">
+              <h3 className="rec-h cap">{t("app.saves.stratagems")}<span className="rec-h-n">{count(draft.stratagems)}</span></h3>
+              <div className="ar-sgroups">
+                {strats.map((g) => {
+                  const all = draft.stratagems.filter((i) => i.category === g.category);
+                  return (
+                    <div key={g.category ?? ""} className="ar-sg" style={{ flexGrow: all.length, "--cols": Math.min(all.length, all.length > 4 ? 4 : 2) } as CSSProperties}>
+                      <div className="ar-sg-head cap"><span>{g.category ? label(`app.saves.cat.${g.category}`, g.category) : ""}</span><span>{all.filter((i) => i.owned).length}/{all.length}</span></div>
+                      <div className="ar-sgrid">{g.items.map((i) => tile(i, "stratagem"))}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {perks.length > 0 && (
+            <section className="ar-sec">
+              <h3 className="rec-h cap">{t("app.saves.perks")}<span className="rec-h-n">{count(draft.perks)}</span></h3>
+              <div className="ar-grid perks">{perks.map((i) => tile(i, "perk"))}</div>
+            </section>
+          )}
+
+          {unknown.length > 0 && (
+            <section className="ar-sec">
+              <h3 className="rec-h cap">{t("app.saves.unknownItems")}</h3>
+              <div className="ar-grid perks">
+                {unknown.map((name) => (
+                  <div key={name} className={name === sel ? "ar-tile perk sel" : "ar-tile perk"}>
+                    <button className="ar-pick" aria-pressed={name === sel} onClick={() => setSel(name)} data-tip-title={name} data-tip={t("app.saves.unknownHint")}>
+                      <Picture name={name} className="ar-art" />
+                      <span className="ar-tname mono">{name}</span>
+                    </button>
                   </div>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        {perks.length > 0 && (
-          <section className="ar-sec">
-            <h3 className="rec-h cap">{t("app.saves.perks")}<span className="rec-h-n">{count(draft.perks)}</span></h3>
-            <div className="ar-grid perks">{perks.map((i) => tile(i, "perk"))}</div>
-          </section>
-        )}
-
-        {unknown.length > 0 && (
-          <section className="ar-sec">
-            <h3 className="rec-h cap">{t("app.saves.unknownItems")}</h3>
-            <div className="ar-grid perks">
-              {unknown.map((name) => (
-                <div key={name} className={name === sel ? "ar-tile perk sel" : "ar-tile perk"}>
-                  <button className="ar-pick" aria-pressed={name === sel} onClick={() => setSel(name)} data-tip-title={name} data-tip={t("app.saves.unknownHint")}>
-                    <Picture name={name} className="ar-art" />
-                    <span className="ar-tname mono">{name}</span>
-                  </button>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
       </div>
 
       {selected && <Inspector item={selected} kind={kindOf(selected)} rank={draft.rank} onEdit={onEdit} />}
