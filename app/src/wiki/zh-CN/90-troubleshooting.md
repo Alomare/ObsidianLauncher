@@ -37,4 +37,4 @@ summary: 日志、启动时崩溃、模组不加载，以及如何恢复原版�
 
 ## 寻求帮助 {#asking-for-help}
 
-使用[设置](app:settings)的“数据”部分中的 **复制报告**。它会复制版本、已启用的模组和 `loader.log` 的末尾内容，不含你的 Windows 账户名。把它和发生的情况一起粘贴到 [Discord](https://dsc.gg/hd1modding) 或提交 [GitHub issue](https://github.com/Alomare/ObsidianModManager/issues)。
+使用[设置](app:settings)的“数据”部分中的 **复制报告**。它会复制版本、已启用的模组和 `loader.log` 的末尾内容，不含你的 Windows 账户名。把它和发生的情况一起粘贴到 [Discord](https://dsc.gg/hd1modding) 或提交 [GitHub issue](https://github.com/Alomare/ObsidianLauncher/issues)。

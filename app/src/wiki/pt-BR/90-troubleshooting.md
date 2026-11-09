@@ -37,4 +37,4 @@ Os logs ficam em `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher\logs`:
 
 ## Pedir ajuda {#asking-for-help}
 
-Use **Copiar relatório** em [Configurações](app:settings), na seção Dados. Ele copia as versões, os mods ligados e o fim do `loader.log`, sem o nome da sua conta do Windows. Cole isso, junto com o que aconteceu, no [Discord](https://dsc.gg/hd1modding) ou a uma [issue no GitHub](https://github.com/Alomare/ObsidianModManager/issues).
+Use **Copiar relatório** em [Configurações](app:settings), na seção Dados. Ele copia as versões, os mods ligados e o fim do `loader.log`, sem o nome da sua conta do Windows. Cole isso, junto com o que aconteceu, no [Discord](https://dsc.gg/hd1modding) ou a uma [issue no GitHub](https://github.com/Alomare/ObsidianLauncher/issues).

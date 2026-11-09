@@ -19,7 +19,7 @@ import sys
 import urllib.error
 import urllib.request
 
-REPO = os.environ.get("GITHUB_REPOSITORY", "Alomare/ObsidianModManager")
+REPO = os.environ.get("GITHUB_REPOSITORY", "Alomare/ObsidianLauncher")
 GOLD = 0xF0B429  # --gold in app/src/styles.css
 # The app icon on a dark square with room around it, so the round avatar frame doesn't cut it. Taken from the commit
 # that runs, so a run from dev shows the same picture as one from main.

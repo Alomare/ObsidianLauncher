@@ -15,7 +15,7 @@
   <img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache%202.0-3a3a3a?style=flat-square">
   <!-- the count of LANGUAGES in app/src/i18n.ts, listed under Supported Languages -->
   <a href="#-supported-languages"><img alt="3 languages" src="https://img.shields.io/badge/languages-3-3a3a3a?style=flat-square"></a>
-  <a href="https://github.com/Alomare/ObsidianModManager/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Alomare/ObsidianModManager?style=flat-square&label=release&color=3a3a3a&include_prereleases"></a>
+  <a href="https://github.com/Alomare/ObsidianLauncher/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Alomare/ObsidianLauncher?style=flat-square&label=release&color=3a3a3a&include_prereleases"></a>
 </p>
 
 <p align="center">
@@ -23,7 +23,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Alomare/ObsidianModManager/releases/latest"><b>Download</b></a> ·
+  <a href="https://github.com/Alomare/ObsidianLauncher/releases/latest"><b>Download</b></a> ·
   <a href="#features">Features</a> ·
   <a href="#how-it-works">How It Works</a> ·
   <a href="#how-to-use">How to Use</a> ·
@@ -92,7 +92,7 @@ English, Portuguese (Brazil) and Simplified Chinese, for the window, the message
 
 You need Windows 10 or 11, and HELLDIVERS installed through Steam.
 
-1. Download Obsidian from [Releases](https://github.com/Alomare/ObsidianModManager/releases/latest) and run it. The installer isn't code-signed yet, so Windows may say it protected your PC: choose **More info**, then **Run anyway**.
+1. Download Obsidian from [Releases](https://github.com/Alomare/ObsidianLauncher/releases/latest) and run it. The installer isn't code-signed yet, so Windows may say it protected your PC: choose **More info**, then **Run anyway**.
 2. Start Obsidian. It finds the game through Steam. If it can't, pick the game folder in Settings.
 3. On the Mods tab, press the green **+**, or drop a `.zip` or a folder on the list. [Nexus Mods](https://www.nexusmods.com/games/helldivers) has mods to try.
 4. Turn on the mods you want. When two change the same thing, the later one in the list wins.
@@ -146,7 +146,7 @@ obsidian profile list|use|new <name>   switch between named sets of mods and set
 
 Ask on the [Discord](https://dsc.gg/hd1modding) how to do something, or show what you made. Refer to the in-app Wiki before doing so.
 
-To report a bug or suggest an idea, open an [issue](https://github.com/Alomare/ObsidianModManager/issues/new). For a bug, say what you did and what happened. **Copy report** in Settings, under Data, gives you the versions, the mods that were on and the end of the game log, without your Windows account name.
+To report a bug or suggest an idea, open an [issue](https://github.com/Alomare/ObsidianLauncher/issues/new). For a bug, say what you did and what happened. **Copy report** in Settings, under Data, gives you the versions, the mods that were on and the end of the game log, without your Windows account name.
 
 Obsidian is 100% free, no caveats. If you'd like to support it, buy me a [Ko-fi](https://ko-fi.com/alomare)!
 

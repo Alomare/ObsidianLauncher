@@ -589,7 +589,7 @@ pub async fn restore_starter_pack(ctx: State<'_, Ctx>) -> CmdResult<Snapshot> {
 }
 
 const STEAM_LAUNCH: &str = "steam://rungameid/394510";
-const APP_SOURCE: &str = "https://github.com/Alomare/ObsidianModManager";
+const APP_SOURCE: &str = "https://github.com/Alomare/ObsidianLauncher";
 
 fn game_of(ctx: &Ctx) -> CmdResult<GameInstall> {
     Ok(find(&AppSettings::load(&ctx.data)).ok_or_else(|| ObsidianError::GameNotFound(String::new()))?)

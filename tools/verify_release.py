@@ -29,7 +29,7 @@ from pathlib import Path
 import github_api
 
 ROOT = Path(__file__).resolve().parent.parent
-REPO = "Alomare/ObsidianModManager"
+REPO = "Alomare/ObsidianLauncher"
 KIT = {"obsidian.api": "Alomare/ObsidianAPI", "obsidian.trainer": "Alomare/ObsidianTrainer", "obsidian.qol": "Alomare/ObsidianPatches"}
 VERSION_FILES = {
     "app/package.json": r'"version":\s*"([^"]+)"',
