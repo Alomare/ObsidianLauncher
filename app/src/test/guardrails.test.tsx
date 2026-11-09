@@ -17,7 +17,7 @@ afterEach(() => {
 });
 
 const snap = (blockPublic: boolean, blockAchievements: boolean, freezeProgress: boolean) =>
-  ({ profile: "Fun", blockPublic, blockAchievements, freezeProgress }) as unknown as Snapshot;
+  ({ profile: "Fun", blockPublic, blockAchievements, freezeProgress, hideClientMods: false }) as unknown as Snapshot;
 
 function show(s: Snapshot) {
   const box = document.createElement("div");
@@ -28,9 +28,9 @@ function show(s: Snapshot) {
 }
 
 describe("guardrails", () => {
-  it("shows_the_profiles_three_switches_as_they_are", () => {
+  it("shows_the_profiles_switches_as_they_are", () => {
     const switches = show(snap(true, false, true));
-    expect(switches.map((b) => b.getAttribute("aria-checked"))).toEqual(["true", "false", "true"]);
+    expect(switches.map((b) => b.getAttribute("aria-checked"))).toEqual(["true", "false", "true", "false"]);
   });
 
   it("the_lead_says_the_current_profile_without_naming_it", () => {

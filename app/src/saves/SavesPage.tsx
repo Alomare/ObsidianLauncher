@@ -260,6 +260,8 @@ function Detail({ row, list, running, needsDeploy, onSwitch, onEdit, onSnapshot,
   const isOfficial = row.kind === "official";
   const created = new Date(row.created);
   const when = Number.isNaN(created.getTime()) ? row.created : created.toLocaleDateString(language(), { dateStyle: "medium" });
+  const played = row.lastPlayed ? new Date(row.lastPlayed) : null;
+  const playedText = played && !Number.isNaN(played.getTime()) ? played.toLocaleString(language(), { dateStyle: "medium", timeStyle: "short" }) : null;
   const of = row.snapshotOf ? list.saves.find((o) => o.id === row.snapshotOf)?.name ?? row.snapshotOf : null;
   const closeFirst = running ? t("app.action.closeGameFirst") : undefined;
   return (
@@ -285,6 +287,7 @@ function Detail({ row, list, running, needsDeploy, onSwitch, onEdit, onSnapshot,
             <div><dt>{t("app.saves.stat.deaths")}</dt><dd>{num(s.deaths)}</dd></div>
             <div><dt>{t("app.saves.stat.played")}</dt><dd>{playTime(s.timePlayed)}</dd></div>
             <div><dt>{t("app.saves.stat.unlocks")}</dt><dd>{num(s.unlocks)}</dd></div>
+            {playedText && <div><dt>{t("app.saves.stat.lastPlayed")}</dt><dd>{playedText}</dd></div>}
           </dl>
         )}
         <div className="save-actions">

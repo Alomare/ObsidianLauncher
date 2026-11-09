@@ -94,6 +94,8 @@ pub struct SaveRow {
     pub name: String,
     pub kind: SaveKind,
     pub created: String,
+    /// When the game last wrote this save. None for an Official save resting in the library.
+    pub last_played: Option<String>,
     pub snapshot_of: Option<String>,
     /// The save the game boots next.
     pub active: bool,
@@ -490,6 +492,11 @@ impl Saves {
                     name: e.name.clone(),
                     kind: e.kind,
                     created: e.created.clone(),
+                    last_played: match e.kind {
+                        SaveKind::Sandbox => written_at(&self.sandbox_common(&e.id)),
+                        SaveKind::Official if Some(&e.id) == idx.active_official.as_ref() => written_at(&self.local(".sav")),
+                        SaveKind::Official => None,
+                    },
                     snapshot_of: e.snapshot_of.clone(),
                     active: Some(&e.id) == active.as_ref(),
                     live: e.kind == SaveKind::Official && Some(&e.id) == idx.active_official.as_ref(),
@@ -717,6 +724,12 @@ fn zip_err(e: impl std::fmt::Display) -> ObsidianError {
 
 fn now() -> String {
     chrono::Local::now().to_rfc3339()
+}
+
+/// When a file was last written, in the format of `now`.
+fn written_at(path: &Path) -> Option<String> {
+    let modified = std::fs::metadata(path).ok()?.modified().ok()?;
+    Some(chrono::DateTime::<chrono::Local>::from(modified).to_rfc3339())
 }
 
 /// What Play does before launching: activates the profile's save, if it names one, and refuses a

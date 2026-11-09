@@ -1,7 +1,7 @@
-// The Guardrails dialog, opened from the shield in the navigation bar: the active profile's three switches.
+// The Guardrails dialog, opened from the shield in the navigation bar: the active profile's switches.
 // One keeps other players' session mods out of a public lobby; two protect the player's own account:
-// achievements and progression. All three start off. The loader reads them when the game starts, so a change applies at
-// the next launch.
+// achievements and progression; one keeps client mods off the lobby list. All start off. The loader reads
+// them when the game starts, so a change applies at the next launch.
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { run } from "./api";
@@ -9,12 +9,13 @@ import { CloseIcon, ShieldIcon } from "./Icons";
 import { t } from "./i18n";
 import type { Snapshot } from "./types";
 
-type Row = { key: "blockPublic" | "blockAchievements" | "freezeProgress"; command: string; text: string };
+type Row = { key: "blockPublic" | "blockAchievements" | "freezeProgress" | "hideClientMods"; command: string; text: string };
 
 export const GUARDRAILS: Row[] = [
   { key: "blockPublic", command: "set_block_public", text: "blockPublic" },
   { key: "blockAchievements", command: "set_block_achievements", text: "achievements" },
   { key: "freezeProgress", command: "set_freeze_progress", text: "freeze" },
+  { key: "hideClientMods", command: "set_hide_client_mods", text: "hideClientMods" },
 ];
 
 /** How many guardrails are on. */

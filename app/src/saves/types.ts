@@ -3,7 +3,7 @@ import type { Localized, Snapshot } from "../types";
 
 export type SaveKind = "official" | "sandbox";
 export type SaveStats = { rank: number; xp: number; samples: number; unlocks: number; kills: number; deaths: number; missionsFought: number; missionsWon: number; timePlayed: number };
-export type SaveRow = { id: string; name: string; kind: SaveKind; created: string; snapshotOf: string | null; active: boolean; live: boolean; stats: SaveStats | null; error: string | null };
+export type SaveRow = { id: string; name: string; kind: SaveKind; created: string; lastPlayed: string | null; snapshotOf: string | null; active: boolean; live: boolean; stats: SaveStats | null; error: string | null };
 export type SaveList = { account: string; active: string | null; saves: SaveRow[] };
 export type SavesDone = { saves: SaveList; snapshot: Snapshot };
 export type SaveImported = SavesDone & { id: string };
