@@ -15,6 +15,7 @@
 pub mod lan;
 pub mod package;
 pub mod relay;
+pub mod server;
 
 use std::path::{Path, PathBuf};
 
@@ -234,6 +235,66 @@ pub fn forget(data: &Path, id: &str) -> Result<State> {
     Ok(s)
 }
 
+/// A save name from a war name: Saves takes 1 to 40 characters.
+pub fn save_name(war: &str) -> String {
+    let clean: String = war.chars().filter(|c| !c.is_control()).collect();
+    let clean = clean.trim();
+    let base = if clean.is_empty() { "Custom War" } else { clean };
+    base.chars().take(40).collect()
+}
+
+/// Whether a war as named from outside (the war screens, the LAN list, the CLI) can be used: a plain
+/// id, and for a LAN war `http://<address>:<port>` with nothing after it.
+pub fn valid_pick(war: &WarRef) -> bool {
+    let id_ok = !war.id.is_empty() && war.id.len() <= 32 && war.id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+    let base_ok = match (war.host, &war.base) {
+        (WarHost::Local, _) => true,
+        (WarHost::Lan, Some(b)) => b.len() < 120 && b.strip_prefix("http://").is_some_and(|rest| !rest.is_empty() && !rest.contains(['/', '?', '#', '@', ' '])),
+        (WarHost::Lan, None) => false,
+    };
+    id_ok && base_ok
+}
+
+/// Selects a war for the next launch: remembers it, gives it a Sandbox save on first use, and
+/// selects that save, which writes the settings file with the war line. A local war needs the
+/// server's port known, so start the server first.
+pub fn play_war(data: &Path, saves: &crate::saves::Saves, war: WarRef) -> Result<()> {
+    if !valid_pick(&war) {
+        return Err(ObsidianError::WarUnknown(war.id));
+    }
+    let id = war.id.clone();
+    let name = war.name.clone();
+    let mut state = State::load(data);
+    state.upsert(WarRef { name: war.name.chars().take(60).collect(), save: None, ..war });
+    state.save(data)?;
+    let known: Vec<String> = saves.list()?.saves.into_iter().filter(|r| r.kind == crate::saves::SaveKind::Sandbox).map(|r| r.id).collect();
+    let save = match State::load(data).war(&id).and_then(|w| w.save.clone()).filter(|s| known.contains(s)) {
+        Some(s) => s,
+        None => {
+            let s = saves.create_sandbox(&save_name(&name))?;
+            set_save(data, &id, &s)?;
+            s
+        }
+    };
+    select(data, Some(&id))?;
+    saves.activate(&save)
+}
+
+/// Back to the official war: no war selected, and the Official save that's in the game's files.
+pub fn play_official(data: &Path, saves: &crate::saves::Saves) -> Result<()> {
+    select(data, None)?;
+    let list = saves.list()?;
+    let official = list
+        .saves
+        .iter()
+        .find(|r| r.kind == crate::saves::SaveKind::Official && r.live)
+        .or_else(|| list.saves.iter().find(|r| r.kind == crate::saves::SaveKind::Official));
+    match official {
+        Some(row) => saves.activate(&row.id),
+        None => Ok(()),
+    }
+}
+
 /// The names of the game's regions in the player's language, as the loader wrote them the last
 /// time the game started in war mode: `key<TAB>words` lines.
 pub fn region_names(game_side: &Path) -> Vec<(String, String)> {
@@ -303,6 +364,20 @@ mod tests {
         assert!(matches!(select(t.path(), Some("nope")), Err(ObsidianError::WarUnknown(_))));
         let s = forget(t.path(), "k3x9q2").unwrap();
         assert!(s.wars.is_empty());
+    }
+
+    #[test]
+    fn picks_are_checked_and_save_names_fit_saves() {
+        let w = |host, base: Option<&str>, id: &str| WarRef { id: id.into(), name: "War".into(), host, base: base.map(str::to_string), save: None, computer: None };
+        assert!(valid_pick(&w(WarHost::Local, None, "k3x9q2")));
+        assert!(valid_pick(&w(WarHost::Lan, Some("http://192.168.0.7:17494"), "k3x9q2")));
+        assert!(!valid_pick(&w(WarHost::Lan, None, "k3x9q2")), "a LAN war needs its address");
+        assert!(!valid_pick(&w(WarHost::Lan, Some("file:///c:/x"), "k3x9q2")));
+        assert!(!valid_pick(&w(WarHost::Lan, Some("http://h:1/w/x"), "k3x9q2")), "the relay adds the path");
+        assert!(!valid_pick(&w(WarHost::Local, None, "../etc")));
+        assert_eq!(save_name("  Night War \n"), "Night War");
+        assert_eq!(save_name(""), "Custom War");
+        assert_eq!(save_name(&"x".repeat(80)).chars().count(), 40);
     }
 
     #[test]

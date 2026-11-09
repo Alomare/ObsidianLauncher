@@ -247,6 +247,31 @@ mod tests {
         assert!(!got.contains("%22T%22"), "the ticket never leaves");
     }
 
+    /// Against a real Commander server: `COMMANDER_E2E` is a war's API URL. Run by ObsidianCommander's
+    /// tools/e2e.py, which starts the server and creates the war.
+    #[test]
+    #[ignore]
+    fn relay_reaches_a_real_war() {
+        let upstream = std::env::var("COMMANDER_E2E").expect("COMMANDER_E2E: a war API URL");
+        let relay = Relay::start(0).unwrap();
+        relay.set_route(Some(Route { token: "e2e0".into(), upstream }));
+        let agent = agent();
+        let url = format!("http://127.0.0.1:{}/e2e0/1.0/", relay.port);
+        let form = "application/x-www-form-urlencoded;charset=UTF-8";
+        let mut res = agent.post(&url).header("Content-Type", form).send("action=get_campaign_status").unwrap();
+        let status: serde_json::Value = serde_json::from_str(&res.body_mut().read_to_string().unwrap()).unwrap();
+        assert_eq!(status["error_code"], 0);
+        assert_eq!(status["campaign_status"].as_array().map(Vec::len), Some(3));
+        let auth = "%7B%22data%22%3A%22TICKET%22%2C%22online_id%22%3A%221100001066537b3%22%2C%22issuer_id%22%3A256%2C%22platform%22%3A%22win32%22%7D";
+        let season = status["campaign_status"][0]["season"].as_u64().unwrap();
+        let planets = format!("%5B%7B%22index%22%3A1%2C%22enemy%22%3A2%2C%22season%22%3A{season}%2C%22difficulty%22%3A4%2C%22success%22%3A0.7%7D%5D");
+        let mut res = agent.post(&url).header("Content-Type", form).send(format!("action=complete_planets&auth={auth}&planets={planets}")).unwrap();
+        let done: serde_json::Value = serde_json::from_str(&res.body_mut().read_to_string().unwrap()).unwrap();
+        assert_eq!(done["error_code"], 0, "{done}");
+        assert_eq!(done["completed_planets"], 1, "{done}");
+        println!("E2E {done}");
+    }
+
     #[test]
     fn refuses_without_the_token_or_a_route() {
         let relay = Relay::start(0).unwrap();

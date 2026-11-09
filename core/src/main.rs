@@ -79,6 +79,33 @@ enum Command {
         #[command(subcommand)]
         action: SavesAction,
     },
+    /// Custom Galactic Wars: the Commander package, hosting, and the war the next launch plays
+    Commander {
+        #[command(subcommand)]
+        action: CommanderAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum CommanderAction {
+    /// Show the package, the wars this PC plays and the one the next launch plays
+    Status,
+    /// Install a Commander package (.zip or folder)
+    Install { path: PathBuf },
+    /// Remove the Commander package; hosted wars stay in the data folder
+    Uninstall,
+    /// Host: run the war server and the relay until Enter is pressed or input ends
+    Serve,
+    /// Play a war on the next launch: a war hosted here, or with --lan http://<address>:<port>
+    Play {
+        id: String,
+        #[arg(long, default_value = "Custom War")]
+        name: String,
+        #[arg(long)]
+        lan: Option<String>,
+    },
+    /// Play the official war on the next launch
+    Official,
 }
 
 #[derive(Subcommand)]
@@ -355,6 +382,7 @@ fn run(cli: Cli) -> Result<()> {
             live_change(&profile, &data, &lib, &game()?, &format!("{id} {keybind} is now {key}"))?;
         }
         Command::Saves { action } => run_saves(action, &data, &game()?)?,
+        Command::Commander { action } => run_commander(action, &data, game)?,
         Command::Profile { action } => match action {
             ProfileAction::List => {
                 let active = profiles::active(&data)?;
@@ -373,6 +401,74 @@ fn run(cli: Cli) -> Result<()> {
                 println!("Created profile {name}. Switch to it with: obsidian profile use {name}");
             }
         },
+    }
+    Ok(())
+}
+
+fn run_commander(action: CommanderAction, data: &std::path::Path, game: impl Fn() -> Result<GameInstall>) -> Result<()> {
+    use obsidian_core::commander::{self, State, WarHost, WarRef, package, relay::Relay, server};
+    let saves = || -> Result<obsidian_core::saves::Saves> { obsidian_core::saves::Saves::open(data, &game()?, obsidian_core::game::is_running) };
+    match action {
+        CommanderAction::Status => {
+            let s = State::load(data);
+            match package::installed(data) {
+                Some(i) => println!("Commander {} (protocol {})", i.version, i.protocol),
+                None => println!("Commander isn't installed"),
+            }
+            for w in &s.wars {
+                let mark = if s.playing.as_deref() == Some(w.id.as_str()) { "*" } else { " " };
+                let host = match w.host {
+                    WarHost::Local => "this PC".to_string(),
+                    WarHost::Lan => w.base.clone().unwrap_or_default(),
+                };
+                println!("{mark} {} {} ({host})", w.id, w.name);
+            }
+            if s.playing.is_none() {
+                println!("The next launch plays the official war.");
+            }
+        }
+        CommanderAction::Install { path } => {
+            let i = package::install(data, &path)?;
+            println!("Commander {} installed", i.version);
+        }
+        CommanderAction::Uninstall => {
+            package::uninstall(data)?;
+            println!("Commander removed");
+        }
+        CommanderAction::Serve => {
+            let srv = server::start(data)?;
+            let relay = Relay::start(commander::ensure_relay_port(data)?)?;
+            println!("War server: http://127.0.0.1:{}/?token={}", srv.port, srv.token);
+            println!("Relay: port {}. Press Enter to stop.", relay.port);
+            let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let flag = stop.clone();
+            std::thread::spawn(move || {
+                let mut line = String::new();
+                let _ = std::io::stdin().read_line(&mut line);
+                flag.store(true, std::sync::atomic::Ordering::SeqCst);
+            });
+            // The war played can change from the app or another CLI call: follow it.
+            while !stop.load(std::sync::atomic::Ordering::SeqCst) {
+                relay.set_route(State::load(data).route());
+                std::thread::sleep(std::time::Duration::from_millis(500));
+            }
+        }
+        CommanderAction::Play { id, name, lan } => {
+            let war = match lan {
+                Some(base) => WarRef { id: id.clone(), name, host: WarHost::Lan, base: Some(base.trim_end_matches('/').to_string()), save: None, computer: None },
+                None => WarRef { id: id.clone(), name, host: WarHost::Local, base: None, save: None, computer: None },
+            };
+            commander::play_war(data, &saves()?, war)?;
+            let s = State::load(data);
+            println!("The next launch plays war {id} on Sandbox save {}.", s.war(&id).and_then(|w| w.save.clone()).unwrap_or_default());
+            if s.war(&id).is_some_and(|w| w.host == WarHost::Local) {
+                println!("Keep `obsidian commander serve` (or the app) running while playing.");
+            }
+        }
+        CommanderAction::Official => {
+            commander::play_official(data, &saves()?)?;
+            println!("The next launch plays the official war.");
+        }
     }
     Ok(())
 }
