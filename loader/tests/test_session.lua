@@ -600,4 +600,50 @@ test("a_library_guard_refuses_while_such_a_mod_is_off", function()
 	E.eq(select(2, view.grow()), "not_cleared")
 end)
 
+-- The Third Person Camera mod wraps require and, when the game loads a class, loads its own copy
+-- that declares the same methods again on the same table.
+local CAMERA = "local old = require; rawset(_G, 'require', function(n) local v = old(n); if n == 'lua/proxy' then old('hd2cam/lua/proxy') end; return v end)"
+
+test("a_hook_comes_back_after_a_mod_declares_the_method_again", function()
+	rawset(_G, "Target", { run = function() return "vanilla" end })
+	local e = engine(nil, { mods = { E.mod("c", { scope = "client" }), E.mod("cam", { scope = "client" }) } }, {
+		["obsidian/mods/c/main"] = "obsidian.hook(Target, 'run', function(original, self) return 'hooked ' .. original(self) end)",
+		["obsidian/mods/cam/main"] = CAMERA,
+		["hd2cam/lua/proxy"] = "Target.run = function() return 'camera' end",
+	})
+	E.eq(rawget(_G, "Target"):run(), "hooked vanilla")
+	e.opts.modules["lua/proxy"] = true
+	rawget(_G, "require")("lua/proxy")
+	E.eq(rawget(_G, "Target"):run(), "hooked camera", "the hook wraps the new method")
+	E.has(e:log(), "hook installed again: table.run by c")
+end)
+
+test("hooks_come_back_in_the_order_they_went_in", function()
+	rawset(_G, "Target", { run = function() return "v" end })
+	local e = engine(nil, { mods = { E.mod("a", { scope = "client" }), E.mod("b", { scope = "client" }) } }, {
+		["obsidian/mods/a/main"] = "obsidian.hook(Target, 'run', function(original, self) return 'a(' .. original(self) .. ')' end)",
+		["obsidian/mods/b/main"] = "obsidian.hook(Target, 'run', function(original, self) return 'b(' .. original(self) .. ')' end)",
+		["lua/redeclare"] = "Target.run = function() return 'new' end",
+	})
+	E.eq(rawget(_G, "Target"):run(), "b(a(v))")
+	rawget(_G, "require")("lua/redeclare")
+	E.eq(rawget(_G, "Target"):run(), "b(a(new))")
+end)
+
+test("a_mod_that_wraps_a_hooked_method_doesnt_get_it_hooked_twice", function()
+	local calls = 0
+	rawset(_G, "Target", { run = function() return "v" end })
+	rawset(_G, "COUNT", function() calls = calls + 1 end)
+	local e = engine(nil, { mods = { E.mod("c", { scope = "client" }) } }, {
+		["obsidian/mods/c/main"] = "obsidian.hook(Target, 'run', function(original, self) COUNT(); return original(self) end)",
+		["lua/wrapper"] = "local old = Target.run; Target.run = function(self) return 'w ' .. old(self) end",
+		["lua/stored"] = "local keep = { f = Target.run }; Target.run = function(self) return 's ' .. keep.f(self) end",
+	})
+	rawget(_G, "require")("lua/wrapper")
+	rawget(_G, "require")("lua/stored")
+	E.eq(rawget(_G, "Target"):run(), "s w v")
+	E.eq(calls, 1, "the hook ran once")
+	E.lacks(e:log(), "installed again")
+end)
+
 return T

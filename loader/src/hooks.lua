@@ -3,7 +3,7 @@
 local B = require("obsidian/loader/builtins")
 local log = require("obsidian/loader/log")
 
-local M = { pending = {}, requires = {}, fired = {}, seen = {}, values = {}, frame_fns = {}, frame_installed = false }
+local M = { pending = {}, chains = {}, chain_of = {}, requires = {}, fired = {}, seen = {}, values = {}, frame_fns = {}, frame_installed = false }
 
 function M.setup(core, session)
 	M.core, M.session = core, session
@@ -13,12 +13,8 @@ local function pack(...)
 	return { n = B.select("#", ...), ... }
 end
 
-local function install(h)
-	local target = h.target
-	if B.type(target) == "string" then target = B.rawget(B.G, target) end
-	if B.type(target) ~= "table" then return false end
-	local original = target[h.method]
-	if B.type(original) ~= "function" then return false end
+-- Puts the hook around target[method] and returns the new function.
+local function wrap(h, target, original)
 	local core, session, state, fn, site = M.core, M.session, h.state, h.fn, "hook " .. B.tostring(h.method)
 	-- A missing or unknown scope counts as session. The loader's own hooks are never gated.
 	local gated = not h.loader and not h.always and not (state and state.mod.scope == "client")
@@ -45,9 +41,79 @@ local function install(h)
 		end
 		return original(...)
 	end
+	return target[h.method]
+end
+
+local function describe(h)
 	local where = B.type(h.target) == "string" and h.target or "table"
-	log.line("hook installed: " .. where .. "." .. B.tostring(h.method) .. (state and (" by " .. state.id) or ""))
+	return where .. "." .. B.tostring(h.method) .. (h.state and (" by " .. h.state.id) or "")
+end
+
+local function install(h)
+	local target = h.target
+	if B.type(target) == "string" then target = B.rawget(B.G, target) end
+	if B.type(target) ~= "table" then return false end
+	local original = target[h.method]
+	if B.type(original) ~= "function" then return false end
+	local top = wrap(h, target, original)
+	-- Every hook on one method, in order, and the outermost wrapper, so they can all go back in
+	-- if a mod declares the method again (see recheck).
+	local by_method = M.chain_of[target]
+	if not by_method then
+		by_method = {}
+		M.chain_of[target] = by_method
+	end
+	local chain = by_method[h.method]
+	if not chain then
+		chain = { target = target, method = h.method, hooks = {} }
+		by_method[h.method] = chain
+		B.insert(M.chains, chain)
+	end
+	B.insert(chain.hooks, h)
+	chain.top = top
+	log.line("hook installed: " .. describe(h))
 	return true
+end
+
+-- True when f calls the wrapper: holds it as an upvalue, inside a function it holds, or in a table it holds.
+local function reaches(f, wrapper, depth, seen)
+	if seen[f] then return false end
+	seen[f] = true
+	for i = 1, 255 do
+		local name, v = B.getupvalue(f, i)
+		if name == nil then return false end
+		if v == wrapper then return true end
+		local kind = B.type(v)
+		if kind == "function" and depth > 0 and reaches(v, wrapper, depth - 1, seen) then return true end
+		if kind == "table" and not seen[v] then
+			seen[v] = true
+			for _, x in B.pairs(v) do
+				if x == wrapper then return true end
+				if depth > 0 and B.type(x) == "function" and reaches(x, wrapper, depth - 1, seen) then return true end
+			end
+		end
+	end
+	return false
+end
+
+-- A mod that loads its own copy of a game class declares the methods again on the same table, which
+-- throws away every hook on them (the Third Person Camera mod does this from its require wrapper).
+-- After each require, a method that changed and no longer calls the hooks gets them all back, in order.
+-- A mod that wrapped the hooked method keeps the hooks inside, so that one is left alone.
+local function recheck()
+	if not B.getupvalue then return end
+	for _, chain in B.ipairs(M.chains) do
+		local now = chain.target[chain.method]
+		if now ~= chain.top and B.type(now) == "function" then
+			if not reaches(now, chain.top, 3, {}) then
+				for _, h in B.ipairs(chain.hooks) do
+					now = wrap(h, chain.target, now)
+					log.line("hook installed again: " .. describe(h))
+				end
+			end
+			chain.top = now
+		end
+	end
 end
 
 function M.hook(target, method, fn)
@@ -135,6 +201,7 @@ function M.wrap_require()
 			M.fired[name] = true
 			for _, cb in B.ipairs(list) do M.core.call(cb.state, "on_require " .. B.tostring(name), cb.fn, r[1]) end
 		end
+		recheck()
 		resolve_pending()
 		install_frame()
 		return B.unpack(r, 1, r.n)
