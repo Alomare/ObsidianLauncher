@@ -8,7 +8,7 @@ summary: The shield at the top: other players' session mods, achievements and yo
 
 ## Session mods of other players
 
-**Block session mods from others in my public lobby** keeps other players' session mods out of your game while you're in a public lobby with them. The switch is off by default, so playing with other Obsidian players just works. Friends-only and private lobbies are never blocked. It doesn't decide whether your own session mods run ([Playing online](wiki:multiplayer)).
+**Block session mods from other players in public lobbies** keeps other players' session mods out of your game while you're in a public lobby with them. The switch is off by default, so playing with other Obsidian players just works. Friends-only and private lobbies are never blocked. It doesn't decide whether your own session mods run ([Playing online](wiki:multiplayer)).
 
 ## Achievements
 
@@ -16,7 +16,7 @@ summary: The shield at the top: other players' session mods, achievements and yo
 
 ## Frozen progression
 
-**Freeze my account's progression** keeps your XP and rank, samples, unlocks, upgrades and stats as they were when the game started. Missions, the Armory and mods can still change them while you play, but none of it is saved, and the next launch starts from the same account. Settings and looks, such as your keys or your helmet, still save.
+**Freeze account progression** keeps your XP and rank, samples, unlocks, upgrades and stats as they were when the game started. Missions, the Armory and mods can still change them while you play, but none of it is saved, and the next launch starts from the same account. Settings and looks, such as your keys or your helmet, still save.
 
 It's for trying mods, the trainer or a new game mode without it counting.
 
@@ -27,7 +27,7 @@ It's for trying mods, the trainer or a new game mode without it counting.
 
 The shield fills, with a number, while any of the switches is on. Hover over it to see all three. In the profiles list, a shield marks a profile with either of the last two on, and the players icon one that blocks other players' session mods.
 
-A profile you share or import keeps the last two, and Obsidian tells you when an imported one has them on. **Block session mods from others in my public lobby** is left off in an imported profile, for each player to choose.
+A profile you share or import keeps the last two, and Obsidian tells you when an imported one has them on. **Block session mods from other players in public lobbies** is left off in an imported profile, for each player to choose.
 
 ## Always on
 

@@ -25,7 +25,7 @@ A mod can also break the rules by mistake or on purpose:
 
 When a mod starts, the loader compares the game before and after, and writes one line per mod to the loader log listing what the mod added or replaced outside the loader. That line is where to look when a mod behaves badly.
 
-A mod that wrote the save files itself, from outside the game's code, could get past **Freeze my account's progression**. Obsidian backs up the save before every deploy ([Deploy and purge](wiki:deploy-and-purge#saves)).
+A mod that wrote the save files itself, from outside the game's code, could get past **Freeze account progression**. Obsidian backs up the save before every deploy ([Deploy and purge](wiki:deploy-and-purge#saves)).
 
 > [!TIP]
 > Install mods from authors and places you trust, and read what a mod says it does. If a client mod changes things other players can see, report it to the author or on the Discord.

@@ -4,6 +4,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { ChevronIcon } from "./Icons";
+import { ScrollText } from "./ScrollText";
 
 const GAP = 4;
 const EDGE = 8;
@@ -16,6 +17,8 @@ type Props<T extends string> = {
   prefix?: string;
   label: string;
   tip?: string;
+  /** Takes the whole width of the parent; a value too long for it scrolls. */
+  fill?: boolean;
 };
 
 /** Under the button, or over it when the list doesn't fit there and there's more room above, and
@@ -37,7 +40,7 @@ export function listPlace(
   };
 }
 
-export function Select<T extends string>({ value, options, onChange, prefix, label, tip }: Props<T>) {
+export function Select<T extends string>({ value, options, onChange, prefix, label, tip, fill }: Props<T>) {
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
   const [place, setPlace] = useState<CSSProperties>({ visibility: "hidden" });
@@ -89,13 +92,13 @@ export function Select<T extends string>({ value, options, onChange, prefix, lab
   };
 
   return (
-    <div className={open ? "select open" : "select"} ref={root} onKeyDown={key}>
+    <div className={["select", open && "open", fill && "fill"].filter(Boolean).join(" ")} ref={root} onKeyDown={key}>
       <button type="button" className="select-btn" aria-haspopup="listbox" aria-expanded={open} aria-controls={list}
         aria-label={`${label}: ${current?.label ?? ""}`} data-tip-title={open || !tip ? undefined : label} data-tip={open ? undefined : tip} onClick={() => setOpen((o) => !o)}>
         {prefix && <span className="select-prefix">{prefix}</span>}
         {/* Every label sits in the same grid cell, so the button keeps the width of the widest. */}
         <span className="select-value">
-          {options.map((o) => <span key={o.value} aria-hidden={o.value !== value || undefined}>{o.label}</span>)}
+          {fill ? <ScrollText text={current?.label ?? ""} /> : options.map((o) => <span key={o.value} aria-hidden={o.value !== value || undefined}>{o.label}</span>)}
         </span>
         <ChevronIcon />
       </button>

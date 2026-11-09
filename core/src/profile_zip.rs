@@ -12,7 +12,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::images::{self, Owner};
+use crate::images;
 use crate::library::{Library, Profile};
 use crate::manifest::load_manifest;
 use crate::{ObsidianError, Result};
@@ -64,7 +64,7 @@ pub fn export(data: &Path, name: &str, dest: &Path) -> Result<usize> {
     // A save id means nothing on another PC.
     profile.save = None;
     let opts = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
-    if let Some(img) = images::custom(data, Owner::Profile, name) {
+    if let Some(img) = images::custom(data, name) {
         let ext = img.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
         z.start_file(format!("image.{ext}"), opts).map_err(zip_err)?;
         z.write_all(&std::fs::read(img)?)?;
@@ -132,7 +132,7 @@ pub fn import(data: &Path, src: &Path) -> Result<Imported> {
     profile.save_named(data, &name)?;
     let image = images::TYPES.iter().map(|ext| tmp.path().join(format!("image.{ext}"))).find(|p| p.is_file());
     if let Some(img) = image {
-        images::set(data, Owner::Profile, &name, Some(&img))?;
+        images::set(data, &name, Some(&img))?;
     }
     Ok(Imported { name, installed, kept, guardrails })
 }
@@ -165,7 +165,7 @@ mod tests {
         p.create_folder("Main", "#e8b931", &["a.on".to_string()]);
         p.save(&home).unwrap();
         put(t.path(), "pic.png", b"png");
-        images::set(&home, Owner::Profile, "Default", Some(&t.path().join("pic.png"))).unwrap();
+        images::set(&home, "Default", Some(&t.path().join("pic.png"))).unwrap();
         let zip = t.path().join("Default.zip");
         assert_eq!(export(&home, "Default", &zip).unwrap(), 1);
 
@@ -183,7 +183,7 @@ mod tests {
         assert_eq!(q.folders[0].name, "Main");
         assert!(!q.block_public, "blocking other players is each player's own choice");
         assert!(q.freeze_progress, "a guardrail only protects the player, so it comes along");
-        assert!(images::custom(&away, Owner::Profile, "Default (2)").is_some());
+        assert!(images::custom(&away, "Default (2)").is_some());
 
         // Importing again keeps the installed copy.
         let r = import(&away, &zip).unwrap();

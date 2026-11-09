@@ -108,7 +108,7 @@ const ModLine = memo(function ModLine({ id, folder, color, name, description, ve
       {tips ? (
         <button className={lose ? "bare cf-ico lose" : "bare cf-ico"} aria-label={t("app.drawer.conflicts")}
           data-tip-title={t("app.drawer.conflicts")} data-tip={tips} {...stop} onClick={() => h.current.conflicts(id)}>
-          <WarnIcon />
+          <WarnIcon filled={!lose} />
         </button>
       ) : <span />}
       {update ? (

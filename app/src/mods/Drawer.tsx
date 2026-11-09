@@ -1,6 +1,6 @@
 // The drawer beside the mod table (spec 4.2): one mod's About, Options, Keys, Files and Dependencies,
-// or the conflicts. With nothing selected it shows the conflicts; with no conflicts either, the Mods page
-// leaves it out (the user, 2026-11-04).
+// or the conflicts. With nothing selected it shows the conflicts, unless the X closed them; with no
+// conflicts either, the Mods page leaves it out (the user, 2026-11-04).
 import { useEffect, useMemo, useState } from "react";
 import { run } from "../api";
 import { openColorPicker } from "../ColorPicker";
@@ -30,15 +30,17 @@ type Props = {
   names: Map<string, string>;
   onOpen: (id: string) => void;
   onClose: () => void;
+  /** The X closed the conflicts: they stay away until a conflict icon asks for them. */
+  conflictsClosed?: boolean;
   /** New versions found by the last check, by mod id: the panel offers them too. */
   updates: Record<string, string>;
   onUpdate: (id: string) => void;
 };
 
-export function Drawer({ view, mods, conflicts, order, names, onOpen, onClose, updates, onUpdate }: Props) {
+export function Drawer({ view, mods, conflicts, order, names, onOpen, onClose, conflictsClosed, updates, onUpdate }: Props) {
   const mod = view?.kind === "mod" ? mods.find((m) => m.id === view.id) : undefined;
   if (mod) return <ModDrawer key={mod.id} mod={mod} mods={mods} conflicts={conflicts} names={names} onOpen={onOpen} onClose={onClose} update={offered(updates, mod)} onUpdate={() => onUpdate(mod.id)} />;
-  if (view?.kind === "conflicts" || conflicts.length) return <ConflictsView conflicts={conflicts} order={order} names={names} focus={view?.kind === "conflicts" ? view.focus : undefined} onClose={view ? onClose : undefined} />;
+  if (view?.kind === "conflicts" || (conflicts.length && !conflictsClosed)) return <ConflictsView conflicts={conflicts} order={order} names={names} focus={view?.kind === "conflicts" ? view.focus : undefined} onClose={onClose} />;
   return null;
 }
 
@@ -55,7 +57,7 @@ function ModDrawer({ mod, mods, conflicts, names, onOpen, onClose, update, onUpd
   return (
     <aside className={`drawer ${mod.scope}`} aria-label={name}>
       <div className="dh">
-        <Thumb image={mod.image} name={name} size="lg" pick={{ owner: "mod", key: mod.id, custom: mod.customImage }} />
+        <Thumb image={mod.image} name={name} size="lg" zoom />
         <div className="dh-text">
           <h2>{name}</h2>
           <div className="meta">
@@ -110,7 +112,7 @@ function OptionsTab({ mod }: { mod: ModRow }) {
   const own = ownOptions(mod);
   if (!own.length) return <p className="muted pad">{t("app.drawer.noOptions")}</p>;
   return (
-    <ul className="opts">
+    <ul className="opts opt-table">
       {own.filter((o) => o.visible).map((o) => (
         <li key={o.id} className="opt">
           <div className="opt-text">
@@ -118,8 +120,8 @@ function OptionsTab({ mod }: { mod: ModRow }) {
             {pick(o.description) && <div className="d">{pick(o.description)}</div>}
             {o.deploy && <div className="d note">{t("app.drawer.afterDeploy")}</div>}
           </div>
-          <div className="opt-ctl">
-            <OptionControl mod={mod} o={o} />
+          <div className="opt-cell"><OptionControl mod={mod} o={o} /></div>
+          <div className="opt-cell">
             <button className="bare" disabled={same(o.value, o.default)} onClick={() => run("set_option", { id: mod.id, option: o.id, value: null })}
               aria-label={t("app.drawer.reset")} data-tip={t("app.drawer.reset")}><ResetIcon /></button>
           </div>
@@ -136,7 +138,7 @@ function OptionControl({ mod, o }: { mod: ModRow; o: OptionRow }) {
     return <button role="switch" aria-checked={o.value === true} aria-label={label} className={o.value === true ? "sw on" : "sw"} onClick={() => set(o.value !== true)} />;
   }
   if (o.kind === "choice") {
-    return <Select value={String(o.value)} options={o.choices.map((c, i) => ({ value: c, label: pick(o.choiceLabels[i], c) }))} label={label} onChange={set} />;
+    return <Select value={String(o.value)} options={o.choices.map((c, i) => ({ value: c, label: pick(o.choiceLabels[i], c) }))} label={label} onChange={set} fill />;
   }
   if (o.kind === "color") {
     return (
@@ -400,7 +402,7 @@ function OverrideEntry({ o, at, names, focus }: { o: Override; at: (id: string) 
   );
 }
 
-function ConflictsView({ conflicts, order, names, focus, onClose }: { conflicts: ConflictRow[]; order: string[]; names: Map<string, string>; focus?: string; onClose?: () => void }) {
+function ConflictsView({ conflicts, order, names, focus, onClose }: { conflicts: ConflictRow[]; order: string[]; names: Map<string, string>; focus?: string; onClose: () => void }) {
   const at = (id: string) => order.indexOf(id) + 1;
   const involves = (o: Override) => o.winner === focus || o.loser === focus;
   // Those of the mod the panel was opened for come first.
@@ -412,7 +414,7 @@ function ConflictsView({ conflicts, order, names, focus, onClose }: { conflicts:
           <h2 className="cap">{t("app.drawer.conflicts")}</h2>
           <div className="meta">{t("app.drawer.conflictsMeta")}</div>
         </div>
-        {onClose && <button className="bare" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /></button>}
+        <button className="bare" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /></button>
       </div>
       <div className="dbody">
         {list.length === 0 && <p className="muted pad">{t("app.drawer.noConflicts")}</p>}

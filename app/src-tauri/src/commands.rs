@@ -229,12 +229,11 @@ pub async fn delete_profile(ctx: State<'_, Ctx>, name: String) -> CmdResult<Snap
     live_edit(&ctx, |_, _| Ok(()))
 }
 
-/// Sets the player's image for a mod or a profile (`owner` "mod" or "profile"), or removes it.
+/// Sets the image of the profile `key`, or removes it.
 #[tauri::command]
-pub async fn set_image(ctx: State<'_, Ctx>, owner: String, key: String, path: Option<PathBuf>) -> CmdResult<Snapshot> {
+pub async fn set_image(ctx: State<'_, Ctx>, key: String, path: Option<PathBuf>) -> CmdResult<Snapshot> {
     let _turn = ctx.turn();
-    let owner = if owner == "profile" { images::Owner::Profile } else { images::Owner::Mod };
-    images::set(&ctx.data, owner, &key, path.as_deref())?;
+    images::set(&ctx.data, &key, path.as_deref())?;
     fresh(&ctx)
 }
 

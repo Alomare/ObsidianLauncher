@@ -8,7 +8,7 @@ summary: Matchmaking, public lobbies, and when session mods run in a lobby.
 
 Obsidian holds session mods back only in public lobbies, where you can end up with strangers. In a lobby set to friends only or private, everyone chose who to play with, so session mods run there with anyone, vanilla players included.
 
-**Block session mods from others in my public lobby** is one of the switches in [Guardrails](wiki:guardrails), at the top of the window. The switch is off by default, belongs to the active profile and applies from the next launch. With it on, other players' session mods switch off while you're in a public lobby with them. It doesn't decide whether your own session mods run.
+**Block session mods from other players in public lobbies** is one of the switches in [Guardrails](wiki:guardrails), at the top of the window. The switch is off by default, belongs to the active profile and applies from the next launch. With it on, other players' session mods switch off while you're in a public lobby with them. It doesn't decide whether your own session mods run.
 
 ## Matchmaking
 

@@ -19,7 +19,7 @@ export type ModRow = {
   id: string; name: Localized; description: Localized; authors: string[];
   version: string | null; scope: Scope; on: boolean;
   options: OptionRow[]; keybinds: KeyRow[]; files: string[];
-  import: ImportInfo | null; source: string | null; updatable: boolean; image: ImageRef | null; customImage: boolean;
+  import: ImportInfo | null; source: string | null; updatable: boolean; image: ImageRef | null;
   folder: string | null; requires: string[];
 };
 export type Folder = { id: string; name: string; color: string; collapsed: boolean; locked: boolean };

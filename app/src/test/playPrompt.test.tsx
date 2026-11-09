@@ -22,7 +22,7 @@ const { go } = await import("../nav");
 
 const mod = (id: string, on: boolean): ModRow => ({
   id, name: { en: id }, description: {}, authors: [], version: "1.0.0", scope: "client", on, options: [], keybinds: [], files: [],
-  import: null, source: null, updatable: false, image: null, customImage: false, folder: null, requires: [],
+  import: null, source: null, updatable: false, image: null, folder: null, requires: [],
 });
 /** `deployed` is what the app tracks of the last deploy; `on` is the switch of the one mod in the list. */
 const snap = ({ deployed, on }: { deployed: boolean; on: boolean }): Snapshot => ({
@@ -89,7 +89,7 @@ describe("Play with nothing deployed", () => {
   it("asks first, with the question, Yes and No, and plays only on Yes", async () => {
     await open(snap({ deployed: false, on: true }), settings(true));
     await press(playButton());
-    expect(prompt()?.querySelector("p")?.textContent).toBe("You have not deployed any mods, so your game is vanilla. Play anyway?");
+    expect(prompt()?.querySelector("p")?.textContent).toBe("No mods are deployed, so the game is vanilla. Play anyway?");
     expect([...document.querySelectorAll(".modal-foot .btn")].map((b) => b.textContent)).toEqual(["No", "Yes"]);
     expect(dontAsk()?.textContent).toBe("Don't ask again");
     expect(dontAsk()?.getAttribute("aria-checked")).toBe("false");

@@ -58,6 +58,8 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState<Node[] | null>(null);
   const [view, setView] = useState<DrawerView>(null);
+  /** The X on the conflicts closes them; a conflict icon on a row brings them back. */
+  const [conflictsClosed, setConflictsClosed] = useState(false);
   const [profiles, setProfiles] = useState(false);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [menu, setMenu] = useState<{ x: number; y: number; up?: boolean; target: MenuTarget } | null>(null);
@@ -245,9 +247,14 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
   const selUpdatable = sel.filter((id) => byId.get(id)?.updatable);
   const checkingUpdates = modUpdates.checking.length > 0;
   const waiting = snap.mods.filter((m) => offered(modUpdates.found, m)).map((m) => m.id);
+  const allUpdatable = snap.mods.filter((m) => m.updatable).map((m) => m.id);
   const askFolder = ask?.kind === "editFolder" || ask?.kind === "deleteFolder" ? folderOf(ask.id) : undefined;
   // The panel shows a selected mod, or the conflicts; with neither, the list takes the whole width.
-  const panel = (view?.kind === "mod" && snap.mods.some((m) => m.id === view.id)) || view?.kind === "conflicts" || shownConflicts.length > 0;
+  const panel = (view?.kind === "mod" && snap.mods.some((m) => m.id === view.id)) || view?.kind === "conflicts" || (shownConflicts.length > 0 && !conflictsClosed);
+  const closeDrawer = () => {
+    if (view?.kind !== "mod") setConflictsClosed(true);
+    setView(null);
+  };
 
   return (
     <div className="mods">
@@ -267,6 +274,12 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
             <SortIcon />
           </button>
         )}
+        {allUpdatable.length > 0 && (
+          <button className={checkingUpdates ? "btn icon head-tool busy" : "btn icon head-tool"} disabled={checkingUpdates} aria-busy={checkingUpdates} onClick={() => checkModUpdates(allUpdatable, names)}
+            aria-label={t("app.mods.checkAllUpdates")} data-tip-title={t("app.mods.checkAllUpdates")} data-tip={t("app.mods.checkUpdatesHint")}>
+            <UpdateIcon />
+          </button>
+        )}
         <button className="btn icon head-tool" onClick={() => setAsk({ kind: "newFolder", ids: [] })} aria-haspopup="dialog" aria-label={t("app.mods.createFolder")} data-tip-title={t("app.mods.createFolder")} data-tip={t("app.folder.newHint")}>
           <FolderAddIcon />
         </button>
@@ -281,11 +294,11 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
           {query && <button className="bare" onClick={() => setQuery("")} aria-label={t("app.mods.clearSearch")} data-tip={t("app.mods.clearSearch")}><CloseIcon /></button>}
         </label>
         {waiting.length > 0 && <button className="btn play head-update" onClick={() => updateMods(waiting, names)}><UpdateIcon />{t("app.mods.updateAll", waiting.length)}</button>}
-        <div className="actions head-actions">
-          <button className={snap.deployed ? "btn icon danger" : "btn icon"} onClick={onPurge} disabled={locked} data-tip-title={t("app.action.purge")} data-tip={lockedWhy ?? t("app.action.purgeHint")} aria-label={t("app.action.purge")}>
+        <div className="head-actions">
+          <button className={snap.deployed ? "btn icon head-tool danger" : "btn icon head-tool"} onClick={onPurge} disabled={locked} data-tip-title={t("app.action.purge")} data-tip={lockedWhy ?? t("app.action.purgeHint")} aria-label={t("app.action.purge")}>
             <PurgeIcon />
           </button>
-          <button className={changesWaiting ? "btn icon go" : "btn icon"} onClick={onDeploy} disabled={locked} data-tip-title={t("app.action.deploy")}
+          <button className={changesWaiting ? "btn icon head-tool head-deploy go" : "btn icon head-tool head-deploy"} onClick={onDeploy} disabled={locked} data-tip-title={t("app.action.deploy")}
             data-tip={lockedWhy ?? (changesWaiting ? t("app.action.deployWaiting") : t(`app.action.deploy${snap.changes ?? "UpToDate"}`))} aria-label={t("app.action.deploy")}>
             <DeployIcon />
           </button>
@@ -324,13 +337,13 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
                 <span className="batch-sep" aria-hidden="true" />
                 <button className="btn small icon" onClick={() => run("set_enabled", { ids: sel, on: true })} aria-label={t("app.menu.enable")} data-tip={t("app.menu.enable")}><SwitchOnIcon /></button>
                 <button className="btn small icon" onClick={() => run("set_enabled", { ids: sel, on: false })} aria-label={t("app.menu.disable")} data-tip={t("app.menu.disable")}><SwitchOffIcon /></button>
-                <button className={checkingUpdates ? "btn small busy" : "btn small"} disabled={!selUpdatable.length || checkingUpdates} aria-busy={checkingUpdates}
+                <button className={checkingUpdates ? "btn small icon gold busy" : "btn small icon gold"} disabled={!selUpdatable.length || checkingUpdates} aria-busy={checkingUpdates} aria-label={t("app.mods.checkUpdates")}
                   data-tip-title={t("app.mods.checkUpdates")} data-tip={selUpdatable.length ? t("app.mods.checkUpdatesHint") : t("app.mods.checkUpdatesNone")}
                   onClick={() => checkModUpdates(selUpdatable, names, { what: selUpdatable.length === 1 ? names.get(selUpdatable[0]) : undefined })}>
-                  <UpdateIcon />{t("app.mods.checkUpdates")}
+                  <UpdateIcon />
                 </button>
                 <span className="batch-sep" aria-hidden="true" />
-                <button className="btn small danger" onClick={() => setAsk({ kind: "remove", ids: sel })}><TrashIcon />{t("app.menu.remove")}</button>
+                <button className="btn small icon danger" onClick={() => setAsk({ kind: "remove", ids: sel })} aria-label={t("app.menu.remove")} data-tip={t("app.menu.remove")}><TrashIcon /></button>
                 <button className="bare batch-x" onClick={() => setChecked(new Set())} aria-label={t("app.mods.uncheck")} data-tip={t("app.mods.uncheck")}><CloseIcon /></button>
               </div>
             </div>
@@ -349,7 +362,7 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
           <>
             <div className="split" role="separator" aria-orientation="vertical" aria-label={t("app.mods.resize")} onPointerDown={resize}
               onDoubleClick={() => { setWidth(0); try { localStorage.removeItem(DRAWER_KEY); } catch { /* fine */ } }} data-tip={t("app.mods.resizeHint")} />
-            <Drawer view={view} mods={snap.mods} conflicts={shownConflicts} order={order} names={names} onOpen={(id) => setView({ kind: "mod", id })} onClose={() => setView(null)}
+            <Drawer view={view} mods={snap.mods} conflicts={shownConflicts} order={order} names={names} onOpen={(id) => setView({ kind: "mod", id })} onClose={closeDrawer} conflictsClosed={conflictsClosed}
               updates={modUpdates.found} onUpdate={(id) => setAsk({ kind: "update", id })} />
           </>
         )}

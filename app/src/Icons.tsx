@@ -55,7 +55,10 @@ export const PurgeIcon = () => <Icon width="22.7" height="22.7" strokeWidth="2">
 /** A box with an arrow leaving it: the mods go out into the game. Drawn like Purge. */
 export const DeployIcon = () => <Icon width="24" height="24" strokeWidth="1.9"><path d="M9.5 9l6.5 3.5v7L9.5 23 3 19.5v-7z" /><path d="M3 12.5l6.5 3.5 6.5-3.5M9.5 16v7" /><path d="M13.5 9.5L21 2M15.5 2H21v5.5" /></Icon>;
 export const PlayIcon = () => <Icon fill="currentColor" stroke="none"><path d="M7 4.5v15l13-7.5z" /></Icon>;
-export const WarnIcon = () => <Icon><path d="M12 3l10 18H2zM12 10v5M12 17.5v.5" /></Icon>;
+/** A triangle with a mark; `filled` makes it solid, with the mark cut out in the color of the panels. */
+export const WarnIcon = ({ filled }: { filled?: boolean }) => (
+  <Icon><path d="M12 3l10 18H2z" fill={filled ? "currentColor" : undefined} /><path d="M12 10v5M12 17.5v.5" stroke={filled ? "var(--s2)" : undefined} /></Icon>
+);
 export const SearchIcon = () => <Icon><circle cx="11" cy="11" r="7" /><path d="M20 20l-4-4" /></Icon>;
 export const UpArrowIcon = () => <Icon strokeWidth="3"><path d="M12 20V5M6 11l6-6 6 6" /></Icon>;
 export const ArrowIcon = () => <Icon><path d="M4 12h15M13 6l6 6-6 6" /></Icon>;

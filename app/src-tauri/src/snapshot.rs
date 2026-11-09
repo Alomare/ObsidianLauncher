@@ -9,7 +9,7 @@ use obsidian_core::deploy::{ChangesWaiting, UncleanEnd, changes_waiting_for, cra
 use obsidian_core::game::{GameInstall, find_game, is_running};
 use obsidian_core::gate::{KNOWN_BUILDS, check_build};
 use obsidian_core::hash::{display_name, display_text};
-use obsidian_core::images::{self, Owner};
+use obsidian_core::images;
 use obsidian_core::library::{BrokenMod, ImportInfo, Library, Profile};
 use obsidian_core::manifest::{Localized, Manifest};
 use obsidian_core::options::{OptionKind, effective_values, parse_keybinds};
@@ -98,8 +98,6 @@ pub struct ModRow {
     /// `source` is a repository the mod can update from.
     pub updatable: bool,
     pub image: Option<ImageRef>,
-    /// The image is the player's own, not the mod's.
-    pub custom_image: bool,
     /// The folder the mod sits in, by id.
     pub folder: Option<String>,
     /// Ids of the mods this one needs.
@@ -300,7 +298,6 @@ pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Re
         }
     }
 
-    let mod_images = images::all_custom(data, Owner::Mod);
     let mut mods = Vec::new();
     for e in &profile.mods {
         let Some(m) = manifests.get(&e.id) else { continue };
@@ -330,8 +327,7 @@ pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Re
             import: lib.import_info(&m.id),
             source: m.extra.get("source").and_then(Value::as_str).map(str::to_string),
             updatable: obsidian_core::updates::source_of(m).is_some(),
-            image: image_ref(mod_images.get(&m.id).cloned().or_else(|| images::from_manifest(&lib, m))),
-            custom_image: mod_images.contains_key(&m.id),
+            image: image_ref(images::from_manifest(&lib, m)),
             folder: e.folder.clone(),
             requires: m.requires.clone(),
         });
@@ -357,7 +353,7 @@ pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Re
             .map(|name| {
                 let p = Profile::load_named(data, &name).unwrap_or_default();
                 let on = p.mods.iter().filter(|e| e.enabled && manifests.contains_key(&e.id)).count();
-                let image = image_ref(images::custom(data, Owner::Profile, &name));
+                let image = image_ref(images::custom(data, &name));
                 ProfileRow { name, on, block_public: p.block_public, guarded: p.block_achievements || p.freeze_progress, image, color: p.color }
             })
             .collect(),

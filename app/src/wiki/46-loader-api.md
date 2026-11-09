@@ -69,7 +69,7 @@ To run only when every player has your mod, set [`every_player`](wiki:session-mo
 
 ### obsidian.session.forfeit_progress(), release_progress(key) and hold_progress()
 
-These do nothing. A player's own save is theirs, so Obsidian holds none of a mission's progress back, whatever the mods do. They stay so mods that call them keep working. Only Galactic War and leaderboard reports stay blocked, while session content is deployed and for missions the content of an expansion ran in ([The Galactic War](wiki:galactic-war)). To play without a mission counting, a player switches on **Freeze my account's progression** in [Guardrails](wiki:guardrails).
+These do nothing. A player's own save is theirs, so Obsidian holds none of a mission's progress back, whatever the mods do. They stay so mods that call them keep working. Only Galactic War and leaderboard reports stay blocked, while session content is deployed and for missions the content of an expansion ran in ([The Galactic War](wiki:galactic-war)). To play without a mission counting, a player switches on **Freeze account progression** in [Guardrails](wiki:guardrails).
 
 ### obsidian.guardrails()
 
