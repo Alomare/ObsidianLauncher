@@ -26,7 +26,9 @@ const FONT_BASE: &str = "obsidian/fonts";
 pub const ENTRY: &str = "foundation/lua/build_date_information";
 /// The start of `BUILD_REVISION_INFORMATION` on the supported build.
 pub const REVISION: &str = "parent: 32148:3bd83d77c8ae";
-const LANGUAGES: [&str; 4] = ["en", "fr", "es", "pt-BR"];
+/// The languages of the game, by the name a catalog file has in a mod's `locales` folder. The loader
+/// maps the game's own codes to these.
+const LANGUAGES: [&str; 17] = ["en", "fr", "es", "pt-BR", "de", "it", "ru", "pl", "ko", "ja", "zh-CN", "zh-TW", "sv", "da", "nl", "fi", "no"];
 
 /// `rel` in the app's resources, beside the exe, then in this workspace. Debug builds look in the
 /// workspace first: the copy beside a dev exe is only refreshed when the Rust side rebuilds, so it
@@ -81,10 +83,11 @@ fn deployed_fonts(comp: &Composition) -> (Vec<String>, Vec<String>) {
         if r.bundle.as_deref() != Some(BUNDLE) || !planned.iter().any(|p| p.type_hash == r.type_hash && p.name_hash == r.name_hash) {
             continue;
         }
-        match r.type_text.as_str() {
-            "material" => files.push(r.name_text.clone()),
-            "font" => paths.push(r.name_text.clone()),
-            _ => {}
+        // By the hash: a manifest can write the type as "#eac0b497876adedf".
+        if r.type_hash == hash_name("material") {
+            files.push(r.name_text.clone());
+        } else if r.type_hash == hash_name("font") {
+            paths.push(r.name_text.clone());
         }
     }
     (files, paths)
@@ -871,6 +874,37 @@ mod tests {
         let table = deploy_table(&compose(&lib, &profile).unwrap(), json!({})).unwrap();
         assert_eq!(table["font_files"], json!(["a/fonts/fonts"]));
         assert_eq!(table["font_paths"], json!(["a/fonts/good"]), "what isn't loaded for sure stays out");
+    }
+
+    #[test]
+    fn a_boot_material_written_by_hash_is_still_a_material() {
+        let t = spaced_tempdir();
+        let lib = Library::open(&t.path().join("data")).unwrap();
+        let d = t.path().join("stage");
+        let json = format!(
+            r##"{{"obsidian":1,"id":"a.hash","version":"1.0.0","name":{{"en":"x"}},"entry":"main.lua","resources":[
+            {{"type":"#{:016x}","name":"a/icons","bundle":"{BUNDLE}","data":"f"}}]}}"##,
+            hash_name("material")
+        );
+        put(&d, "obsidian.json", json.as_bytes());
+        put(&d, "main.lua", b"return true\n");
+        put(&d, "f", b"x");
+        lib.install(&d).unwrap();
+        let profile = Profile { mods: vec![ProfileEntry { id: "a.hash".into(), enabled: true, folder: None }], ..Default::default() };
+        let table = deploy_table(&compose(&lib, &profile).unwrap(), json!({})).unwrap();
+        assert_eq!(table["font_files"], json!(["a/icons"]));
+    }
+
+    #[test]
+    fn a_mods_catalogs_reach_the_game_in_every_language_the_game_has() {
+        let t = spaced_tempdir();
+        for (lang, text) in [("en", "hi"), ("ru", "privet"), ("zh-CN", "ni hao"), ("xx", "unknown")] {
+            put(t.path(), &format!("locales/{lang}.json"), format!(r#"{{"hello":"{text}"}}"#).as_bytes());
+        }
+        let texts = read_texts(&t.path().join("locales")).unwrap();
+        assert_eq!(texts["ru"]["hello"], "privet");
+        assert_eq!(texts["zh-CN"]["hello"], "ni hao");
+        assert!(texts.get("xx").is_none(), "a file that names no language of the game stays out");
     }
 
     #[test]

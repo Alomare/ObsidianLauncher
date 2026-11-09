@@ -418,8 +418,12 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
         while taken.contains(&slot) {
             slot += 1;
         }
-        if taken.iter().any(|&n| n > slot) {
-            return Err(ObsidianError::ForeignPatchGap { bundle: bundle.clone(), missing: slot });
+        // The game reads patches from 0 up and stops at a missing number: Obsidian's fills one hole, and
+        // a hole left after that hides what is above it. A patch dropped in by hand above Obsidian's,
+        // as some mods' readmes say to do, stays there and wins over Obsidian's.
+        let last = taken.iter().copied().max().unwrap_or(0);
+        if let Some(missing) = (0..=last).find(|n| !taken.contains(n) && *n != slot) {
+            return Err(ObsidianError::ForeignPatchGap { bundle: bundle.clone(), missing });
         }
         plan.push((bundle, base, contents.join(format!("{bundle}.patch_{slot}"))));
     }
@@ -1037,9 +1041,32 @@ mod tests {
     fn foreign_gap_is_refused() {
         let w = world();
         bundle::write_file(&patch(&w, "00000000000000aa.patch_0"), &base(7)).unwrap();
+        bundle::write_file(&patch(&w, "00000000000000aa.patch_3"), &base(8)).unwrap();
+        assert!(matches!(deploy(&w.game, &w.data, &w.opts), Err(ObsidianError::ForeignPatchGap { missing: 2, .. })));
+        assert!(!patch(&w, "00000000000000bb.patch_0").exists());
+    }
+
+    #[test]
+    fn a_hand_placed_patch_above_obsidians_keeps_its_number() {
+        let w = world();
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        // A mod's readme: copy the file in as patch_1, on top of what Obsidian wrote.
+        bundle::write_file(&patch(&w, "00000000000000aa.patch_1"), &base(8)).unwrap();
+        // Another set of mods, so the deploy writes the patches again.
+        let mut p = Profile::load(&w.data).unwrap();
+        p.set_enabled("mod-bb", false).unwrap();
+        p.save(&w.data).unwrap();
+        let r = deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert!(!r.unchanged);
+        assert!(r.patches.contains(&patch(&w, "00000000000000aa.patch_0")), "{:?}", r.patches);
+        assert!(patch(&w, "00000000000000aa.patch_1").exists(), "foreign patches stay");
+    }
+
+    #[test]
+    fn a_foreign_patch_with_nothing_below_it_is_refused() {
+        let w = world();
         bundle::write_file(&patch(&w, "00000000000000aa.patch_2"), &base(8)).unwrap();
         assert!(matches!(deploy(&w.game, &w.data, &w.opts), Err(ObsidianError::ForeignPatchGap { missing: 1, .. })));
-        assert!(!patch(&w, "00000000000000bb.patch_0").exists());
     }
 
     #[test]

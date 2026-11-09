@@ -89,7 +89,7 @@ function M.language()
 end
 api.language = M.language
 
--- Words for a game text key, which the game then shows in place of its own text.
+-- Words for a game text key, which the game then shows instead of the text the game has.
 function api.game_text(key, words)
 	return game_text.set(M, hooks, key, words)
 end

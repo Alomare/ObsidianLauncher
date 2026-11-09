@@ -3,7 +3,7 @@
 local B = require("obsidian/loader/builtins")
 local log = require("obsidian/loader/log")
 
-local M = { pending = {}, requires = {}, fired = {}, frame_fns = {}, frame_installed = false }
+local M = { pending = {}, requires = {}, fired = {}, seen = {}, values = {}, frame_fns = {}, frame_installed = false }
 
 function M.setup(core, session)
 	M.core, M.session = core, session
@@ -73,7 +73,17 @@ function M.on_require(name, fn)
 		list = {}
 		M.requires[name] = list
 	end
-	B.insert(list, { state = M.core.current, fn = fn })
+	local cb = { state = M.core.current, fn = fn }
+	B.insert(list, cb)
+	-- Too late for the load: called now, with what the load gave.
+	local value, loaded = M.values[name], M.seen[name]
+	if not loaded then
+		local package = B.rawget(B.G, "package")
+		if B.type(package) == "table" and B.type(package.loaded) == "table" and package.loaded[name] ~= nil then
+			value, loaded = package.loaded[name], true
+		end
+	end
+	if loaded then M.core.call(cb.state, "on_require " .. B.tostring(name), cb.fn, value) end
 end
 
 local function resolve_pending()
@@ -119,6 +129,7 @@ function M.wrap_require()
 	local original = B.require
 	B.rawset(B.G, "require", function(name, ...)
 		local r = pack(original(name, ...))
+		M.seen[name], M.values[name] = true, r[1]
 		local list = M.requires[name]
 		if list and not M.fired[name] then
 			M.fired[name] = true

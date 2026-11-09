@@ -454,6 +454,18 @@ test("on_require_fires_after_module_loads", function()
 	E.eq(rawget(_G, "GOT"), "value")
 end)
 
+test("on_require_fires_at_once_for_a_module_already_loaded", function()
+	local e = engine(nil, { mods = { E.mod("c") } }, { ["obsidian/mods/c/main"] = "LATE = function() obsidian.on_require('lua/thing', function(v) rawset(_G, 'GOT', v) end) end" })
+	e.opts.modules["lua/thing"] = "value"
+	rawget(_G, "require")("lua/thing")
+	E.eq(rawget(_G, "GOT"), nil)
+	-- Registered from code the game runs later, long after the script loaded.
+	e:core().current = e:core().mods_by_id["c"]
+	rawget(_G, "LATE")()
+	e:core().current = nil
+	E.eq(rawget(_G, "GOT"), "value")
+end)
+
 test("on_session_fires_on_change_only", function()
 	local lobby = { my_id = "me", members = { "me" }, data = {} }
 	local e = engine(lobby, { mods = { E.mod("s", { scope = "session" }) } },

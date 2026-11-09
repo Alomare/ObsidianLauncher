@@ -109,8 +109,12 @@ function M.load(core, path)
 end
 
 -- The value of one option of the calling mod: the checked value from the file, else the default.
-function M.get(id)
-	local state = M.core and M.core.current
+-- mod_id: read that mod's option instead, for code that runs outside the mod, such as a game script
+-- the mod replaces.
+function M.get(id, mod_id)
+	local core = M.core
+	local state = core and core.current
+	if mod_id ~= nil then state = core and core.mods_by_id[B.tostring(mod_id)] or nil end
 	if not state then return nil end
 	local opt = find(state.mod.options, id)
 	if not opt then return nil end

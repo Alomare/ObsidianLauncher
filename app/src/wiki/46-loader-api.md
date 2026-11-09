@@ -31,7 +31,7 @@ The same as `obsidian.hook`, with the same safety if `fn` fails, except that it 
 
 ### obsidian.on_require(name, fn)
 
-Calls `fn(module)` when the game loads the script `name`, such as `"lua/settings/perk_settings"`. Use it to change a settings table right after the game builds it.
+Calls `fn(module)` when the game loads the script `name`, such as `"lua/settings/perk_settings"`. Use it to change a settings table right after the game builds it. When the script has already loaded, `fn` runs at once.
 
 ### obsidian.on_frame(fn)
 
@@ -43,9 +43,9 @@ Calls `fn` once every mod has started, so mods can work together without dependi
 
 ## Settings and keys
 
-### obsidian.settings.get(id)
+### obsidian.settings.get(id, mod_id)
 
-The value of option `id` of this mod: the one the player chose in the app, or the default ([Options and keys](wiki:options-and-keys)).
+The value of option `id` of this mod: the one the player chose in the app, or the default ([Options and keys](wiki:options-and-keys)). A game script your mod replaces runs outside the mod, so give the id of the mod as `mod_id` there.
 
 ### obsidian.keybind(id, fn, opts)
 
@@ -99,7 +99,15 @@ Ends the content, on the host's game. Answers `true`, or `false` and `"not_runni
 
 ### obsidian.text(key, ...)
 
-The text `key` from the `locales` folder of the mod, in the language of the game, with English as the fallback. Extra arguments fill `%s` and `%d` placeholders.
+The text `key` from the `locales` folder of the mod, in the language of the game, with English as the fallback. Extra arguments fill `%s` and `%d` placeholders. A catalog is named for the language: `en.json`, `fr.json`, `es.json`, `pt-BR.json`, `de.json`, `it.json`, `ru.json`, `pl.json`, `ko.json`, `ja.json`, `zh-CN.json`, `zh-TW.json`, `sv.json`, `da.json`, `nl.json`, `fi.json` or `no.json`.
+
+### obsidian.language()
+
+The language the game runs in, by those same names, such as `"ru"`. `"en"` for a language Obsidian doesn't know. Check `obsidian.capabilities.language` on an older loader.
+
+### obsidian.game_text(key, words)
+
+Makes the game show `words` for one of the game's text keys, or for a key your mod invents, such as the title of a new rank. `words` is a string, or a table by language such as `{ en = "Warden", ru = "Страж" }`, which falls back to English. `nil` gives the key back to the game. Answers `false` for anything else. A text is only what this player sees, so it keeps working while the lobby isn't cleared. Check `obsidian.capabilities.game_text` on an older loader.
 
 ### obsidian.log(...)
 
@@ -317,7 +325,11 @@ kit:text("HELLDIVERS", 100, 200, { font = "title" })
 
 ### obsidian.ui.art(name, opts)
 
-Adds a sub-material of a material your mod ships in the boot bundle, for `kit:art`. `opts.path` is the material's resource name. The answer is `false` for a material the deploy doesn't have.
+Adds a sub-material of a material your mod ships in the boot bundle, for `kit:art`. `opts.path` is the material's resource name. The answer is `false` for a material the deploy doesn't have, or when you ask for a new material after the game has started drawing, so ask while your mod starts.
+
+### obsidian.ui.list_with(path, with)
+
+Makes every gui the game creates that lists the material `with` list `path` too, so the game can draw a sub-material of `path` where it draws the ones of `with`. `with` is `"hud/hud"` if you leave it out, the material that holds the rank and stratagem icons. `path` is a material your mod ships in the boot bundle, and the answer is `false` for one the deploy doesn't have. Call it while your mod starts, before the game makes the guis. Put many icons in one material and list that one.
 
 ### obsidian.ui.frame(w, h), safe()
 
@@ -349,7 +361,7 @@ Values a player should be able to edit in the save editor go in the [`save_edito
 
 `obsidian.version` is the API version, `1` today. A mod that needs a newer API sets `loader_api` in `obsidian.json`, and older loaders refuse to start it.
 
-`obsidian.capabilities` is a read-only table of what the running loader supports, one entry per feature: `hook`, `on_require`, `on_frame`, `on_session`, `after_startup`, `settings`, `keybind`, `session`, `text`, `log`, `module`, `import`, `caller`, `info`, `menu`, `toast`, `notify`, `storage`, `save_data`, `ui`, `expansion`. Test a feature by name before using one that came later:
+`obsidian.capabilities` is a read-only table of what the running loader supports, one entry per feature: `hook`, `on_require`, `on_frame`, `on_session`, `after_startup`, `settings`, `keybind`, `session`, `text`, `log`, `module`, `import`, `caller`, `info`, `menu`, `toast`, `notify`, `storage`, `save_data`, `ui`, `expansion`, `language`, `game_text`. Test a feature by name before using one that came later:
 
 ```lua
 if obsidian.capabilities.on_frame then
