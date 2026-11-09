@@ -7862,4 +7862,96 @@ test("without_save_data_the_unlocks_stay_in_the_loaders_storage_and_a_sandbox_is
 	E.eq(api.catalog.unlocked("test_manual"), true)
 end)
 
+-- The Third Person Camera mod: a level camera at (0, 0, 20) looking along +y, with a projection that
+-- mirrors a point behind it, as a real one does.
+local function level_camera()
+	local V = rawget(_G, "Vector3")
+	return { get_camera = function() return "camera" end,
+		screen_to_world = function() return V(0, 10, 20) end,
+		world_to_viewport = function(_, p)
+			local d = p.y ~= 0 and p.y or 0.001
+			return { x = 960 + p.x / d * 500, y = d, z = 540 + (p.z - 20) / d * 500 }
+		end }
+end
+
+test("a_bot_behind_a_level_camera_gets_the_arrow_on_its_side_and_no_mirrored_name", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	rawset(_G, "Vector2", function(x, y) return { x = x, y = y } end)
+	api.bots.add({ bare = true, name = "Back" })
+	local u = game.bare
+	body_health(u)
+	local arrows, texts = {}, {}
+	local gui = { screen_resolution = { width = 1920, height = 1080 }, ui_scale = 1 }
+	function gui:set_current_font() end
+	function gui:set_ignore_position_scale() end
+	function gui:set_ignore_size_scale() end
+	function gui:text(text, pos) texts[#texts + 1] = { text = text, pos = pos } end
+	function gui:rotated_image(name, pos) arrows[#arrows + 1] = { name = name, pos = pos } end
+	local hud = { hd_gui = gui, plugins_enabled = true, gui_metrics_cacher = { get_text_extents = function() return 60, 20 end } }
+	local view = level_camera()
+	rawget(_G, "CameraManager").get_viewport = function() return view end
+	u.pos = { x = 2, y = 10, z = 20 }
+	rawget(_G, "Hud").update(hud, 0.016)
+	E.eq(#arrows, 0, "in front: the name only")
+	E.eq(texts[1].pos.x, 1060 - 30 + 6)
+	-- Two metres right and ten behind: the projection puts it left of the middle, on the screen.
+	u.pos = { x = 2, y = -10, z = 20 }
+	arrows, texts = {}, {}
+	rawget(_G, "Hud").update(hud, 0.016)
+	E.eq(#arrows, 1, "behind: the arrow, not a name over the mirrored spot")
+	E.eq(arrows[1].pos.x > 960, true, "on the right, where the bot is")
+end)
+
+test("the_third_person_cameras_pad_input_passes_over_the_bots", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add({ name = "Dummy" })
+	local u = game.land(2)
+	local cm = rawget(_G, "CameraManager")
+	local human, seen, extra = { pos = { x = 0, y = 0, z = 0 } }, {}, {}
+	function cm:mod_split_extra() return false end
+	function cm:mod_split_input(unit) seen[#seen + 1] = { "split", unit } end
+	function cm:mod_note_local(unit) seen[#seen + 1] = { "note", unit } end
+	function cm:mod_buttons(unit) seen[#seen + 1] = { "buttons", unit } end
+	local own = cm.mod_split_extra
+	rawget(_G, "InputComponent").update_masters = function()
+		for _, unit in ipairs({ u, human }) do
+			cm:mod_buttons(unit)
+			cm:mod_note_local(unit)
+			extra[#extra + 1] = cm:mod_split_extra(unit)
+		end
+	end
+	e.opts.modules["lua/components/input_component"] = true
+	rawget(_G, "require")("lua/components/input_component")
+	bot:move({ x = 1, y = 0 })
+	game.step(1)
+	E.eq(extra[1], true, "the bot skips the mod's part for a pad player")
+	E.eq(extra[2], false, "the human doesn't")
+	E.eq(#seen, 2)
+	E.eq(seen[1][2], human) E.eq(seen[2][2], human)
+	E.eq(cm.mod_split_extra, own, "put back after the input")
+	E.eq(u.master.input.input_data.move.x, 1, "the bot keeps the stick it was given")
+end)
+
+test("the_cursor_in_third_person_is_the_crosshair_past_the_player", function()
+	local api, game = start()
+	local V = rawget(_G, "Vector3")
+	local st = game.state
+	local asked, from = nil, nil
+	st.viewport.screen_to_world = function(_, x, y) asked = { x, y } return V(0, 1, 20) end
+	rawget(_G, "PhysicsWorld").immediate_raycast = function(_, f) from = f return true, V(0, 30, 0) end
+	rawget(_G, "Application").resolution = function() return 1920, 1080 end
+	game.me.pos = { x = 0.5, y = 5, z = 18 }
+	local cm = rawget(_G, "CameraManager")
+	cm.mod_cfg = {}
+	E.eq(api.world.cursor().y, 30)
+	E.eq(asked[1], 960) E.eq(asked[2], 540, "the middle of the screen, where the crosshair is")
+	E.eq(from.y, 5.6, "the ray starts past the player's own body")
+	cm.mod_cfg = nil
+	api.world.cursor()
+	E.eq(from.y, 0, "top-down: from the camera, through the mouse")
+	E.eq(asked[1] == 960 and asked[2] == 540, false)
+end)
+
 return T
