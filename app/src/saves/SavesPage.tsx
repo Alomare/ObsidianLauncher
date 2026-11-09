@@ -25,7 +25,7 @@ type Ask =
 
 /** One thing a save can have done to it: an icon button in the panel and a line in the right-click menu.
  *  `menuOnly` keeps it out of the panel (Rename, which the editor title also does). */
-type Action = { id: string; label: string; icon: ReactNode; tip?: string; disabled: boolean; tone?: "go" | "danger"; menuOnly?: boolean; run: () => void };
+type Action = { id: string; label: string; icon: ReactNode; tip?: string; disabled: boolean; tone?: "go" | "gold" | "danger"; menuOnly?: boolean; run: () => void };
 
 const num = (n: number) => n.toLocaleString(language());
 
@@ -162,7 +162,7 @@ export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean 
     const restore = isOfficial && !!r.snapshotOf;
     const out: Action[] = [];
     if (!r.active) out.push({ id: "switch", label: switchLabel(r), icon: restore ? <ResetIcon /> : <CheckIcon />, tip: closeFirst ?? t(restore ? "app.saves.restoreHint" : "app.saves.switchHint"), tone: "go", disabled: running, run: () => askActivate(r) });
-    if (!isOfficial) out.push({ id: "edit", label: t("app.saves.edit"), icon: <SlidersIcon />, tip: closeFirst ?? (r.error ? t("app.saves.unreadable") : t("app.saves.editHint")), disabled: running || !!r.error, run: () => setEditing(r.id) });
+    if (!isOfficial) out.push({ id: "edit", label: t("app.saves.edit"), icon: <SlidersIcon />, tip: closeFirst ?? (r.error ? t("app.saves.unreadable") : t("app.saves.editHint")), tone: "gold", disabled: running || !!r.error, run: () => setEditing(r.id) });
     if (isOfficial) out.push({ id: "snapshot", label: t("app.saves.snapshot"), icon: <SaveIcon />, tip: closeFirst ?? t("app.saves.snapshotHint"), disabled: running, run: () => setAsk({ kind: "snapshot", row: r }) });
     out.push({
       id: "duplicate", label: isOfficial ? t("app.saves.duplicateSandbox") : t("app.saves.duplicate"), icon: <CopyIcon />,
@@ -328,7 +328,7 @@ function Detail({ row, list, actions, running, needsDeploy }: { row: SaveRow; li
       </div>
       <div className="save-tools" role="toolbar" aria-label={row.name}>
         {actions.filter((a) => !a.menuOnly).map((a) => (
-          <button key={a.id} className={["btn small icon head-tool", a.tone === "go" && "go", a.tone === "danger" && "danger"].filter(Boolean).join(" ")}
+          <button key={a.id} className={["btn small icon head-tool", a.tone === "go" && "go", a.tone === "gold" && "gold", a.tone === "danger" && "danger"].filter(Boolean).join(" ")}
             disabled={a.disabled} onClick={a.run} aria-label={a.label} data-tip-title={a.label} data-tip={a.tip}>{a.icon}</button>
         ))}
       </div>

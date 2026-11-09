@@ -48,9 +48,8 @@ Official saves can join anything, as always. See [Playing online](wiki:multiplay
 **Edit** on a Sandbox opens the editor, with the game closed. Changes wait until you press **Save**, which writes them all at once. **Discard**, the arrow beside Save, forgets them all, and the arrow at the end of a row undoes only the change on that row. The tabs are:
 
 - **Overview**: the stats of the save, **Max everything** and **Reset progression**. Both ask first, and both write at once, so they need no other changes waiting.
-- **Character**: the rank (a dropdown tied to the XP field), samples with the research points they make, and cosmetics.
+- **Character**: the rank (a dropdown tied to the XP field), samples with the research points they make, cosmetics, boss influence and tutorial flags.
 - **Arsenal**: weapons, stratagems and perks, one table per category, with a search box. Each row has an owned switch, weapons have named upgrades, and stratagems have a level.
-- **Campaign**: boss influence, tutorial flags and lifetime stats.
 - **Mods**: one section per mod that has save data. A mod that is off greys out and keeps the data. A mod no longer in the library lists the data by name, with a delete button.
 
 Item names and limits come from a list taken from the game. Items in the save that the list doesn't know are kept and shown with their raw names. An item a rank gives you can't be switched off, since the rank gives it back.

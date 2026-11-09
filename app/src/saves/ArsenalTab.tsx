@@ -1,7 +1,7 @@
 // The editor's Arsenal: one board of icon tiles (weapons, stratagems by group, perks) under a search box, and an
 // inspector beside it for the selected item, with the owned switch and the upgrades. A tile selects the item;
 // the check in the tile corner turns ownership on or off without leaving the board.
-import { useMemo, useState, type CSSProperties } from "react";
+import { useMemo, useState } from "react";
 import { CheckIcon, CloseIcon, LockIcon, ModsIcon, SearchIcon } from "../Icons";
 import { t } from "../i18n";
 import { artFor } from "./art";
@@ -85,7 +85,7 @@ export function ArsenalTab({ draft, onEdit }: { draft: EditorState; onEdit: (e: 
                 {strats.map((g) => {
                   const all = draft.stratagems.filter((i) => i.category === g.category);
                   return (
-                    <div key={g.category ?? ""} className="ar-sg" style={{ flexGrow: all.length, "--cols": Math.min(all.length, all.length > 4 ? 4 : 2) } as CSSProperties}>
+                    <div key={g.category ?? ""} className="ar-sg">
                       <div className="ar-sg-head cap"><span>{g.category ? label(`app.saves.cat.${g.category}`, g.category) : ""}</span><span>{all.filter((i) => i.owned).length}/{all.length}</span></div>
                       <div className="ar-sgrid">{g.items.map((i) => tile(i, "stratagem"))}</div>
                     </div>

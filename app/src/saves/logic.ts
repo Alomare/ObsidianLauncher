@@ -33,12 +33,6 @@ export function ladderState(level: number, rank: number): "earned" | "current" |
   return level === rank + 1 ? "next" : "ahead";
 }
 
-/** How many of `of` marks to light for `won` out of `fought`: none when nothing was fought. */
-export function tally(won: number, fought: number, of: number) {
-  if (fought <= 0 || won <= 0) return 0;
-  return Math.min(of, Math.round((won / fought) * of));
-}
-
 /** Which upgrades an item has, in catalog order: by bit for a bitmask, by level for Mk levels. */
 export function upgradeMarks(item: Pick<ItemState, "upgradeKind" | "upgrade" | "upgrades">): boolean[] {
   return item.upgrades.map((u) => (item.upgradeKind === "bitmask" ? hasBit(item.upgrade, u.value) : item.upgrade >= u.value));
@@ -118,7 +112,6 @@ export function editKey(e: Edit): string {
     case "set_boss_influence": return `boss:${e.index}`;
     case "set_flag": return `flag:${e.key}`;
     case "set_tutorial_stage": return "stage";
-    case "set_lifetime": return `life:${e.key}`;
     case "mod_set": case "mod_delete": return `mod:${e.mod_id}:${e.key}`;
     case "mod_clear": return `clear:${e.mod_id}`;
     case "mod_item_owned": return `item:${e.mod_id}:${e.name}`;
@@ -149,7 +142,6 @@ function changesNothing(base: EditorState, e: Edit): boolean {
     case "set_boss_influence": return base.bossInfluence[e.index - 1] === e.value;
     case "set_flag": return base.flags.find((f) => f.key === e.key)?.value === e.value;
     case "set_tutorial_stage": return base.tutorialStage === e.value;
-    case "set_lifetime": return base.lifetime[e.key] === e.value;
     case "mod_set": return base.mods.find((m) => m.id === e.mod_id)?.fields.find((f) => f.id === e.key)?.value === e.value;
     case "mod_item_owned": return base.mods.find((m) => m.id === e.mod_id)?.items.find((i) => i.name === e.name)?.owned === e.owned;
     default: return false;
@@ -189,7 +181,6 @@ function applyEdit(s: EditorState, e: Edit): EditorState {
     case "set_boss_influence": return { ...s, bossInfluence: s.bossInfluence.map((v, i) => (i === e.index - 1 ? e.value : v)) };
     case "set_flag": return { ...s, flags: s.flags.map((f) => (f.key === e.key ? { ...f, value: e.value } : f)) };
     case "set_tutorial_stage": return { ...s, tutorialStage: e.value };
-    case "set_lifetime": return { ...s, lifetime: { ...s.lifetime, [e.key]: e.value } };
     case "mod_set": return { ...s, mods: s.mods.map((m) => (m.id !== e.mod_id ? m : { ...m, fields: m.fields.map((f) => (f.id === e.key ? { ...f, value: e.value } : f)) })) };
     case "mod_delete": return { ...s, mods: s.mods.map((m) => (m.id !== e.mod_id ? m : { ...m, data: m.data.filter((d) => d.key !== e.key) })) };
     case "mod_clear": return { ...s, mods: s.mods.map((m) => (m.id !== e.mod_id ? m : { ...m, data: [] })) };

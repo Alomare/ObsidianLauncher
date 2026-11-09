@@ -1,4 +1,4 @@
-// The save editor, for Sandbox saves with the game closed: Overview, Character, Arsenal, Campaign and Mods.
+// The save editor, for Sandbox saves with the game closed: Overview, Character, Arsenal and Mods.
 // Changes wait as edits until Save writes them all at once; the page always shows the save as it will be.
 // Every value sits on the grid of the options panel: the name with a line under it, the control filling the
 // middle cell, and a button to undo a change waiting on that row.
@@ -14,11 +14,11 @@ import { Help } from "../SettingRow";
 import type { Snapshot } from "../types";
 import { ArsenalTab } from "./ArsenalTab";
 import { rankArt } from "./art";
-import { choiceId, draftOf, fieldEnabled, ladderState, parseWhole, playTime, rankProgress, slotChoices, stage, tally, topXp } from "./logic";
+import { choiceId, draftOf, fieldEnabled, ladderState, parseWhole, playTime, rankProgress, slotChoices, stage, topXp } from "./logic";
 import { COSMETIC_SLOTS, type CosmeticSlot, type Edit, type EditorState, type ModChoice, type ModFieldState, type ModSection, type ModText, type SavesDone } from "./types";
 
-type Tab = "overview" | "character" | "arsenal" | "campaign" | "mods";
-const TABS: Tab[] = ["overview", "character", "arsenal", "campaign", "mods"];
+type Tab = "overview" | "character" | "arsenal" | "mods";
+const TABS: Tab[] = ["overview", "character", "arsenal", "mods"];
 type Bulk = "max" | "reset" | null;
 
 const num = (n: number) => n.toLocaleString(language());
@@ -115,6 +115,13 @@ export function SaveEditor({ id, snap, onClose, startRename = false }: { id: str
           <span className="save-chip sandbox">{t("app.saves.sandbox")}</span>
           <Help page="saves#the-save-editor" tip={t("app.saves.editorHelpTip")} />
         </div>
+        <div className="subtabs" role="tablist">
+          {TABS.map((id2) => (
+            <button key={id2} role="tab" aria-selected={tab === id2} className={tab === id2 ? "cap cur" : "cap"} onClick={() => setTab(id2)}>
+              {t(`app.saves.tab.${id2}`)}
+            </button>
+          ))}
+        </div>
         <div className="ed-savebar">
           {count > 0 && <span className="ed-dirty">{t(count === 1 ? "app.saves.unsavedOne" : "app.saves.unsaved", count)}</span>}
           <button className="btn icon head-tool" disabled={!count || saving} onClick={() => setPending(new Map())} aria-label={t("app.saves.discard")}
@@ -123,19 +130,11 @@ export function SaveEditor({ id, snap, onClose, startRename = false }: { id: str
             data-tip={running ? t("app.action.closeGameFirst") : undefined}><CheckIcon /><span className="label">{t("app.saves.save")}</span></button>
         </div>
       </div>
-      <div className="subtabs ed-tabs" role="tablist">
-        {TABS.map((id2) => (
-          <button key={id2} role="tab" aria-selected={tab === id2} className={tab === id2 ? "cap cur" : "cap"} onClick={() => setTab(id2)}>
-            {t(`app.saves.tab.${id2}`)}
-          </button>
-        ))}
-      </div>
       {running && <div className="banner"><WarnIcon /><span>{t("app.saves.gameRunningEditor")}</span></div>}
       <div className={`ed-body ed-${tab}`} key={tab}>
         {tab === "overview" && <OverviewTab draft={draft} dirty={count > 0} blocked={!canWrite} onBulk={setBulk} />}
         {tab === "character" && <CharacterTab draft={draft} onEdit={edit} undo={undo} />}
         {tab === "arsenal" && <ArsenalTab draft={draft} onEdit={edit} />}
-        {tab === "campaign" && <CampaignTab draft={draft} onEdit={edit} undo={undo} />}
         {tab === "mods" && <ModsTab draft={draft} onEdit={edit} undo={undo} />}
       </div>
       {bulk && (
@@ -229,8 +228,8 @@ function Insignia({ level }: { level: number }) {
   return src ? <img src={src} alt="" draggable={false} /> : <span className="rec-noart">{level}</span>;
 }
 
-/** The Overview as a service record: the record card, the rank ladder with the XP bar, the lifetime numbers, and
- *  the two actions as wide bars under them. */
+/** The Overview as a service record: the record card, the rank ladder with the XP bar, the two actions beside
+ *  them, and the lifetime numbers in a row under them. */
 function OverviewTab({ draft, dirty, blocked, onBulk }: { draft: EditorState; dirty: boolean; blocked: boolean; onBulk: (b: Bulk) => void }) {
   const l = draft.lifetime;
   const title = draft.ranks.find((r) => r.level === draft.rank)?.title ?? "";
@@ -238,12 +237,11 @@ function OverviewTab({ draft, dirty, blocked, onBulk }: { draft: EditorState; di
   const off = blocked || dirty;
   const why = dirty ? t("app.saves.saveOrDiscardFirst") : undefined;
   const played = l.time_played ?? 0;
-  const lit = tally(l.missions_won ?? 0, l.missions_fought ?? 0, 20);
-  const line = (name: string, value: string) => <div className="rec-line"><span>{name}</span><i /><b>{value}</b></div>;
+  const line = (name: string, value: string) => <div className="rec-line"><span>{name}</span><b>{value}</b></div>;
+  const stat = (name: string, value: string) => <div className="rec-st"><div className="rec-lbl cap">{name}</div><div className="rec-v">{value}</div></div>;
   return (
     <div className="rec">
       <section className="rec-card">
-        <div className="rec-card-top cap"><span>{t("app.saves.serviceRecord")}</span><span>{t("app.saves.fileN", draft.id.slice(0, 8).toUpperCase())}</span></div>
         <div className="rec-id">
           <div className="rec-pic"><Insignia level={draft.rank} /></div>
           <div className="rec-idtext">
@@ -256,7 +254,6 @@ function OverviewTab({ draft, dirty, blocked, onBulk }: { draft: EditorState; di
         {line(t("app.saves.stat.samples"), num(draft.samples))}
         {line(t("app.saves.researchPoints"), num(draft.researchPoints))}
         {line(t("app.saves.stat.played"), playTime(played))}
-        <span className="rec-stamp cap">{t("app.saves.sandbox")}</span>
       </section>
 
       <section className="rec-ladder">
@@ -281,29 +278,29 @@ function OverviewTab({ draft, dirty, blocked, onBulk }: { draft: EditorState; di
         </div>
       </section>
 
-      <section className="rec-stats">
-        <h3 className="rec-h cap">{t("app.saves.statsTitle")}</h3>
-        <div className="rec-st">
-          <div className="rec-lbl cap">{t("app.saves.stat.missions")}</div>
-          <div className="rec-v">{num(l.missions_won ?? 0)} <small>{t("app.saves.ofN", num(l.missions_fought ?? 0))}</small></div>
-          <div className="rec-tally" aria-hidden="true">{Array.from({ length: 20 }, (_, k) => <i key={k} className={k < lit ? "on" : undefined} />)}</div>
-        </div>
-        <div className="rec-st"><div className="rec-lbl cap">{t("app.saves.stat.kills")}</div><div className="rec-v">{num(l.kills ?? 0)}</div></div>
-        <div className="rec-st"><div className="rec-lbl cap">{t("app.saves.stat.deaths")}</div><div className="rec-v">{num(l.deaths ?? 0)}</div></div>
-        <div className="rec-st"><div className="rec-lbl cap">{t("app.saves.stat.played")}</div><div className="rec-v">{playTime(played)}</div></div>
-      </section>
-
-      <div className="rec-orders">
+      <section className="rec-orders">
+        <h3 className="rec-h cap">{t("app.saves.bulkTitle")}</h3>
         <div className="rec-order">
-          <div className="rec-order-text"><b className="cap">{t("app.saves.maxEverything")}</b><span>{t("app.saves.maxHint")}</span></div>
+          <b className="cap">{t("app.saves.maxEverything")}</b>
+          <span>{t("app.saves.maxHint")}</span>
           <button className="btn go" disabled={off} onClick={() => onBulk("max")} data-tip={why}>{t("app.saves.maxShort")}</button>
         </div>
         <div className="rec-order">
-          <div className="rec-order-text"><b className="cap">{t("app.saves.resetProgression")}</b><span>{t("app.saves.resetHint")}</span></div>
+          <b className="cap">{t("app.saves.resetProgression")}</b>
+          <span>{t("app.saves.resetHint")}</span>
           <button className="btn danger" disabled={off} onClick={() => onBulk("reset")} data-tip={why}>{t("app.saves.resetShort")}</button>
         </div>
         {dirty && <p className="rec-orders-note warn">{t("app.saves.saveOrDiscardFirst")}</p>}
-      </div>
+      </section>
+
+      <section className="rec-stats">
+        <h3 className="rec-h cap">{t("app.saves.statsTitle")}</h3>
+        {stat(t("app.saves.stat.missions"), num(l.missions_won ?? 0))}
+        {stat(t("app.saves.stat.missionsPlayed"), num(l.missions_fought ?? 0))}
+        {stat(t("app.saves.stat.kills"), num(l.kills ?? 0))}
+        {stat(t("app.saves.stat.deaths"), num(l.deaths ?? 0))}
+        {stat(t("app.saves.stat.played"), playTime(played))}
+      </section>
     </div>
   );
 }
@@ -360,15 +357,6 @@ function CharacterTab({ draft, onEdit, undo }: { draft: EditorState; onEdit: (e:
           ))}
         </ul>
       </Panel>
-    </div>
-  );
-}
-
-const BOSSES = ["bugs", "cyborgs", "illuminate"];
-
-function CampaignTab({ draft, onEdit, undo }: { draft: EditorState; onEdit: (e: Edit) => void; undo: Undo }) {
-  return (
-    <div className="ed-cols">
       <Panel title={t("app.saves.bossInfluence")} note={t("app.saves.bossHint", draft.bossInfluenceRequired)}>
         <ul className="opts opt-table">
           {BOSSES.map((boss, i) => (
@@ -390,18 +378,11 @@ function CampaignTab({ draft, onEdit, undo }: { draft: EditorState; onEdit: (e: 
           ))}
         </ul>
       </Panel>
-      <Panel title={t("app.saves.lifetime")}>
-        <ul className="opts opt-table">
-          {Object.keys(draft.lifetime).map((key) => (
-            <Row key={key} label={t(`app.saves.life.${key}`)} keys={[`life:${key}`]} undo={undo}>
-              <NumField value={draft.lifetime[key]} min={0} max={null} label={t(`app.saves.life.${key}`)} onCommit={(value) => onEdit({ op: "set_lifetime", key, value })} />
-            </Row>
-          ))}
-        </ul>
-      </Panel>
     </div>
   );
 }
+
+const BOSSES = ["bugs", "cyborgs", "illuminate"];
 
 function ModsTab({ draft, onEdit, undo }: { draft: EditorState; onEdit: (e: Edit) => void; undo: Undo }) {
   if (draft.mods.length === 0) return <p className="muted pad">{t("app.saves.noModData")}</p>;

@@ -46,7 +46,6 @@ export type Edit =
   | { op: "set_boss_influence"; index: number; value: number }
   | { op: "set_flag"; key: string; value: boolean }
   | { op: "set_tutorial_stage"; value: number }
-  | { op: "set_lifetime"; key: string; value: number }
   | { op: "max_everything" }
   | { op: "reset_progression" }
   | { op: "mod_set"; mod_id: string; key: string; value: string | number | boolean }

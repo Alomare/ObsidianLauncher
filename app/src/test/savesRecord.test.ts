@@ -1,19 +1,12 @@
 import { describe, expect, it } from "vitest";
 import catalog from "../../../core/assets/save-catalog.json";
 import { artFor, rankArt } from "../saves/art";
-import { ladderState, levelPick, tally, upgradeMarks } from "../saves/logic";
+import { ladderState, levelPick, upgradeMarks } from "../saves/logic";
 
 describe("saves: service record helpers", () => {
   it("places a rank on the ladder", () => {
     expect([1, 33, 34, 35, 36].map((lv) => ladderState(lv, 34))).toEqual(["earned", "earned", "current", "next", "ahead"]);
     expect(ladderState(50, 50)).toBe("current");
-  });
-
-  it("lights the tally by the share of missions won", () => {
-    expect(tally(709, 1010, 20)).toBe(14);
-    expect(tally(0, 0, 20)).toBe(0);
-    expect(tally(5, 5, 20)).toBe(20);
-    expect(tally(9, 5, 20)).toBe(20);
   });
 
   it("marks upgrades by bit or by level", () => {
