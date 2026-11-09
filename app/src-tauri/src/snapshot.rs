@@ -143,6 +143,11 @@ pub struct Snapshot {
     pub block_public: bool,
     pub block_achievements: bool,
     pub freeze_progress: bool,
+    pub hide_client_mods: bool,
+    /// The save the active profile plays; None boots whatever is active.
+    pub save: Option<String>,
+    /// The selected Sandbox, when one is.
+    pub sandbox: Option<String>,
     pub conflicts: Vec<ConflictRow>,
     pub changes: ChangesWaiting,
     /// Whether a purge has anything to remove.
@@ -360,6 +365,9 @@ pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Re
         block_public: profile.block_public,
         block_achievements: profile.block_achievements,
         freeze_progress: profile.freeze_progress,
+        hide_client_mods: profile.hide_client_mods,
+        save: profile.save.clone(),
+        sandbox: obsidian_core::saves::active_sandbox(data),
         conflicts,
         changes: changes_waiting_for(&comp, &profile, &settings_digest(&obsidian_core::loader::settings_with(&profile, &manifests)?), data, game_install.as_ref().map(|g| g.contents()).as_deref()).unwrap_or(ChangesWaiting::Waiting),
         deployed: has_deployed(data),

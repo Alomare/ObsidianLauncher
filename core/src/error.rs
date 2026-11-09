@@ -106,6 +106,28 @@ pub enum ObsidianError {
     UpdateNetwork(String),
     #[error("GitHub's limit on update checks was reached, so try again in about an hour")]
     UpdateLimited,
+    #[error("this save can't be read: {0}")]
+    BadSave(String),
+    #[error("there is no save with the id {0}")]
+    SaveMissing(String),
+    #[error("no Steam account was found on this PC, so Obsidian can't tell whose saves to use")]
+    NoSteamAccount,
+    #[error("{op} is only for Sandbox saves, and this is an Official save")]
+    OfficialSave { op: String },
+    #[error("{op} is only for Official saves, and this is a Sandbox save")]
+    SandboxSave { op: String },
+    #[error("this save is in use: activate another save first")]
+    SaveInUse,
+    #[error("{0:?} can't be a save name: use 1 to 40 characters and no line breaks")]
+    SaveName(String),
+    #[error("{0} is a save export from a newer version of Obsidian")]
+    NewerSaveExport(String),
+    #[error("deploy first: a Sandbox save needs Obsidian Loader in the game")]
+    SandboxNeedsDeploy,
+    #[error("{0} is paid DLC, which Obsidian doesn't write to a save")]
+    PaidDlc(String),
+    #[error("save edit {field}: {value} is not allowed")]
+    BadSaveEdit { field: String, value: String },
     #[error(transparent)]
     Json(#[from] serde_json::Error),
     #[error(transparent)]

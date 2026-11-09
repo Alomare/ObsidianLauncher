@@ -309,6 +309,74 @@ fn one() -> u32 {
     1
 }
 
+/// A mod's items and fields in the save editor (`save_editor` in the manifest).
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct SaveEditorSpec {
+    #[serde(default)]
+    pub items: Vec<SaveItemSpec>,
+    #[serde(default)]
+    pub fields: Vec<SaveFieldSpec>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SaveItemSpec {
+    /// `stratagem`, `weapon` or `perk`.
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub name: String,
+    #[serde(default)]
+    pub label: Option<Value>,
+    /// `manual`, `free`, `base` or `{ "rank": n }`.
+    #[serde(default)]
+    pub unlock: Option<Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SaveFieldSpec {
+    pub id: String,
+    /// `number`, `toggle`, `choice`, or the reserved `tree`.
+    #[serde(rename = "type")]
+    pub kind: String,
+    #[serde(default)]
+    pub label: Option<Value>,
+    #[serde(default)]
+    pub min: Option<f64>,
+    #[serde(default)]
+    pub max: Option<f64>,
+    #[serde(default)]
+    pub choices: Option<Vec<Value>>,
+    #[serde(default)]
+    pub when: Option<Value>,
+}
+
+impl Manifest {
+    /// `save_editor`, parsed. None when the mod has none.
+    pub fn save_editor(&self) -> Result<Option<SaveEditorSpec>> {
+        let Some(v) = self.extra.get("save_editor") else { return Ok(None) };
+        let spec: SaveEditorSpec = serde_json::from_value(v.clone()).map_err(|e| bad("save_editor", e.to_string()))?;
+        for i in &spec.items {
+            if !["stratagem", "weapon", "perk"].contains(&i.kind.as_str()) {
+                return Err(bad("save_editor.items", format!("unknown type {}", i.kind)));
+            }
+            let unlock_fine = match &i.unlock {
+                None => true,
+                Some(Value::String(s)) => ["manual", "free", "base"].contains(&s.as_str()),
+                Some(Value::Object(o)) => o.get("rank").is_some_and(Value::is_u64),
+                _ => false,
+            };
+            if !unlock_fine {
+                return Err(bad("save_editor.items", format!("{} has an unknown unlock", i.name)));
+            }
+        }
+        for f in &spec.fields {
+            if !["number", "toggle", "choice", "tree"].contains(&f.kind.as_str()) {
+                return Err(bad("save_editor.fields", format!("unknown type {}", f.kind)));
+            }
+        }
+        Ok(Some(spec))
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Position {
     First,
@@ -440,6 +508,7 @@ fn running_version() -> semver::Version {
 impl Manifest {
     /// Ships with Obsidian: always in the library, can't be removed.
     pub fn validate(&self, mod_dir: &Path) -> Result<()> {
+        self.save_editor()?;
         if self.obsidian != 1 {
             return Err(bad("obsidian", "only version 1 is supported"));
         }

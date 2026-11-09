@@ -197,6 +197,12 @@ pub struct Profile {
     /// The color the app shows for this profile (`#rrggbb`); the default gold when none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
+    /// The save this profile plays: an id in the account's Saves. None boots whatever is active.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub save: Option<String>,
+    /// Leave client mods out of the lobby info this player hosts.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub hide_client_mods: bool,
 }
 
 impl Profile {

@@ -74,6 +74,35 @@ enum Command {
         #[command(subcommand)]
         action: ProfileAction,
     },
+    /// List and manage saves (Official and Sandbox)
+    Saves {
+        #[command(subcommand)]
+        action: SavesAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum SavesAction {
+    /// List the saves of the active Steam account; the one the game boots is marked with *
+    List,
+    /// Select a save: an Official save is restored, a Sandbox only selected
+    Activate { id: String },
+    /// Copy an Official save into a new Official save
+    Snapshot { id: String, name: String },
+    /// A new blank Official save, in the library until activated
+    NewOfficial { name: String },
+    /// A new blank Sandbox save
+    NewSandbox { name: String },
+    /// A new Sandbox save copied from any save
+    Duplicate { id: String, name: String },
+    /// Rename a Sandbox save
+    Rename { id: String, name: String },
+    /// Delete a Sandbox save
+    Delete { id: String },
+    /// Write a Sandbox save to a zip
+    Export { id: String, dest: PathBuf },
+    /// Add a save from a zip, always as a Sandbox
+    Import { path: PathBuf },
 }
 
 #[derive(Subcommand)]
@@ -325,6 +354,7 @@ fn run(cli: Cli) -> Result<()> {
             obsidian_core::edit::set_key(&lib, &mut profile, &id, &keybind, Some(&key))?;
             live_change(&profile, &data, &lib, &game()?, &format!("{id} {keybind} is now {key}"))?;
         }
+        Command::Saves { action } => run_saves(action, &data, &game()?)?,
         Command::Profile { action } => match action {
             ProfileAction::List => {
                 let active = profiles::active(&data)?;
@@ -343,6 +373,40 @@ fn run(cli: Cli) -> Result<()> {
                 println!("Created profile {name}. Switch to it with: obsidian profile use {name}");
             }
         },
+    }
+    Ok(())
+}
+
+fn run_saves(action: SavesAction, data: &std::path::Path, g: &GameInstall) -> Result<()> {
+    use obsidian_core::saves::Saves;
+    let s = Saves::open(data, g, obsidian_core::game::is_running)?;
+    let show_id = |id: String| println!("Saved as {id}");
+    match action {
+        SavesAction::List => {
+            let list = s.list()?;
+            println!("Steam account {}", list.account);
+            for row in list.saves {
+                let mark = if row.active { "*" } else { " " };
+                let kind = match row.kind {
+                    obsidian_core::saves::SaveKind::Official => "official",
+                    obsidian_core::saves::SaveKind::Sandbox => "sandbox ",
+                };
+                let stats = row.stats.map_or_else(|| row.error.unwrap_or_default(), |t| format!("rank {} xp {:.0} samples {:.0}", t.rank, t.xp, t.samples));
+                println!("{mark} {} {kind} {} ({stats})", row.id, row.name);
+            }
+        }
+        SavesAction::Activate { id } => {
+            s.activate(&id)?;
+            println!("{id} is now the save the game boots.");
+        }
+        SavesAction::Snapshot { id, name } => show_id(s.snapshot(&id, &name)?),
+        SavesAction::NewOfficial { name } => show_id(s.create_official(&name)?),
+        SavesAction::NewSandbox { name } => show_id(s.create_sandbox(&name)?),
+        SavesAction::Duplicate { id, name } => show_id(s.duplicate(&id, &name)?),
+        SavesAction::Rename { id, name } => s.rename(&id, &name)?,
+        SavesAction::Delete { id } => s.delete(&id)?,
+        SavesAction::Export { id, dest } => s.export(&id, &dest)?,
+        SavesAction::Import { path } => show_id(s.import(&path, None)?),
     }
     Ok(())
 }

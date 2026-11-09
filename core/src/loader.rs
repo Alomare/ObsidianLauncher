@@ -13,7 +13,7 @@ use crate::library::{Library, Profile};
 use crate::lua::{check_bytecode, unwrap_resource, wrap_resource};
 use crate::luajit::compile_all;
 use crate::manifest::{Manifest, Scope, load_manifest};
-use crate::modset::{SessionMod, every_hash, every_pool_tag, expansion_pool_tag, modset_hash, open_pool_tag};
+use crate::modset::{SessionMod, every_hash, every_pool_tag, expansion_pool_tag, modset_hash, open_pool_tag, sandbox_pool_tag};
 use crate::options::{effective_values, value_text};
 use crate::settings::Settings;
 use crate::{ObsidianError, Result};
@@ -119,7 +119,7 @@ pub fn find_loader_dir() -> Result<PathBuf> {
 /// players' session mods alone needs no loader: a game without it runs none, and the others treat
 /// it as a vanilla player.
 pub fn needed(comp: &Composition, profile: &Profile) -> bool {
-    !comp.mods.is_empty() || profile.block_achievements || profile.freeze_progress
+    !comp.mods.is_empty() || profile.block_achievements || profile.freeze_progress || comp.sandbox
 }
 
 /// The folder of a mod's resources. Ids are already limited to `[a-z0-9._-]`.
@@ -275,6 +275,7 @@ fn table_with(comp: &Composition, texts: Value, mod_texts: fn(&Path) -> Result<V
     let mut expansion_tags = Map::new();
     let mut mods = Vec::new();
     let (mut has_session, mut has_static_session) = (false, false);
+    let mut static_session = Vec::new();
     let libraries = session_libraries(&comp.mods);
     let served = expansion_libraries(&comp.mods);
     for c in start_order(&comp.mods) {
@@ -297,6 +298,9 @@ fn table_with(comp: &Composition, texts: Value, mod_texts: fn(&Path) -> Result<V
             has_session = true;
             has_static_session |= c.resources > 0;
             let sm = line();
+            if c.resources > 0 {
+                static_session.push(sm.clone());
+            }
             if m.every_player {
                 every.insert(m.id.clone(), Value::String(every_hash(&sm)));
             }
@@ -356,7 +360,8 @@ fn table_with(comp: &Composition, texts: Value, mod_texts: fn(&Path) -> Result<V
         mods.push(entry);
     }
     let modset = modset_hash(&session);
-    let mut hashes = json!({ "open": open_pool_tag() });
+    let static_hash = (!static_session.is_empty()).then(|| modset_hash(&static_session));
+    let mut hashes = json!({ "open": open_pool_tag(), "sandbox": sandbox_pool_tag(static_hash.as_deref()) });
     if !every.is_empty() {
         hashes["every"] = json!(every_pool_tag(every.iter().map(|(id, h)| (id.as_str(), h.as_str().unwrap_or_default()))));
     }
@@ -501,19 +506,21 @@ pub fn build_inputs(loader_dir: &Path, comp: &Composition) -> Result<Vec<u8>> {
 /// The settings file for this profile: consent, the guardrails and the value of every option of each
 /// enabled mod with an entry. Reads manifests only, so nothing is compiled.
 pub fn settings_for(lib: &Library, profile: &Profile) -> Result<Settings> {
-    settings_from(profile, |id| load_manifest(&lib.mod_dir(id)).ok().map(Cow::Owned))
+    settings_from(profile, crate::saves::active_sandbox(lib.data_dir()), |id| load_manifest(&lib.mod_dir(id)).ok().map(Cow::Owned))
 }
 
 /// `settings_for` with the manifests already read, as the app's snapshot has them.
 pub fn settings_with(profile: &Profile, manifests: &BTreeMap<String, Manifest>) -> Result<Settings> {
-    settings_from(profile, |id| manifests.get(id).map(Cow::Borrowed))
+    settings_from(profile, None, |id| manifests.get(id).map(Cow::Borrowed))
 }
 
-fn settings_from<'a>(profile: &Profile, manifest: impl Fn(&str) -> Option<Cow<'a, Manifest>>) -> Result<Settings> {
+fn settings_from<'a>(profile: &Profile, sandbox: Option<String>, manifest: impl Fn(&str) -> Option<Cow<'a, Manifest>>) -> Result<Settings> {
     let mut s = Settings {
         consent: profile.allows_others(),
         block_achievements: profile.block_achievements,
         freeze_progress: profile.freeze_progress,
+        sandbox,
+        hide_client_mods: profile.hide_client_mods,
         ..Default::default()
     };
     for entry in profile.mods.iter().filter(|m| m.enabled) {
@@ -603,10 +610,22 @@ mod tests {
         assert_eq!(table["has_session"], true);
         assert_eq!(table["has_static_session"], false, "an entry can stop when the session isn't cleared");
         assert_eq!(table["modset"].as_str().unwrap().len(), 64);
+        assert_eq!(table["hashes"]["sandbox"], crate::modset::sandbox_pool_tag(None), "no static session content");
+        let mut with_static = comp.clone();
+        with_static.mods.iter_mut().find(|m| m.manifest.id == "b").unwrap().resources = 1;
+        let folded = deploy_table(&with_static, json!({})).unwrap();
+        assert_ne!(folded["hashes"]["sandbox"], table["hashes"]["sandbox"], "static session content is folded in");
         let planned = build(&find_loader_dir().unwrap(), &comp).unwrap();
         for name in [ENTRY, "obsidian/loader/core", "obsidian/mods/a/main", "obsidian/mods/b/main", "obsidian/deploy"] {
             assert!(planned.iter().any(|p| p.name_hash == hash_name(name)), "{name}");
         }
+    }
+
+    #[test]
+    fn a_selected_sandbox_needs_the_loader() {
+        let comp = Composition::default();
+        assert!(!needed(&comp, &Profile::default()));
+        assert!(needed(&Composition { sandbox: true, ..comp }, &Profile::default()));
     }
 
     fn add_requiring(t: &Path, lib: &Library, id: &str, scope: &str, requires: &str) {

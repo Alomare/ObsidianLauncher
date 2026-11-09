@@ -97,6 +97,20 @@ pub fn run() {
             commands::set_game_dir,
             commands::check_game,
             commands::open_folder,
+            commands::saves_list,
+            commands::saves_activate,
+            commands::saves_create_official,
+            commands::saves_snapshot,
+            commands::saves_create_sandbox,
+            commands::saves_duplicate,
+            commands::saves_rename,
+            commands::saves_delete,
+            commands::saves_export,
+            commands::saves_import,
+            commands::saves_editor_state,
+            commands::saves_apply_edits,
+            commands::set_profile_save,
+            commands::set_hide_client_mods,
         ])
         .run(tauri::generate_context!())
         .expect("Obsidian failed to start");

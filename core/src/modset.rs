@@ -42,6 +42,15 @@ pub fn open_pool_tag() -> String {
     sha256_hex("obsidian:open:1")[..12].to_string()
 }
 
+/// The tag every Sandbox lobby carries, with a digest of the static session content folded in when
+/// there is any. Sandbox players find only other Sandbox players with the same static content.
+pub fn sandbox_pool_tag(static_session: Option<&str>) -> String {
+    match static_session {
+        Some(hash) => sha256_hex(&format!("obsidian:sandbox:1\n{hash}"))[..12].to_string(),
+        None => sha256_hex("obsidian:sandbox:1")[..12].to_string(),
+    }
+}
+
 /// The tag in place of the open one for players who run mods marked `every_player`, from each
 /// mod's id and `every_hash`: they find only the players who run the same ones.
 pub fn every_pool_tag<'a>(every: impl IntoIterator<Item = (&'a str, &'a str)>) -> String {
@@ -115,6 +124,15 @@ mod tests {
         assert_ne!(tag, expansion_pool_tag("b", "11"));
         assert_ne!(tag, every_pool_tag([("a", "11")]));
         assert_ne!(tag, open_pool_tag());
+    }
+
+    #[test]
+    fn the_sandbox_tag_follows_static_content_and_leaves_the_other_pools() {
+        let plain = sandbox_pool_tag(None);
+        assert_eq!(plain.len(), 12);
+        assert_ne!(plain, open_pool_tag());
+        assert_ne!(plain, sandbox_pool_tag(Some("aa")));
+        assert_ne!(sandbox_pool_tag(Some("aa")), sandbox_pool_tag(Some("ab")));
     }
 
     #[test]

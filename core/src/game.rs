@@ -93,7 +93,7 @@ pub fn proton_appdata(game_root: &Path, libraries: &[PathBuf]) -> Option<PathBuf
     own.iter().chain(libraries).map(|lib| lib.join(PROTON_PREFIX)).find(|p| p.is_dir()).map(|p| p.join(PROTON_APPDATA))
 }
 
-fn steam_roots() -> Vec<PathBuf> {
+pub fn steam_roots() -> Vec<PathBuf> {
     let mut roots = Vec::new();
     #[cfg(windows)]
     {

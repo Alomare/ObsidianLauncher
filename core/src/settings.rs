@@ -14,6 +14,11 @@ pub struct Settings {
     pub consent: bool,
     pub block_achievements: bool,
     pub freeze_progress: bool,
+    /// The selected Sandbox save, when one is. `block_achievements` is forced on for the file while
+    /// one is, so that a Sandbox never earns an achievement.
+    pub sandbox: Option<String>,
+    /// Leave client mods out of the lobby info this player hosts.
+    pub hide_client_mods: bool,
     /// (mod id, option id, option type, value text)
     pub options: Vec<(String, String, String, String)>,
     /// (mod id, keybind id, key name)
@@ -35,8 +40,15 @@ fn field(s: &str) -> String {
 pub fn render(s: &Settings) -> String {
     let mut out = String::from("# Written by Obsidian. Changes made here are replaced at the next deploy.\n");
     out.push_str(&format!("consent\t{}\n", if s.consent { 1 } else { 0 }));
-    out.push_str(&format!("block_achievements\t{}\n", if s.block_achievements { 1 } else { 0 }));
+    out.push_str(&format!("block_achievements\t{}\n", if s.block_achievements || s.sandbox.is_some() { 1 } else { 0 }));
     out.push_str(&format!("freeze_progress\t{}\n", if s.freeze_progress { 1 } else { 0 }));
+    // Absent means the Official save.
+    if let Some(id) = &s.sandbox {
+        out.push_str(&format!("sandbox\t{}\n", field(id)));
+    }
+    if s.hide_client_mods {
+        out.push_str("hide_client_mods\t1\n");
+    }
     for (m, o, t, v) in &s.options {
         out.push_str(&format!("option\t{}\t{}\t{}\t{}\n", field(m), field(o), field(t), field(v)));
     }
@@ -55,6 +67,8 @@ pub fn parse(text: &str) -> Settings {
             ["consent", v] => s.consent = *v == "1",
             ["block_achievements", v] => s.block_achievements = *v == "1",
             ["freeze_progress", v] => s.freeze_progress = *v == "1",
+            ["sandbox", id] => s.sandbox = Some(id.to_string()),
+            ["hide_client_mods", v] => s.hide_client_mods = *v == "1",
             ["option", m, o, t, v] => s.options.push((m.to_string(), o.to_string(), t.to_string(), v.to_string())),
             ["key", m, k, key] => s.keys.push((m.to_string(), k.to_string(), key.to_string())),
             _ => {}
@@ -88,6 +102,8 @@ mod tests {
             consent: true,
             block_achievements: true,
             freeze_progress: true,
+            sandbox: Some("0a1b2c3d".into()),
+            hide_client_mods: true,
             options: vec![("a.b".into(), "d".into(), "number".into(), "2.5".into())],
             keys: vec![("a.b".into(), "toggle".into(), "f8".into())],
         };
@@ -95,6 +111,15 @@ mod tests {
         write(t.path(), &s).unwrap();
         assert!(t.path().join("logs").is_dir());
         assert_eq!(parse(&std::fs::read_to_string(t.path().join(FILE)).unwrap()), s);
+    }
+
+    #[test]
+    fn a_sandbox_forces_block_achievements_and_absent_lines_stay_out() {
+        let plain = Settings::default();
+        assert!(!render(&plain).contains("sandbox") && !render(&plain).contains("hide_client"));
+        let s = Settings { sandbox: Some("0a1b2c3d".into()), ..Default::default() };
+        let text = render(&s);
+        assert!(text.contains("block_achievements\t1\n") && text.contains("sandbox\t0a1b2c3d\n"));
     }
 
     #[test]
