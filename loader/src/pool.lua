@@ -9,7 +9,7 @@ local M = {}
 -- Every player stays in the vanilla matchmaking pool. Session mods switch off live where the session
 -- gate says so, mods every player needs included, so splitting players up only kept them apart. The
 -- public door below covers content that can't switch off. Answers nil, the vanilla pool's tag.
--- A Sandbox has a pool of its own, which Official players never see: the app's tag from
+-- A Sandbox has a separate pool, which Official players never see: the app's tag from
 -- deploy.hashes.sandbox, or this one when the deploy has none, because a Sandbox never joins the
 -- Official pool. Answers the tag.
 local SANDBOX_FALLBACK = "5a4db0c5a4db"
