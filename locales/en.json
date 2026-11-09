@@ -528,5 +528,16 @@
   "expansion_missing_here": "This lobby is playing %s, which isn't deployed here at the same version and settings.",
   "expansion_unknown_player": "unknown player",
   "expansion_proving_grounds": "%s is ranked, so it's closed while %s runs.",
-  "campaign_not_uploaded_expansion": "Progress was not uploaded to Galactic Campaign due to %s"
+  "campaign_not_uploaded_expansion": "Progress was not uploaded to Galactic Campaign due to %s",
+  "campaign_not_uploaded_sandbox": "Progress was not uploaded to Galactic Campaign on a Sandbox save",
+  "proving_grounds_sandbox": "%s is ranked, so it is closed on Sandbox saves.",
+  "sandbox_failed": "The Sandbox save could not be opened, so saving is off for this launch. Close the game and check the Saves tab in Obsidian.",
+  "lobby_sandbox_public": "Sandbox Public",
+  "lobby_uses_sandbox": "This lobby uses Sandbox saves.",
+  "lobby_uses_official": "This lobby uses Official saves.",
+  "lobby_modded_mark": "MODDED",
+  "lobby_mods_heading": "Mods in this lobby",
+  "lobby_more_mods": "+%d more",
+  "lobby_filter_modded_only": "Modded only",
+  "lobby_filter_hide_modded": "Hide modded"
 }

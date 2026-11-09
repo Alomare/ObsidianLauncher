@@ -4477,13 +4477,13 @@ test("an_unlock_from_a_mod_is_kept_by_the_library_and_never_in_the_save", functi
 	core.current = { id = "dev.remix", mod = { options = {} } }
 	E.eq(api.stratagems.unlock("test_manual"), true)
 	core.current = own
-	local storage = rawget(_G, "obsidian").storage
-	E.eq(storage.get("stratagem_unlocks"), nil, "not yet: the running mod's storage isn't the library's")
+	local store = rawget(_G, "obsidian").save_data
+	E.eq(store.get("stratagem_unlocks"), nil, "not yet: the running mod's save data isn't the library's")
 	e:frames(1)
-	E.eq(storage.get("stratagem_unlocks"), "test_manual", "kept from the library's frame")
+	E.eq(store.get("stratagem_unlocks"), "test_manual", "kept from the library's frame")
 	for _, name in ipairs(game.save.user.item_unlocks) do E.eq(name ~= "test_manual", true, "the save is left alone") end
 	E.eq(api.stratagems.lock("test_manual"), true)
-	E.eq(storage.get("stratagem_unlocks"), "", "the library's own call is kept at once")
+	E.eq(store.get("stratagem_unlocks"), "", "the library's own call is kept at once")
 	E.eq(api.catalog.unlocked("test_manual"), false)
 end)
 

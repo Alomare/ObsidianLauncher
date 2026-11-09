@@ -47,12 +47,13 @@ local function find(list, id)
 	return nil
 end
 
--- Reads the file and fills core.consent_on, the guardrails and the option values. A missing file
--- leaves the defaults: no consent, no guardrails and every option at the default.
+-- Reads the file and fills core.consent_on, the guardrails, the Sandbox choice and the option values.
+-- A missing file leaves the defaults: no consent, no guardrails, the Official save and every option at
+-- the default.
 function M.load(core, path)
 	M.core = core
 	local mods = {}
-	for _, mod in B.ipairs(core.deploy.mods or {}) do mods[B.tostring(mod.id)] = mod end
+	for _, mod in B.ipairs(core.deploy and core.deploy.mods or {}) do mods[B.tostring(mod.id)] = mod end
 	local f = path and B.open(path, "rb")
 	if not f then
 		log.line("settings: no file, defaults used")
@@ -72,6 +73,17 @@ function M.load(core, path)
 			core.consent_on = x[2] == "1"
 		elseif (x[1] == "block_achievements" or x[1] == "freeze_progress") and #x == 2 and (x[2] == "0" or x[2] == "1") then
 			core[x[1]] = x[2] == "1"
+		elseif x[1] == "hide_client_mods" and #x == 2 and (x[2] == "0" or x[2] == "1") then
+			core.hide_client_mods = x[2] == "1"
+		elseif x[1] == "sandbox" then
+			-- A Sandbox line the loader can't use is still a Sandbox: the launch must never open the
+			-- Official save while the player believes it is a Sandbox.
+			if #x == 2 and B.match(x[2], "^[0-9a-f]+$") and #x[2] == 8 then
+				core.sandbox = x[2]
+			else
+				core.sandbox_bad = true
+				log.line("settings: the sandbox line is not valid, saving stays off for this launch")
+			end
 		elseif x[1] == "option" and #x == 5 then
 			local opt = mods[x[2]] and find(mods[x[2]].options, x[3])
 			local v = nil

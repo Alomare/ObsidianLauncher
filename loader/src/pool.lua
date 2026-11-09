@@ -9,9 +9,30 @@ local M = {}
 -- Every player stays in the vanilla matchmaking pool. Session mods switch off live where the session
 -- gate says so, mods every player needs included, so splitting players up only kept them apart. The
 -- public door below covers content that can't switch off. Answers nil, the vanilla pool's tag.
-function M.apply(deploy)
-	log.line("pool: vanilla")
-	return nil
+-- A Sandbox has a pool of its own, which Official players never see: the app's tag from
+-- deploy.hashes.sandbox, or this one when the deploy has none, because a Sandbox never joins the
+-- Official pool. Answers the tag.
+local SANDBOX_FALLBACK = "5a4db0c5a4db"
+
+function M.apply(deploy, sandboxed)
+	if not sandboxed then
+		log.line("pool: vanilla")
+		return nil
+	end
+	local tag = (deploy.hashes or {}).sandbox
+	if B.type(tag) ~= "string" or not B.match(tag, "^[0-9a-f]+$") then
+		log.line("pool: no sandbox tag in the deploy, using the fallback")
+		tag = SANDBOX_FALLBACK
+	end
+	local revision = B.rawget(B.G, "BUILD_REVISION_INFORMATION")
+	local rewritten, n = B.gsub(B.tostring(revision), "(parent: [0-9]+:)([0-9a-f]+)", function(head, hash) return head .. hash .. tag end, 1)
+	if n ~= 1 then
+		log.line("pool: no hash in the revision string, left vanilla")
+		return nil
+	end
+	B.rawset(B.G, "BUILD_REVISION_INFORMATION", rewritten)
+	log.line("pool: sandbox " .. tag)
+	return tag
 end
 
 -- The room data of the lobby `l` (NetworkGlobal.lobby): the string its host's NetworkRoom writes

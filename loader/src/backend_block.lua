@@ -25,7 +25,7 @@ local M = {}
 -- A player with no session mods of their own, who lets others' in, is in a modded game too when
 -- someone here runs a different set. So is a game while an expansion's content runs in it.
 local function modded(core)
-	if core.deploy.has_session then return true end
+	if core.deploy.has_session or core.sandboxed() then return true end
 	local x = core.expansion
 	if x and x.run then return true end
 	if not core.consent() then return false end
@@ -67,7 +67,9 @@ local function refuse_proving_grounds(core)
 	local x = core.expansion
 	local run = x and x.run
 	local state = run and not core.deploy.has_session and core.mods_by_id[run.id]
-	if state then
+	if core.sandboxed() then
+		core.notice("proving_grounds_sandbox", name)
+	elseif state then
 		core.notice("expansion_proving_grounds", name, core.name_of(state))
 	else
 		core.notice("proving_grounds_blocked", name)
@@ -129,6 +131,11 @@ function M.setup(core, hooks)
 	end)
 	-- The mission end screen picks one of these two for the Galactic Campaign line.
 	local LINES = { "mission_end_galactic_campaign_progress", "mission_end_galactic_campaign_no_progress" }
+	if core.sandboxed() then
+		for _, key in B.ipairs(LINES) do game_text.replace(core, hooks, key, "campaign_not_uploaded_sandbox") end
+		log.line("galactic war reporting blocked: Sandbox save")
+		return
+	end
 	if core.deploy.has_session then
 		for _, key in B.ipairs(LINES) do game_text.replace(core, hooks, key, "campaign_not_uploaded") end
 		log.line("galactic war reporting blocked: session content is deployed")

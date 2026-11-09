@@ -13,6 +13,9 @@ local game_text = require("obsidian/loader/game_text")
 local menu = require("obsidian/loader/menu")
 local ui = require("obsidian/loader/ui")
 local storage = require("obsidian/loader/storage")
+local save_data = require("obsidian/loader/save_data")
+local sandbox = require("obsidian/loader/sandbox")
+local lobby = require("obsidian/loader/lobby")
 
 local API_VERSION = 1
 local MAX_ERRORS = 10
@@ -26,7 +29,7 @@ local M = {
 local capabilities = {
 	after_startup = true, log = true, hook = true, wrap = true, on_require = true, on_session = true, session = true,
 	settings = true, keybind = true, text = true, on_frame = true, module = true, import = true, menu = true, toast = true, notify = true, storage = true, caller = true,
-	ui = true, scope = true, guardrails = true, info = true, expansion = true,
+	ui = true, scope = true, guardrails = true, info = true, expansion = true, save_data = true,
 }
 local api = {
 	version = API_VERSION,
@@ -43,6 +46,7 @@ local api = {
 	ui = ui.api(),
 	toast = menu.toast,
 	storage = storage.api(),
+	save_data = save_data.api(),
 	guardrails = guardrails.api(M),
 	capabilities = B.setmetatable({}, {
 		__index = capabilities,
@@ -56,6 +60,11 @@ M.capabilities = capabilities
 -- "Allow session mods from other Obsidian users", from the settings file.
 function M.consent()
 	return M.consent_on == true
+end
+
+-- Whether this launch was started on a Sandbox save, usable or not.
+function M.sandboxed()
+	return sandbox.wanted(M)
 end
 
 function M.notice(key, ...)
@@ -352,27 +361,40 @@ function M.boot()
 	log.line("Obsidian Loader, API " .. API_VERSION .. ", jit " .. (B.type(jit) == "table" and "available" or "missing"))
 
 	local ok, deploy = B.pcall(B.require, "obsidian/deploy")
-	if not ok or B.type(deploy) ~= "table" then
+	local deployed = ok and B.type(deploy) == "table"
+	M.deploy = deployed and deploy or nil
+	-- Before the checks below: a launch on a Sandbox that stops at one of them must still keep the
+	-- game off the Official save.
+	settings.load(M, game_side and (game_side .. "/settings.txt"))
+	hooks.setup(M, session)
+	local function stop_saving()
+		if not sandbox.wanted(M) then return end
+		sandbox.setup(M, hooks, true)
+		hooks.on_frame(show_notices)
+		hooks.wrap_require()
+	end
+	if not deployed then
 		log.line("no deploy table, no mod started: " .. B.tostring(deploy))
+		stop_saving()
+		if jit_was_on then B.pcall(jit.on) end
 		return
 	end
-	M.deploy = deploy
 
 	local revision = B.rawget(B.G, "BUILD_REVISION_INFORMATION")
 	local expected = B.tostring(deploy.revision)
 	if B.type(revision) ~= "string" or B.sub(revision, 1, #expected) ~= expected then
 		log.line("build unknown, no mod started (expected " .. expected .. ")")
 		M.notice("build_unknown")
+		stop_saving()
 		if jit_was_on then B.pcall(jit.on) end
 		return
 	end
 
-	settings.load(M, game_side and (game_side .. "/settings.txt"))
-	local tag = pool.apply(deploy)
+	sandbox.setup(M, hooks)
+	local tag = pool.apply(deploy, M.sandboxed())
 
 	M.session = session
 	M.expansion = expansion
-	hooks.setup(M, session)
 	session.setup(M)
 	hooks.on_frame(function() M.frame_count = M.frame_count + 1 end)
 	hooks.on_frame(session.tick)
@@ -383,10 +405,12 @@ function M.boot()
 	menu.setup(M, hooks, session)
 	ui.setup(M, hooks, session)
 	storage.setup(M, game_side and (game_side .. "/logs"))
+	save_data.setup(M, appdata and (appdata .. "/Arrowhead/Helldivers/saves"))
 	hooks.wrap_require()
 
 	backend_block.setup(M, hooks)
 	guardrails.setup(M, hooks)
+	lobby.setup(M, hooks, session)
 	-- The lobby browser also lists the open pool's lobbies, and the public door keeps content that
 	-- can't switch off out of public lobbies with vanilla players.
 	pool.bridge(M, hooks, tag)
