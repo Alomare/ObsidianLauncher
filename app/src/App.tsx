@@ -10,6 +10,7 @@ import { pick, t } from "./i18n";
 import { listenForDrops, type DropState } from "./mods/dropImport";
 import { checkModUpdates } from "./mods/modUpdates";
 import { HomePage } from "./HomePage";
+import { CommanderPage } from "./commander/CommanderPage";
 import { ModsPage } from "./mods/ModsPage";
 import { NavBar, type Wave } from "./NavBar";
 import { go as setTab, useNav } from "./nav";
@@ -41,6 +42,9 @@ export default function App() {
   // The Saves tab reads the save files, so it waits for the first visit, and then stays mounted to keep edits under way.
   const [savesOpened, setSavesOpened] = useState(false);
   useEffect(() => { if (tab === "saves") setSavesOpened(true); }, [tab]);
+  // Commander's war screens stay loaded once opened, so a war view keeps its place between tabs.
+  const [commanderOpened, setCommanderOpened] = useState(false);
+  useEffect(() => { if (tab === "commander") setCommanderOpened(true); }, [tab]);
   const [wave, setWave] = useState<Wave | null>(null);
   const update = useUpdates();
   const startWave = (tone: Wave["tone"]) => {
@@ -91,11 +95,12 @@ export default function App() {
     <div className="app">
       <NavBar tab={tab} onTab={(to) => { if (to === "settings" && update.phase === "found") setSettingsTab("updates"); setTab(to); }} snap={snap} busy={busy} updateFound={update.phase === "found"} wave={wave} onWaveEnd={() => setWave(null)}
         onPlay={() => (snap && asksBeforePlay(snap, settings) ? setAskPlay(true) : startPlay())} />
-      <main className={tab === "home" || tab === "wiki" ? "page bleed" : "page"}>
+      <main className={tab === "home" || tab === "wiki" || tab === "commander" ? "page bleed" : "page"}>
         {tab === "home" && <div className="view" key="home"><HomePage /></div>}
         {/* Mods stays mounted while hidden: a long list then costs nothing to come back to. */}
         {snap && <div className="view" hidden={tab !== "mods"}><ModsPage snap={snap} busy={busy} onPurge={() => { startWave(snap.deployed ? "red" : "grey"); purge(); }} onDeploy={() => { startWave(snap.changes === "Waiting" ? "green" : "grey"); deploy(); }} /></div>}
         {snap && (tab === "saves" || savesOpened) && <div className="view" hidden={tab !== "saves"}><SavesPage snap={snap} visible={tab === "saves"} /></div>}
+        {snap && (tab === "commander" || commanderOpened) && <div className="view" hidden={tab !== "commander"}><CommanderPage snap={snap} visible={tab === "commander"} onPlay={startPlay} /></div>}
         {tab === "wiki" && <div className="view" key="wiki"><WikiPage /></div>}
         {snap && tab === "settings" && <div className="view" key="settings"><SettingsPage snap={snap} tab={settingsTab} onTab={setSettingsTab} /></div>}
       </main>

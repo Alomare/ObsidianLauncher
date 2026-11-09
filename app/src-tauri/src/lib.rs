@@ -1,6 +1,7 @@
 //! The Obsidian desktop app: a Tauri shell over obsidian-core.
 
 mod app_settings;
+mod commander;
 mod commands;
 pub mod perf_library;
 mod snapshot;
@@ -29,7 +30,7 @@ fn watch_game(app: tauri::AppHandle) {
 pub fn run() {
     // OBSIDIAN_DATA_DIR points the app at another data folder, for the performance suite.
     let data = obsidian_core::paths::data_dir(std::env::var_os("OBSIDIAN_DATA_DIR").map(std::path::PathBuf::from).as_deref());
-    let ctx = commands::Ctx { data, gate: Mutex::new(Default::default()), work: Mutex::new(()) };
+    let ctx = commands::Ctx { data, gate: Mutex::new(Default::default()), work: Mutex::new(()), commander: Mutex::new(Default::default()) };
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             // A second launch brings the open window forward instead.
@@ -54,6 +55,9 @@ pub fn run() {
             let data = app.state::<commands::Ctx>().data.clone();
             app.asset_protocol_scope().allow_directory(&data, true)?;
             watch_game(app.handle().clone());
+            // A war selected last time gets its relay and server back, off the window's thread.
+            let handle = app.handle().clone();
+            std::thread::spawn(move || commander::resume(&handle.state::<commands::Ctx>()));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -111,6 +115,15 @@ pub fn run() {
             commands::saves_editor_state,
             commands::saves_apply_edits,
             commands::set_hide_client_mods,
+            commander::commander_state,
+            commander::commander_install,
+            commander::commander_uninstall,
+            commander::commander_server_start,
+            commander::commander_server_stop,
+            commander::commander_select,
+            commander::commander_official,
+            commander::commander_forget,
+            commander::commander_scan,
         ])
         .run(tauri::generate_context!())
         .expect("Obsidian failed to start");

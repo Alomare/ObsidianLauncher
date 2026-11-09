@@ -2,7 +2,7 @@
 // Wiki pages and buttons elsewhere move around with `go`.
 import { useSyncExternalStore } from "react";
 
-export type Tab = "home" | "mods" | "saves" | "wiki" | "settings";
+export type Tab = "home" | "mods" | "saves" | "commander" | "wiki" | "settings";
 export type Place = { tab: Tab; wiki: string; anchor: string };
 
 let place: Place = { tab: "mods", wiki: "", anchor: "" };

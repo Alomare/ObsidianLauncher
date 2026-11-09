@@ -24,10 +24,12 @@ pub struct Ctx {
     /// Held by each command that reads or changes the library or profile. The commands are async,
     /// so they run off the window's thread and the window stays responsive; this keeps them in turn.
     pub work: Mutex<()>,
+    /// Commander's relay and server (commander.rs).
+    pub commander: Mutex<crate::commander::Runtime>,
 }
 
 impl Ctx {
-    fn turn(&self) -> std::sync::MutexGuard<'_, ()> {
+    pub(crate) fn turn(&self) -> std::sync::MutexGuard<'_, ()> {
         self.work.lock().unwrap_or_else(|p| p.into_inner())
     }
 }
@@ -683,7 +685,7 @@ pub async fn play(ctx: State<'_, Ctx>, app: tauri::AppHandle) -> CmdResult<Snaps
     fresh(&ctx)
 }
 
-fn saves_of(ctx: &Ctx) -> CmdResult<obsidian_core::saves::Saves> {
+pub(crate) fn saves_of(ctx: &Ctx) -> CmdResult<obsidian_core::saves::Saves> {
     let g = game_of(ctx)?;
     Ok(obsidian_core::saves::Saves::open(&ctx.data, &g, obsidian_core::game::is_running)?)
 }
