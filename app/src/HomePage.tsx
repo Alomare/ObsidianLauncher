@@ -1,22 +1,19 @@
 // Home: the game's art under an even darkening, the logo and name in the middle and the links
-// centered at the bottom. Each link opens in the browser; the tooltip shows where. The eye beside the
-// links moves to the center and the links slide into it, for a clear view of the art; a click brings
-// them back, and the choice is remembered.
+// centered at the bottom. Each link opens in the browser; the tooltip shows where.
 //
 // The art goes round by itself: each picture fills the page, drifts in very slowly (a 2% zoom over
 // the time on screen) and gives way to the next with a cross-fade. The small controls at the top
-// right go to the one before or after. With animations off one picture stays still, and the next
+// center go to the one before or after. With animations off one picture stays still, and the next
 // launch shows the next one.
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import logo from "./assets/logo-shaded.png";
-import { ChevronIcon, DiscordIcon, EyeIcon, EyeOffIcon, GitHubIcon, KofiIcon, OutboundIcon, SearchIcon } from "./Icons";
+import { ChevronIcon, DiscordIcon, GitHubIcon, KofiIcon, OutboundIcon, SearchIcon } from "./Icons";
 import { t } from "./i18n";
 import { LINKS } from "./links";
 import { useAppSettings } from "./settings";
 import { motionOn, systemReducesMotion } from "./theme";
 
-const TUCK_KEY = "obsidian.homeLinksTucked";
 const ART_KEY = "obsidian.homeArt";
 const ART_SECONDS = 30; // how long a picture stays before the next one comes
 const ART = Object.entries(import.meta.glob("./assets/home/*.webp", { eager: true, query: "?url", import: "default" }))
@@ -75,10 +72,9 @@ function useArt() {
   return { layers: moving ? layers : [top], top, moving, step };
 }
 
-function Link({ url, cls, icon, label, i, hidden }: { url: string; cls: string; icon: ReactNode; label: string; i: number; hidden: boolean }) {
+function Link({ url, cls, icon, label }: { url: string; cls: string; icon: ReactNode; label: string }) {
   return (
-    <button className={`btn ${cls}`} style={{ ["--i" as string]: i }} tabIndex={hidden ? -1 : undefined} aria-hidden={hidden}
-      onClick={() => openUrl(url).catch(() => {})} data-tip-title={label} data-tip={url}>
+    <button className={`btn ${cls}`} onClick={() => openUrl(url).catch(() => {})} data-tip-title={label} data-tip={url}>
       {icon}
       {label}
       <OutboundIcon />
@@ -123,36 +119,7 @@ function useTitleFit() {
   return brand;
 }
 
-function readTucked(): boolean {
-  try {
-    return localStorage.getItem(TUCK_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
 export function HomePage() {
-  const [tucked, setTucked] = useState(readTucked);
-  const row = useRef<HTMLDivElement>(null);
-  const list = useRef<HTMLDivElement>(null);
-  const eye = useRef<HTMLButtonElement>(null);
-  // The eye and each link travel to the center of the row, so each needs to know how far away that is.
-  useLayoutEffect(() => {
-    const box = row.current;
-    if (!box) return;
-    const place = (b: HTMLElement) => {
-      b.style.setProperty("--off-x", `${box.offsetWidth / 2 - (b.offsetLeft + b.offsetWidth / 2)}px`);
-      b.style.setProperty("--off-y", `${box.offsetHeight / 2 - (b.offsetTop + b.offsetHeight / 2)}px`);
-    };
-    if (eye.current) place(eye.current);
-    for (const el of list.current?.children ?? []) place(el as HTMLElement);
-  });
-  const toggle = () =>
-    setTucked((v) => {
-      try { localStorage.setItem(TUCK_KEY, v ? "0" : "1"); } catch { /* remembered for this visit only */ }
-      return !v;
-    });
-  const label = tucked ? t("app.home.showLinks") : t("app.home.hideLinks");
   const art = useArt();
   const brand = useTitleFit();
   const time = { ["--art-time" as string]: `${ART_SECONDS}s` } as CSSProperties;
@@ -179,16 +146,11 @@ export function HomePage() {
           </div>
         </div>
         <div className="home-foot">
-          <div className={tucked ? "home-links tucked" : "home-links"} ref={row}>
-            <button className="btn home-tuck" ref={eye} onClick={toggle} aria-expanded={!tucked} aria-label={label} data-tip={label}>
-              {tucked ? <EyeOffIcon /> : <EyeIcon />}
-            </button>
-            <div className="home-link-list" ref={list} style={{ ["--n" as string]: 4 }}>
-              <Link i={0} hidden={tucked} url={LINKS.nexus} cls="play" icon={<SearchIcon />} label={t("app.home.nexus")} />
-              <Link i={1} hidden={tucked} url={LINKS.discord} cls="discord" icon={<DiscordIcon />} label={t("app.home.discord")} />
-              <Link i={2} hidden={tucked} url={LINKS.kofi} cls="" icon={<KofiIcon />} label={t("app.home.sponsor")} />
-              <Link i={3} hidden={tucked} url={LINKS.repo} cls="" icon={<GitHubIcon />} label={t("app.home.github")} />
-            </div>
+          <div className="home-links">
+            <Link url={LINKS.nexus} cls="play" icon={<SearchIcon />} label={t("app.home.nexus")} />
+            <Link url={LINKS.discord} cls="discord" icon={<DiscordIcon />} label={t("app.home.discord")} />
+            <Link url={LINKS.kofi} cls="" icon={<KofiIcon />} label={t("app.home.sponsor")} />
+            <Link url={LINKS.repo} cls="" icon={<GitHubIcon />} label={t("app.home.github")} />
           </div>
         </div>
       </div>

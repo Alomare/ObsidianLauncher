@@ -287,13 +287,18 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
           onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAddMenu({ x: r.left, y: r.bottom + 4 }); }}>
           <PlusIcon /><span className="label">{t("app.mods.addButton")}</span>
         </button>
+        {waiting.length > 0 && (
+          <button className="btn play head-update" onClick={() => updateMods(waiting, names)}
+            aria-label={t("app.mods.updateAll", waiting.length)} data-tip-title={t("app.mods.updateAll", waiting.length)} data-tip={t("app.mods.updateAllHint")}>
+            <UpdateIcon /><span>{waiting.length}</span>
+          </button>
+        )}
         <label className="search">
           <SearchIcon />
           <input ref={search} type="text" value={query} placeholder={t("app.mods.search")} aria-label={t("app.mods.search")} onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Escape" && setQuery("")} />
           {query && <button className="bare" onClick={() => setQuery("")} aria-label={t("app.mods.clearSearch")} data-tip={t("app.mods.clearSearch")}><CloseIcon /></button>}
         </label>
-        {waiting.length > 0 && <button className="btn play head-update" onClick={() => updateMods(waiting, names)}><UpdateIcon />{t("app.mods.updateAll", waiting.length)}</button>}
         <div className="head-actions">
           <button className={snap.deployed ? "btn icon head-tool danger" : "btn icon head-tool"} onClick={onPurge} disabled={locked} data-tip-title={t("app.action.purge")} data-tip={lockedWhy ?? t("app.action.purgeHint")} aria-label={t("app.action.purge")}>
             <PurgeIcon />

@@ -343,6 +343,8 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
             const node = folders.get(f.id);
             const ids = node?.kind === "folder" ? node.ids : [];
             const state = ids.length && ids.every((id) => checked.has(id)) ? true : ids.some((id) => checked.has(id)) ? "mixed" : false;
+            // A closed folder still shows how many of the mods in it have an update, in the Version column.
+            const ups = f.collapsed ? ids.filter((id) => { const m = byId.get(id); return m && offered(updates, m); }).length : 0;
             const cls =["tr", "fr", f.collapsed && "closed", f.locked && "locked", marker?.onto === f.id && !f.locked && "onto", draggingKeys.has(keyOf(line)) && "lifted"].filter(Boolean).join(" ");
             return (
               <div key={keyOf(line)} data-key={keyOf(line)} role="row" tabIndex={0} className={cls} style={{ "--fc": f.color } as CSSProperties} aria-expanded={!f.collapsed}
@@ -358,6 +360,7 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
                   </button>
                   <span className="fr-name">{f.name}</span>
                 </span>
+                {ups > 0 && <span className="fr-ups" data-tip-title={t("app.folder.updates", ups)} data-tip={t("app.folder.updatesHint")}>{ups}</span>}
                 <span className="fr-end">
                   {!ids.length && <span className="fr-count">{t("app.folder.empty")}</span>}
                 </span>

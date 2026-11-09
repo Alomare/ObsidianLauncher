@@ -684,8 +684,8 @@ button.link.small { font-size: 0.8rem; margin-top: 0.45rem; }
 /* The Deploy icon is 3:2; every icon rule above sets a square, so the width follows the height here. */
 svg.icon-wide { width: auto !important; aspect-ratio: 3 / 2; }
 .btn.head-tool.go svg { stroke-width: 2.4; }
-/* Update All in the type of Add, not the heavier one of the gold buttons. */
-.mods .head .btn.head-update { margin-left: 0.3rem; font-weight: inherit; }
+/* Update All beside Add: the icon and the number of updates, the full name in the tooltip. */
+.mods .head .btn.head-update { padding: 0 0.75rem; gap: 0.4rem; font-family: "Saira Variable", sans-serif; font-weight: 600; font-size: 0.9rem; letter-spacing: 0; font-variant-numeric: tabular-nums; }
 /* In a narrow window the search box gives up its room first, down to 7rem, and only then the profile name. */
 .mods .head .search { flex: 1 1 0; min-width: 7rem; max-width: 15rem; margin-left: 0; }
 .mods .head .head-actions { display: flex; gap: 0.45rem; margin-left: auto; }
@@ -725,7 +725,7 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 @keyframes art-in { from { opacity: 0; } }
 @keyframes art-zoom { from { transform: scale(1); } to { transform: scale(1.02); } }
 .home-foot { position: relative; display: flex; align-items: flex-end; justify-content: center; }
-.home-steps { position: absolute; z-index: 1; right: 2.2rem; top: 1rem; display: flex; align-items: center; height: 1.6rem; color: #f2f1ed; background: rgba(255, 255, 255, 0.12); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); }
+.home-steps { position: absolute; z-index: 1; left: 50%; transform: translateX(-50%); top: 1rem; display: flex; align-items: center; height: 1.6rem; color: #f2f1ed; background: rgba(255, 255, 255, 0.12); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); }
 .home-steps button { align-self: stretch; display: flex; align-items: center; padding: 0 0.3rem; border: 0; background: none; color: inherit; cursor: pointer; transition: background var(--fast); }
 .home-steps button:hover { background: rgba(255, 255, 255, 0.16); }
 .home-steps svg { width: 0.9rem; height: 0.9rem; }
@@ -762,7 +762,7 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .tr.checked { background: color-mix(in srgb, var(--gold) 7%, transparent); }
 
 /* Folders: a name line in the folder colour; the mods inside carry a bar of it */
-.tr.fr { grid-template-columns: var(--lead) minmax(0, 1fr) auto; padding-top: 0.24rem; padding-bottom: 0.24rem; background: color-mix(in srgb, var(--fc) 20%, transparent); box-shadow: inset 4px 0 0 var(--fc); }
+.tr.fr { padding-top: 0.24rem; padding-bottom: 0.24rem; background: color-mix(in srgb, var(--fc) 20%, transparent); box-shadow: inset 4px 0 0 var(--fc); }
 .tr.fr:hover { background: color-mix(in srgb, var(--fc) 28%, transparent); }
 .fr-chev { display: inline-flex; justify-self: start; color: var(--mu); transform-origin: 50% 50%; transition: transform 180ms ease; }
 .fr-chev svg { width: 1rem; height: 1rem; }
@@ -863,8 +863,11 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .swatch.custom { margin-left: 0.35rem; background: conic-gradient(#f2574b, #f0b429, #f2d01e, #2fb889, #4a90d9, #9b7bd4, #c062b8, #f2574b); }
 .ctx-colors .swatch.custom { margin-left: 0.25rem; }
 
-.fr-end { display: flex; align-items: center; }
-.fr-title { display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
+/* A folder row keeps the columns of a mod row: the name keeps to the Mod column, and a closed
+   folder shows how many mods in it have an update in the Version column. */
+.fr-end { grid-column: 5 / -1; grid-row: 1; justify-self: end; display: flex; align-items: center; }
+.fr-ups { grid-column: 6; grid-row: 1; justify-self: center; min-width: 1.3rem; height: 1.3rem; padding: 0 0.25rem; display: grid; place-items: center; font-family: "Saira Variable", sans-serif; font-weight: 600; font-size: 0.78rem; font-variant-numeric: tabular-nums; color: var(--on); background: var(--gold); }
+.fr-title { grid-column: 4 / 5; display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
 .bare.fr-lock { flex: none; padding: 0.2rem; border-radius: 2px; color: var(--tx); background: var(--ln); opacity: 0.45; transition: opacity var(--fast), color var(--fast); }
 .fr-lock svg { width: 0.85rem; height: 0.85rem; }
 .bare.fr-lock.on { color: #fff; opacity: 1; }
@@ -874,13 +877,8 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .tr.fr.locked { cursor: pointer; }
 
 
-/* Home links tuck into the button beside them and spring back out */
-.home-links { position: relative; display: flex; align-items: center; justify-content: center; gap: 0.6rem; }
-.home-link-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.6rem; }
-.home .btn.home-tuck { width: 2rem; padding: 0; position: relative; z-index: 1; transition: transform 320ms cubic-bezier(0.4, 0, 0.2, 1); }
-.home-links.tucked .btn.home-tuck { transform: translate(var(--off-x), var(--off-y)); }
-.home-link-list .btn { transition: transform 320ms cubic-bezier(0.4, 0, 0.2, 1), opacity 260ms ease; transition-delay: calc(var(--i) * 30ms); }
-.home-links.tucked .home-link-list .btn { transform: translate(var(--off-x), var(--off-y)); opacity: 0; pointer-events: none; transition-delay: calc((var(--n) - 1 - var(--i)) * 30ms); }
+/* Home links: one centered row that wraps on a narrow window */
+.home-links { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.6rem; }
 .home .btn.play { min-width: 0; }
 
 /* A folder opening: the mods in it fade in as the rows below slide down; closing runs the other way */
@@ -997,7 +995,7 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .ctx, .picker, .select-list { border-color: var(--edge); border-top-color: var(--gold); box-shadow: none; }
 .tip { box-shadow: inset 0 -2px 0 var(--gold), inset 0 0 0 var(--edge-w) var(--edge); }
 .tip.below { box-shadow: inset 0 2px 0 var(--gold), inset 0 0 0 var(--edge-w) var(--edge); }
-.btn:not(.actions .btn):not(.home-tuck), .search, .profile-btn, .select-btn, .key-btn, .wiki-find {
+.btn:not(.actions .btn), .search, .profile-btn, .select-btn, .key-btn, .wiki-find {
   -webkit-mask: linear-gradient(315deg, transparent var(--cut-sm), #000 calc(var(--cut-sm) + 0.5px));
 }
 /* The fold takes the border with it, so a line in the color of the border closes the outline */
@@ -1009,8 +1007,8 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .key-btn::after { bottom: calc(var(--cut-sm) * 0.707 - 2.4px); }
 /* The light theme's button edge closes the same way. A button has no border, so the line sits on the
    fold itself: its middle is 0.707 of the cut plus half a pixel in from the corner, on both axes. */
-:root[data-theme="light"] .btn:not(.actions .btn):not(.home-tuck) { position: relative; }
-:root[data-theme="light"] .btn:not(.actions .btn):not(.home-tuck)::after {
+:root[data-theme="light"] .btn:not(.actions .btn) { position: relative; }
+:root[data-theme="light"] .btn:not(.actions .btn)::after {
   content: ""; position: absolute; right: calc(var(--cut-sm) * -0.293 - 0.15px); bottom: calc(var(--cut-sm) * 0.707 - 0.15px); width: calc(var(--cut-sm) * 2 + 1px);
   /* A slanted line smooths lighter than a straight one, so it is a shade darker to match the edges. */
   border-top: 1px solid rgba(0, 0, 0, 0.42); transform: rotate(-45deg); pointer-events: none;
