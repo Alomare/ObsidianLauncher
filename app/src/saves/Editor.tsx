@@ -1,6 +1,8 @@
 // The save editor, for Sandbox saves with the game closed: Overview, Character, Arsenal, Campaign and Mods.
 // Changes wait as edits until Save writes them all at once; the page always shows the save as it will be.
-import { useCallback, useEffect, useMemo, useState } from "react";
+// Every value sits on the grid of the options panel: the name with a line under it, the control filling the
+// middle cell, and a button to undo a change waiting on that row.
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { call, errorText } from "../api";
 import { withTask } from "../busy";
 import { Confirm } from "../Confirm";
@@ -8,10 +10,10 @@ import { ArrowIcon, CheckIcon, ResetIcon, TrashIcon, WarnIcon } from "../Icons";
 import { language, pick, t } from "../i18n";
 import { notify } from "../notices";
 import { Select } from "../Select";
-import { Field, Help } from "../SettingRow";
+import { Help } from "../SettingRow";
 import type { Snapshot } from "../types";
 import { ArsenalTab } from "./ArsenalTab";
-import { choiceId, draftOf, fieldEnabled, parseWhole, playTime, rankProgress, stage, topXp } from "./logic";
+import { choiceId, draftOf, fieldEnabled, parseWhole, playTime, rankProgress, slotChoices, stage, topXp } from "./logic";
 import { COSMETIC_SLOTS, type CosmeticSlot, type Edit, type EditorState, type ModChoice, type ModFieldState, type ModSection, type ModText } from "./types";
 
 type Tab = "overview" | "character" | "arsenal" | "campaign" | "mods";
@@ -22,6 +24,9 @@ const num = (n: number) => n.toLocaleString(language());
 
 /** A mod's own text: a table by language, or plain words. */
 const modText = (v: ModText, fallback: string) => (typeof v === "string" ? v : pick(v, fallback));
+
+/** What a row needs for the undo button: the waiting edits, and how to drop the ones of that row. */
+type Undo = { pending: Map<string, Edit>; revert: (keys: string[]) => void };
 
 export function SaveEditor({ id, snap, onClose }: { id: string; snap: Snapshot; onClose: () => void }) {
   const [base, setBase] = useState<EditorState | null>(null);
@@ -40,6 +45,12 @@ export function SaveEditor({ id, snap, onClose }: { id: string; snap: Snapshot; 
 
   const draft = useMemo(() => (base ? draftOf(base, pending) : null), [base, pending]);
   const edit = useCallback((e: Edit) => { setPending((p) => (base ? stage(p, base, e) : p)); }, [base]);
+  const revert = useCallback((keys: string[]) => setPending((p) => {
+    const next = new Map(p);
+    for (const k of keys) next.delete(k);
+    return next;
+  }), []);
+  const undo: Undo = { pending, revert };
   const running = snap.game === "running";
 
   const write = async (edits: Edit[], done: string) => {
@@ -58,13 +69,15 @@ export function SaveEditor({ id, snap, onClose }: { id: string; snap: Snapshot; 
 
   const count = pending.size;
   const back = () => (count ? setLeaving(true) : onClose());
-  const backBtn = <button className="btn small" onClick={back}><ArrowIcon />{t("app.saves.backToList")}</button>;
+  const backBtn = (
+    <button className="btn icon head-tool ed-back" onClick={back} aria-label={t("app.saves.backToList")} data-tip={t("app.saves.backToList")}><ArrowIcon /></button>
+  );
 
   if (!draft) {
     return (
       <div className="ed">
-        <div className="head">{backBtn}</div>
-        {failed && <p className="set-note">{failed}</p>}
+        <div className="head ed-head">{backBtn}</div>
+        {failed && <p className="save-note warn">{failed}</p>}
       </div>
     );
   }
@@ -81,9 +94,10 @@ export function SaveEditor({ id, snap, onClose }: { id: string; snap: Snapshot; 
         </div>
         <div className="ed-savebar">
           {count > 0 && <span className="ed-dirty">{t(count === 1 ? "app.saves.unsavedOne" : "app.saves.unsaved", count)}</span>}
-          <button className="btn small" disabled={!count || saving} onClick={() => setPending(new Map())}><ResetIcon />{t("app.saves.discard")}</button>
-          <button className="btn small play" disabled={!count || !canWrite} onClick={() => write([...pending.values()], t("app.saves.written"))}
-            data-tip={running ? t("app.action.closeGameFirst") : undefined}><CheckIcon />{t("app.saves.save")}</button>
+          <button className="btn icon head-tool" disabled={!count || saving} onClick={() => setPending(new Map())} aria-label={t("app.saves.discard")}
+            data-tip-title={t("app.saves.discard")} data-tip={t("app.saves.discardHint")}><ResetIcon /></button>
+          <button className="btn go head-tool" disabled={!count || !canWrite} onClick={() => write([...pending.values()], t("app.saves.written"))}
+            data-tip={running ? t("app.action.closeGameFirst") : undefined}><CheckIcon /><span className="label">{t("app.saves.save")}</span></button>
         </div>
       </div>
       <div className="subtabs ed-tabs" role="tablist">
@@ -96,10 +110,10 @@ export function SaveEditor({ id, snap, onClose }: { id: string; snap: Snapshot; 
       {running && <div className="banner"><WarnIcon /><span>{t("app.saves.gameRunningEditor")}</span></div>}
       <div className="ed-body" key={tab}>
         {tab === "overview" && <OverviewTab draft={draft} dirty={count > 0} blocked={!canWrite} onBulk={setBulk} />}
-        {tab === "character" && <CharacterTab draft={draft} onEdit={edit} />}
+        {tab === "character" && <CharacterTab draft={draft} onEdit={edit} undo={undo} />}
         {tab === "arsenal" && <ArsenalTab draft={draft} onEdit={edit} />}
-        {tab === "campaign" && <CampaignTab draft={draft} onEdit={edit} />}
-        {tab === "mods" && <ModsTab draft={draft} onEdit={edit} />}
+        {tab === "campaign" && <CampaignTab draft={draft} onEdit={edit} undo={undo} />}
+        {tab === "mods" && <ModsTab draft={draft} onEdit={edit} undo={undo} />}
       </div>
       {bulk && (
         <Confirm title={t(bulk === "max" ? "app.saves.maxTitle" : "app.saves.resetTitle", draft.name)} text={t(bulk === "max" ? "app.saves.maxText" : "app.saves.resetText")}
@@ -128,12 +142,38 @@ function NumField({ value, min, max, label, disabled, onCommit }: { value: numbe
     onChange={(e) => setText(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === "Enter") commit(); }} />;
 }
 
-function Card({ title, help, children, wide }: { title: string; help?: string; children: React.ReactNode; wide?: boolean }) {
+/** A panel of rows under a title, with an optional line about the whole group under the rows. */
+function Panel({ title, note, tools, children, className }: { title: ReactNode; note?: ReactNode; tools?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <section className={wide ? "ed-card wide" : "ed-card"}>
-      <h3 className="cap">{title}{help && <Help page={help} />}</h3>
+    <section className={className ? `ed-card ${className}` : "ed-card"}>
+      <h3 className="ed-card-head"><span className="cap">{title}</span>{tools}</h3>
       {children}
+      {note && <p className="ed-note">{note}</p>}
     </section>
+  );
+}
+
+function Switch({ on, label, disabled, onFlip }: { on: boolean; label: string; disabled?: boolean; onFlip: () => void }) {
+  return <button role="switch" aria-checked={on} aria-label={label} className={on ? "sw on" : "sw"} disabled={disabled} onClick={onFlip} />;
+}
+
+/** One row of the grid. `keys` names the waiting edits the row's undo drops; with none, the third cell
+ *  holds `end` or stays empty. */
+function Row({ label, desc, children, keys, undo, end, off }: { label: ReactNode; desc?: ReactNode; children?: ReactNode; keys?: string[]; undo?: Undo; end?: ReactNode; off?: boolean }) {
+  const changed = !!keys && !!undo && keys.some((k) => undo.pending.has(k));
+  return (
+    <li className={off ? "opt off" : "opt"}>
+      <div className="opt-text">
+        <div className="l">{label}</div>
+        {desc && <div className="d">{desc}</div>}
+      </div>
+      <div className="opt-cell">{children}</div>
+      <div className="opt-cell">
+        {keys && undo ? (
+          <button className="bare" disabled={!changed} onClick={() => undo.revert(keys)} aria-label={t("app.saves.undoRow")} data-tip={changed ? t("app.saves.undoRow") : undefined}><ResetIcon /></button>
+        ) : end}
+      </div>
+    </li>
   );
 }
 
@@ -143,10 +183,10 @@ function OverviewTab({ draft, dirty, blocked, onBulk }: { draft: EditorState; di
   const off = blocked || dirty;
   const why = dirty ? t("app.saves.saveOrDiscardFirst") : undefined;
   return (
-    <div className="ed-grid">
-      <Card title={t("app.saves.statsTitle")}>
-        <dl className="save-stats">
-          <div><dt>{t("app.saves.stat.rank")}</dt><dd>{draft.rank}<small>{title}</small></dd></div>
+    <div className="ed-cols">
+      <Panel title={t("app.saves.statsTitle")}>
+        <dl className="kv">
+          <div><dt>{t("app.saves.stat.rank")}</dt><dd>{draft.rank}<small className="kv-sub">{title}</small></dd></div>
           <div><dt>{t("app.saves.stat.xp")}</dt><dd>{num(draft.xp)}</dd></div>
           <div><dt>{t("app.saves.stat.samples")}</dt><dd>{num(draft.samples)}</dd></div>
           <div><dt>{t("app.saves.researchPoints")}</dt><dd>{num(draft.researchPoints)}</dd></div>
@@ -155,197 +195,178 @@ function OverviewTab({ draft, dirty, blocked, onBulk }: { draft: EditorState; di
           <div><dt>{t("app.saves.stat.deaths")}</dt><dd>{num(l.deaths ?? 0)}</dd></div>
           <div><dt>{t("app.saves.stat.played")}</dt><dd>{playTime(l.time_played ?? 0)}</dd></div>
         </dl>
-      </Card>
-      <Card title={t("app.saves.bulkTitle")}>
-        <p className="ed-note">{t("app.saves.maxHint")}</p>
-        <div className="ed-bulk">
-          <button className="btn small go" disabled={off} onClick={() => onBulk("max")} data-tip={why}>{t("app.saves.maxEverything")}</button>
-        </div>
-        <p className="ed-note">{t("app.saves.resetHint")}</p>
-        <div className="ed-bulk">
-          <button className="btn small danger" disabled={off} onClick={() => onBulk("reset")} data-tip={why}>{t("app.saves.resetProgression")}</button>
-        </div>
-        {dirty && <p className="save-why">{t("app.saves.saveOrDiscardFirst")}</p>}
-      </Card>
+      </Panel>
+      <Panel title={t("app.saves.bulkTitle")} note={dirty ? <span className="warn">{t("app.saves.saveOrDiscardFirst")}</span> : undefined}>
+        <ul className="opts opt-table">
+          <Row label={t("app.saves.maxEverything")} desc={t("app.saves.maxHint")}>
+            <button className="btn small go ed-fill" disabled={off} onClick={() => onBulk("max")} data-tip={why}>{t("app.saves.maxShort")}</button>
+          </Row>
+          <Row label={t("app.saves.resetProgression")} desc={t("app.saves.resetHint")}>
+            <button className="btn small danger ed-fill" disabled={off} onClick={() => onBulk("reset")} data-tip={why}>{t("app.saves.resetShort")}</button>
+          </Row>
+        </ul>
+      </Panel>
     </div>
   );
 }
 
-function CharacterTab({ draft, onEdit }: { draft: EditorState; onEdit: (e: Edit) => void }) {
+function CharacterTab({ draft, onEdit, undo }: { draft: EditorState; onEdit: (e: Edit) => void; undo: Undo }) {
   const prog = rankProgress(draft.ranks, draft.xp);
-  const slotOptions = (slot: CosmeticSlot) => draft.cosmetics[slot]
-    .map((c, i) => ({ c, i }))
-    .filter(({ c, i }) => !c.dlc || draft.customization[slot] === i + 1)
-    .map(({ c, i }) => ({ value: String(i + 1), label: c.owned || slot === "gender" ? c.display : t("app.saves.cosmeticNotOwned", c.display) }));
+  const slotOptions = (slot: CosmeticSlot) => slotChoices(draft.cosmetics[slot], draft.customization[slot]).map((i) => {
+    const c = draft.cosmetics[slot][i - 1];
+    return { value: String(i), label: c.owned || slot === "gender" ? c.display : t("app.saves.cosmeticNotOwned", c.display) };
+  });
   const pickCosmetic = (slot: CosmeticSlot, value: string) => {
     const index = Number(value);
     const c = draft.cosmetics[slot][index - 1];
-    // Gender is a choice, not something a save owns.
-    if (c && !c.owned && slot !== "gender") onEdit({ op: "set_owned", item: c.name, owned: true });
+    // Gender is a choice, not something a save owns. Owned DLC is granted by Steam and needs no unlock.
+    if (c && !c.owned && !c.locked && slot !== "gender") onEdit({ op: "set_owned", item: c.name, owned: true });
     onEdit({ op: "set_customization", slot, index });
   };
+  /** A slot's undo also drops the unlock that picking an item not owned added. */
+  const slotKeys = (slot: CosmeticSlot) => [`cos:${slot}`, ...draft.cosmetics[slot].map((c) => `own:${c.name}`)];
   return (
-    <div className="ed-grid">
-      <Card title={t("app.saves.rankXp")}>
-        <div className="ed-pair">
-          <Field label={t("app.saves.stat.rank")}>
-            <Select value={String(draft.rank)} label={t("app.saves.stat.rank")}
+    <div className="ed-cols">
+      <Panel title={t("app.saves.rankXp")}>
+        <ul className="opts opt-table">
+          <Row label={t("app.saves.stat.rank")} keys={["xp"]} undo={undo}>
+            <Select fill value={String(draft.rank)} label={t("app.saves.stat.rank")}
               options={draft.ranks.map((r) => ({ value: String(r.level), label: `${r.level}. ${r.title}` }))}
               onChange={(v) => onEdit({ op: "set_rank", rank: Number(v) })} />
-          </Field>
-          <Field label={t("app.saves.stat.xp")}>
-            <NumField value={draft.xp} min={0} max={topXp(draft.ranks)} label={t("app.saves.stat.xp")} onCommit={(xp) => onEdit({ op: "set_xp", xp })} />
-          </Field>
-        </div>
-        <div className="ed-meter" aria-hidden="true"><i style={{ width: `${prog.fraction * 100}%` }} /></div>
-        <p className="ed-note">{prog.need === null ? t("app.saves.topRank") : t("app.saves.xpToNext", num(prog.need), `${prog.next!.level}. ${prog.next!.title}`)}</p>
-      </Card>
-      <Card title={t("app.saves.stat.samples")}>
-        <div className="ed-pair">
-          <Field label={t("app.saves.stat.samples")}>
+          </Row>
+          <Row label={t("app.saves.stat.xp")} keys={["xp"]} undo={undo}
+            desc={prog.need === null ? t("app.saves.topRank") : t("app.saves.xpToNext", num(prog.need), `${prog.next!.level}. ${prog.next!.title}`)}>
+            <div className="ed-stack">
+              <NumField value={draft.xp} min={0} max={topXp(draft.ranks)} label={t("app.saves.stat.xp")} onCommit={(xp) => onEdit({ op: "set_xp", xp })} />
+              <div className="ed-meter" aria-hidden="true"><i style={{ width: `${prog.fraction * 100}%` }} /></div>
+            </div>
+          </Row>
+        </ul>
+      </Panel>
+      <Panel title={t("app.saves.stat.samples")}>
+        <ul className="opts opt-table">
+          <Row label={t("app.saves.stat.samples")} desc={t("app.saves.samplesHint", draft.samplesPerPoint, num(draft.maxSamples))} keys={["samples"]} undo={undo}>
             <NumField value={draft.samples} min={0} max={draft.maxSamples} label={t("app.saves.stat.samples")} onCommit={(samples) => onEdit({ op: "set_samples", samples })} />
-          </Field>
-          <div className="ed-derived">
-            <span className="field-label">{t("app.saves.researchPoints")}</span>
-            <b>{num(draft.researchPoints)}</b>
-          </div>
-        </div>
-        <p className="ed-note">{t("app.saves.samplesHint", draft.samplesPerPoint, num(draft.maxSamples))}</p>
-      </Card>
-      <Card title={t("app.saves.cosmetics")} wide>
-        <div className="ed-slots">
+          </Row>
+          <Row label={t("app.saves.researchPoints")}>
+            <span className="ed-value">{num(draft.researchPoints)}</span>
+          </Row>
+        </ul>
+      </Panel>
+      <Panel title={t("app.saves.cosmetics")} note={t("app.saves.cosmeticsHint")}>
+        <ul className="opts opt-table">
           {COSMETIC_SLOTS.map((slot) => (
-            <Field key={slot} label={t(`app.saves.slot.${slot}`)}>
-              <Select value={String(draft.customization[slot] ?? "")} label={t(`app.saves.slot.${slot}`)} options={slotOptions(slot)} onChange={(v) => pickCosmetic(slot, v)} />
-            </Field>
+            <Row key={slot} label={t(`app.saves.slot.${slot}`)} keys={slotKeys(slot)} undo={undo}>
+              <Select fill value={String(draft.customization[slot] ?? "")} label={t(`app.saves.slot.${slot}`)} options={slotOptions(slot)} onChange={(v) => pickCosmetic(slot, v)} />
+            </Row>
           ))}
-        </div>
-        <p className="ed-note">{t("app.saves.cosmeticsHint")}</p>
-      </Card>
+        </ul>
+      </Panel>
     </div>
   );
 }
 
 const BOSSES = ["bugs", "cyborgs", "illuminate"];
 
-function CampaignTab({ draft, onEdit }: { draft: EditorState; onEdit: (e: Edit) => void }) {
+function CampaignTab({ draft, onEdit, undo }: { draft: EditorState; onEdit: (e: Edit) => void; undo: Undo }) {
   return (
-    <div className="ed-grid">
-      <Card title={t("app.saves.bossInfluence")}>
-        <div className="ed-lines">
+    <div className="ed-cols">
+      <Panel title={t("app.saves.bossInfluence")} note={t("app.saves.bossHint", draft.bossInfluenceRequired)}>
+        <ul className="opts opt-table">
           {BOSSES.map((boss, i) => (
-            <div className="ed-line" key={boss}>
-              <span>{t(`app.saves.boss.${boss}`)}</span>
+            <Row key={boss} label={t(`app.saves.boss.${boss}`)} keys={[`boss:${i + 1}`]} undo={undo}>
               <NumField value={draft.bossInfluence[i] ?? 0} min={0} max={draft.bossInfluenceRequired} label={t(`app.saves.boss.${boss}`)} onCommit={(value) => onEdit({ op: "set_boss_influence", index: i + 1, value })} />
-            </div>
+            </Row>
           ))}
-        </div>
-        <p className="ed-note">{t("app.saves.bossHint", draft.bossInfluenceRequired)}</p>
-      </Card>
-      <Card title={t("app.saves.tutorials")}>
-        <div className="ed-lines">
-          <div className="ed-line">
-            <span>{t("app.saves.tutorialStage")}</span>
+        </ul>
+      </Panel>
+      <Panel title={t("app.saves.tutorials")}>
+        <ul className="opts opt-table">
+          <Row label={t("app.saves.tutorialStage")} keys={["stage"]} undo={undo}>
             <NumField value={draft.tutorialStage ?? 0} min={0} max={null} label={t("app.saves.tutorialStage")} onCommit={(value) => onEdit({ op: "set_tutorial_stage", value })} />
-          </div>
+          </Row>
           {draft.flags.map((f) => (
-            <div className="ed-line" key={f.key}>
-              <span>{t(`app.saves.flag.${f.key}`)}</span>
-              <button role="switch" aria-checked={f.value} aria-label={t(`app.saves.flag.${f.key}`)} className={f.value ? "sw on" : "sw"} onClick={() => onEdit({ op: "set_flag", key: f.key, value: !f.value })} />
-            </div>
+            <Row key={f.key} label={t(`app.saves.flag.${f.key}`)} keys={[`flag:${f.key}`]} undo={undo}>
+              <Switch on={f.value} label={t(`app.saves.flag.${f.key}`)} onFlip={() => onEdit({ op: "set_flag", key: f.key, value: !f.value })} />
+            </Row>
           ))}
-        </div>
-      </Card>
-      <Card title={t("app.saves.lifetime")} wide>
-        <div className="ed-life">
+        </ul>
+      </Panel>
+      <Panel title={t("app.saves.lifetime")}>
+        <ul className="opts opt-table">
           {Object.keys(draft.lifetime).map((key) => (
-            <div className="ed-line" key={key}>
-              <span>{t(`app.saves.life.${key}`)}</span>
+            <Row key={key} label={t(`app.saves.life.${key}`)} keys={[`life:${key}`]} undo={undo}>
               <NumField value={draft.lifetime[key]} min={0} max={null} label={t(`app.saves.life.${key}`)} onCommit={(value) => onEdit({ op: "set_lifetime", key, value })} />
-            </div>
+            </Row>
           ))}
-        </div>
-      </Card>
+        </ul>
+      </Panel>
     </div>
   );
 }
 
-function ModsTab({ draft, onEdit }: { draft: EditorState; onEdit: (e: Edit) => void }) {
+function ModsTab({ draft, onEdit, undo }: { draft: EditorState; onEdit: (e: Edit) => void; undo: Undo }) {
   if (draft.mods.length === 0) return <p className="muted pad">{t("app.saves.noModData")}</p>;
   return (
-    <div className="ed-mods">
-      {draft.mods.map((m) => <ModCard key={m.id} mod={m} onEdit={onEdit} />)}
+    <div className="ed-cols">
+      {draft.mods.map((m) => <ModPanel key={m.id} mod={m} onEdit={onEdit} undo={undo} />)}
     </div>
   );
 }
 
-function ModCard({ mod, onEdit }: { mod: ModSection; onEdit: (e: Edit) => void }) {
+function ModPanel({ mod, onEdit, undo }: { mod: ModSection; onEdit: (e: Edit) => void; undo: Undo }) {
   const off = mod.state === "disabled";
   const name = pick(mod.name, mod.id);
   const unlock = (u: ModSection["items"][number]["unlock"]) =>
     typeof u === "object" && u !== null ? t("app.saves.rankN", u.rank) : u === "free" ? t("app.saves.unlockFree") : u === "base" ? t("app.saves.unlockBase") : "";
+  const title = (
+    <>
+      <span className="ed-mod-name">{name}</span>
+      <span className="mono ed-mod-id">{mod.id}</span>
+      {mod.state !== "enabled" && <span className={`save-chip ${mod.state}`}>{t(`app.saves.mod.${mod.state}`)}</span>}
+    </>
+  );
+  const tools = mod.state === "removed" && mod.data.length > 0
+    ? <button className="btn small icon danger ed-mod-clear" onClick={() => onEdit({ op: "mod_clear", mod_id: mod.id })} aria-label={t("app.saves.deleteAllData")} data-tip={t("app.saves.deleteAllData")}><TrashIcon /></button>
+    : undefined;
+  const note = off ? t("app.saves.modDisabledHint") : mod.state === "removed" ? t("app.saves.modRemovedHint") : undefined;
   return (
-    <section className={`ed-card ed-mod ${mod.state}`}>
-      <h3 className="ed-mod-head">
-        <span className="ed-mod-name">{name}</span>
-        <span className="mono">{mod.id}</span>
-        {mod.state !== "enabled" && <span className={`save-chip ${mod.state}`}>{t(`app.saves.mod.${mod.state}`)}</span>}
-        {mod.state === "removed" && <button className="btn small danger ed-mod-clear" onClick={() => onEdit({ op: "mod_clear", mod_id: mod.id })}><TrashIcon />{t("app.saves.deleteAllData")}</button>}
-      </h3>
-      {off && <p className="ed-note">{t("app.saves.modDisabledHint")}</p>}
-      {mod.state === "removed" && (
-        <>
-          <p className="ed-note">{t("app.saves.modRemovedHint")}</p>
-          <ul className="ed-rows">
-            {mod.data.map((d) => (
-              <li key={d.key} className="ed-line">
-                <span className="mono">{d.key}</span>
-                <span className="mono ed-val">{String(d.value)}</span>
-                <button className="bare" onClick={() => onEdit({ op: "mod_delete", mod_id: mod.id, key: d.key })} aria-label={t("app.saves.delete")} data-tip={t("app.saves.delete")}><TrashIcon /></button>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-      {mod.fields.length > 0 && (
-        <div className="ed-lines">
-          {mod.fields.map((f) => <ModField key={f.id} mod={mod} field={f} off={off} onEdit={onEdit} />)}
-        </div>
-      )}
-      {mod.items.length > 0 && (
-        <ul className={off ? "ed-rows off" : "ed-rows"}>
-          {mod.items.map((i) => (
-            <li key={i.name} className="ed-line">
-              <span>{modText(i.label, i.name)}<small className="muted ed-kind">{t(`app.saves.modKind.${i.kind}`)}</small></span>
-              {i.unlock === "manual" ? (
-                <button role="switch" aria-checked={i.owned === true} aria-label={modText(i.label, i.name)} className={i.owned ? "sw on" : "sw"} disabled={off}
-                  onClick={() => onEdit({ op: "mod_item_owned", mod_id: mod.id, name: i.name, owned: !i.owned })} />
-              ) : (
-                <span className="muted">{unlock(i.unlock)}</span>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+    <Panel title={title} tools={tools} note={note} className={`ed-mod ${mod.state}`}>
+      <ul className="opts opt-table">
+        {mod.state === "removed" && mod.data.map((d) => (
+          <Row key={d.key} label={<span className="mono">{d.key}</span>}
+            end={<button className="bare" onClick={() => onEdit({ op: "mod_delete", mod_id: mod.id, key: d.key })} aria-label={t("app.saves.delete")} data-tip={t("app.saves.delete")}><TrashIcon /></button>}>
+            <span className="mono ed-value"><span className="ed-trunc">{String(d.value)}</span></span>
+          </Row>
+        ))}
+        {mod.fields.map((f) => <ModField key={f.id} mod={mod} field={f} off={off} onEdit={onEdit} undo={undo} />)}
+        {mod.items.map((i) => (
+          <Row key={i.name} label={modText(i.label, i.name)} desc={t(`app.saves.modKind.${i.kind}`)} off={off} keys={[`item:${mod.id}:${i.name}`]} undo={undo}>
+            {i.unlock === "manual"
+              ? <Switch on={i.owned === true} label={modText(i.label, i.name)} disabled={off} onFlip={() => onEdit({ op: "mod_item_owned", mod_id: mod.id, name: i.name, owned: !i.owned })} />
+              : <span className="ed-value muted">{unlock(i.unlock)}</span>}
+          </Row>
+        ))}
+      </ul>
+    </Panel>
   );
 }
 
-function ModField({ mod, field, off, onEdit }: { mod: ModSection; field: ModFieldState; off: boolean; onEdit: (e: Edit) => void }) {
+function ModField({ mod, field, off, onEdit, undo }: { mod: ModSection; field: ModFieldState; off: boolean; onEdit: (e: Edit) => void; undo: Undo }) {
   const label = modText(field.label, field.id);
   const inactive = off || !fieldEnabled(field, mod.fields);
   const set = (value: string | number | boolean) => onEdit({ op: "mod_set", mod_id: mod.id, key: field.id, value });
   let control;
   if (field.kind === "toggle") {
     const on = field.value === true;
-    control = <button role="switch" aria-checked={on} aria-label={label} className={on ? "sw on" : "sw"} disabled={inactive} onClick={() => set(!on)} />;
+    control = <Switch on={on} label={label} disabled={inactive} onFlip={() => set(!on)} />;
   } else if (field.kind === "number") {
     control = <NumField value={typeof field.value === "number" ? field.value : field.min ?? 0} min={field.min} max={field.max} label={label} disabled={inactive} onCommit={set} />;
   } else {
     const options = (field.choices ?? []).map((c: ModChoice) => ({ value: choiceId(c), label: typeof c === "string" ? c : modText(c.label ?? null, c.id) }));
     control = inactive
-      ? <span className="muted">{options.find((o) => o.value === field.value)?.label ?? ""}</span>
-      : <Select value={String(field.value ?? "")} options={options} label={label} onChange={set} />;
+      ? <span className="ed-value muted">{options.find((o) => o.value === field.value)?.label ?? ""}</span>
+      : <Select fill value={String(field.value ?? "")} options={options} label={label} onChange={set} />;
   }
-  return <div className={inactive ? "ed-line off" : "ed-line"}><span>{label}</span>{control}</div>;
+  return <Row label={label} off={inactive} keys={[`mod:${mod.id}:${field.id}`]} undo={undo}>{control}</Row>;
 }

@@ -36,14 +36,24 @@ export function parseWhole(text: string, min: number | null, max: number | null)
   return v;
 }
 
-export type OwnedRoute = "dlc" | "unlocked" | "rank" | "fixed" | "none";
+export type OwnedRoute = "dlc" | "entitled" | "unlocked" | "rank" | "fixed" | "none";
 
-/** Why an item is owned, which says what the owned switch can do: only `unlocked` and `none` can change. */
-export function ownedRoute(item: Pick<ItemState, "dlc" | "owned" | "inUnlocks" | "grantedRank">, rank: number): OwnedRoute {
-  if (item.dlc) return "dlc";
+/** Why an item is owned, which says what the owned switch can do: only `unlocked` and `none` can change.
+ *  `dlc` is paid DLC the account does not own (locked); `entitled` is paid DLC it owns, which Steam grants. */
+export function ownedRoute(item: Pick<ItemState, "dlc" | "locked" | "owned" | "inUnlocks" | "grantedRank">, rank: number): OwnedRoute {
+  if (item.locked) return "dlc";
+  if (item.dlc) return "entitled";
   if (item.inUnlocks) return "unlocked";
   if (item.grantedRank !== null && item.grantedRank <= rank) return "rank";
   return item.owned ? "fixed" : "none";
+}
+
+/** The choices of a cosmetic slot, by 1-based index: all but DLC the account does not own, and always
+ *  the one the save wears now, so a worn locked item still shows. */
+export function slotChoices(list: Pick<CosmeticState, "locked">[], current: number | undefined): number[] {
+  const out: number[] = [];
+  list.forEach((c, i) => { if (!c.locked || current === i + 1) out.push(i + 1); });
+  return out;
 }
 
 /** Whether the search text matches the item's name, raw name, category or description. */

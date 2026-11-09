@@ -1,5 +1,6 @@
-// The editor's Arsenal: weapons, stratagems and perks by category, with a search box. Every row reads the
-// same way: the owned switch, the name with why it is owned, then the upgrades.
+// The editor's Arsenal: weapons, stratagems and perks, one table per category with a search box over them.
+// Every table has the same three columns: the owned switch (centered), the item with why it is owned under
+// the name, and the upgrades.
 import { useMemo, useState } from "react";
 import { CheckIcon, CloseIcon, LockIcon, SearchIcon } from "../Icons";
 import { t } from "../i18n";
@@ -40,8 +41,9 @@ export function ArsenalTab({ draft, onEdit }: { draft: EditorState; onEdit: (e: 
         </div>
         <label className="search">
           <SearchIcon />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("app.saves.searchItems")} aria-label={t("app.saves.searchItems")} spellCheck={false} />
-          {query && <button className="bare" onClick={() => setQuery("")} aria-label={t("app.close")}><CloseIcon /></button>}
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("app.saves.searchItems")} aria-label={t("app.saves.searchItems")} spellCheck={false}
+            onKeyDown={(e) => e.key === "Escape" && setQuery("")} />
+          {query && <button className="bare" onClick={() => setQuery("")} aria-label={t("app.mods.clearSearch")} data-tip={t("app.mods.clearSearch")}><CloseIcon /></button>}
         </label>
         <span className="muted ar-count">{t("app.saves.ownedCount", owned, total)}</span>
       </div>
@@ -52,11 +54,13 @@ export function ArsenalTab({ draft, onEdit }: { draft: EditorState; onEdit: (e: 
         <section key={b.title} className="ar-block">
           <h3 className="cap ar-title">{b.title}</h3>
           {b.groups.map((g) => (
-            <div key={g.category ?? ""} className="ar-group">
-              {g.category && <h4 className="ar-cat">{label(`app.saves.cat.${g.category}`, g.category)}</h4>}
-              <ul className="ar-list">
-                {g.items.map((it) => <ItemRow key={it.name} item={it} rank={draft.rank} onEdit={onEdit} />)}
-              </ul>
+            <div key={g.category ?? ""} className="ar-table" role="table" aria-label={g.category ? label(`app.saves.cat.${g.category}`, g.category) : b.title}>
+              <div className="ar-th" role="row">
+                <span className="th-col" role="columnheader">{t("app.saves.col.owned")}</span>
+                <span className="th-col left" role="columnheader">{g.category ? label(`app.saves.cat.${g.category}`, g.category) : b.title}</span>
+                <span className="th-col left" role="columnheader">{t("app.saves.col.upgrades")}</span>
+              </div>
+              {g.items.map((it) => <ItemRow key={it.name} item={it} rank={draft.rank} onEdit={onEdit} />)}
             </div>
           ))}
         </section>
@@ -66,15 +70,15 @@ export function ArsenalTab({ draft, onEdit }: { draft: EditorState; onEdit: (e: 
         <section className="ar-block">
           <h3 className="cap ar-title">{t("app.saves.unknownItems")}</h3>
           <p className="muted ar-note">{t("app.saves.unknownHint")}</p>
-          <ul className="ar-list">
+          <div className="ar-table" role="table">
             {shownUnknown.map((name) => (
-              <li key={name} className="ar-row unknown">
-                <span className="ar-switch" />
-                <span className="mono ar-raw">{name}</span>
-                <button className="link small" onClick={() => onEdit({ op: "set_owned", item: name, owned: false })}>{t("app.saves.removeFromSave")}</button>
-              </li>
+              <div key={name} className="ar-row" role="row">
+                <span className="ar-switch" role="cell" />
+                <span className="mono ar-raw" role="cell">{name}</span>
+                <span role="cell"><button className="btn small" onClick={() => onEdit({ op: "set_owned", item: name, owned: false })}>{t("app.saves.removeFromSave")}</button></span>
+              </div>
             ))}
-          </ul>
+          </div>
         </section>
       )}
     </div>
@@ -85,11 +89,16 @@ function ItemRow({ item, rank, onEdit }: { item: ItemState; rank: number; onEdit
   const route = ownedRoute(item, rank);
   const locked = route === "dlc";
   const changeable = route === "unlocked" || route === "none";
-  const on = route !== "none" && route !== "dlc" ? true : item.owned;
-  const note = route === "dlc" ? null : route === "rank" ? t("app.saves.comesWithRank", item.grantedRank ?? 0) : route === "fixed" ? t("app.saves.alwaysOwned") : route === "none" && item.grantedRank !== null ? t("app.saves.rankNeeded", item.grantedRank) : null;
+  const on = route === "none" ? item.owned : !locked;
+  const note = route === "dlc" ? t("app.saves.paidDlc")
+    : route === "entitled" ? t("app.saves.ownedOnSteam")
+    : route === "rank" ? t("app.saves.comesWithRank", item.grantedRank ?? 0)
+    : route === "fixed" ? t("app.saves.alwaysOwned")
+    : route === "none" && item.grantedRank !== null ? t("app.saves.rankNeeded", item.grantedRank) : null;
+  const noteTip = route === "dlc" ? t("app.saves.paidDlcHint") : route === "entitled" ? t("app.saves.ownedOnSteamHint") : undefined;
   return (
-    <li className={locked ? "ar-row dlc" : "ar-row"}>
-      <span className="ar-switch">
+    <div className={locked ? "ar-row dlc" : "ar-row"} role="row">
+      <span className="ar-switch" role="cell">
         {locked ? (
           <span className="ar-lock" role="img" aria-label={t("app.saves.paidDlc")} data-tip={t("app.saves.paidDlcHint")}><LockIcon /></span>
         ) : (
@@ -98,15 +107,16 @@ function ItemRow({ item, rank, onEdit }: { item: ItemState; rank: number; onEdit
             onClick={() => changeable && onEdit({ op: "set_owned", item: item.name, owned: !item.inUnlocks })} />
         )}
       </span>
-      <div className="ar-name" data-tip-title={item.display} data-tip={item.description || undefined}>
-        <span className="ar-disp">{item.display}</span>
-        {locked && <span className="ar-tag lock">{t("app.saves.paidDlc")}</span>}
-        {note && <span className="ar-tag">{note}</span>}
+      <div className="ar-name" role="cell">
+        <span className="ar-disp" data-tip-title={item.display} data-tip={item.description || undefined}>{item.display}</span>
+        {note && <span className={route === "entitled" ? "ar-sub on" : "ar-sub"} data-tip={noteTip}>{note}</span>}
       </div>
-      {!locked && item.maxUpgrade > 0 && (item.upgradeKind === "bitmask"
-        ? <Checks item={item} onEdit={onEdit} />
-        : <Stepper item={item} onEdit={onEdit} />)}
-    </li>
+      <div className="ar-upcell" role="cell">
+        {!locked && item.maxUpgrade > 0 && (item.upgradeKind === "bitmask"
+          ? <Checks item={item} onEdit={onEdit} />
+          : <Stepper item={item} onEdit={onEdit} />)}
+      </div>
+    </div>
   );
 }
 

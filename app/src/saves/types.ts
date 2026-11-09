@@ -11,10 +11,11 @@ export type SaveImported = SavesDone & { id: string };
 export type RankRow = { level: number; requiredXp: number; title: string };
 export type Upgrade = { name: string; display: string; value: number };
 export type ItemState = {
-  name: string; display: string; description: string; category: string | null; dlc: boolean; owned: boolean; inUnlocks: boolean;
+  name: string; display: string; description: string; category: string | null; dlc: boolean; locked: boolean; owned: boolean; inUnlocks: boolean;
   grantedRank: number | null; upgradeKind: "bitmask" | "level"; upgrade: number; maxUpgrade: number; upgrades: Upgrade[];
 };
-export type CosmeticState = { name: string; display: string; dlc: boolean; owned: boolean; inUnlocks: boolean; grantedRank: number | null };
+/** `dlc`: paid DLC. `locked`: paid DLC the account does not own, which the editor never writes. */
+export type CosmeticState = { name: string; display: string; dlc: boolean; locked: boolean; owned: boolean; inUnlocks: boolean; grantedRank: number | null };
 export type CosmeticSlot = "helmet" | "body" | "cape" | "gender";
 export const COSMETIC_SLOTS: CosmeticSlot[] = ["helmet", "body", "cape", "gender"];
 

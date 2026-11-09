@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { draftOf, fieldEnabled, fileSafe, groupItems, hasBit, itemMatches, ownedRoute, parseWhole, playTime, rankOfXp, rankProgress, researchPoints, stage, withBit, xpOfRank } from "../saves/logic";
+import { draftOf, fieldEnabled, fileSafe, groupItems, hasBit, itemMatches, ownedRoute, parseWhole, playTime, rankOfXp, rankProgress, researchPoints, slotChoices, stage, withBit, xpOfRank } from "../saves/logic";
 import type { Edit, EditorState, ItemState, ModFieldState } from "../saves/types";
 
 const ranks = [{ level: 1, requiredXp: 0, title: "A" }, { level: 2, requiredXp: 100, title: "B" }, { level: 3, requiredXp: 300, title: "C" }];
 
 const item = (over: Partial<ItemState>): ItemState => ({
-  name: "w", display: "W", description: "", category: "shotgun", dlc: false, owned: false, inUnlocks: false, grantedRank: null,
+  name: "w", display: "W", description: "", category: "shotgun", dlc: false, locked: false, owned: false, inUnlocks: false, grantedRank: null,
   upgradeKind: "bitmask", upgrade: 0, maxUpgrade: 7, upgrades: [], ...over,
 });
 
@@ -47,11 +47,31 @@ describe("saves: upgrade bits", () => {
 
 describe("saves: what the owned switch can do", () => {
   it("names the route", () => {
-    expect(ownedRoute(item({ dlc: true, owned: true }), 1)).toBe("dlc");
+    expect(ownedRoute(item({ dlc: true, locked: true, owned: false }), 1)).toBe("dlc");
+    expect(ownedRoute(item({ dlc: true, locked: true, inUnlocks: true }), 1)).toBe("dlc");
+    expect(ownedRoute(item({ dlc: true, owned: true }), 1)).toBe("entitled");
+    expect(ownedRoute(item({ dlc: true, owned: true, inUnlocks: true }), 1)).toBe("entitled");
     expect(ownedRoute(item({ inUnlocks: true, owned: true }), 1)).toBe("unlocked");
     expect(ownedRoute(item({ grantedRank: 2, owned: true }), 2)).toBe("rank");
     expect(ownedRoute(item({ grantedRank: 5, owned: false }), 2)).toBe("none");
     expect(ownedRoute(item({ owned: true }), 2)).toBe("fixed");
+  });
+});
+
+describe("saves: cosmetic choices", () => {
+  it("lists owned DLC and leaves out locked DLC, unless the save wears it", () => {
+    const list = [{ locked: false }, { locked: true }, { locked: false }];
+    expect(slotChoices(list, 1)).toEqual([1, 3]);
+    expect(slotChoices(list, 2)).toEqual([1, 2, 3]);
+    expect(slotChoices(list, undefined)).toEqual([1, 3]);
+  });
+});
+
+describe("saves: owned DLC in the draft", () => {
+  it("stays owned through other edits, since Steam grants it", () => {
+    const base = state({ primaryWeapons: [item({ name: "dlc_gun", dlc: true, owned: true })] });
+    const d = draftOf(base, stage(new Map(), base, { op: "set_xp", xp: 0 }));
+    expect(d.primaryWeapons[0].owned).toBe(true);
   });
 });
 

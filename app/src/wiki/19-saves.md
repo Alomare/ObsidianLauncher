@@ -6,6 +6,8 @@ summary: Official and Sandbox saves, Steam Cloud, and the Sandbox matchmaking po
 
 The [Saves](app:saves) tab keeps every save of the Steam account you are signed in with. There are two kinds: **Official** saves are the normal game files, and **Sandbox** saves are extra saves that Obsidian keeps apart from them. The save marked **Active** is the one the game boots next. The game has to be closed to change anything here.
 
+The tab is laid out like the Mods tab: a table of the saves on the left, with rank, samples and time played, and the panel of the selected save on the right. Drag the line between them to resize the panel, and double-click the line to reset it. The buttons at the top of the panel are what the selected save can do; hover one to see what it does. The same actions are in the right-click menu of a row, and a double-click on a Sandbox opens the editor. **New** at the top makes a blank Sandbox or Official save, or imports a Sandbox from a zip.
+
 ## Official saves
 
 An Official save is the progress the game and Steam know about. The first time you open the Saves tab, your current game files are added as an Official save named Main.
@@ -43,18 +45,27 @@ Official saves can join anything, as always. See [Playing online](wiki:multiplay
 
 ## The save editor {#the-save-editor}
 
-**Edit** on a Sandbox opens the editor, with the game closed. Changes wait until you press **Save**, which writes them all at once. **Discard** forgets them. The tabs are:
+**Edit** on a Sandbox opens the editor, with the game closed. Changes wait until you press **Save**, which writes them all at once. **Discard**, the arrow beside Save, forgets them all, and the arrow at the end of a row undoes only the change on that row. The tabs are:
 
 - **Overview**: the stats of the save, **Max everything** and **Reset progression**. Both ask first, and both write at once, so they need no other changes waiting.
 - **Character**: the rank (a dropdown tied to the XP field), samples with the research points they make, and cosmetics.
-- **Arsenal**: weapons, stratagems and perks by category, with a search box. Each row has an owned switch, weapons have named upgrades, and stratagems have a level.
+- **Arsenal**: weapons, stratagems and perks, one table per category, with a search box. Each row has an owned switch, weapons have named upgrades, and stratagems have a level.
 - **Campaign**: boss influence, tutorial flags and lifetime stats.
 - **Mods**: one section per mod that has save data. A mod that is off greys out and keeps the data. A mod no longer in the library lists the data by name, with a delete button.
 
-Item names and limits come from a list taken from the game. Items in the save that the list doesn't know are kept and shown with their raw names. Paid DLC is shown locked, and the editor never writes paid DLC. An item a rank gives you can't be switched off, since the rank gives it back.
+Item names and limits come from a list taken from the game. Items in the save that the list doesn't know are kept and shown with their raw names. An item a rank gives you can't be switched off, since the rank gives it back.
+
+### Paid DLC
+
+Obsidian reads which DLC your Steam account owns from your Official saves: the game records it there each time you log in.
+
+- DLC you own shows **Owned on Steam**. Steam grants it, so the owned switch stays on, but the upgrades can be changed, and owned DLC cosmetics can be picked. **Max everything** maxes the upgrades of owned DLC, and **Reset progression** clears them.
+- DLC you don't own shows locked, with a lock in place of the switch, and the cosmetics lists leave those cosmetics out. The editor never writes that DLC, and Max everything and Reset progression leave it alone.
+
+The check is only as fresh as your last login. DLC bought since then, or unticked in Steam at that login, counts as not owned until the game is opened once with an Official save. A Sandbox's own record is ignored, since an imported Sandbox can carry another player's.
 
 > [!NOTE]
-> Exported and imported saves are always Sandbox saves. Import checks the file and removes the waiting results and paid DLC items from the imported save.
+> Exported and imported saves are always Sandbox saves. Import checks the file, removes the waiting results, and removes paid DLC that your account doesn't own from the imported save.
 
 ## Profiles and saves
 

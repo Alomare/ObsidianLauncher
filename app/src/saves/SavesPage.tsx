@@ -1,14 +1,14 @@
-// The Saves tab: the saves of the active Steam account in two groups, Official and Sandbox, with the one the
-// game boots next marked, and a panel for the selected save with what it holds and what can be done to it.
-// Official saves only switch, snapshot and copy to a Sandbox; everything else is for Sandbox saves.
+// The Saves tab: one table of the saves of the active Steam account, Official then Sandbox, with the one the
+// game boots next marked, and the panel of the selected save beside it, as the Mods tab lays out the mod list
+// and drawer. Official saves only switch, snapshot and copy to a Sandbox; everything else is for Sandbox saves.
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { useCallback, useEffect, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { deploy } from "../actions";
 import { call, errorText, setSnapshot, taskText } from "../api";
 import { withTask } from "../busy";
 import { Confirm } from "../Confirm";
 import { ContextMenu, type MenuItem } from "../ContextMenu";
-import { CheckIcon, CopyIcon, DeployIcon, ExportIcon, ImportIcon, PenIcon, PlusIcon, SaveIcon, TrashIcon, UpdateIcon, WarnIcon } from "../Icons";
+import { CheckIcon, CopyIcon, DeployIcon, ExportIcon, ImportIcon, PenIcon, PlusIcon, ResetIcon, SaveIcon, SlidersIcon, TrashIcon, UpdateIcon, WarnIcon } from "../Icons";
 import { language, t } from "../i18n";
 import { notify } from "../notices";
 import { Prompt } from "../Prompt";
@@ -23,7 +23,21 @@ type Ask =
   | { kind: "snapshot" | "duplicate" | "rename" | "activate" | "delete"; row: SaveRow }
   | null;
 
+/** One thing a save can have done to it: an icon button in the panel and a line in the right-click menu. */
+type Action = { id: string; label: string; icon: ReactNode; tip?: string; disabled: boolean; tone?: "go" | "danger"; run: () => void };
+
 const num = (n: number) => n.toLocaleString(language());
+
+const DRAWER_KEY = "obsidian.savesDrawerWidth";
+const DRAWER_MIN_PX = 300;
+const LIST_MIN_PX = 420;
+const savedWidth = () => {
+  try {
+    return Number(localStorage.getItem(DRAWER_KEY)) || 0;
+  } catch {
+    return 0;
+  }
+};
 
 export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean }) {
   const [list, setList] = useState<SaveList | null>(null);
@@ -31,7 +45,10 @@ export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean 
   const [sel, setSel] = useState<string | null>(null);
   const [ask, setAsk] = useState<Ask>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; row: SaveRow } | null>(null);
+  const [addMenu, setAddMenu] = useState<{ x: number; y: number } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  const [width, setWidth] = useState(savedWidth);
+  const body = useRef<HTMLDivElement>(null);
   const running = snap.game === "running";
 
   const load = useCallback(async () => {
@@ -90,6 +107,24 @@ export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean 
     }
   };
 
+  // The resize handle, as on the Mods tab: the width is kept between visits, a double-click resets it.
+  const resize = (e: PointerEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    el.setPointerCapture(e.pointerId);
+    const box = body.current!.getBoundingClientRect();
+    const onMove = (ev: globalThis.PointerEvent) => setWidth(Math.round(Math.max(DRAWER_MIN_PX, Math.min(box.right - ev.clientX, box.width - LIST_MIN_PX))));
+    const onUp = () => {
+      el.removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerup", onUp);
+      setWidth((w) => {
+        try { localStorage.setItem(DRAWER_KEY, String(w)); } catch { /* the width is a convenience */ }
+        return w;
+      });
+    };
+    el.addEventListener("pointermove", onMove);
+    el.addEventListener("pointerup", onUp);
+  };
+
   if (editing && list?.saves.some((s) => s.id === editing)) {
     return <SaveEditor id={editing} snap={snap} onClose={() => { setEditing(null); load(); }} />;
   }
@@ -114,24 +149,34 @@ export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean 
   const active = list.saves.find((s) => s.active);
   const row = list.saves.find((s) => s.id === sel) ?? active ?? list.saves[0] ?? null;
   const needsDeploy = !snap.deployed;
+  const closeFirst = running ? t("app.action.closeGameFirst") : undefined;
 
-  /** The actions of one save, for the panel and the right-click menu. */
-  const actions = (r: SaveRow): MenuItem[] => {
-    const off = running;
+  /** What can be done to one save, in the order the panel shows the buttons. */
+  const actions = (r: SaveRow): Action[] => {
     const isOfficial = r.kind === "official";
-    return [
-      { label: switchLabel(r), icon: <CheckIcon />, disabled: off || r.active, run: () => askActivate(r) },
-      ...(!isOfficial ? [{ label: t("app.saves.edit"), icon: <PenIcon />, disabled: off || !!r.error, run: () => setEditing(r.id) } as MenuItem] : []),
-      "sep",
-      ...(isOfficial ? [{ label: t("app.saves.snapshot"), icon: <CopyIcon />, disabled: off, run: () => setAsk({ kind: "snapshot", row: r }) } as MenuItem] : []),
-      { label: isOfficial ? t("app.saves.duplicateSandbox") : t("app.saves.duplicate"), icon: <CopyIcon />, disabled: off, run: () => setAsk({ kind: "duplicate", row: r }) },
-      ...(!isOfficial ? [
-        { label: t("app.saves.rename"), icon: <PenIcon />, disabled: off, run: () => setAsk({ kind: "rename", row: r }) } as MenuItem,
-        { label: t("app.saves.export"), icon: <ExportIcon />, disabled: off, run: () => exportSave(r) } as MenuItem,
-        "sep" as const,
-        { label: t("app.saves.delete"), icon: <TrashIcon />, danger: true, disabled: off || r.active, run: () => setAsk({ kind: "delete", row: r }) } as MenuItem,
-      ] : []),
-    ];
+    const restore = isOfficial && !!r.snapshotOf;
+    const out: Action[] = [];
+    if (!r.active) out.push({ id: "switch", label: switchLabel(r), icon: restore ? <ResetIcon /> : <CheckIcon />, tip: closeFirst ?? t(restore ? "app.saves.restoreHint" : "app.saves.switchHint"), tone: "go", disabled: running, run: () => askActivate(r) });
+    if (!isOfficial) out.push({ id: "edit", label: t("app.saves.edit"), icon: <SlidersIcon />, tip: closeFirst ?? (r.error ? t("app.saves.unreadable") : t("app.saves.editHint")), disabled: running || !!r.error, run: () => setEditing(r.id) });
+    if (isOfficial) out.push({ id: "snapshot", label: t("app.saves.snapshot"), icon: <SaveIcon />, tip: closeFirst ?? t("app.saves.snapshotHint"), disabled: running, run: () => setAsk({ kind: "snapshot", row: r }) });
+    out.push({
+      id: "duplicate", label: isOfficial ? t("app.saves.duplicateSandbox") : t("app.saves.duplicate"), icon: <CopyIcon />,
+      tip: closeFirst ?? (isOfficial ? t("app.saves.duplicateSandboxHint") : t("app.saves.duplicateHint")), disabled: running, run: () => setAsk({ kind: "duplicate", row: r }),
+    });
+    if (!isOfficial) {
+      out.push({ id: "rename", label: t("app.saves.rename"), icon: <PenIcon />, tip: closeFirst, disabled: running, run: () => setAsk({ kind: "rename", row: r }) });
+      out.push({ id: "export", label: t("app.saves.export"), icon: <ExportIcon />, tip: closeFirst ?? t("app.saves.exportHint"), disabled: running, run: () => exportSave(r) });
+      out.push({ id: "delete", label: t("app.saves.delete"), icon: <TrashIcon />, tip: r.active ? t("app.saves.deleteActive") : closeFirst, tone: "danger", disabled: running || r.active, run: () => setAsk({ kind: "delete", row: r }) });
+    }
+    return out;
+  };
+  const menuItems = (r: SaveRow): MenuItem[] => {
+    const all = actions(r);
+    const item = (a: Action): MenuItem => ({ label: a.label, icon: a.icon, disabled: a.disabled, danger: a.tone === "danger", run: a.run });
+    const main = all.filter((a) => a.id === "switch" || a.id === "edit").map(item);
+    const rest = all.filter((a) => a.id !== "switch" && a.id !== "edit" && a.id !== "delete").map(item);
+    const del = all.filter((a) => a.id === "delete").map(item);
+    return [...main, ...(main.length && rest.length ? ["sep" as const] : []), ...rest, ...(del.length ? ["sep" as const, ...del] : [])];
   };
 
   const openMenu = (e: MouseEvent, r: SaveRow) => {
@@ -145,6 +190,11 @@ export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean 
       <div className="head">
         <h1 className="cap">{t("app.nav.saves")}</h1>
         <Help page="saves" tip={t("app.saves.helpTip")} />
+        <button className="btn go head-tool" data-pop aria-haspopup="menu" aria-expanded={!!addMenu} disabled={running} aria-label={t("app.saves.new")}
+          data-tip-title={t("app.saves.new")} data-tip={closeFirst ?? t("app.saves.newHint")}
+          onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAddMenu({ x: r.left, y: r.bottom + 4 }); }}>
+          <PlusIcon /><span className="label">{t("app.saves.new")}</span>
+        </button>
         <span className="muted saves-account">{t("app.saves.account", list.account)}</span>
       </div>
 
@@ -157,29 +207,44 @@ export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean 
         </div>
       )}
 
-      <div className="saves-body">
+      <div className="saves-body" ref={body} style={width ? { ["--drawer-w" as string]: `${width}px` } : undefined}>
         <section className="list saves-list" aria-label={t("app.nav.saves")}>
-          <SaveGroup title={t("app.saves.official")} hint={t("app.saves.officialHint")}
-            tools={<button className="btn small" disabled={running} onClick={() => setAsk({ kind: "new", save: "official" })} data-tip={running ? t("app.action.closeGameFirst") : t("app.saves.newOfficialHint")}><PlusIcon />{t("app.saves.new")}</button>}>
-            {official.map((r) => <Row key={r.id} row={r} list={list} selected={r === row} onSelect={setSel} onMenu={openMenu} />)}
-          </SaveGroup>
-          <SaveGroup title={t("app.saves.sandbox")} hint={t("app.saves.sandboxHint")}
-            tools={<>
-              <button className="btn small" disabled={running} onClick={importSave} data-tip={running ? t("app.action.closeGameFirst") : t("app.saves.importHint")}><ImportIcon />{t("app.saves.import")}</button>
-              <button className="btn small" disabled={running} onClick={() => setAsk({ kind: "new", save: "sandbox" })} data-tip={running ? t("app.action.closeGameFirst") : t("app.saves.newSandboxHint")}><PlusIcon />{t("app.saves.new")}</button>
-            </>}>
-            {sandbox.length === 0 && <p className="muted saves-none">{t("app.saves.noSandbox")}</p>}
-            {sandbox.map((r) => <Row key={r.id} row={r} list={list} selected={r === row} onSelect={setSel} onMenu={openMenu} />)}
-          </SaveGroup>
+          <div className="table saves-table" role="table">
+            <div className="sth cap" role="row">
+              <span aria-hidden="true" />
+              <span className="th-col left" role="columnheader">{t("app.saves.col.save")}</span>
+              <span className="th-col" role="columnheader">{t("app.saves.stat.rank")}</span>
+              <span className="th-col s-wide" role="columnheader">{t("app.saves.stat.samples")}</span>
+              <span className="th-col s-wide" role="columnheader">{t("app.saves.col.played")}</span>
+            </div>
+            <div className="tbody">
+              <GroupRow title={t("app.saves.official")} hint={t("app.saves.officialHint")} count={official.length} kind="official" />
+              {official.map((r) => <Row key={r.id} row={r} list={list} selected={r === row} onSelect={setSel} onMenu={openMenu} onOpen={() => r.kind === "sandbox" && !running && !r.error && setEditing(r.id)} />)}
+              <GroupRow title={t("app.saves.sandbox")} hint={t("app.saves.sandboxHint")} count={sandbox.length} kind="sandbox" />
+              {sandbox.length === 0 && <p className="muted saves-none">{t("app.saves.noSandbox")}</p>}
+              {sandbox.map((r) => <Row key={r.id} row={r} list={list} selected={r === row} onSelect={setSel} onMenu={openMenu} onOpen={() => !running && !r.error && setEditing(r.id)} />)}
+            </div>
+          </div>
         </section>
 
-        {row && <Detail row={row} list={list} running={running} needsDeploy={needsDeploy}
-          onSwitch={() => askActivate(row)} onEdit={() => setEditing(row.id)} onSnapshot={() => setAsk({ kind: "snapshot", row })}
-          onDuplicate={() => setAsk({ kind: "duplicate", row })} onRename={() => setAsk({ kind: "rename", row })}
-          onExport={() => exportSave(row)} onDelete={() => setAsk({ kind: "delete", row })} />}
+        {row && (
+          <>
+            <div className="split" role="separator" aria-orientation="vertical" aria-label={t("app.mods.resize")} onPointerDown={resize}
+              onDoubleClick={() => { setWidth(0); try { localStorage.removeItem(DRAWER_KEY); } catch { /* fine */ } }} data-tip={t("app.mods.resizeHint")} />
+            <Detail row={row} list={list} actions={actions(row)} running={running} needsDeploy={needsDeploy} />
+          </>
+        )}
       </div>
 
-      {menu && <ContextMenu x={menu.x} y={menu.y} items={actions(menu.row)} onClose={() => setMenu(null)} />}
+      {menu && <ContextMenu x={menu.x} y={menu.y} items={menuItems(menu.row)} onClose={() => setMenu(null)} />}
+      {addMenu && (
+        <ContextMenu x={addMenu.x} y={addMenu.y} onClose={() => setAddMenu(null)} items={[
+          { label: t("app.saves.newSandbox"), icon: <PlusIcon />, run: () => setAsk({ kind: "new", save: "sandbox" }) },
+          { label: t("app.saves.newOfficial"), icon: <PlusIcon />, run: () => setAsk({ kind: "new", save: "official" }) },
+          "sep",
+          { label: t("app.saves.importZip"), icon: <ImportIcon />, run: importSave },
+        ]} />
+      )}
 
       {ask?.kind === "new" && (
         <Prompt title={ask.save === "official" ? t("app.saves.newOfficial") : t("app.saves.newSandbox")} label={t("app.saves.name")} confirm={t("app.saves.create")} onCancel={close}
@@ -211,51 +276,42 @@ export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean 
 
 const switchLabel = (r: SaveRow) => (r.kind === "official" && r.snapshotOf ? t("app.saves.restore") : t("app.saves.switch"));
 
-function SaveGroup({ title, hint, tools, children }: { title: string; hint: string; tools: React.ReactNode; children: React.ReactNode }) {
+/** The line over each group, in the look of a folder row: the name, the count, and what the group is in the tooltip. */
+function GroupRow({ title, hint, count, kind }: { title: string; hint: string; count: number; kind: SaveKind }) {
   return (
-    <div className="save-group">
-      <div className="save-group-head">
-        <div className="save-group-text">
-          <h2 className="cap">{title}</h2>
-          <small>{hint}</small>
-        </div>
-        <div className="save-group-tools">{tools}</div>
-      </div>
-      {children}
+    <div className={`str sgroup ${kind}`} role="row">
+      <span aria-hidden="true" />
+      <span className="sgroup-name cap" role="rowheader" data-tip-title={title} data-tip={hint}>{title}<span className="sgroup-n">{count}</span></span>
     </div>
   );
 }
 
-function statLine(r: SaveRow): string {
-  if (!r.stats) return r.error ? t("app.saves.unreadable") : "";
-  return [t("app.saves.rankN", r.stats.rank), t("app.saves.samplesN", num(r.stats.samples)), playTime(r.stats.timePlayed)].join(" · ");
-}
+type RowProps = { row: SaveRow; list: SaveList; selected: boolean; onSelect: (id: string) => void; onMenu: (e: MouseEvent, r: SaveRow) => void; onOpen: () => void };
 
-function Row({ row, list, selected, onSelect, onMenu }: { row: SaveRow; list: SaveList; selected: boolean; onSelect: (id: string) => void; onMenu: (e: MouseEvent, r: SaveRow) => void }) {
-  const of = row.snapshotOf ? list.saves.find((s) => s.id === row.snapshotOf)?.name : null;
+function Row({ row, list, selected, onSelect, onMenu, onOpen }: RowProps) {
+  const of = row.snapshotOf ? list.saves.find((s) => s.id === row.snapshotOf)?.name ?? null : null;
+  const s = row.stats;
   return (
-    <div className={["save-row", selected && "sel", row.active && "active"].filter(Boolean).join(" ")} role="button" tabIndex={0} aria-pressed={selected}
-      onClick={() => onSelect(row.id)} onContextMenu={(e) => onMenu(e, row)}
+    <div className={["str", selected && "sel", row.active && "active"].filter(Boolean).join(" ")} role="row" tabIndex={0} aria-selected={selected}
+      onClick={() => onSelect(row.id)} onDoubleClick={onOpen} onContextMenu={(e) => onMenu(e, row)}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(row.id); } }}>
-      <SaveIcon />
-      <div className="save-row-text">
+      <span className="s-icon" role="cell"><SaveIcon /></span>
+      <div className="who" role="cell">
         <div className="nm">
           <span className="nm-text">{row.name}</span>
-          {row.active && <span className="tag">{t("app.saves.active")}</span>}
-          {row.snapshotOf && <span className="save-chip">{t("app.saves.snapshotTag")}</span>}
+          {row.active && <span className="tag" data-tip={t("app.saves.bootsNext")}>{t("app.saves.active")}</span>}
+          {row.snapshotOf && <span className="save-chip" data-tip={of ? t("app.saves.snapshotOf", of) : undefined}>{t("app.saves.snapshotTag")}</span>}
         </div>
-        <div className={row.error ? "sub warn" : "sub"}>{row.error ? t("app.saves.unreadable") : of ? `${t("app.saves.snapshotOf", of)} · ${statLine(row)}` : statLine(row)}</div>
+        {row.error && <div className="sub warn">{t("app.saves.unreadable")}</div>}
       </div>
+      <span className="s-val" role="cell">{s ? s.rank : ""}</span>
+      <span className="s-val s-wide" role="cell">{s ? num(s.samples) : ""}</span>
+      <span className="s-val s-wide" role="cell">{s ? playTime(s.timePlayed) : ""}</span>
     </div>
   );
 }
 
-type DetailProps = {
-  row: SaveRow; list: SaveList; running: boolean; needsDeploy: boolean;
-  onSwitch: () => void; onEdit: () => void; onSnapshot: () => void; onDuplicate: () => void; onRename: () => void; onExport: () => void; onDelete: () => void;
-};
-
-function Detail({ row, list, running, needsDeploy, onSwitch, onEdit, onSnapshot, onDuplicate, onRename, onExport, onDelete }: DetailProps) {
+function Detail({ row, list, actions, running, needsDeploy }: { row: SaveRow; list: SaveList; actions: Action[]; running: boolean; needsDeploy: boolean }) {
   const s = row.stats;
   const isOfficial = row.kind === "official";
   const created = new Date(row.created);
@@ -263,53 +319,39 @@ function Detail({ row, list, running, needsDeploy, onSwitch, onEdit, onSnapshot,
   const played = row.lastPlayed ? new Date(row.lastPlayed) : null;
   const playedText = played && !Number.isNaN(played.getTime()) ? played.toLocaleString(language(), { dateStyle: "medium", timeStyle: "short" }) : null;
   const of = row.snapshotOf ? list.saves.find((o) => o.id === row.snapshotOf)?.name ?? row.snapshotOf : null;
-  const closeFirst = running ? t("app.action.closeGameFirst") : undefined;
+  // Only what the table and the tag do not already say.
+  const state = row.active ? null : row.live ? t("app.saves.isLive") : isOfficial ? t("app.saves.inLibrary") : null;
   return (
     <aside className={`drawer saves-detail ${row.kind}`} key={row.id} aria-label={row.name}>
       <div className="dh">
         <div className="dh-text">
-          <h2>{row.name}</h2>
-          <div className="meta">{[isOfficial ? t("app.saves.official") : t("app.saves.sandbox"), t("app.saves.created", when)].join(" · ")}</div>
-          {of && <div className="meta">{t("app.saves.snapshotOf", of)}</div>}
+          <h2>{row.name}{row.active && <span className="tag" data-tip={t("app.saves.bootsNext")}>{t("app.saves.active")}</span>}</h2>
+          <div className="meta">{[isOfficial ? t("app.saves.official") : t("app.saves.sandbox"), t("app.saves.created", when), of && t("app.saves.snapshotOf", of)].filter(Boolean).join(" · ")}</div>
         </div>
-        {row.active && <span className="tag">{t("app.saves.active")}</span>}
+      </div>
+      <div className="save-tools" role="toolbar" aria-label={row.name}>
+        {actions.map((a) => (
+          <button key={a.id} className={["btn small icon head-tool", a.tone === "go" && "go", a.tone === "danger" && "danger"].filter(Boolean).join(" ")}
+            disabled={a.disabled} onClick={a.run} aria-label={a.label} data-tip-title={a.label} data-tip={a.tip}>{a.icon}</button>
+        ))}
       </div>
       <div className="dbody saves-dbody">
-        <p className={row.active ? "save-state on" : "save-state"}>{row.active ? t("app.saves.bootsNext") : row.live ? t("app.saves.isLive") : isOfficial ? t("app.saves.inLibrary") : t("app.saves.notSelected")}</p>
-        {row.error && <p className="save-state warn"><b>{t("app.saves.unreadable")}</b> {row.error}</p>}
+        {row.error && <p className="save-note warn"><b>{t("app.saves.unreadable")}</b> {row.error}</p>}
         {s && (
-          <dl className="save-stats">
+          <dl className="kv">
             <div><dt>{t("app.saves.stat.rank")}</dt><dd>{s.rank}</dd></div>
             <div><dt>{t("app.saves.stat.xp")}</dt><dd>{num(s.xp)}</dd></div>
             <div><dt>{t("app.saves.stat.samples")}</dt><dd>{num(s.samples)}</dd></div>
+            <div><dt>{t("app.saves.stat.unlocks")}</dt><dd>{num(s.unlocks)}</dd></div>
             <div><dt>{t("app.saves.stat.missions")}</dt><dd>{t("app.saves.missionsValue", num(s.missionsWon), num(s.missionsFought))}</dd></div>
             <div><dt>{t("app.saves.stat.kills")}</dt><dd>{num(s.kills)}</dd></div>
             <div><dt>{t("app.saves.stat.deaths")}</dt><dd>{num(s.deaths)}</dd></div>
             <div><dt>{t("app.saves.stat.played")}</dt><dd>{playTime(s.timePlayed)}</dd></div>
-            <div><dt>{t("app.saves.stat.unlocks")}</dt><dd>{num(s.unlocks)}</dd></div>
             {playedText && <div><dt>{t("app.saves.stat.lastPlayed")}</dt><dd>{playedText}</dd></div>}
           </dl>
         )}
-        <div className="save-actions">
-          {!row.active && <button className="btn small play" disabled={running} onClick={onSwitch} data-tip={closeFirst}><CheckIcon />{switchLabel(row)}</button>}
-          {isOfficial ? (
-            <>
-              <button className="btn small" disabled={running} onClick={onSnapshot} data-tip={closeFirst ?? t("app.saves.snapshotHint")}><CopyIcon />{t("app.saves.snapshot")}</button>
-              <button className="btn small" disabled={running} onClick={onDuplicate} data-tip={closeFirst ?? t("app.saves.duplicateSandboxHint")}><CopyIcon />{t("app.saves.duplicateSandbox")}</button>
-            </>
-          ) : (
-            <>
-              <button className="btn small go" disabled={running || !!row.error} onClick={onEdit} data-tip={closeFirst ?? t("app.saves.editHint")}><PenIcon />{t("app.saves.edit")}</button>
-              <button className="btn small" disabled={running} onClick={onDuplicate} data-tip={closeFirst}><CopyIcon />{t("app.saves.duplicate")}</button>
-              <button className="btn small" disabled={running} onClick={onRename} data-tip={closeFirst}><PenIcon />{t("app.saves.rename")}</button>
-              <button className="btn small" disabled={running} onClick={onExport} data-tip={closeFirst ?? t("app.saves.exportHint")}><ExportIcon />{t("app.saves.export")}</button>
-              <button className="btn small danger" disabled={running || row.active} onClick={onDelete} data-tip={row.active ? t("app.saves.deleteActive") : closeFirst}><TrashIcon />{t("app.saves.delete")}</button>
-            </>
-          )}
-        </div>
-        {!isOfficial && !row.active && needsDeploy && <p className="save-why">{t("app.saves.sandboxNeedsLoader")}</p>}
-        {!isOfficial && row.active && <p className="save-why muted">{t("app.saves.deleteActive")}</p>}
-        {running && <p className="save-why">{t("app.saves.gameRunning")}</p>}
+        {state && <p className="save-note">{state}</p>}
+        {!isOfficial && !row.active && needsDeploy && !running && <p className="save-note warn">{t("app.saves.sandboxNeedsLoader")}</p>}
       </div>
     </aside>
   );
