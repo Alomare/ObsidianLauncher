@@ -681,6 +681,8 @@ button.link.small { font-size: 0.8rem; margin-top: 0.45rem; }
 .mods .head .btn svg { flex: none; width: 1.1rem; height: 1.1rem; }
 .mods .head .btn.icon { width: 2.6rem; padding: 0; }
 .btn.head-tool svg { stroke-width: 2; }
+/* The Deploy icon is 3:2; every icon rule above sets a square, so the width follows the height here. */
+svg.icon-wide { width: auto !important; aspect-ratio: 3 / 2; }
 .btn.head-tool.go svg { stroke-width: 2.4; }
 /* Update All in the type of Add, not the heavier one of the gold buttons. */
 .mods .head .btn.head-update { margin-left: 0.3rem; font-weight: inherit; }
