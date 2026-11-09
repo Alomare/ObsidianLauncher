@@ -30,6 +30,7 @@ local capabilities = {
 	after_startup = true, log = true, hook = true, wrap = true, on_require = true, on_session = true, session = true,
 	settings = true, keybind = true, text = true, on_frame = true, module = true, import = true, menu = true, toast = true, notify = true, storage = true, caller = true,
 	ui = true, scope = true, guardrails = true, info = true, expansion = true, save_data = true,
+	language = true, game_text = true,
 }
 local api = {
 	version = API_VERSION,
@@ -71,12 +72,26 @@ function M.notice(key, ...)
 	B.insert(M.notices, { key = key, args = { ... } })
 end
 
-local LANGUAGES = { en = "en", fr = "fr", es = "es", bp = "pt-BR" }
+-- The game's language codes (Boot.setup_localization) as the keys mods use in `locales` and in
+-- obsidian.json. "" is English. Boot.language is there before LocalizationManager:setup has run.
+local LANGUAGES = {
+	[""] = "en", en = "en", fr = "fr", es = "es", las = "es", es_ar = "es", bp = "pt-BR", pt = "pt-BR",
+	de = "de", it = "it", ru = "ru", pl = "pl", ko = "ko", ja = "ja", jp = "ja",
+	chs = "zh-CN", ch = "zh-TW", se = "sv", dk = "da", nl = "nl", fi = "fi", no = "no",
+}
 
 function M.language()
-	local lm = B.rawget(B.G, "LocalizationManager")
+	local lm, boot = B.rawget(B.G, "LocalizationManager"), B.rawget(B.G, "Boot")
 	local code = B.type(lm) == "table" and lm.current_language or nil
-	return LANGUAGES[code] or "en"
+	if B.type(code) ~= "string" then code = B.type(boot) == "table" and boot.language or nil end
+	if B.type(code) ~= "string" then return "en" end
+	return LANGUAGES[B.lower(code)] or LANGUAGES[B.lower(B.sub(code, 1, 2))] or "en"
+end
+api.language = M.language
+
+-- Words for a game text key, which the game then shows in place of its own text.
+function api.game_text(key, words)
+	return game_text.set(M, hooks, key, words)
 end
 
 -- A loader text in the game language, English when the language or the key is missing.
@@ -171,7 +186,10 @@ function M.call(state, site, fn, ...)
 	local previous = M.current
 	M.current = state
 	local args, n = { ... }, B.select("#", ...)
-	local result = { B.xpcall(function() return fn(B.unpack(args, 1, n)) end, traceback) }
+	-- Counted, because a trailing nil is a result too: `tonumber(SaveManager:get(key))` fails when a
+	-- hook turns the game's nil into no value at all.
+	local function counted(...) return { n = B.select("#", ...), ... } end
+	local result = counted(B.xpcall(function() return fn(B.unpack(args, 1, n)) end, traceback))
 	M.current = previous
 	if not result[1] and state then
 		state.errors = state.errors + 1
@@ -182,7 +200,7 @@ function M.call(state, site, fn, ...)
 			M.notice("mod_failed", state.id)
 		end
 	end
-	return B.unpack(result)
+	return B.unpack(result, 1, result.n)
 end
 
 local function snapshot()

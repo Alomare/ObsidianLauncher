@@ -359,6 +359,18 @@ test("session_hook_calls_original_when_not_cleared", function()
 	E.eq(rawget(_G, "Target"):run(1), "vanilla 1")
 end)
 
+test("a_hook_keeps_a_nil_result_as_one_value", function()
+	rawset(_G, "Target", { get = function() return nil end, pair = function() return nil, 2, nil end })
+	local e = engine({ my_id = "me", members = { "me" } }, { mods = { E.mod("c", { scope = "client" }) } }, {
+		["obsidian/mods/c/main"] = "obsidian.hook(Target, 'get', function(original, ...) return original(...) end) obsidian.hook(Target, 'pair', function(original, ...) return original(...) end)",
+	})
+	e:frames(1)
+	local target = rawget(_G, "Target")
+	E.eq(select("#", target:get()), 1)
+	E.eq(tonumber(target:get()), nil)
+	E.eq(select("#", target:pair()), 3)
+end)
+
 test("a_wrap_runs_with_the_lobby_not_cleared_and_keeps_a_hooks_safety", function()
 	rawset(_G, "Target", { run = function(_, x) return "vanilla " .. x end })
 	local e = engine({ my_id = "me", members = { "me", "p2" }, data = { p2 = "1;" .. OTHER .. ";0" } },
