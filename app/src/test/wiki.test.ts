@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { wikiPages } from "../wiki";
 
 const LANGS = ["en", "pt-BR", "zh-CN"];
+/** Pages written since the last translation pass: English for now, listed in internal/release/untranslated-keys.txt. */
+const UNTRANSLATED = new Set(["saves"]);
 
 describe("wiki", () => {
   it("has a translation of every page in every language", () => {
@@ -12,7 +14,9 @@ describe("wiki", () => {
       if (lang !== "en") {
         // A translated page differs from the English one; a missing file would show English.
         const en = wikiPages("en").pages;
-        pages.forEach((p, i) => expect(p.title, `${lang} ${p.id}`).not.toBe(en[i].title));
+        pages.forEach((p, i) => {
+          if (!UNTRANSLATED.has(p.id)) expect(p.title, `${lang} ${p.id}`).not.toBe(en[i].title);
+        });
       }
     }
   });

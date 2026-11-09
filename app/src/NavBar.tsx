@@ -1,10 +1,10 @@
-// The navigation bar: the tabs (Home, Mods), then the Guardrails of the active profile and Play, and the
+// The navigation bar: the tabs (Home, Mods, Saves), then the Guardrails of the active profile and Play, and the
 // Wiki and Settings tabs as icons at the far end. Deploy and Purge are on the Mods tab.
 // When a deploy, a purge or Play starts, one glow in the action's color crosses from Play toward the tabs, and fades out before them.
 import { type ComponentType, useLayoutEffect, useRef, useState } from "react";
 import { BuildDialog } from "./BuildDialog";
 import { GuardrailsDialog, guardrailsSummary, guardsOn } from "./GuardrailsDialog";
-import { BookIcon, CogIcon, HomeIcon, ModsIcon, PlayIcon, ShieldIcon, WarnIcon } from "./Icons";
+import { BookIcon, CogIcon, HomeIcon, ModsIcon, PlayIcon, SaveIcon, ShieldIcon, WarnIcon } from "./Icons";
 import { t } from "./i18n";
 import type { Tab } from "./nav";
 import type { Snapshot } from "./types";
@@ -24,8 +24,8 @@ type Props = {
   onPlay: () => void;
 };
 
-// Home and Mods carry their names; the Wiki and Settings are icons at the far end (the user, 2026-11-04).
-const TABS: [Tab, ComponentType][] = [["home", HomeIcon], ["mods", ModsIcon]];
+// Home, Mods and Saves carry their names; the Wiki and Settings are icons at the far end (the user, 2026-11-04).
+const TABS: [Tab, ComponentType][] = [["home", HomeIcon], ["mods", ModsIcon], ["saves", SaveIcon]];
 
 export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, onPlay }: Props) {
   const running = snap?.game === "running";

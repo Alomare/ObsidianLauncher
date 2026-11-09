@@ -3,7 +3,7 @@
 //
 // Beyond plain Markdown, a page can use:
 //   [text](wiki:page-id)    another Wiki page ("wiki:page-id#heading" for a part of it)
-//   [text](app:mods)        a tab of the app (home, mods, wiki, settings)
+//   [text](app:mods)        a tab of the app (home, mods, saves, wiki, settings)
 //   [text](#a-heading)      a heading on this page          [text](https://…)   the web browser
 //   > [!TIP] … / [!NOTE] / [!WARNING]                        a callout
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -55,7 +55,7 @@ export function parse(md: string): Doc {
   return { tokens, headings, text: plainText(tokens) };
 }
 
-const TABS: Tab[] = ["home", "mods", "wiki", "settings"];
+const TABS: Tab[] = ["home", "mods", "saves", "wiki", "settings"];
 const CALLOUT = /^\[!(TIP|NOTE|WARNING)\]\s*/;
 
 /** A link to a place in the app. An inline element, not a button, so the line can wrap inside it. */

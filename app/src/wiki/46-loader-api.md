@@ -339,11 +339,17 @@ The button for a player's device, as text to draw. `name` is an action such as `
 
 Strings, numbers and booleans this mod keeps between launches. `set` with `nil` removes a key. The file is written at once, so don't call it every frame.
 
+### obsidian.save_data.get(key, default), set(key, value), sandbox() {#save-data}
+
+Strings, numbers and booleans this mod keeps with the current save, in a file beside the save. Each [Sandbox](wiki:saves) has a separate file, and the Official file travels with the save when Obsidian switches Official saves. Use it for what belongs to one character, such as a manual unlock, and `obsidian.storage` for what belongs to the install. `set` with `nil` removes a key, and the file is written at once. `sandbox()` is the id of the Sandbox of this launch, or `nil` on an Official save. Check `obsidian.capabilities.save_data` first: an older loader doesn't have it.
+
+Values a player should be able to edit in the save editor go in the [`save_editor` key](wiki:manifest#save-editor) of the manifest.
+
 ## Version and features
 
 `obsidian.version` is the API version, `1` today. A mod that needs a newer API sets `loader_api` in `obsidian.json`, and older loaders refuse to start it.
 
-`obsidian.capabilities` is a read-only table of what the running loader supports, one entry per feature: `hook`, `on_require`, `on_frame`, `on_session`, `after_startup`, `settings`, `keybind`, `session`, `text`, `log`, `module`, `import`, `caller`, `info`, `menu`, `toast`, `notify`, `storage`, `ui`, `expansion`. Test a feature by name before using one that came later:
+`obsidian.capabilities` is a read-only table of what the running loader supports, one entry per feature: `hook`, `on_require`, `on_frame`, `on_session`, `after_startup`, `settings`, `keybind`, `session`, `text`, `log`, `module`, `import`, `caller`, `info`, `menu`, `toast`, `notify`, `storage`, `save_data`, `ui`, `expansion`. Test a feature by name before using one that came later:
 
 ```lua
 if obsidian.capabilities.on_frame then

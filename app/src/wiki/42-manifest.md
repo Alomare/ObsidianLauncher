@@ -55,6 +55,7 @@ summary: Every field of the file that describes a mod.
 | `options` | no | Settings players change in the app ([Options and keys](wiki:options-and-keys)). |
 | `keybinds` | no | Keys players can rebind in the app. A keybind's `pad` names the choice option with the controller input for the same action ([Controller input](wiki:options-and-keys#controller-input)). |
 | `resources` | no | Game files the mod replaces or adds ([Replacing game files](wiki:resources)). |
+| `save_editor` | no | What the mod shows on the Mods tab of the [save editor](wiki:saves) ([The save editor](#save-editor)). |
 
 ## Load order requests
 
@@ -88,6 +89,30 @@ Obsidian checks `load` on import: a position other than `first` or `last`, an un
 Every field that players read is an object with one entry per language: `en`, `pt-BR`, `zh-CN` for the app, and `en`, `fr`, `es`, `pt-BR` for text the game shows. English is always required and fills in for any language you leave out.
 
 Text the mod shows in game goes in a `locales` folder beside `obsidian.json`, one file per language (`locales/en.json`, `locales/fr.json` and so on), each a simple object of keys and text. The mod reads them with `obsidian.text`.
+
+## The save editor {#save-editor}
+
+`save_editor` adds a section for the mod to the Mods tab of the [save editor](wiki:saves), for Sandbox saves. The values live in the data the mod reads with [`obsidian.save_data`](wiki:loader-api#save-data), under the mod id.
+
+```json
+"save_editor": {
+  "items": [
+    { "type": "stratagem", "name": "my_strike", "label": { "en": "Orbital Strike" }, "unlock": "manual" },
+    { "type": "weapon", "name": "my_rifle", "label": { "en": "Long Rifle" }, "unlock": { "rank": 10 } }
+  ],
+  "fields": [
+    { "id": "difficulty", "type": "choice", "label": { "en": "Difficulty" }, "choices": ["easy", "hard"] },
+    { "id": "boost", "type": "number", "label": { "en": "Boost" }, "min": 0, "max": 5, "when": { "difficulty": "hard" } },
+    { "id": "enabled", "type": "toggle", "label": { "en": "Enabled" } }
+  ]
+}
+```
+
+`items` lists what the mod adds to the game. `type` is `stratagem`, `weapon` or `perk`, and `unlock` says how a save gets the item: `"manual"` shows a switch, `"free"` and `"base"` mean every save has it, and `{ "rank": n }` means it comes with that rank.
+
+`fields` are values the player can change. `type` is `number` (with `min` and `max`), `toggle` or `choice` (with `choices`, each an id or an object with `id` and `label`). `when` greys the field out unless the named fields hold the named values.
+
+While the mod is off, the section greys out and the data stays in the save. If the mod leaves the library, the data is listed under the mod id for the player to delete. `"type": "tree"` is reserved for later.
 
 ## Fields Obsidian doesn't know
 
