@@ -128,6 +128,14 @@ pub enum ObsidianError {
     PaidDlc(String),
     #[error("save edit {field}: {value} is not allowed")]
     BadSaveEdit { field: String, value: String },
+    #[error("not a Commander package: {0}")]
+    CommanderPackage(String),
+    #[error("Commander isn't installed")]
+    CommanderMissing,
+    #[error("no war {0} on this PC")]
+    WarUnknown(String),
+    #[error("the Commander server didn't start: {0}")]
+    CommanderServer(String),
     #[error(transparent)]
     Json(#[from] serde_json::Error),
     #[error(transparent)]

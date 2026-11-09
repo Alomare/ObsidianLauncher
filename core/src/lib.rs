@@ -3,6 +3,7 @@
 pub mod backup;
 pub mod bank;
 pub mod bundle;
+pub mod commander;
 pub mod compose;
 pub mod deploy;
 pub mod edit;

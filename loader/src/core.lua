@@ -15,6 +15,7 @@ local ui = require("obsidian/loader/ui")
 local storage = require("obsidian/loader/storage")
 local save_data = require("obsidian/loader/save_data")
 local sandbox = require("obsidian/loader/sandbox")
+local war = require("obsidian/loader/war")
 local lobby = require("obsidian/loader/lobby")
 
 local API_VERSION = 1
@@ -64,6 +65,11 @@ function M.consent()
 end
 
 -- Whether this launch was started on a Sandbox save, usable or not.
+-- Whether this launch plays a custom war whose requests can only reach Obsidian's relay.
+function M.war_reporting()
+	return war.reporting(M)
+end
+
 function M.sandboxed()
 	return sandbox.wanted(M)
 end
@@ -409,7 +415,8 @@ function M.boot()
 	end
 
 	sandbox.setup(M, hooks)
-	local tag = pool.apply(deploy, M.sandboxed())
+	war.setup(M, hooks, game_side)
+	local tag = pool.apply(deploy, M.sandboxed(), war.pool_tag(M))
 
 	M.session = session
 	M.expansion = expansion

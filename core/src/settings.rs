@@ -22,6 +22,8 @@ pub struct Settings {
     /// The selected Sandbox save, when one is. `block_achievements` is forced on for the file while
     /// one is, so that a Sandbox never earns an achievement.
     pub sandbox: Option<String>,
+    /// The custom war this launch plays, with the Sandbox above as its save. Never without one.
+    pub war: Option<crate::commander::WarLine>,
     /// Leave client mods out of the lobby info this player hosts.
     pub hide_client_mods: bool,
     /// (mod id, option id, option type, value text)
@@ -92,6 +94,10 @@ pub fn render(s: &Settings) -> String {
     // Absent means the Official save.
     if let Some(id) = &s.sandbox {
         out.push_str(&format!("sandbox\t{}\n", field(id)));
+        // A war only ever with a Sandbox as its save: the loader refuses war mode without one.
+        if let Some(w) = &s.war {
+            out.push_str(&format!("war\t{}\t{}\t{}\n", field(&w.id), field(&w.url), field(&w.pool)));
+        }
     }
     if s.hide_client_mods {
         out.push_str("hide_client_mods\t1\n");
@@ -115,6 +121,7 @@ pub fn parse(text: &str) -> Settings {
             ["block_achievements", v] => s.block_achievements = *v == "1",
             ["freeze_progress", v] => s.freeze_progress = *v == "1",
             ["sandbox", id] => s.sandbox = Some(id.to_string()),
+            ["war", id, url, pool] => s.war = Some(crate::commander::WarLine { id: id.to_string(), url: url.to_string(), pool: pool.to_string() }),
             ["hide_client_mods", v] => s.hide_client_mods = *v == "1",
             ["option", m, o, t, v] => s.options.push((m.to_string(), o.to_string(), t.to_string(), v.to_string())),
             ["key", m, k, key] => s.keys.push((m.to_string(), k.to_string(), key.to_string())),
@@ -212,6 +219,7 @@ mod tests {
             block_achievements: true,
             freeze_progress: true,
             sandbox: Some("0a1b2c3d".into()),
+            war: Some(crate::commander::WarLine { id: "w1".into(), url: "http://127.0.0.1:1/t/1.0/".into(), pool: "abcdef012345".into() }),
             hide_client_mods: true,
             options: vec![("a.b".into(), "d".into(), "number".into(), "2.5".into())],
             keys: vec![("a.b".into(), "toggle".into(), "f8".into())],
@@ -229,6 +237,17 @@ mod tests {
         let s = Settings { sandbox: Some("0a1b2c3d".into()), ..Default::default() };
         let text = render(&s);
         assert!(text.contains("block_achievements\t1\n") && text.contains("sandbox\t0a1b2c3d\n"));
+    }
+
+    #[test]
+    fn a_war_line_rides_only_with_its_sandbox_and_round_trips() {
+        let war = crate::commander::WarLine { id: "k3x9q2".into(), url: "http://127.0.0.1:40000/abc/1.0/".into(), pool: "0123456789ab".into() };
+        let alone = Settings { war: Some(war.clone()), ..Default::default() };
+        assert!(!render(&alone).contains("war\t"), "no Sandbox, no war line");
+        let s = Settings { sandbox: Some("sb1".into()), war: Some(war), ..Default::default() };
+        let text = render(&s);
+        assert!(text.contains("war\tk3x9q2\thttp://127.0.0.1:40000/abc/1.0/\t0123456789ab\n"), "{text}");
+        assert_eq!(parse(&text).war, s.war);
     }
 
     #[test]

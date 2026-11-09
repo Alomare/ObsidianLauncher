@@ -3,6 +3,7 @@
 -- options in the deploy table, so a hand-edited file can't hand a mod a bad value.
 local B = require("obsidian/loader/builtins")
 local log = require("obsidian/loader/log")
+local war = require("obsidian/loader/war")
 
 local M = { values = {}, keys = {}, binds = {} }
 
@@ -83,6 +84,14 @@ function M.load(core, path)
 			else
 				core.sandbox_bad = true
 				log.line("settings: the sandbox line is not valid, saving stays off for this launch")
+			end
+		elseif x[1] == "war" then
+			-- Only with a Sandbox line before it, which the core always writes first.
+			local w = war.parse(x)
+			if w and core.sandbox then
+				core.war = w
+			else
+				log.line("settings: the war line is not valid or has no Sandbox, the official war stays")
 			end
 		elseif x[1] == "option" and #x == 5 then
 			local opt = mods[x[2]] and find(mods[x[2]].options, x[3])

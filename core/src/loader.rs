@@ -509,7 +509,11 @@ pub fn build_inputs(loader_dir: &Path, comp: &Composition) -> Result<Vec<u8>> {
 /// The settings file for this profile: consent, the guardrails and the value of every option of each
 /// enabled mod with an entry. Reads manifests only, so nothing is compiled.
 pub fn settings_for(lib: &Library, profile: &Profile) -> Result<Settings> {
-    settings_from(profile, crate::saves::active_sandbox(lib.data_dir()), |id| load_manifest(&lib.mod_dir(id)).ok().map(Cow::Owned))
+    let sandbox = crate::saves::active_sandbox(lib.data_dir());
+    let war = crate::commander::war_line(lib.data_dir(), sandbox.as_deref());
+    let mut s = settings_from(profile, sandbox, |id| load_manifest(&lib.mod_dir(id)).ok().map(Cow::Owned))?;
+    s.war = war;
+    Ok(s)
 }
 
 /// `settings_for` with the manifests already read, as the app's snapshot has them.

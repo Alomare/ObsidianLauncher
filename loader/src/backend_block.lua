@@ -38,6 +38,8 @@ end
 -- The results of a mission that an expansion's content ran in wait in the save after the content
 -- ends, until the ship sends them. They stay home until a mission starts without it.
 local function reporting_blocked(core)
+	-- A custom war: the requests can only reach the relay, so the results are the war's.
+	if core.war_reporting and core.war_reporting() then return false end
 	if modded(core) then return true end
 	local x = core.expansion
 	return x ~= nil and x.taint == true
@@ -79,7 +81,7 @@ end
 
 local function forget_trial(core)
 	local save = B.rawget(B.G, "SaveManager")
-	if not modded(core) or B.type(save) ~= "table" or not save:get("selected_trial") then return end
+	if not modded(core) or core.war_reporting() or B.type(save) ~= "table" or not save:get("selected_trial") then return end
 	save:set("selected_trial", nil)
 	log.line("proving grounds: dropped the saved trial")
 end
@@ -100,11 +102,11 @@ function M.setup(core, hooks)
 		return original(self, ...)
 	end)
 	hooks.loader_hook("MenuScreenCampaign", "show_state", function(original, self, name, ...)
-		if name == PG_STATE and modded(core) then return refuse_proving_grounds(core) end
+		if name == PG_STATE and modded(core) and not core.war_reporting() then return refuse_proving_grounds(core) end
 		return original(self, name, ...)
 	end)
 	hooks.loader_hook("MenuScreenCampaignRegion", "enter_pg_menu_selection", function(original, self, ...)
-		if modded(core) then return refuse_proving_grounds(core) end
+		if modded(core) and not core.war_reporting() then return refuse_proving_grounds(core) end
 		return original(self, ...)
 	end)
 	for _, name in B.ipairs(METHODS) do
@@ -131,6 +133,10 @@ function M.setup(core, hooks)
 	end)
 	-- The mission end screen picks one of these two for the Galactic Campaign line.
 	local LINES = { "mission_end_galactic_campaign_progress", "mission_end_galactic_campaign_no_progress" }
+	if core.war then
+		log.line("galactic war reporting: to the custom war through the relay")
+		return
+	end
 	if core.sandboxed() then
 		for _, key in B.ipairs(LINES) do game_text.replace(core, hooks, key, "campaign_not_uploaded_sandbox") end
 		log.line("galactic war reporting blocked: Sandbox save")

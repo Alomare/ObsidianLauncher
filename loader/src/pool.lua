@@ -14,12 +14,13 @@ local M = {}
 -- Official pool. Answers the tag.
 local SANDBOX_FALLBACK = "5a4db0c5a4db"
 
-function M.apply(deploy, sandboxed)
+function M.apply(deploy, sandboxed, war_tag)
 	if not sandboxed then
 		log.line("pool: vanilla")
 		return nil
 	end
-	local tag = (deploy.hashes or {}).sandbox
+	-- A custom war: its players find each other and nobody else.
+	local tag = war_tag or (deploy.hashes or {}).sandbox
 	if B.type(tag) ~= "string" or not B.match(tag, "^[0-9a-f]+$") then
 		log.line("pool: no sandbox tag in the deploy, using the fallback")
 		tag = SANDBOX_FALLBACK
