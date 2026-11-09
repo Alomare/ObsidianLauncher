@@ -20,7 +20,7 @@ import type { SaveImported, SaveKind, SaveList, SaveRow, SavesDone } from "./typ
 
 type Ask =
   | { kind: "new"; save: SaveKind }
-  | { kind: "snapshot" | "duplicate" | "rename" | "activate" | "delete"; row: SaveRow }
+  | { kind: "snapshot" | "duplicate" | "activate" | "delete"; row: SaveRow }
   | null;
 
 /** One thing a save can have done to it: an icon button in the panel and a line in the right-click menu.
@@ -48,6 +48,8 @@ export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean 
   const [menu, setMenu] = useState<{ x: number; y: number; row: SaveRow } | null>(null);
   const [addMenu, setAddMenu] = useState<{ x: number; y: number } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  // Rename in the right-click menu opens the editor with the name already in a box.
+  const [renameFirst, setRenameFirst] = useState(false);
   const [width, setWidth] = useState(savedWidth);
   const body = useRef<HTMLDivElement>(null);
   const running = snap.game === "running";
@@ -127,7 +129,7 @@ export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean 
   };
 
   if (editing && list?.saves.some((s) => s.id === editing)) {
-    return <SaveEditor id={editing} snap={snap} onClose={() => { setEditing(null); load(); }} />;
+    return <SaveEditor id={editing} snap={snap} startRename={renameFirst} onClose={() => { setEditing(null); setRenameFirst(false); load(); }} />;
   }
 
   if (!list) {
@@ -167,7 +169,7 @@ export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean 
       tip: closeFirst ?? (isOfficial ? t("app.saves.duplicateSandboxHint") : t("app.saves.duplicateHint")), disabled: running, run: () => setAsk({ kind: "duplicate", row: r }),
     });
     if (!isOfficial) {
-      out.push({ id: "rename", label: t("app.saves.rename"), icon: <PenIcon />, tip: closeFirst, disabled: running, menuOnly: true, run: () => setAsk({ kind: "rename", row: r }) });
+      out.push({ id: "rename", label: t("app.saves.rename"), icon: <PenIcon />, tip: closeFirst, disabled: running || !!r.error, menuOnly: true, run: () => { setRenameFirst(true); setEditing(r.id); } });
       out.push({ id: "export", label: t("app.saves.export"), icon: <ExportIcon />, tip: closeFirst ?? t("app.saves.exportHint"), disabled: running, run: () => exportSave(r) });
       out.push({ id: "delete", label: t("app.saves.delete"), icon: <TrashIcon />, tip: r.active ? t("app.saves.deleteActive") : closeFirst, tone: "danger", disabled: running || r.active, run: () => setAsk({ kind: "delete", row: r }) });
     }
@@ -198,7 +200,7 @@ export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean 
           onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAddMenu({ x: r.left, y: r.bottom + 4 }); }}>
           <PlusIcon /><span className="label">{t("app.saves.new")}</span>
         </button>
-        <button className={sandboxActive && needsDeploy ? "btn icon go head-tool" : "btn icon head-tool"} disabled={running || !sandboxActive || !snap.gameDir} onClick={() => deployLoader()}
+        <button className={sandboxActive && needsDeploy ? "btn icon go head-tool head-deploy" : "btn icon head-tool head-deploy"} disabled={running || !sandboxActive || !snap.gameDir} onClick={() => deployLoader()}
           aria-label={t("app.saves.deployLoader")} data-tip-title={t("app.saves.deployLoader")}
           data-tip={closeFirst ?? (sandboxActive ? t("app.saves.deployLoaderHint") : t("app.saves.deployLoaderOfficial"))}><DeployIcon /></button>
         <span className="muted saves-account">{t("app.saves.account", list.account)}</span>
@@ -258,10 +260,6 @@ export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean 
         <Prompt title={ask.row.kind === "official" ? t("app.saves.duplicateSandboxTitle", ask.row.name) : t("app.saves.duplicateTitle", ask.row.name)} label={t("app.saves.name")}
           initial={t("app.saves.copyName", ask.row.name)} confirm={ask.row.kind === "official" ? t("app.saves.duplicateSandbox") : t("app.saves.duplicate")} onCancel={close}
           onConfirm={async (name) => { const ok = await mutate("saves_duplicate", { id: ask.row.id, name }); if (ok) close(); return ok; }} />
-      )}
-      {ask?.kind === "rename" && (
-        <Prompt title={t("app.saves.renameTitle", ask.row.name)} label={t("app.saves.name")} initial={ask.row.name} confirm={t("app.saves.rename")} onCancel={close}
-          onConfirm={async (name) => { const ok = name === ask.row.name || (await mutate("saves_rename", { id: ask.row.id, name })); if (ok) close(); return ok; }} />
       )}
       {ask?.kind === "activate" && (
         <Confirm title={t("app.saves.switchTitle", ask.row.name)} text={t("app.saves.switchText")} confirm={switchLabel(ask.row)} tone="go" onCancel={close} onConfirm={() => activate(ask.row)} />

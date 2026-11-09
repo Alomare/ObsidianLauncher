@@ -2,14 +2,13 @@
 // Changes wait as edits until Save writes them all at once; the page always shows the save as it will be.
 // Every value sits on the grid of the options panel: the name with a line under it, the control filling the
 // middle cell, and a button to undo a change waiting on that row.
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { call, errorText, setSnapshot, taskText } from "../api";
 import { withTask } from "../busy";
 import { Confirm } from "../Confirm";
-import { ArrowIcon, CheckIcon, PenIcon, ResetIcon, TrashIcon, WarnIcon } from "../Icons";
+import { ArrowIcon, CheckIcon, CloseIcon, PenIcon, ResetIcon, TrashIcon, WarnIcon } from "../Icons";
 import { language, pick, t } from "../i18n";
 import { notify } from "../notices";
-import { Prompt } from "../Prompt";
 import { Select } from "../Select";
 import { Help } from "../SettingRow";
 import type { Snapshot } from "../types";
@@ -29,7 +28,7 @@ const modText = (v: ModText, fallback: string) => (typeof v === "string" ? v : p
 /** What a row needs for the undo button: the waiting edits, and how to drop the ones of that row. */
 type Undo = { pending: Map<string, Edit>; revert: (keys: string[]) => void };
 
-export function SaveEditor({ id, snap, onClose }: { id: string; snap: Snapshot; onClose: () => void }) {
+export function SaveEditor({ id, snap, onClose, startRename = false }: { id: string; snap: Snapshot; onClose: () => void; startRename?: boolean }) {
   const [base, setBase] = useState<EditorState | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [pending, setPending] = useState<Map<string, Edit>>(new Map());
@@ -37,7 +36,7 @@ export function SaveEditor({ id, snap, onClose }: { id: string; snap: Snapshot; 
   const [bulk, setBulk] = useState<Bulk>(null);
   const [leaving, setLeaving] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [renaming, setRenaming] = useState(false);
+  const [renaming, setRenaming] = useState(startRename);
 
   useEffect(() => {
     let live = true;
@@ -104,10 +103,14 @@ export function SaveEditor({ id, snap, onClose }: { id: string; snap: Snapshot; 
       <div className="head ed-head">
         {backBtn}
         <div className="ed-title">
-          <button className="ed-rename" disabled={running} onClick={() => setRenaming(true)} aria-label={t("app.saves.renameTitle", draft.name)}
-            data-tip-title={t("app.saves.rename")} data-tip={running ? t("app.action.closeGameFirst") : t("app.saves.renameHint")}>
-            <h1 className="cap">{draft.name}</h1><PenIcon />
-          </button>
+          {renaming && !running ? (
+            <TitleEdit name={draft.name} onCancel={() => setRenaming(false)} onConfirm={async (name) => { const ok = await rename(name); if (ok) setRenaming(false); }} />
+          ) : (
+            <button className="ed-rename" disabled={running} onClick={() => setRenaming(true)} aria-label={t("app.saves.renameTitle", draft.name)}
+              data-tip-title={t("app.saves.rename")} data-tip={running ? t("app.action.closeGameFirst") : t("app.saves.renameHint")}>
+              <h1 className="cap">{draft.name}</h1><PenIcon />
+            </button>
+          )}
           <span className="save-chip sandbox">{t("app.saves.sandbox")}</span>
           <Help page="saves#the-save-editor" tip={t("app.saves.editorHelpTip")} />
         </div>
@@ -139,15 +142,34 @@ export function SaveEditor({ id, snap, onClose }: { id: string; snap: Snapshot; 
           confirm={t(bulk === "max" ? "app.saves.maxEverything" : "app.saves.resetProgression")} tone={bulk === "max" ? "go" : "warn"}
           onCancel={() => setBulk(null)} onConfirm={() => { const op = bulk === "max" ? "max_everything" : "reset_progression"; setBulk(null); write([{ op } as Edit], t("app.saves.written")); }} />
       )}
-      {renaming && (
-        <Prompt title={t("app.saves.renameTitle", draft.name)} label={t("app.saves.name")} initial={draft.name} confirm={t("app.saves.rename")} onCancel={() => setRenaming(false)}
-          onConfirm={async (name) => { const ok = await rename(name); if (ok) setRenaming(false); return ok; }} />
-      )}
       {leaving && (
         <Confirm title={t("app.saves.leaveTitle")} text={t("app.saves.leaveText")} confirm={t("app.saves.leaveConfirm")} cancel={t("app.saves.leaveCancel")}
           onCancel={() => setLeaving(false)} onConfirm={() => { setLeaving(false); onClose(); }} />
       )}
     </div>
+  );
+}
+
+/** The save name turned into a box in place, with confirm and cancel beside it. Enter confirms, Escape cancels. */
+function TitleEdit({ name, onConfirm, onCancel }: { name: string; onConfirm: (v: string) => Promise<void>; onCancel: () => void }) {
+  const [v, setV] = useState(name);
+  const [busy, setBusy] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  useEffect(() => { input.current?.select(); }, []);
+  const go = async () => {
+    const next = v.trim();
+    if (!next || busy) return;
+    setBusy(true);
+    await onConfirm(next);
+    setBusy(false);
+  };
+  return (
+    <form className="ed-title-edit" onSubmit={(e) => { e.preventDefault(); go(); }}>
+      <input ref={input} className="cap" value={v} maxLength={40} spellCheck={false} disabled={busy} aria-label={t("app.saves.name")} onChange={(e) => setV(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onCancel(); } }} />
+      <button type="submit" className="btn icon head-tool go" disabled={!v.trim() || busy} aria-label={t("app.saves.rename")} data-tip={t("app.saves.rename")}><CheckIcon /></button>
+      <button type="button" className="btn icon head-tool" disabled={busy} onClick={onCancel} aria-label={t("app.cancel")} data-tip={t("app.cancel")}><CloseIcon /></button>
+    </form>
   );
 }
 
