@@ -3,7 +3,7 @@
 // and drawer. Official saves only switch, snapshot and copy to a Sandbox; everything else is for Sandbox saves.
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { useCallback, useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
-import { deploy } from "../actions";
+import { deployLoader } from "../actions";
 import { call, errorText, setSnapshot, taskText } from "../api";
 import { withTask } from "../busy";
 import { Confirm } from "../Confirm";
@@ -23,8 +23,9 @@ type Ask =
   | { kind: "snapshot" | "duplicate" | "rename" | "activate" | "delete"; row: SaveRow }
   | null;
 
-/** One thing a save can have done to it: an icon button in the panel and a line in the right-click menu. */
-type Action = { id: string; label: string; icon: ReactNode; tip?: string; disabled: boolean; tone?: "go" | "danger"; run: () => void };
+/** One thing a save can have done to it: an icon button in the panel and a line in the right-click menu.
+ *  `menuOnly` keeps it out of the panel (Rename, which the editor title also does). */
+type Action = { id: string; label: string; icon: ReactNode; tip?: string; disabled: boolean; tone?: "go" | "danger"; menuOnly?: boolean; run: () => void };
 
 const num = (n: number) => n.toLocaleString(language());
 
@@ -148,7 +149,9 @@ export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean 
   const sandbox = list.saves.filter((s) => s.kind === "sandbox");
   const active = list.saves.find((s) => s.active);
   const row = list.saves.find((s) => s.id === sel) ?? active ?? list.saves[0] ?? null;
-  const needsDeploy = !snap.deployed;
+  // A Sandbox needs the loader in the game, mods or not.
+  const needsDeploy = !snap.loader;
+  const sandboxActive = active?.kind === "sandbox";
   const closeFirst = running ? t("app.action.closeGameFirst") : undefined;
 
   /** What can be done to one save, in the order the panel shows the buttons. */
@@ -164,7 +167,7 @@ export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean 
       tip: closeFirst ?? (isOfficial ? t("app.saves.duplicateSandboxHint") : t("app.saves.duplicateHint")), disabled: running, run: () => setAsk({ kind: "duplicate", row: r }),
     });
     if (!isOfficial) {
-      out.push({ id: "rename", label: t("app.saves.rename"), icon: <PenIcon />, tip: closeFirst, disabled: running, run: () => setAsk({ kind: "rename", row: r }) });
+      out.push({ id: "rename", label: t("app.saves.rename"), icon: <PenIcon />, tip: closeFirst, disabled: running, menuOnly: true, run: () => setAsk({ kind: "rename", row: r }) });
       out.push({ id: "export", label: t("app.saves.export"), icon: <ExportIcon />, tip: closeFirst ?? t("app.saves.exportHint"), disabled: running, run: () => exportSave(r) });
       out.push({ id: "delete", label: t("app.saves.delete"), icon: <TrashIcon />, tip: r.active ? t("app.saves.deleteActive") : closeFirst, tone: "danger", disabled: running || r.active, run: () => setAsk({ kind: "delete", row: r }) });
     }
@@ -195,17 +198,14 @@ export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean 
           onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAddMenu({ x: r.left, y: r.bottom + 4 }); }}>
           <PlusIcon /><span className="label">{t("app.saves.new")}</span>
         </button>
+        <button className={sandboxActive && needsDeploy ? "btn icon go head-tool" : "btn icon head-tool"} disabled={running || !sandboxActive || !snap.gameDir} onClick={() => deployLoader()}
+          aria-label={t("app.saves.deployLoader")} data-tip-title={t("app.saves.deployLoader")}
+          data-tip={closeFirst ?? (sandboxActive ? t("app.saves.deployLoaderHint") : t("app.saves.deployLoaderOfficial"))}><DeployIcon /></button>
         <span className="muted saves-account">{t("app.saves.account", list.account)}</span>
       </div>
 
       {running && <div className="banner"><WarnIcon /><span>{t("app.saves.gameRunning")}</span></div>}
-      {!running && active?.kind === "sandbox" && needsDeploy && (
-        <div className="banner">
-          <WarnIcon />
-          <span>{t("app.saves.needsDeploy")}</span>
-          <button className="btn small go" onClick={() => deploy()}><DeployIcon />{t("app.action.deploy")}</button>
-        </div>
-      )}
+      {!running && sandboxActive && needsDeploy && <div className="banner"><WarnIcon /><span>{t("app.saves.needsDeploy")}</span></div>}
 
       <div className="saves-body" ref={body} style={width ? { ["--drawer-w" as string]: `${width}px` } : undefined}>
         <section className="list saves-list" aria-label={t("app.nav.saves")}>
@@ -276,11 +276,10 @@ export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean 
 
 const switchLabel = (r: SaveRow) => (r.kind === "official" && r.snapshotOf ? t("app.saves.restore") : t("app.saves.switch"));
 
-/** The line over each group, in the look of a folder row: the name, the count, and what the group is in the tooltip. */
+/** The label over each group: the name and the count, with what the group is in the tooltip. */
 function GroupRow({ title, hint, count, kind }: { title: string; hint: string; count: number; kind: SaveKind }) {
   return (
     <div className={`str sgroup ${kind}`} role="row">
-      <span aria-hidden="true" />
       <span className="sgroup-name cap" role="rowheader" data-tip-title={title} data-tip={hint}>{title}<span className="sgroup-n">{count}</span></span>
     </div>
   );
@@ -330,7 +329,7 @@ function Detail({ row, list, actions, running, needsDeploy }: { row: SaveRow; li
         </div>
       </div>
       <div className="save-tools" role="toolbar" aria-label={row.name}>
-        {actions.map((a) => (
+        {actions.filter((a) => !a.menuOnly).map((a) => (
           <button key={a.id} className={["btn small icon head-tool", a.tone === "go" && "go", a.tone === "danger" && "danger"].filter(Boolean).join(" ")}
             disabled={a.disabled} onClick={a.run} aria-label={a.label} data-tip-title={a.label} data-tip={a.tip}>{a.icon}</button>
         ))}

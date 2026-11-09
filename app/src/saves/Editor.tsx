@@ -3,18 +3,19 @@
 // Every value sits on the grid of the options panel: the name with a line under it, the control filling the
 // middle cell, and a button to undo a change waiting on that row.
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { call, errorText } from "../api";
+import { call, errorText, setSnapshot, taskText } from "../api";
 import { withTask } from "../busy";
 import { Confirm } from "../Confirm";
-import { ArrowIcon, CheckIcon, ResetIcon, TrashIcon, WarnIcon } from "../Icons";
+import { ArrowIcon, CheckIcon, PenIcon, ResetIcon, TrashIcon, WarnIcon } from "../Icons";
 import { language, pick, t } from "../i18n";
 import { notify } from "../notices";
+import { Prompt } from "../Prompt";
 import { Select } from "../Select";
 import { Help } from "../SettingRow";
 import type { Snapshot } from "../types";
 import { ArsenalTab } from "./ArsenalTab";
 import { choiceId, draftOf, fieldEnabled, parseWhole, playTime, rankProgress, slotChoices, stage, topXp } from "./logic";
-import { COSMETIC_SLOTS, type CosmeticSlot, type Edit, type EditorState, type ModChoice, type ModFieldState, type ModSection, type ModText } from "./types";
+import { COSMETIC_SLOTS, type CosmeticSlot, type Edit, type EditorState, type ModChoice, type ModFieldState, type ModSection, type ModText, type SavesDone } from "./types";
 
 type Tab = "overview" | "character" | "arsenal" | "campaign" | "mods";
 const TABS: Tab[] = ["overview", "character", "arsenal", "campaign", "mods"];
@@ -36,6 +37,7 @@ export function SaveEditor({ id, snap, onClose }: { id: string; snap: Snapshot; 
   const [bulk, setBulk] = useState<Bulk>(null);
   const [leaving, setLeaving] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [renaming, setRenaming] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -67,6 +69,20 @@ export function SaveEditor({ id, snap, onClose }: { id: string; snap: Snapshot; 
     }
   };
 
+  // Renaming writes at once and leaves the waiting edits alone.
+  const rename = async (name: string) => {
+    if (!base || name === base.name) return true;
+    try {
+      const r = await withTask(taskText("saves_rename"), () => call<SavesDone>("saves_rename", { id, name }), true);
+      setSnapshot(r.snapshot);
+      setBase({ ...base, name });
+      return true;
+    } catch (e) {
+      notify("error", errorText(e));
+      return false;
+    }
+  };
+
   const count = pending.size;
   const back = () => (count ? setLeaving(true) : onClose());
   const backBtn = (
@@ -88,7 +104,10 @@ export function SaveEditor({ id, snap, onClose }: { id: string; snap: Snapshot; 
       <div className="head ed-head">
         {backBtn}
         <div className="ed-title">
-          <h1 className="cap">{draft.name}</h1>
+          <button className="ed-rename" disabled={running} onClick={() => setRenaming(true)} aria-label={t("app.saves.renameTitle", draft.name)}
+            data-tip-title={t("app.saves.rename")} data-tip={running ? t("app.action.closeGameFirst") : t("app.saves.renameHint")}>
+            <h1 className="cap">{draft.name}</h1><PenIcon />
+          </button>
           <span className="save-chip sandbox">{t("app.saves.sandbox")}</span>
           <Help page="saves#the-save-editor" tip={t("app.saves.editorHelpTip")} />
         </div>
@@ -119,6 +138,10 @@ export function SaveEditor({ id, snap, onClose }: { id: string; snap: Snapshot; 
         <Confirm title={t(bulk === "max" ? "app.saves.maxTitle" : "app.saves.resetTitle", draft.name)} text={t(bulk === "max" ? "app.saves.maxText" : "app.saves.resetText")}
           confirm={t(bulk === "max" ? "app.saves.maxEverything" : "app.saves.resetProgression")} tone={bulk === "max" ? "go" : "warn"}
           onCancel={() => setBulk(null)} onConfirm={() => { const op = bulk === "max" ? "max_everything" : "reset_progression"; setBulk(null); write([{ op } as Edit], t("app.saves.written")); }} />
+      )}
+      {renaming && (
+        <Prompt title={t("app.saves.renameTitle", draft.name)} label={t("app.saves.name")} initial={draft.name} confirm={t("app.saves.rename")} onCancel={() => setRenaming(false)}
+          onConfirm={async (name) => { const ok = await rename(name); if (ok) setRenaming(false); return ok; }} />
       )}
       {leaving && (
         <Confirm title={t("app.saves.leaveTitle")} text={t("app.saves.leaveText")} confirm={t("app.saves.leaveConfirm")} cancel={t("app.saves.leaveCancel")}

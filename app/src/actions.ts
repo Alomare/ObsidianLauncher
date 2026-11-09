@@ -6,7 +6,7 @@ import { t } from "./i18n";
 import { notify } from "./notices";
 import type { CmdError, Snapshot } from "./types";
 
-type DeployDone = { snapshot: Snapshot; mods: number; backup: boolean; unchanged: boolean; settings: boolean };
+type DeployDone = { snapshot: Snapshot; mods: number; backup: boolean; unchanged: boolean; settings: boolean; loader: boolean };
 type PurgeDone = { snapshot: Snapshot; removed: number; kept: number };
 
 async function step<T>(busy: string, work: () => Promise<T>): Promise<T | null> {
@@ -24,7 +24,16 @@ export async function deploy(): Promise<boolean> {
   if (!r) return false;
   setSnapshot(r.snapshot);
   if (r.unchanged) notify("info", t(r.settings ? "app.action.deployedOptions" : "app.action.deployUpToDate"));
-  else notify("info", r.mods === 1 ? t("app.action.deployedOne") : r.mods ? t("app.action.deployed", r.mods) : t("app.action.deployedVanilla"));
+  else notify("info", r.mods === 1 ? t("app.action.deployedOne") : r.mods ? t("app.action.deployed", r.mods) : t(r.loader ? "app.action.deployedLoader" : "app.action.deployedVanilla"));
+  return true;
+}
+
+/** The Saves tab's deploy: the loader alone, which a Sandbox save needs, with the mods left out. */
+export async function deployLoader(): Promise<boolean> {
+  const r = await step(t("app.action.deploying"), () => call<DeployDone>("deploy_loader"));
+  if (!r) return false;
+  setSnapshot(r.snapshot);
+  notify("info", t("app.action.deployedLoader"));
   return true;
 }
 

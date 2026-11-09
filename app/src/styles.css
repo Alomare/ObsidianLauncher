@@ -1031,12 +1031,13 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 /* Saves: one table, Official then Sandbox, and the panel of the selected save beside it, as on the Mods
    tab (the list, the line to drag, the drawer). The columns are the same in every row: the icon, the save
    with the tags (to the left), then rank, samples and time played (centered). A narrow list keeps the rank. */
-.saves { height: 100%; display: flex; flex-direction: column; gap: 0.55rem; }
+.saves { height: 100%; display: flex; flex-direction: column; gap: 0.55rem; max-width: 110rem; }
 .saves .head { gap: 0.45rem; }
 .saves .head h1 { margin-right: 0.2rem; }
 .saves .head .help-q { margin-right: 0.45rem; }
 .saves .head .btn { flex: none; height: 2.3rem; padding: 0 0.95rem; gap: 0.5rem; font-size: 0.76rem; letter-spacing: 0.15em; white-space: nowrap; }
 .saves .head .btn svg { flex: none; width: 1.1rem; height: 1.1rem; }
+.saves .head .btn.icon { width: 2.6rem; padding: 0; }
 .saves .head :is(.btn.go):focus-visible { outline-color: #1b1b1b; outline-offset: -2px; }
 .saves-account { margin-left: auto; font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .saves-body { flex: 1; min-height: 0; display: flex; }
@@ -1055,12 +1056,12 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .s-val { text-align: center; font-family: "Saira Variable", sans-serif; font-weight: 500; font-size: 0.84rem; font-variant-numeric: tabular-nums; color: var(--mu); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .str.sel .s-val, .str:hover .s-val { color: var(--tx); }
 .str .tag { flex: none; margin-left: 0.4rem; }
-/* The group lines read as folder rows in a neutral color: Official in gold, Sandbox in the go green. */
-.str.sgroup { --fc: var(--gold); grid-template-columns: 1.3rem minmax(0, 1fr); min-height: 2.3rem; cursor: default; background: color-mix(in srgb, var(--fc) 9%, transparent); box-shadow: inset 4px 0 0 var(--fc); }
+/* The group lines are section labels: small capitals in the group color over the saves, which stay the rows. */
+.str.sgroup { --fc: var(--goldtx); grid-template-columns: minmax(0, 1fr); min-height: 0; padding-top: 0.9rem; padding-bottom: 0.3rem; cursor: default; background: none; box-shadow: none; }
 .str.sgroup.sandbox { --fc: var(--go); }
-.str.sgroup:hover { background: color-mix(in srgb, var(--fc) 9%, transparent); }
-.sgroup-name { justify-self: start; display: inline-flex; align-items: center; gap: 0.55rem; font-size: 0.8rem; color: var(--tx); cursor: help; }
-.sgroup-n { font-family: "Saira Variable", sans-serif; font-size: 0.7rem; letter-spacing: 0; color: var(--mu); background: var(--row); padding: 0 0.4rem; }
+.str.sgroup:hover { background: none; }
+.sgroup-name { justify-self: start; display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.72rem; color: var(--fc); cursor: help; }
+.sgroup-n { font-family: "Saira Variable", sans-serif; font-size: 0.68rem; letter-spacing: 0; color: var(--mu); }
 .saves-none { margin: 0; padding: 0.7rem 0.8rem 0.7rem 2.6rem; font-size: 0.85rem; border-bottom: 1px solid var(--ln); }
 @container (max-width: 30rem) {
   .sth, .str { grid-template-columns: 1.3rem minmax(0, 1fr) 4.5rem; }
@@ -1091,16 +1092,10 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .deploy-now span { color: var(--mu); }
 .deploy-now .deploy-pct { margin-left: auto; font-family: "Saira Variable", sans-serif; font-variant-numeric: tabular-nums; }
 
-/* Profile: which save it plays */
-.profile-save { display: flex; align-items: center; gap: 1rem; padding: 0.6rem 0.8rem; background: var(--row); }
-.profile-save-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
-.profile-save-text b { font-weight: 660; }
-.profile-save-text small { font-size: 0.82rem; line-height: 1.4; }
-
 /* The save editor. The head as on the Mods tab: icon tools of one height with the folded corner, Save in
    the go green. The panels flow in columns of one width, and every row inside uses the grid of the
    options panel (name and line, control filling the middle cell, undo), so values line up down a column. */
-.ed { height: 100%; display: flex; flex-direction: column; gap: 0.5rem; }
+.ed { height: 100%; display: flex; flex-direction: column; gap: 0.5rem; max-width: 110rem; }
 .ed-head { gap: 0.45rem; }
 .ed-head .btn { flex: none; height: 2.3rem; padding: 0 0.95rem; gap: 0.5rem; font-size: 0.76rem; letter-spacing: 0.15em; white-space: nowrap; }
 .ed-head .btn svg { flex: none; width: 1.1rem; height: 1.1rem; }
@@ -1110,6 +1105,11 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .ed-back svg { transform: rotate(180deg); }
 .ed-title { display: flex; align-items: center; gap: 0.6rem; min-width: 0; flex: 1; margin-left: 0.45rem; }
 .ed-title h1 { font-size: 1.3rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ed-rename { display: inline-flex; align-items: center; gap: 0.5rem; min-width: 0; padding: 0.15rem 0.4rem; margin-left: -0.4rem; background: none; border: 0; color: var(--tx); cursor: pointer; transition: background var(--fast); }
+.ed-rename:hover:not(:disabled) { background: var(--row); }
+.ed-rename:disabled { cursor: default; }
+.ed-rename svg { flex: none; width: 0.95rem; height: 0.95rem; color: var(--mu); opacity: 0; transition: opacity var(--fast); }
+.ed-rename:hover:not(:disabled) svg, .ed-rename:focus-visible svg { opacity: 1; }
 .ed-title .save-chip { margin-left: 0; }
 .ed-savebar { display: flex; align-items: center; gap: 0.45rem; }
 .ed-dirty { font-size: 0.82rem; font-weight: 600; color: var(--goldtx); white-space: nowrap; margin-right: 0.3rem; }
@@ -1134,7 +1134,8 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 }
 .ed-note { margin: 0; padding: 0.55rem 0.8rem 0.65rem; font-size: 0.82rem; line-height: 1.45; color: var(--mu); border-top: 1px solid var(--ln); }
 .kv-sub { display: block; font-family: Barlow, sans-serif; font-weight: 500; font-size: 0.8rem; color: var(--mu); }
-.opt-cell > .ed-num, .opt-cell > .ed-stack, .opt-cell > .ed-fill { flex: 1; min-width: 0; }
+.opt-cell > .ed-num, .opt-cell > .ed-stack { flex: 1; min-width: 0; }
+.opt-cell:has(> .ed-fill) { justify-content: flex-end; }
 .ed-num { width: 100%; height: 2.3rem; padding: 0 0.75rem; background: var(--row); border: 1px solid var(--ln); color: var(--tx); font-family: "Saira Variable", sans-serif; font-size: 0.92rem; font-variant-numeric: tabular-nums; outline: 0;
   -webkit-mask: linear-gradient(315deg, transparent var(--cut-sm), #000 calc(var(--cut-sm) + 0.5px)); }
 .ed-num:focus { border-color: var(--gold); }
@@ -1145,7 +1146,7 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .ed-value { min-width: 0; padding: 0 0.75rem; font-family: "Saira Variable", sans-serif; font-weight: 600; font-size: 0.95rem; font-variant-numeric: tabular-nums; }
 .ed-value.mono { font-family: inherit; font-weight: 500; font-size: 0.85rem; flex: 1; }
 .ed-trunc { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.btn.small.ed-fill { height: 2.3rem; padding: 0 0.6rem; }
+.btn.small.ed-fill { width: 8rem; height: 2.3rem; padding: 0 0.6rem; }
 .ed-mod-name { font-family: "Saira Variable", sans-serif; font-size: 0.98rem; font-weight: 660; letter-spacing: 0.02em; text-transform: none; }
 .ed-mod-id { font-size: 0.78rem; color: var(--mu); text-transform: none; letter-spacing: 0; }
 .ed-card-head .cap { display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; min-width: 0; flex: 1; }
@@ -1157,7 +1158,9 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
    column; the switch column is centered, the item and the upgrades start at the left. */
 .ar { display: flex; flex-direction: column; gap: 0.6rem; }
 .ar-tools { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; padding: 0.4rem 0.6rem; background: var(--s2); box-shadow: 0 6px 14px rgba(0, 0, 0, 0.2); }
-.ar-tools .search { margin-left: 0; flex: 1 1 12rem; width: auto; }
+.ar-tools .seg { height: 2.3rem; grid-auto-columns: 7rem; }
+.ar-tools .seg button { padding: 0 0.5rem; }
+.ar-tools .search { margin-left: 0; flex: 0 1 20rem; width: 20rem; min-width: 10rem; }
 .ar-count { margin-left: auto; font-size: 0.82rem; white-space: nowrap; }
 .ar-block { background: linear-gradient(160deg, var(--p1), var(--p2)); padding-bottom: 0.2rem; }
 .ar-title { margin: 0; padding: 0.6rem 0.8rem 0.4rem; font-size: 0.82rem; color: var(--goldtx); }

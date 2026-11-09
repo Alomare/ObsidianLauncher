@@ -66,7 +66,3 @@ The check is only as fresh as your last login. DLC bought since then, or unticke
 
 > [!NOTE]
 > Exported and imported saves are always Sandbox saves. Import checks the file, removes the waiting results, and removes paid DLC that your account doesn't own from the imported save.
-
-## Profiles and saves
-
-A [profile](wiki:profiles) can name a save to play. **Manage Profiles** has a **Save** choice for the active profile: pressing Play on that profile switches to that save first. **None** leaves the choice to you, and the game boots the active save.
