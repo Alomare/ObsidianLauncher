@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use obsidian_core::compose::plan_with;
-use obsidian_core::deploy::{ChangesWaiting, UncleanEnd, changes_waiting_for, crash_culprit, settings_digest, has_deployed, unclean_end};
+use obsidian_core::deploy::{ChangesWaiting, UncleanEnd, changes_waiting_for, crash_culprit, settings_digest, has_deployed, loader_deployed, unclean_end};
 use obsidian_core::game::{GameInstall, find_game, is_running};
 use obsidian_core::gate::{KNOWN_BUILDS, check_build};
 use obsidian_core::hash::{display_name, display_text};
@@ -142,8 +142,8 @@ pub struct Snapshot {
     pub block_achievements: bool,
     pub freeze_progress: bool,
     pub hide_client_mods: bool,
-    /// The save the active profile plays; None boots whatever is active.
-    pub save: Option<String>,
+    /// Whether the last deploy put the loader in the game, which a Sandbox save needs.
+    pub loader: bool,
     /// The selected Sandbox, when one is.
     pub sandbox: Option<String>,
     pub conflicts: Vec<ConflictRow>,
@@ -362,7 +362,7 @@ pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Re
         block_achievements: profile.block_achievements,
         freeze_progress: profile.freeze_progress,
         hide_client_mods: profile.hide_client_mods,
-        save: profile.save.clone(),
+        loader: game_install.as_ref().is_some_and(|g| loader_deployed(g, data)),
         sandbox: obsidian_core::saves::active_sandbox(data),
         conflicts,
         changes: changes_waiting_for(&comp, &profile, &settings_digest(&obsidian_core::loader::settings_with(&profile, &manifests)?), data, game_install.as_ref().map(|g| g.contents()).as_deref()).unwrap_or(ChangesWaiting::Waiting),

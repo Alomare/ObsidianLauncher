@@ -750,19 +750,14 @@ fn written_at(path: &Path) -> Option<String> {
     Some(chrono::DateTime::<chrono::Local>::from(modified).to_rfc3339())
 }
 
-/// What Play does before launching: activates the profile's save, if it names one, and refuses a
-/// Sandbox the game could not open.
-pub fn prepare_play(data: &Path, game: &GameInstall, profile: &Profile, running: fn() -> bool) -> Result<()> {
-    prepare_with(data, game, profile, || Saves::open(data, game, running))
+/// What Play does before launching: refuses a Sandbox the game could not open. (Profiles naming a
+/// save to play were archived under the git tag `archive/profile-save`.)
+pub fn prepare_play(data: &Path, game: &GameInstall, running: fn() -> bool) -> Result<()> {
+    prepare_with(data, game, || Saves::open(data, game, running))
 }
 
-fn prepare_with(data: &Path, game: &GameInstall, profile: &Profile, open: impl Fn() -> Result<Saves>) -> Result<()> {
-    if let Some(id) = profile.save.as_deref().filter(|s| !s.is_empty()) {
-        let s = open()?;
-        if s.active()?.as_deref() != Some(id) {
-            s.activate(id)?;
-        }
-    } else if read_pointer(data).is_some() {
+fn prepare_with(data: &Path, game: &GameInstall, open: impl Fn() -> Result<Saves>) -> Result<()> {
+    if read_pointer(data).is_some() {
         // Clears a Sandbox left selected by another Steam account.
         let _ = open();
     }
@@ -1096,20 +1091,26 @@ mod tests {
     }
 
     #[test]
-    fn profile_play_activates_the_save_and_refuses_an_undeployed_sandbox() {
+    fn play_refuses_an_undeployed_sandbox_and_boots_an_official_save() {
         let w = world();
         let s = w.saves();
         let official = s.list().unwrap().saves[0].id.clone();
         let id = s.create_sandbox("Mine").unwrap();
         let open = || Ok(w.saves());
-        let p = Profile { save: Some(id.clone()), ..Default::default() };
-        assert!(matches!(prepare_with(&w.data, &w.game, &p, open), Err(ObsidianError::SandboxNeedsDeploy)));
-        assert_eq!(active_sandbox(&w.data).as_deref(), Some(id.as_str()), "activated before refusing");
-        let official_profile = Profile { save: Some(official), ..Default::default() };
-        prepare_with(&w.data, &w.game, &official_profile, open).unwrap();
-        assert_eq!(active_sandbox(&w.data), None);
-        // Empty boots whatever is active, with no refusal for an Official save.
-        prepare_with(&w.data, &w.game, &Profile::default(), open).unwrap();
+        prepare_with(&w.data, &w.game, open).unwrap();
+        s.activate(&id).unwrap();
+        assert!(matches!(prepare_with(&w.data, &w.game, open), Err(ObsidianError::SandboxNeedsDeploy)));
+        assert_eq!(active_sandbox(&w.data).as_deref(), Some(id.as_str()), "the selection stays");
+        s.activate(&official).unwrap();
+        prepare_with(&w.data, &w.game, open).unwrap();
+    }
+
+    #[test]
+    fn an_old_profile_naming_a_save_still_loads() {
+        let t = tempfile::tempdir().unwrap();
+        std::fs::write(t.path().join("profile.json"), br#"{"mods":[],"save":"abc123"}"#).unwrap();
+        let p: Profile = serde_json::from_slice(&std::fs::read(t.path().join("profile.json")).unwrap()).unwrap();
+        assert!(p.mods.is_empty());
     }
 
     #[test]

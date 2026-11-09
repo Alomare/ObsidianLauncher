@@ -2,15 +2,13 @@
 // holds, and New, Import, Duplicate, Rename, Export, Delete and Use. A profile keeps the load order, which mods are
 // on, option values, keys and guardrails.
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { call, errorText, run } from "./api";
+import { run } from "./api";
 import { Confirm } from "./Confirm";
 import { CloseIcon, CopyIcon, ExportIcon, ImportIcon, ModdersIcon, PaletteIcon, PenIcon, PlusIcon, ShieldIcon, TrashIcon } from "./Icons";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { FOLDER_COLORS } from "./mods/FolderDialog";
 import { t } from "./i18n";
 import { exportProfile, importProfile } from "./profileZip";
-import { Select } from "./Select";
-import type { SaveList, SaveRow } from "./saves/types";
 import { Prompt } from "./Prompt";
 import { Thumb } from "./Thumb";
 import type { ProfileRow, Snapshot } from "./types";
@@ -26,32 +24,6 @@ export function ProfileGuards({ p }: { p: ProfileRow }) {
       <span className={p.guarded ? "consent-ico on" : "consent-ico"} role="img" aria-label={t(p.guarded ? "app.profiles.guardedOn" : "app.profiles.guardedOff")}
         data-tip={t(p.guarded ? "app.profiles.guardedOn" : "app.profiles.guardedOff")}><ShieldIcon filled={p.guarded} /></span>
     </>
-  );
-}
-
-/** The save the active profile plays: Play activates it first. Saves belong to a Steam account, so a failure here (no game, no account) only hides the choice. */
-function ProfileSave({ snap }: { snap: Snapshot }) {
-  const [saves, setSaves] = useState<SaveRow[] | null>(null);
-  const [failed, setFailed] = useState<string | null>(null);
-  useEffect(() => {
-    let live = true;
-    call<SaveList>("saves_list").then((l) => live && setSaves(l.saves)).catch((e) => live && setFailed(errorText(e)));
-    return () => { live = false; };
-  }, []);
-  const known = !snap.save || saves?.some((s) => s.id === snap.save);
-  const options = [
-    { value: "", label: t("app.profiles.saveNone") },
-    ...(saves ?? []).map((s) => ({ value: s.id, label: `${s.name} (${t(s.kind === "official" ? "app.saves.official" : "app.saves.sandbox")})` })),
-    ...(!known && snap.save ? [{ value: snap.save, label: t("app.profiles.saveMissing") }] : []),
-  ];
-  return (
-    <section className="profile-save">
-      <div className="profile-save-text">
-        <b>{t("app.profiles.saveFor", snap.profile)}</b>
-        <small className="muted">{failed ?? t("app.profiles.saveHint")}</small>
-      </div>
-      {saves && <Select value={snap.save ?? ""} label={t("app.profiles.saveFor", snap.profile)} options={options} onChange={(v) => run("set_profile_save", { save: v || null })} />}
-    </section>
   );
 }
 
@@ -121,7 +93,6 @@ export function ProfilesDialog({ snap, onClose }: { snap: Snapshot; onClose: () 
           );
         })}
       </ul>
-      <ProfileSave snap={snap} />
 
       {colors && <ContextMenu x={colors.x} y={colors.y} items={colorItems(colors.name, colors.color)} onClose={() => setColors(null)} />}
       {ask?.kind === "new" && (

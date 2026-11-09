@@ -594,7 +594,7 @@ fn game_of(ctx: &Ctx) -> CmdResult<GameInstall> {
     Ok(find(&AppSettings::load(&ctx.data)).ok_or_else(|| ObsidianError::GameNotFound(String::new()))?)
 }
 
-/// Readies the profile's save with `prepare`, then calls `launch`. The game runs what was last
+/// Readies the active save with `prepare`, then calls `launch`. The game runs what was last
 /// deployed, even with changes waiting.
 pub fn play_with(game: Option<&GameInstall>, prepare: impl FnOnce(&GameInstall) -> CmdResult<()>, launch: impl FnOnce() -> CmdResult<()>) -> CmdResult<()> {
     let game = game.ok_or_else(|| ObsidianError::GameNotFound(String::new()))?;
@@ -614,6 +614,8 @@ pub struct DeployDone {
     pub unchanged: bool,
     /// Option values or keys changed since the last deploy.
     pub settings: bool,
+    /// The loader is in the game after this deploy, as a Sandbox save needs.
+    pub loader: bool,
 }
 
 #[tauri::command]
@@ -629,7 +631,23 @@ pub async fn deploy(app: tauri::AppHandle, ctx: State<'_, Ctx>) -> CmdResult<Dep
     };
     let r = core_deploy(&game, &ctx.data, &DeployOptions { progress: Some(&tell), ..DeployOptions::default() })?;
     let snapshot = fresh(&ctx)?;
-    Ok(DeployDone { mods: if r.patches.is_empty() { 0 } else { snapshot.mods.iter().filter(|m| m.on).count() }, backup: r.backup.is_some(), unchanged: r.unchanged, settings: r.settings_changed, snapshot })
+    Ok(DeployDone { mods: if r.patches.is_empty() { 0 } else { snapshot.mods.iter().filter(|m| m.on).count() }, backup: r.backup.is_some(), unchanged: r.unchanged, settings: r.settings_changed, loader: snapshot.loader, snapshot })
+}
+
+/// The Saves tab's deploy: the loader alone, with every mod left out, so a Sandbox save works in a
+/// game with no mods. The Mods tab's deploy puts the mods back.
+#[tauri::command]
+pub async fn deploy_loader(app: tauri::AppHandle, ctx: State<'_, Ctx>) -> CmdResult<DeployDone> {
+    use tauri::Emitter;
+    let _turn = ctx.turn();
+    let game = game_of(&ctx)?;
+    ensure_closed()?;
+    let tell = move |p: &obsidian_core::deploy::DeployProgress| {
+        let _ = app.emit("deploy-progress", p);
+    };
+    let r = core_deploy(&game, &ctx.data, &DeployOptions { progress: Some(&tell), loader_only: true, ..DeployOptions::default() })?;
+    let snapshot = fresh(&ctx)?;
+    Ok(DeployDone { mods: 0, backup: r.backup.is_some(), unchanged: r.unchanged, settings: r.settings_changed, loader: snapshot.loader, snapshot })
 }
 
 #[derive(Debug, Serialize)]
@@ -656,8 +674,7 @@ pub async fn play(ctx: State<'_, Ctx>, app: tauri::AppHandle) -> CmdResult<Snaps
     let _turn = ctx.turn();
     let game = find(&AppSettings::load(&ctx.data));
     let prepare = |g: &GameInstall| -> CmdResult<()> {
-        let profile = Profile::load(&ctx.data)?;
-        obsidian_core::saves::prepare_play(&ctx.data, g, &profile, obsidian_core::game::is_running)?;
+        obsidian_core::saves::prepare_play(&ctx.data, g, obsidian_core::game::is_running)?;
         Ok(())
     };
     play_with(game.as_ref(), prepare, || {
@@ -780,22 +797,6 @@ pub async fn saves_editor_state(ctx: State<'_, Ctx>, id: String) -> CmdResult<ob
 pub async fn saves_apply_edits(ctx: State<'_, Ctx>, id: String, edits: Vec<obsidian_core::saves::editor::Edit>) -> CmdResult<obsidian_core::saves::editor::EditorState> {
     let _turn = ctx.turn();
     Ok(saves_of(&ctx)?.apply_edits(&id, &edits)?)
-}
-
-/// Sets the save the active profile plays, or none (null) to boot whatever is active.
-#[tauri::command]
-pub async fn set_profile_save(ctx: State<'_, Ctx>, save: Option<String>) -> CmdResult<Snapshot> {
-    let _turn = ctx.turn();
-    if let Some(id) = save.as_deref().filter(|s| !s.is_empty()) {
-        let s = saves_of(&ctx)?;
-        if !s.list()?.saves.iter().any(|row| row.id == id) {
-            return Err(ObsidianError::SaveMissing(id.to_string()).into());
-        }
-    }
-    live_edit(&ctx, |_, p| {
-        p.save = save.filter(|s| !s.is_empty());
-        Ok(())
-    })
 }
 
 /// The lobby info guardrail: leave client mods out of the lobby info this player hosts.

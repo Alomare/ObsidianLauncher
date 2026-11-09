@@ -60,6 +60,9 @@ pub struct DeployOptions<'a> {
     pub loader_dir: Option<PathBuf>,
     /// Told what the deploy is doing, from the start to the end of every deploy.
     pub progress: Option<&'a (dyn Fn(&DeployProgress) + Sync)>,
+    /// Leaves every mod out, as if all were off: the loader alone goes in, when something needs it
+    /// (a selected Sandbox save, or a guardrail). The Saves tab's deploy.
+    pub loader_only: bool,
 }
 
 /// What a deploy is doing right now.
@@ -102,7 +105,7 @@ fn display_of(name: &crate::manifest::Localized) -> Option<String> {
 
 impl Default for DeployOptions<'static> {
     fn default() -> Self {
-        DeployOptions { known_builds: KNOWN_BUILDS, keep_backups: 10, loader_dir: None, progress: None }
+        DeployOptions { known_builds: KNOWN_BUILDS, keep_backups: 10, loader_dir: None, progress: None, loader_only: false }
     }
 }
 
@@ -352,6 +355,12 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
     let lib = Library::open(data_dir)?;
     let mut profile = Profile::load(data_dir)?;
     profile.sync(&lib)?;
+    if opts.loader_only {
+        // Only this deploy's copy: the profile on disk keeps the mods on, and the Mods tab shows them waiting.
+        for e in &mut profile.mods {
+            e.enabled = false;
+        }
+    }
     let loader_dir = match &opts.loader_dir {
         Some(d) => d.clone(),
         None => loader::find_loader_dir()?,
@@ -786,7 +795,7 @@ mod tests {
         p.set_enabled("mod-aa", true).unwrap();
         p.set_enabled("mod-bb", true).unwrap();
         p.save(&data).unwrap();
-        World { _t: t, game, data, opts: DeployOptions { known_builds: known, keep_backups: 10, loader_dir: None, progress: None } }
+        World { _t: t, game, data, opts: DeployOptions { known_builds: known, keep_backups: 10, loader_dir: None, progress: None, loader_only: false } }
     }
 
     fn snapshot(dir: &Path) -> BTreeMap<String, String> {
@@ -807,7 +816,7 @@ mod tests {
         let w = world();
         let seen = std::sync::Mutex::new(Vec::new());
         let tell = |p: &DeployProgress| seen.lock().unwrap().push(p.clone());
-        let opts = DeployOptions { known_builds: w.opts.known_builds, keep_backups: 10, loader_dir: w.opts.loader_dir.clone(), progress: Some(&tell) };
+        let opts = DeployOptions { known_builds: w.opts.known_builds, keep_backups: 10, loader_dir: w.opts.loader_dir.clone(), progress: Some(&tell), loader_only: false };
         deploy(&w.game, &w.data, &opts).unwrap();
         let first_run = std::mem::take(&mut *seen.lock().unwrap());
         assert_eq!((first_run[0].percent, first_run[0].stage), (0, "preparing"));
@@ -862,6 +871,59 @@ mod tests {
         purge(&w.game, &w.data).unwrap();
         assert!(!patch(&w, "9cf71054ea26dddf.patch_0").exists());
         assert!(settings_text(&w).contains("consent"), "purge leaves settings.txt");
+    }
+
+    /// Selects a Sandbox save the way the Saves tab does, by the pointer file the loader settings read.
+    fn select_sandbox(w: &World) {
+        put(&w.data.join("saves"), "active-sandbox", b"107296691\tsandbox1");
+        assert!(crate::saves::active_sandbox(&w.data).is_some());
+    }
+
+    fn mods_off(w: &World) {
+        let mut p = Profile::load(&w.data).unwrap();
+        p.set_enabled("mod-aa", false).unwrap();
+        p.set_enabled("mod-bb", false).unwrap();
+        p.save(&w.data).unwrap();
+    }
+
+    #[test]
+    fn a_sandbox_with_no_mods_still_gets_the_loader() {
+        let w = world();
+        mods_off(&w);
+        assert!(deploy(&w.game, &w.data, &w.opts).unwrap().patches.is_empty(), "an Official save with no mods: vanilla");
+        assert!(!loader_deployed(&w.game, &w.data));
+        select_sandbox(&w);
+        let lib = Library::open(&w.data).unwrap();
+        assert_eq!(changes_waiting(&lib, &Profile::load(&w.data).unwrap(), &w.data, Some(&w.game.contents())).unwrap(), ChangesWaiting::Waiting);
+        assert_eq!(deploy(&w.game, &w.data, &w.opts).unwrap().patches, vec![patch(&w, "9cf71054ea26dddf.patch_0")]);
+        assert!(loader_deployed(&w.game, &w.data));
+        assert!(settings_text(&w).contains("sandbox\tsandbox1\n"), "the loader reads which Sandbox");
+        purge(&w.game, &w.data).unwrap();
+        assert!(!patch(&w, "9cf71054ea26dddf.patch_0").exists());
+        assert!(!loader_deployed(&w.game, &w.data));
+    }
+
+    #[test]
+    fn a_loader_only_deploy_leaves_the_mods_out_and_a_full_deploy_puts_them_back() {
+        let w = world();
+        select_sandbox(&w);
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert!(patch(&w, "00000000000000aa.patch_0").exists());
+        let only = DeployOptions { loader_only: true, ..DeployOptions { known_builds: w.opts.known_builds, keep_backups: 10, loader_dir: None, progress: None, loader_only: false } };
+        let r = deploy(&w.game, &w.data, &only).unwrap();
+        assert_eq!(r.patches, vec![patch(&w, "9cf71054ea26dddf.patch_0")]);
+        assert!(!patch(&w, "00000000000000aa.patch_0").exists() && !patch(&w, "00000000000000bb.patch_0").exists(), "the mods left the game");
+        assert!(loader_deployed(&w.game, &w.data));
+        let b = bundle::read_file(&patch(&w, "9cf71054ea26dddf.patch_0")).unwrap();
+        assert!(!b.entries.iter().any(|e| e.name_hash == crate::hash::hash_name(&crate::loader::entry_name("mod-aa"))), "no mod script");
+        let p = Profile::load(&w.data).unwrap();
+        assert!(p.mods.iter().all(|m| m.enabled), "the profile keeps the mods on");
+        let lib = Library::open(&w.data).unwrap();
+        assert_eq!(changes_waiting(&lib, &p, &w.data, Some(&w.game.contents())).unwrap(), ChangesWaiting::Waiting, "the Mods tab shows the mods waiting");
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert!(patch(&w, "00000000000000aa.patch_0").exists() && loader_deployed(&w.game, &w.data));
+        purge(&w.game, &w.data).unwrap();
+        assert!(!patch(&w, "00000000000000aa.patch_0").exists() && !patch(&w, "9cf71054ea26dddf.patch_0").exists());
     }
 
     #[test]

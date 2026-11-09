@@ -28,7 +28,7 @@ export type ChangesWaiting = "UpToDate" | "Waiting" | "Vanilla";
 export type GameState = "supported" | "unknown" | "running" | "notFound";
 export type ProfileRow = { name: string; on: number; blockPublic: boolean; guarded: boolean; image: ImageRef | null; color: string | null };
 export type Snapshot = {
-  mods: ModRow[]; folders: Folder[]; profile: string; profiles: string[]; profileRows: ProfileRow[]; blockPublic: boolean; blockAchievements: boolean; freezeProgress: boolean; hideClientMods: boolean; save: string | null; sandbox: string | null; conflicts: ConflictRow[];
+  mods: ModRow[]; folders: Folder[]; profile: string; profiles: string[]; profileRows: ProfileRow[]; blockPublic: boolean; blockAchievements: boolean; freezeProgress: boolean; hideClientMods: boolean; loader: boolean; sandbox: string | null; conflicts: ConflictRow[];
   changes: ChangesWaiting; deployed: boolean; game: GameState; gameChanges: { path: string; missing: boolean }[]; gameDir: string | null; crashCulprit: string | null; broken: { folder: string; reason: string }[]; damagedProfiles: string[]; uncleanEnd: { stamp: number; last: string } | null;
   portable: boolean; version: string;
 };

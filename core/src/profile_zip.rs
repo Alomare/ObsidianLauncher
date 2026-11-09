@@ -61,8 +61,6 @@ pub fn export(data: &Path, name: &str, dest: &Path) -> Result<usize> {
     profile.mods.retain(|m| shipped.contains(&m.id));
     profile.options.retain(|id, _| profile.mods.iter().any(|m| &m.id == id));
     profile.keys.retain(|id, _| profile.mods.iter().any(|m| &m.id == id));
-    // A save id means nothing on another PC.
-    profile.save = None;
     let opts = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
     if let Some(img) = images::custom(data, name) {
         let ext = img.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();

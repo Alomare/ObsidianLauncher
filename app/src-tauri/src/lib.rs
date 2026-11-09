@@ -73,6 +73,7 @@ pub fn run() {
             commands::remove_other_patches,
             commands::update_mod,
             commands::deploy,
+            commands::deploy_loader,
             commands::purge,
             commands::play,
             commands::set_option,
@@ -109,7 +110,6 @@ pub fn run() {
             commands::saves_import,
             commands::saves_editor_state,
             commands::saves_apply_edits,
-            commands::set_profile_save,
             commands::set_hide_client_mods,
         ])
         .run(tauri::generate_context!())
