@@ -53,7 +53,7 @@ export const CogIcon = () => (
 /** An eraser: Purge wipes what Obsidian wrote, back to vanilla. */
 export const PurgeIcon = () => <Icon width="22.7" height="22.7" strokeWidth="2"><path d="M9 20.5L2.8 14.3a1 1 0 0 1 0-1.4l9.5-9.5a1 1 0 0 1 1.4 0l6.8 6.8a1 1 0 0 1 0 1.4L11.6 20.5z" /><path d="M7.5 8.6l8.4 8.4M9 20.5h12" /></Icon>;
 /** A box with an arrow leaving it: the mods go out into the game. Drawn like Purge. */
-export const DeployIcon = () => <Icon width="24" height="24" strokeWidth="1.9"><path d="M7.75 3l6.5 4v9.5l-6.5 4-6.5-4V7z" /><path d="M1.25 7l6.5 4 6.5-4M7.75 11v9.5" /><path d="M16 12h6.5M20 9.5l2.5 2.5-2.5 2.5" /></Icon>;
+export const DeployIcon = () => <Icon width="24" height="24" strokeWidth="1.9"><path d="M8 4l7 4v8l-7 4-7-4V8z" /><path d="M1 8l7 4 7-4M8 12v8" /><path d="M16.75 12h5.75M20 9.5l2.5 2.5-2.5 2.5" /></Icon>;
 export const PlayIcon = () => <Icon fill="currentColor" stroke="none"><path d="M7 4.5v15l13-7.5z" /></Icon>;
 /** A triangle with a mark; `filled` makes it solid, with the mark cut out in the color of the panels. */
 export const WarnIcon = ({ filled }: { filled?: boolean }) => (
