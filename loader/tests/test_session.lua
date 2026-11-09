@@ -600,7 +600,7 @@ test("a_library_guard_refuses_while_such_a_mod_is_off", function()
 	E.eq(select(2, view.grow()), "not_cleared")
 end)
 
--- The Third Person Camera mod wraps require and, when the game loads a class, loads its own copy
+-- The Third Person Camera mod wraps require and, when the game loads a class, loads a separate copy
 -- that declares the same methods again on the same table.
 local CAMERA = "local old = require; rawset(_G, 'require', function(n) local v = old(n); if n == 'lua/proxy' then old('hd2cam/lua/proxy') end; return v end)"
 

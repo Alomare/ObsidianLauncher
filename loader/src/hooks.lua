@@ -96,8 +96,8 @@ local function reaches(f, wrapper, depth, seen)
 	return false
 end
 
--- A mod that loads its own copy of a game class declares the methods again on the same table, which
--- throws away every hook on them (the Third Person Camera mod does this from its require wrapper).
+-- A mod that loads a separate copy of a game class declares the methods again on the same table, which
+-- throws away every hook on them (the Third Person Camera mod does this from the wrapper it puts around require).
 -- After each require, a method that changed and no longer calls the hooks gets them all back, in order.
 -- A mod that wrapped the hooked method keeps the hooks inside, so that one is left alone.
 local function recheck()
