@@ -7656,4 +7656,210 @@ test("a_threat_fight_holds_fire_on_far_quiet_enemies_and_bursts_the_rifle", func
 	bot:fight(false)
 end)
 
+-- API 1.48.0: the first shot with the aim up, delivering beside a collection point, pickups, aiming on the move, nil results.
+
+test("a_bot_holds_the_aim_up_before_firing_a_heavy_weapon", function()
+	local api, game, e = start()
+	local bot, u, w = armed_bot(api, game, e)
+	local S = char_states({ "CharacterStateIdle", "CharacterStateAim", "CharacterStateAimFire" })
+	local cs = u.master.character
+	cs.current_state = S.CharacterStateAim
+	w.inv.current_weapon = w.mg
+	w.ammo[w.mg].move_speed_aim = 0
+	w.ammo[w.mg].attach_node = 7
+	u.pos = { x = 10, y = 0, z = 0 }
+	local barrel_down = true
+	local real_forward = rawget(_G, "Quaternion").forward
+	rawget(_G, "Unit").world_rotation = function(_, node) return node == 7 and "barrel" or "flat" end
+	rawget(_G, "Quaternion").forward = function(rot)
+		if rot == "flat" then return { x = -1, y = 0, z = 0 } end
+		if rot == "barrel" then return { x = -1, y = 0, z = barrel_down and -0.9 or 0 } end
+		return real_forward(rot)
+	end
+	bot:fight(25)
+	game.step(25)
+	E.eq(u.master.input.input_data.fire_button, 0, "the weapon is still coming up")
+	game.step(25)
+	E.eq(u.master.input.input_data.fire_button, 0, "held long enough, but the barrel is still down")
+	barrel_down = false
+	game.step(5)
+	E.eq(u.master.input.input_data.fire_button, 1, "fires once level")
+	-- The rifle comes out: the hold starts over, and a lighter weapon waits less.
+	w.inv.current_weapon = w.rifle
+	game.step(2)
+	E.eq(u.master.input.input_data.fire_button, 0, "a new weapon is brought up first")
+	game.step(25)
+	E.eq(u.master.input.input_data.fire_button, 1)
+end)
+
+test("a_bot_that_is_never_seen_aiming_still_shoots_in_the_end", function()
+	local api, game, e = start()
+	local bot, u = armed_bot(api, game, e)
+	local S = char_states({ "CharacterStateIdle", "CharacterStateAim" })
+	u.master.character.current_state = S.CharacterStateIdle
+	u.pos = { x = 10, y = 0, z = 0 }
+	bot:fight(25)
+	game.step(20)
+	E.eq(u.master.input.input_data.fire_button, 0)
+	game.step(120)
+	E.eq(u.master.input.input_data.fire_button, 1, "after the limit")
+end)
+
+local function carrying_bot(api, game, e, to_x)
+	bot_world(game, e)
+	local S = char_states({ "CharacterStateIdle", "CharacterStateCarry" })
+	rawget(_G, "Unit").node = function() return 2 end
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 1, y = 1, z = 0 })
+	local cs = u.master.character
+	u.master.interactor = {}
+	local drive = { alive = true, owned = true, pos = { x = 2, y = 1, z = 0 }, master = {}, slave = { objective_carry_object = {} } }
+	local cst = { mission_state = "pending" }
+	game.masters.objective_carry_object = { [drive] = { state = cst } }
+	game.slaves.objective_carry_object = { [drive] = { state = cst } }
+	local spot = { alive = true, owned = true, pos = { x = to_x, y = 1, z = 0 }, master = {}, slave = {} }
+	game.slaves.droppoint = { [spot] = { state = {}, settings = { droppoint_info = { droppoint_joints = { "j1" } } } } }
+	cs.current_state, cs.current_carry_unit = S.CharacterStateCarry, drive
+	cst.carrier = u
+	return bot, u, cst, drive
+end
+
+test("a_bot_stuck_in_front_of_a_collection_point_puts_the_thing_down_where_the_game_counts_it", function()
+	local api, game, e = start()
+	local bot, u, cst, drive = carrying_bot(api, game, e, 21)
+	local done
+	E.eq(bot:deliver(drive, function(ok, why) done = { ok, why } end), true)
+	game.step(2)
+	u.pos = { x = 17, y = 1, z = 0 }
+	game.commands = {}
+	game.step(90)
+	E.eq(G.command(game, "character", "drop_carry"), nil, "too far for the game, and still has to walk")
+	E.eq(u.master.input.input_data.move.x, 1, "keeps going")
+	-- Stood in front of the structure, within what the game counts: the walk can't get closer.
+	u.pos = { x = 18.5, y = 1, z = 0 }
+	cst.near_drop_off = true
+	game.commands = {}
+	game.step(60)
+	E.eq(G.command(game, "character", "drop_carry").unit, u, "put down where it stands")
+	E.eq(done, nil, "waits for the game to count it")
+	cst.mission_state = "complete"
+	game.step(2)
+	E.eq(done[2], "delivered")
+end)
+
+local function ground_world(game, lobby_is_host)
+	local gun = { alive = true, owned = true, pos = { x = 5, y = 0, z = 0 }, master = {}, slave = {} }
+	game.slaves.weapon_pickup = { [gun] = { state = { enabled = true }, settings = { pickup_info = { weapon_path = "equipment/wep_rpg_01" } } } }
+	game.masters.weapon_pickup = { [gun] = { state = { hide_time = 0 } } }
+	local gone = {}
+	game.state.entity_spawner.despawn_entity = function(_, u) gone[#gone + 1] = u end
+	game.state.entity_storage = { go_id = function() return 77 end, unit = function(_, id) return id == 77 and gun or nil end }
+	game.state.mission_seed = 1234
+	if lobby_is_host ~= nil then
+		rawget(_G, "NetworkGlobal").lobby.is_host = function() return lobby_is_host end
+	end
+	return gun, gone
+end
+
+test("a_pickup_is_listed_and_goes_for_every_machine_when_its_owner_removes_it", function()
+	local api, game = start()
+	local gun, gone = ground_world(game)
+	local list = api.world.pickups({ x = 0, y = 0 }, 30)
+	E.eq(#list, 1)
+	E.eq(list[1].unit, gun)
+	E.eq(list[1].kind, "weapon_pickup")
+	E.eq(list[1].owned, true)
+	E.eq(list[1].opening, false)
+	E.eq(list[1].weapon, "equipment/wep_rpg_01")
+	E.eq(list[1].position.x, 5)
+	E.eq(#api.world.pickups({ x = 100, y = 0 }, 5), 0, "out of the radius")
+	E.eq(#api.world.pickups(nil, nil, { "ammo_pickup" }), 0, "only the kinds asked for")
+	game.masters.weapon_pickup[gun].state.hide_time = 2
+	E.eq(api.world.pickups()[1].opening, true, "still in the crate")
+	E.eq(api.world.remove_pickup(gun), true)
+	E.eq(gone[1], gun, "the game's destruction, so the object goes on every machine")
+	E.eq(select(2, api.world.remove_pickup({ alive = false })), "gone")
+	E.eq(select(2, api.world.remove_pickup({ alive = true })), "not_a_pickup")
+end)
+
+test("a_client_can_only_remove_what_it_owns_and_the_host_asks_the_owner", function()
+	local host_lobby = { my_id = "me", members = { "me", "p2" }, data = {}, extra = {} }
+	local api, game = start({ lobby = host_lobby })
+	local gun, gone = ground_world(game, true)
+	gun.owned = false
+	E.eq(select(2, api.world.remove_pickup(gun)), "asked", "the host asks the owner")
+	E.eq(#gone, 0, "never destroys what another machine holds")
+	E.eq(host_lobby.published["obsidian.api:remove_pickup"], "1234;1@77")
+end)
+
+test("a_client_removes_what_the_host_asks_for_and_only_what_it_owns", function()
+	local client_lobby = { my_id = "me", members = { "me", "friend" }, data = {}, extra = { friend = {} } }
+	local capi, cgame, ce = start({ lobby = client_lobby, host = false })
+	local world = ce.loaded["obsidian/mods/obsidian.api/lib/world"]
+	local function looks(n) for _ = 1, n do world.tick() end end
+	local cgun, cgone = ground_world(cgame, false)
+	cgun.owned = false
+	E.eq(select(2, capi.world.remove_pickup(cgun)), "not_owner", "another client's: refused")
+	cgun.owned = true
+	-- A request from before this machine started looking is not acted on, a new one is.
+	client_lobby.extra.friend["obsidian.api:remove_pickup"] = "1234;1@77"
+	looks(30)
+	E.eq(#cgone, 0, "an old request")
+	client_lobby.extra.friend["obsidian.api:remove_pickup"] = "1234;1@77|2@77"
+	looks(30)
+	E.eq(cgone[1], cgun, "the owner removes what the host asked for")
+end)
+
+test("the_aiming_and_reloading_speed_effects_write_the_weapon_and_give_it_back", function()
+	local api, game, e = start()
+	local weapon = { alive = true, master = {}, slave = {} }
+	local ws = { move_speed_aim = 0, move_speed_reload = 0.5 }
+	game.me.master.inventory.current_weapon = weapon
+	rawget(_G, "EntityAux").state_interface = function() return ws end
+	E.eq(api.effects.set("aim_move_speed", 1.5), true)
+	e:frames(2)
+	E.eq(ws.move_speed_aim, 1.5, "a rooted weapon walks")
+	ws.move_speed_aim = 0
+	e:frames(1)
+	E.eq(ws.move_speed_aim, 1.5, "kept up: a reload of the settings writes it back")
+	api.effects.set("reload_move_speed", 1)
+	e:frames(1)
+	E.eq(ws.move_speed_reload, 1)
+	api.effects.set("aim_move_speed", false)
+	api.effects.set("reload_move_speed", false)
+	E.eq(ws.move_speed_aim, 0, "the weapon's own back")
+	E.eq(ws.move_speed_reload, 0.5)
+end)
+
+test("hooks_keep_every_result_a_game_function_gives_nil_ones_too", function()
+	local api, game, e = start()
+	local answers = { {}, nil, nil }
+	rawset(_G, "ProvinggroundsConditions", { remove_blacklisted_strats = function() return answers[1], answers[2], answers[3] end })
+	rawset(_G, "Hud", rawget(_G, "Hud") or {})
+	rawget(_G, "Hud").draw_map = function() return nil end
+	hooked(e)
+	local pc = rawget(_G, "ProvinggroundsConditions")
+	E.eq(select("#", pc.remove_blacklisted_strats({})), 3, "two trailing nils still answered")
+	local a, b, c = pc.remove_blacklisted_strats({})
+	E.eq(type(a), "table")
+	E.eq(b, nil)
+	E.eq(c, nil)
+	E.eq(select("#", rawget(_G, "Hud").draw_map({}, 0, 0, {}, {})), 1, "a single nil result is still a result")
+end)
+
+test("without_save_data_the_unlocks_stay_in_the_loaders_storage_and_a_sandbox_is_not_needed", function()
+	local opts = { locked = LOCKED.locked, loaded = { ["obsidian/loader/save_data"] = { api = function() return nil end, setup = function() end } } }
+	local api, game, e = start(opts)
+	rawget(_G, "LoadoutSettings").default_loadout.primary_weapon = "weapon_other"
+	game.save.user.player_xp = game.save.user.player_xp + 1
+	wire_world(game)
+	hooked(e)
+	E.eq(rawget(_G, "obsidian").save_data, nil, "a loader from before save_data")
+	api.stratagems.define({ name = "test_manual", base = "stratagem_machinegun", title = "Manual", unlock = "manual" })
+	E.eq(api.stratagems.unlock("test_manual"), true)
+	e:frames(1)
+	E.eq(rawget(_G, "obsidian").storage.get("stratagem_unlocks"), "test_manual")
+	E.eq(api.catalog.unlocked("test_manual"), true)
+end)
+
 return T

@@ -112,6 +112,8 @@ function G.start(ids, opts)
 			keybinds = b.keybinds })
 	end
 	local e = E.new({ deploy = E.deploy({ mods = deploy_mods, has_session = opts.scope ~= "client", font_files = opts.font_files }), mods = mods, lobby = opts.lobby })
+	-- opts.loaded: modules taken as already loaded, for a loader without one.
+	for name, value in pairs(opts.loaded or {}) do e.loaded[name] = value end
 
 	-- string and table helpers the game adds, then the rest of the game.
 	local game = { commands = {}, tampered = {}, protected = {}, sent = {}, rpc = {}, spawned = {}, saved = 0 }

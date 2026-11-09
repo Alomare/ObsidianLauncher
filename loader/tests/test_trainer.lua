@@ -393,7 +393,7 @@ test("every_reason_the_runtime_gives_has_a_text", function()
 		for reason in src:gmatch('return false, "([%w_]+)"') do
 			-- API 1.29.0's pose and flashlight answers, 1.31.0's effect answers and 1.32.0's blast: the Trainer
 			-- calls none of them.
-			local skip = { no_event = true, no_flashlight = true, unknown_effect = true, no_node = true, no_explosion = true }
+			local skip = { no_event = true, no_flashlight = true, unknown_effect = true, no_node = true, no_explosion = true, not_a_pickup = true, not_owner = true }
 			if not skip[reason] then
 				E.eq(en["why_" .. reason] ~= nil, true, name .. " can answer " .. reason)
 			end
@@ -612,6 +612,24 @@ test("a_kept_custom_stratagem_is_made_again_at_the_next_launch", function()
 	E.eq(custom.load(), true, "once")
 	E.eq(#s.stratagems, made.id)
 	core.current = nil
+end)
+
+test("on_a_loader_without_save_data_the_mission_rows_stay_open", function()
+	local e = start({ loaded = { ["obsidian/loader/save_data"] = { api = function() return nil end, setup = function() end } } })
+	local U = e.loaded["obsidian/mods/obsidian.trainer/pages/ui"]
+	E.eq(rawget(_G, "obsidian").save_data, nil, "a loader from before save_data")
+	E.eq(U.progression_open(), true, "no Sandbox to tell apart: open, as before saves came in")
+end)
+
+test("on_a_loader_with_save_data_the_rows_need_a_sandbox", function()
+	local e = start()
+	local U = e.loaded["obsidian/mods/obsidian.trainer/pages/ui"]
+	local store = rawget(_G, "obsidian").save_data
+	E.eq(store ~= nil, true)
+	store.sandbox = function() return nil end
+	E.eq(U.progression_open(), false, "an Official save")
+	store.sandbox = function() return "s1" end
+	E.eq(U.progression_open(), true, "a Sandbox")
 end)
 
 return T
