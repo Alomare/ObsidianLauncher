@@ -13,7 +13,8 @@ import { Select } from "../Select";
 import { Help } from "../SettingRow";
 import type { Snapshot } from "../types";
 import { ArsenalTab } from "./ArsenalTab";
-import { choiceId, draftOf, fieldEnabled, parseWhole, playTime, rankProgress, slotChoices, stage, topXp } from "./logic";
+import { rankArt } from "./art";
+import { choiceId, draftOf, fieldEnabled, ladderState, parseWhole, playTime, rankProgress, slotChoices, stage, tally, topXp } from "./logic";
 import { COSMETIC_SLOTS, type CosmeticSlot, type Edit, type EditorState, type ModChoice, type ModFieldState, type ModSection, type ModText, type SavesDone } from "./types";
 
 type Tab = "overview" | "character" | "arsenal" | "campaign" | "mods";
@@ -130,7 +131,7 @@ export function SaveEditor({ id, snap, onClose, startRename = false }: { id: str
         ))}
       </div>
       {running && <div className="banner"><WarnIcon /><span>{t("app.saves.gameRunningEditor")}</span></div>}
-      <div className="ed-body" key={tab}>
+      <div className={`ed-body ed-${tab}`} key={tab}>
         {tab === "overview" && <OverviewTab draft={draft} dirty={count > 0} blocked={!canWrite} onBulk={setBulk} />}
         {tab === "character" && <CharacterTab draft={draft} onEdit={edit} undo={undo} />}
         {tab === "arsenal" && <ArsenalTab draft={draft} onEdit={edit} />}
@@ -222,35 +223,87 @@ function Row({ label, desc, children, keys, undo, end, off }: { label: ReactNode
   );
 }
 
+/** A picture of a rank insignia, or the rank number where the picture is missing. */
+function Insignia({ level }: { level: number }) {
+  const src = rankArt(level);
+  return src ? <img src={src} alt="" draggable={false} /> : <span className="rec-noart">{level}</span>;
+}
+
+/** The Overview as a service record: the record card, the rank ladder with the XP bar, the lifetime numbers, and
+ *  the two actions as wide bars under them. */
 function OverviewTab({ draft, dirty, blocked, onBulk }: { draft: EditorState; dirty: boolean; blocked: boolean; onBulk: (b: Bulk) => void }) {
   const l = draft.lifetime;
   const title = draft.ranks.find((r) => r.level === draft.rank)?.title ?? "";
+  const prog = rankProgress(draft.ranks, draft.xp);
   const off = blocked || dirty;
   const why = dirty ? t("app.saves.saveOrDiscardFirst") : undefined;
+  const played = l.time_played ?? 0;
+  const lit = tally(l.missions_won ?? 0, l.missions_fought ?? 0, 20);
+  const line = (name: string, value: string) => <div className="rec-line"><span>{name}</span><i /><b>{value}</b></div>;
   return (
-    <div className="ed-cols">
-      <Panel title={t("app.saves.statsTitle")}>
-        <dl className="kv">
-          <div><dt>{t("app.saves.stat.rank")}</dt><dd>{draft.rank}<small className="kv-sub">{title}</small></dd></div>
-          <div><dt>{t("app.saves.stat.xp")}</dt><dd>{num(draft.xp)}</dd></div>
-          <div><dt>{t("app.saves.stat.samples")}</dt><dd>{num(draft.samples)}</dd></div>
-          <div><dt>{t("app.saves.researchPoints")}</dt><dd>{num(draft.researchPoints)}</dd></div>
-          <div><dt>{t("app.saves.stat.missions")}</dt><dd>{t("app.saves.missionsValue", num(l.missions_won ?? 0), num(l.missions_fought ?? 0))}</dd></div>
-          <div><dt>{t("app.saves.stat.kills")}</dt><dd>{num(l.kills ?? 0)}</dd></div>
-          <div><dt>{t("app.saves.stat.deaths")}</dt><dd>{num(l.deaths ?? 0)}</dd></div>
-          <div><dt>{t("app.saves.stat.played")}</dt><dd>{playTime(l.time_played ?? 0)}</dd></div>
-        </dl>
-      </Panel>
-      <Panel title={t("app.saves.bulkTitle")} note={dirty ? <span className="warn">{t("app.saves.saveOrDiscardFirst")}</span> : undefined}>
-        <ul className="opts opt-table">
-          <Row label={t("app.saves.maxEverything")} desc={t("app.saves.maxHint")}>
-            <button className="btn small go ed-fill" disabled={off} onClick={() => onBulk("max")} data-tip={why}>{t("app.saves.maxShort")}</button>
-          </Row>
-          <Row label={t("app.saves.resetProgression")} desc={t("app.saves.resetHint")}>
-            <button className="btn small danger ed-fill" disabled={off} onClick={() => onBulk("reset")} data-tip={why}>{t("app.saves.resetShort")}</button>
-          </Row>
-        </ul>
-      </Panel>
+    <div className="rec">
+      <section className="rec-card">
+        <div className="rec-card-top cap"><span>{t("app.saves.serviceRecord")}</span><span>{t("app.saves.fileN", draft.id.slice(0, 8).toUpperCase())}</span></div>
+        <div className="rec-id">
+          <div className="rec-pic"><Insignia level={draft.rank} /></div>
+          <div className="rec-idtext">
+            <div className="rec-lbl cap">{t("app.saves.stat.rank")}</div>
+            <div className="rec-rk">{draft.rank}</div>
+            <div className="rec-rt cap">{title}</div>
+          </div>
+        </div>
+        {line(t("app.saves.stat.xp"), num(draft.xp))}
+        {line(t("app.saves.stat.samples"), num(draft.samples))}
+        {line(t("app.saves.researchPoints"), num(draft.researchPoints))}
+        {line(t("app.saves.stat.played"), playTime(played))}
+        <span className="rec-stamp cap">{t("app.saves.sandbox")}</span>
+      </section>
+
+      <section className="rec-ladder">
+        <h3 className="rec-h cap">{t("app.saves.rankLadder")}</h3>
+        <div className="rec-rungs">
+          {draft.ranks.map((r) => (
+            <div key={r.level} className={`rec-rung ${ladderState(r.level, draft.rank)}`} data-tip-title={`${r.level}. ${r.title}`} data-tip={`${num(r.requiredXp)} ${t("app.saves.stat.xp")}`}>
+              <Insignia level={r.level} /><span className="rec-rung-n">{r.level}</span>
+            </div>
+          ))}
+        </div>
+        <div className="rec-xp">
+          <div className="rec-xp-row">
+            <span>{prog.next ? t("app.saves.xpToward", prog.next.level) : t("app.saves.topRank")}</span>
+            {prog.need !== null && <b>{t("app.saves.xpToGo", num(prog.need))}</b>}
+          </div>
+          <div className="rec-bar" aria-hidden="true"><i style={{ width: `${prog.fraction * 100}%` }} /></div>
+          <div className="rec-ends">
+            <span><Insignia level={draft.rank} />{draft.rank}. {title}</span>
+            {prog.next && <span>{prog.next.level}. {prog.next.title}<Insignia level={prog.next.level} /></span>}
+          </div>
+        </div>
+      </section>
+
+      <section className="rec-stats">
+        <h3 className="rec-h cap">{t("app.saves.statsTitle")}</h3>
+        <div className="rec-st">
+          <div className="rec-lbl cap">{t("app.saves.stat.missions")}</div>
+          <div className="rec-v">{num(l.missions_won ?? 0)} <small>{t("app.saves.ofN", num(l.missions_fought ?? 0))}</small></div>
+          <div className="rec-tally" aria-hidden="true">{Array.from({ length: 20 }, (_, k) => <i key={k} className={k < lit ? "on" : undefined} />)}</div>
+        </div>
+        <div className="rec-st"><div className="rec-lbl cap">{t("app.saves.stat.kills")}</div><div className="rec-v">{num(l.kills ?? 0)}</div></div>
+        <div className="rec-st"><div className="rec-lbl cap">{t("app.saves.stat.deaths")}</div><div className="rec-v">{num(l.deaths ?? 0)}</div></div>
+        <div className="rec-st"><div className="rec-lbl cap">{t("app.saves.stat.played")}</div><div className="rec-v">{playTime(played)}</div></div>
+      </section>
+
+      <div className="rec-orders">
+        <div className="rec-order">
+          <div className="rec-order-text"><b className="cap">{t("app.saves.maxEverything")}</b><span>{t("app.saves.maxHint")}</span></div>
+          <button className="btn go" disabled={off} onClick={() => onBulk("max")} data-tip={why}>{t("app.saves.maxShort")}</button>
+        </div>
+        <div className="rec-order">
+          <div className="rec-order-text"><b className="cap">{t("app.saves.resetProgression")}</b><span>{t("app.saves.resetHint")}</span></div>
+          <button className="btn danger" disabled={off} onClick={() => onBulk("reset")} data-tip={why}>{t("app.saves.resetShort")}</button>
+        </div>
+        {dirty && <p className="rec-orders-note warn">{t("app.saves.saveOrDiscardFirst")}</p>}
+      </div>
     </div>
   );
 }

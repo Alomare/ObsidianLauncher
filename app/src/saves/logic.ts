@@ -26,6 +26,28 @@ export const researchPoints = (samples: number, perPoint: number) => Math.floor(
 export const hasBit = (value: number, bit: number) => (value & bit) === bit;
 export const withBit = (value: number, bit: number, on: boolean) => (on ? value | bit : value & ~bit);
 
+/** Where a rank stands on the ladder of the Overview: reached, the save's rank, the next one, or still ahead. */
+export function ladderState(level: number, rank: number): "earned" | "current" | "next" | "ahead" {
+  if (level === rank) return "current";
+  if (level < rank) return "earned";
+  return level === rank + 1 ? "next" : "ahead";
+}
+
+/** How many of `of` marks to light for `won` out of `fought`: none when nothing was fought. */
+export function tally(won: number, fought: number, of: number) {
+  if (fought <= 0 || won <= 0) return 0;
+  return Math.min(of, Math.round((won / fought) * of));
+}
+
+/** Which upgrades an item has, in catalog order: by bit for a bitmask, by level for Mk levels. */
+export function upgradeMarks(item: Pick<ItemState, "upgradeKind" | "upgrade" | "upgrades">): boolean[] {
+  return item.upgrades.map((u) => (item.upgradeKind === "bitmask" ? hasBit(item.upgrade, u.value) : item.upgrade >= u.value));
+}
+
+/** The new level after a click on the level `value` of a Mk ladder: up to that level, or one below when the
+ *  item has it already. */
+export const levelPick = (current: number, value: number) => (current >= value ? value - 1 : value);
+
 /** A whole number from what was typed, kept inside the limits; null when nothing usable was typed. */
 export function parseWhole(text: string, min: number | null, max: number | null): number | null {
   const n = Number(text.replace(/[\s,]/g, ""));
