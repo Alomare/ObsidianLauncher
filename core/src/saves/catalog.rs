@@ -1,6 +1,7 @@
 //! The game's item names, ranks and limits, from `core/assets/save-catalog.json`.
 //! `tools/make-save-catalog.py` writes that file from a dump taken from the running game.
 
+use std::collections::BTreeSet;
 use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
@@ -41,6 +42,9 @@ pub struct Item {
     pub upgrades: Vec<Upgrade>,
     #[serde(default)]
     pub category: Option<String>,
+    /// The entitlement that grants this item, for paid DLC.
+    #[serde(default)]
+    pub entitlement: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -48,6 +52,9 @@ pub struct Cosmetic {
     pub name: String,
     pub display: String,
     pub dlc: bool,
+    /// The entitlement that grants this item, for paid DLC.
+    #[serde(default)]
+    pub entitlement: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -124,6 +131,17 @@ impl Catalog {
         self.item(name).map(|i| i.dlc).or_else(|| self.cosmetics().find(|c| c.name == name).map(|c| c.dlc)).unwrap_or(false)
     }
 
+    /// The entitlement that grants a paid DLC item.
+    pub fn entitlement_of(&self, name: &str) -> Option<&str> {
+        self.item(name).and_then(|i| i.entitlement.as_deref()).or_else(|| self.cosmetics().find(|c| c.name == name).and_then(|c| c.entitlement.as_deref()))
+    }
+
+    /// Paid DLC the account does not own: shown locked and never written. `owned` is what
+    /// `Saves::owned_entitlements` gives.
+    pub fn is_locked(&self, name: &str, owned: &BTreeSet<String>) -> bool {
+        self.is_dlc(name) && !self.entitlement_of(name).is_some_and(|e| owned.contains(e))
+    }
+
     pub fn is_static(&self, name: &str) -> bool {
         self.static_stratagems.iter().any(|s| s == name)
     }
@@ -155,5 +173,27 @@ mod tests {
         assert_eq!(c.rank_of(0.0), 1);
         assert_eq!(c.rank_of(7_094_381.0), 50);
         assert_eq!(c.rank_of(17_556.0), 9);
+    }
+
+    #[test]
+    fn every_paid_item_names_the_entitlement_that_grants_it() {
+        let c = get();
+        for name in c.items().map(|i| &i.name).chain(c.cosmetics().map(|c| &c.name)) {
+            assert_eq!(c.is_dlc(name), c.entitlement_of(name).is_some(), "{name}");
+        }
+        assert_eq!(c.entitlement_of("weapon_plasmarifle"), Some("ENT011"));
+        assert_eq!(c.entitlement_of("stratagem_uav_drone"), Some("ENT001"));
+        assert_eq!(c.entitlement_of("cus_cape_ranger"), Some("ENT001"));
+    }
+
+    #[test]
+    fn paid_dlc_is_locked_unless_the_account_has_the_entitlement() {
+        let c = get();
+        let none = BTreeSet::new();
+        let ent011: BTreeSet<String> = ["ENT011".to_string()].into();
+        assert!(c.is_locked("weapon_plasmarifle", &none));
+        assert!(!c.is_locked("weapon_plasmarifle", &ent011));
+        assert!(c.is_locked("stratagem_uav_drone", &ent011), "another entitlement");
+        assert!(!c.is_locked("weapon_assaultrifle", &none), "free items are never locked");
     }
 }

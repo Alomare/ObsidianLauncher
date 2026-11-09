@@ -1,6 +1,6 @@
-//! The editor over a Sandbox save: a typed state to show, and edits that change the save. Paid DLC is
-//! never written, names the catalog doesn't know stay in the save untouched, and `new_unlocks` is
-//! left alone.
+//! The editor over a Sandbox save: a typed state to show, and edits that change the save. Paid DLC the
+//! account does not own is never written, names the catalog doesn't know stay in the save untouched,
+//! and `new_unlocks` is left alone.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -47,8 +47,10 @@ pub struct ItemState {
     pub display: String,
     pub description: String,
     pub category: Option<String>,
-    /// Paid DLC: shown locked, never written.
+    /// Paid DLC.
     pub dlc: bool,
+    /// Paid DLC the account does not own: shown locked, never written.
+    pub locked: bool,
     /// Owned by any route: rank, unlock, entitlement or fixed.
     pub owned: bool,
     /// In `item_unlocks`, the part this editor changes.
@@ -67,6 +69,7 @@ pub struct CosmeticState {
     pub name: String,
     pub display: String,
     pub dlc: bool,
+    pub locked: bool,
     pub owned: bool,
     pub in_unlocks: bool,
     pub granted_rank: Option<u32>,
@@ -185,25 +188,11 @@ fn owned_set(p: &Pair) -> BTreeSet<String> {
     p.user.root.table(UNLOCKS).map(|t| t.strings().into_iter().collect()).unwrap_or_default()
 }
 
-/// Every item the player's entitlements give.
-fn entitlement_set(p: &Pair) -> BTreeSet<String> {
-    let mut out = BTreeSet::new();
-    let Some(ents) = p.user.root.table("entitlements") else { return out };
-    for (_, v) in &ents.0 {
-        let Some(unlocks) = v.as_table().and_then(|e| e.table("unlocks")) else { continue };
-        for (_, list) in &unlocks.0 {
-            if let Some(t) = list.as_table() {
-                out.extend(t.strings());
-            }
-        }
-    }
-    out
-}
-
-fn item_state(cat: &Catalog, item: &Item, rank: u32, unlocks: &BTreeSet<String>, entitled: &BTreeSet<String>, upgrades: Option<&Table>) -> ItemState {
+fn item_state(cat: &Catalog, item: &Item, rank: u32, unlocks: &BTreeSet<String>, ents: &BTreeSet<String>, upgrades: Option<&Table>) -> ItemState {
     let granted_rank = cat.rank_granting(&item.name);
     let in_unlocks = unlocks.contains(&item.name);
-    let owned = in_unlocks || entitled.contains(&item.name) || cat.is_static(&item.name) || granted_rank.is_some_and(|r| r <= rank);
+    let entitled = item.dlc && !cat.is_locked(&item.name, ents);
+    let owned = in_unlocks || entitled || cat.is_static(&item.name) || granted_rank.is_some_and(|r| r <= rank);
     let upgrade = upgrades.and_then(|t| t.number(&item.name)).map_or(0, |n| n as u32);
     ItemState {
         name: item.name.clone(),
@@ -211,6 +200,7 @@ fn item_state(cat: &Catalog, item: &Item, rank: u32, unlocks: &BTreeSet<String>,
         description: item.description.clone(),
         category: item.category.clone(),
         dlc: item.dlc,
+        locked: item.dlc && !entitled,
         owned,
         in_unlocks,
         granted_rank,
@@ -242,11 +232,11 @@ impl Saves {
         let xp = user.number("player_xp").unwrap_or(0.0);
         let rank = cat.rank_of(xp);
         let unlocks = owned_set(pair);
-        let entitled = entitlement_set(pair);
+        let ents = self.owned_entitlements()?;
         let upgrades = user.table(UPGRADES);
         let samples = user.number("research_samples").unwrap_or(0.0);
 
-        let items = |list: &Vec<Item>| list.iter().map(|i| item_state(cat, i, rank, &unlocks, &entitled, upgrades)).collect::<Vec<_>>();
+        let items = |list: &Vec<Item>| list.iter().map(|i| item_state(cat, i, rank, &unlocks, &ents, upgrades)).collect::<Vec<_>>();
 
         let mut cosmetics = BTreeMap::new();
         for slot in ["helmet", "body", "cape", "gender"] {
@@ -256,8 +246,9 @@ impl Saves {
                 .map(|c| {
                     let granted_rank = cat.rank_granting(&c.name);
                     let in_unlocks = unlocks.contains(&c.name);
-                    let owned = in_unlocks || entitled.contains(&c.name) || granted_rank.is_some_and(|r| r <= rank);
-                    CosmeticState { name: c.name.clone(), display: c.display.clone(), dlc: c.dlc, owned, in_unlocks, granted_rank }
+                    let locked = cat.is_locked(&c.name, &ents);
+                    let owned = in_unlocks || (c.dlc && !locked) || granted_rank.is_some_and(|r| r <= rank);
+                    CosmeticState { name: c.name.clone(), display: c.display.clone(), dlc: c.dlc, locked, owned, in_unlocks, granted_rank }
                 })
                 .collect();
             cosmetics.insert(slot.to_string(), rows);
@@ -349,8 +340,9 @@ impl Saves {
         let mut pair = self.read_sandbox(id)?;
         let mut data = mod_data::read(&self.sandbox_mod(id))?;
         let lib = Library::open(&self.data)?;
+        let ents = self.owned_entitlements()?;
         for e in edits {
-            self.apply_one(&mut pair, &mut data, &lib, e)?;
+            self.apply_one(&mut pair, &mut data, &lib, &ents, e)?;
         }
         self.write_sandbox(id, &pair)?;
         mod_data::write(&self.sandbox_mod(id), &data)?;
@@ -358,7 +350,7 @@ impl Saves {
         self.state_of(id, name, &pair, &data)
     }
 
-    fn apply_one(&self, pair: &mut Pair, data: &mut ModData, lib: &Library, edit: &Edit) -> Result<()> {
+    fn apply_one(&self, pair: &mut Pair, data: &mut ModData, lib: &Library, ents: &BTreeSet<String>, edit: &Edit) -> Result<()> {
         let cat = catalog::get();
         let user = &mut pair.user.root;
         let common = &mut pair.common.root;
@@ -380,12 +372,12 @@ impl Saves {
                 }
                 user.set("research_samples", Value::Number(*samples));
             }
-            Edit::SetOwned { item, owned } => set_owned(cat, user, item, *owned)?,
-            Edit::SetUpgrade { item, value } => set_upgrade(cat, user, item, *value)?,
+            Edit::SetOwned { item, owned } => set_owned(cat, user, ents, item, *owned)?,
+            Edit::SetUpgrade { item, value } => set_upgrade(cat, user, ents, item, *value)?,
             Edit::SetCustomization { slot, index } => {
                 let list = cat.customization.slot(slot).ok_or_else(|| bad("customization slot", slot))?;
                 let chosen = list.get((*index as usize).wrapping_sub(1)).ok_or_else(|| bad("customization index", index))?;
-                if chosen.dlc {
+                if cat.is_locked(&chosen.name, ents) {
                     return Err(ObsidianError::PaidDlc(chosen.name.clone()));
                 }
                 user.table_mut(COSMETICS).set(slot, Value::Number(*index as f64));
@@ -417,8 +409,8 @@ impl Saves {
                 }
                 user.table_mut(LIFETIME).set(key, Value::Number(*value));
             }
-            Edit::MaxEverything => max_everything(cat, user),
-            Edit::ResetProgression => reset_progression(cat, user),
+            Edit::MaxEverything => max_everything(cat, user, ents),
+            Edit::ResetProgression => reset_progression(cat, user, ents),
             Edit::ModSet { mod_id, key, value } => {
                 let m = load_manifest(&lib.mod_dir(mod_id)).map_err(|_| ObsidianError::ModMissing(mod_id.clone()))?;
                 let spec = m.save_editor()?.ok_or_else(|| bad("mod data", mod_id))?;
@@ -461,8 +453,8 @@ impl Saves {
     }
 }
 
-fn set_owned(cat: &Catalog, user: &mut Table, item: &str, owned: bool) -> Result<()> {
-    if cat.is_dlc(item) {
+fn set_owned(cat: &Catalog, user: &mut Table, ents: &BTreeSet<String>, item: &str, owned: bool) -> Result<()> {
+    if cat.is_locked(item, ents) {
         return Err(ObsidianError::PaidDlc(item.to_string()));
     }
     let known = cat.item(item).is_some() || cat.cosmetics().any(|c| c.name == item);
@@ -482,9 +474,9 @@ fn set_owned(cat: &Catalog, user: &mut Table, item: &str, owned: bool) -> Result
     Ok(())
 }
 
-fn set_upgrade(cat: &Catalog, user: &mut Table, item: &str, value: u32) -> Result<()> {
+fn set_upgrade(cat: &Catalog, user: &mut Table, ents: &BTreeSet<String>, item: &str, value: u32) -> Result<()> {
     let found = cat.item(item).ok_or_else(|| bad("item", item))?;
-    if found.dlc {
+    if cat.is_locked(item, ents) {
         return Err(ObsidianError::PaidDlc(item.to_string()));
     }
     let fine = if found.upgrade_kind == "bitmask" { value & !found.max_upgrade == 0 } else { value <= found.max_upgrade };
@@ -500,8 +492,9 @@ fn set_upgrade(cat: &Catalog, user: &mut Table, item: &str, value: u32) -> Resul
     Ok(())
 }
 
-/// Top rank, samples at the cap, every item the game can give and full upgrades, paid DLC aside.
-fn max_everything(cat: &Catalog, user: &mut Table) {
+/// Top rank, samples at the cap, every item the game can give and full upgrades, with the paid DLC the
+/// account owns and none it does not.
+fn max_everything(cat: &Catalog, user: &mut Table, ents: &BTreeSet<String>) {
     if let Some(top) = cat.ranks.last() {
         user.set("player_xp", Value::Number(top.required_xp as f64));
     }
@@ -510,32 +503,33 @@ fn max_everything(cat: &Catalog, user: &mut Table) {
     let mut names = list.strings();
     let wanted = cat.items().map(|i| (i.name.clone(), i.dlc)).chain(cat.cosmetics().map(|c| (c.name.clone(), c.dlc)));
     for (name, dlc) in wanted {
-        // A rank grants it, or it is always there: a name in the save adds nothing.
+        // A rank or an entitlement grants it, or it is always there: a name in the save adds nothing.
         if !dlc && cat.rank_granting(&name).is_none() && !cat.is_static(&name) && !names.contains(&name) {
             names.push(name);
         }
     }
     list.set_strings(&names);
     let upgrades = user.table_mut(UPGRADES);
-    for i in cat.items().filter(|i| !i.dlc && i.max_upgrade > 0) {
+    for i in cat.items().filter(|i| !cat.is_locked(&i.name, ents) && i.max_upgrade > 0) {
         upgrades.set(&i.name, Value::Number(i.max_upgrade as f64));
     }
 }
 
-/// Back to the first rank with no samples, nothing unlocked and no upgrades. Paid DLC and names the
-/// catalog doesn't know stay; lifetime stats, cosmetics and the campaign are left as they are.
-fn reset_progression(cat: &Catalog, user: &mut Table) {
+/// Back to the first rank with no samples, nothing unlocked and no upgrades. Paid DLC the account does
+/// not own and names the catalog doesn't know stay; lifetime stats, cosmetics and the campaign are
+/// left as they are.
+fn reset_progression(cat: &Catalog, user: &mut Table, ents: &BTreeSet<String>) {
     user.set("player_xp", Value::Number(0.0));
     user.set("research_samples", Value::Number(0.0));
     let is_known = |n: &str| cat.item(n).is_some() || cat.cosmetics().any(|c| c.name == n);
     if user.contains(UNLOCKS) {
         let list = user.table_mut(UNLOCKS);
-        let keep: Vec<String> = list.strings().into_iter().filter(|n| !is_known(n) || cat.is_dlc(n)).collect();
+        let keep: Vec<String> = list.strings().into_iter().filter(|n| !is_known(n) || cat.is_locked(n, ents)).collect();
         list.set_strings(&keep);
     }
     if user.contains(UPGRADES) {
         let upgrades = user.table_mut(UPGRADES);
-        upgrades.0.retain(|(k, _)| k.as_str().is_none_or(|n| !is_known(&n) || cat.is_dlc(&n)));
+        upgrades.0.retain(|(k, _)| k.as_str().is_none_or(|n| !is_known(&n) || cat.is_locked(&n, ents)));
     }
 }
 
@@ -662,6 +656,95 @@ mod tests {
         let up = p.user.root.table(UPGRADES).unwrap();
         assert_eq!(up.number("weapon_assaultrifle"), None);
         assert_eq!(up.number("mod_weapon"), Some(1.0));
+    }
+
+    #[test]
+    fn owned_dlc_can_be_edited_and_the_rest_stays_locked() {
+        let w = world();
+        own_dlc(&w, &["ENT011"]);
+        let s = w.saves();
+        s.list().unwrap();
+        let id = s.create_sandbox("E").unwrap();
+        let st = s.editor_state(&id).unwrap();
+        let item = |name: &str, st: &EditorState| st.primary_weapons.iter().chain(&st.stratagems).find(|i| i.name == name).unwrap().clone();
+        let owned = item("weapon_plasmarifle", &st);
+        assert!(owned.dlc && !owned.locked && owned.owned, "ENT011 grants the plasma rifle before any login");
+        let other = item("stratagem_uav_drone", &st);
+        assert!(other.dlc && other.locked && !other.owned, "ENT001 is not owned");
+
+        let st = apply(&w, &id, vec![Edit::SetUpgrade { item: "weapon_plasmarifle".into(), value: 1 }]);
+        assert_eq!(item("weapon_plasmarifle", &st).upgrade, 1);
+        assert!(matches!(s.apply_edits(&id, &[Edit::SetOwned { item: "stratagem_uav_drone".into(), owned: true }]), Err(ObsidianError::PaidDlc(_))));
+        assert!(matches!(s.apply_edits(&id, &[Edit::SetUpgrade { item: "stratagem_uav_drone".into(), value: 1 }]), Err(ObsidianError::PaidDlc(_))));
+
+        let cat = catalog::get();
+        let index = |name: &str| cat.customization.helmet.iter().position(|c| c.name == name).unwrap() as u32 + 1;
+        // ENT011 has no cosmetics, so a helmet of ENT008 stays refused.
+        assert!(matches!(s.apply_edits(&id, &[Edit::SetCustomization { slot: "helmet".into(), index: index("cus_helmet_pilot") }]), Err(ObsidianError::PaidDlc(_))));
+        assert!(st.cosmetics["helmet"].iter().find(|c| c.name == "cus_helmet_pilot").unwrap().locked);
+    }
+
+    #[test]
+    fn owned_dlc_cosmetics_can_be_worn() {
+        let w = world();
+        own_dlc(&w, &["ENT008"]);
+        let s = w.saves();
+        s.list().unwrap();
+        let id = s.create_sandbox("E").unwrap();
+        let cat = catalog::get();
+        let helmet = cat.customization.helmet.iter().position(|c| c.name == "cus_helmet_pilot").unwrap() as u32 + 1;
+        let st = apply(&w, &id, vec![Edit::SetCustomization { slot: "helmet".into(), index: helmet }]);
+        assert_eq!(st.customization["helmet"], helmet);
+        let c = st.cosmetics["helmet"].iter().find(|c| c.name == "cus_helmet_pilot").unwrap();
+        assert!(c.dlc && !c.locked && c.owned);
+    }
+
+    #[test]
+    fn a_save_carrying_other_entitlements_does_not_count() {
+        // Only the account's Official save says what is owned, so an imported Sandbox can't bring DLC along.
+        let w = world();
+        let s = w.saves();
+        s.list().unwrap();
+        let id = s.create_sandbox("E").unwrap();
+        let mut p = s.read_sandbox(&id).unwrap();
+        p.user.root.table_mut("entitlements").table_mut("ENT011").set("id", Value::Text("ENT011".into()));
+        s.write_sandbox(&id, &p).unwrap();
+        let st = s.editor_state(&id).unwrap();
+        assert!(st.primary_weapons.iter().find(|i| i.name == "weapon_plasmarifle").unwrap().locked);
+    }
+
+    #[test]
+    fn max_everything_includes_owned_dlc_and_skips_the_rest() {
+        let w = world();
+        own_dlc(&w, &["ENT011"]);
+        let s = w.saves();
+        s.list().unwrap();
+        let id = s.create_sandbox("E").unwrap();
+        apply(&w, &id, vec![Edit::MaxEverything]);
+        let p = s.read_sandbox(&id).unwrap();
+        let unlocks = p.user.root.table(UNLOCKS).unwrap().strings();
+        let upgrades = p.user.root.table(UPGRADES).unwrap();
+        assert!(!unlocks.iter().any(|n| n == "weapon_plasmarifle"), "the entitlement already grants it");
+        assert_eq!(upgrades.number("weapon_plasmarifle"), Some(catalog::get().item("weapon_plasmarifle").unwrap().max_upgrade as f64));
+        assert_eq!(upgrades.number("stratagem_uav_drone"), None, "ENT001 is not owned");
+    }
+
+    #[test]
+    fn reset_clears_owned_dlc_upgrades_and_keeps_the_rest() {
+        let w = world();
+        own_dlc(&w, &["ENT011"]);
+        let s = w.saves();
+        s.list().unwrap();
+        let id = s.create_sandbox("E").unwrap();
+        let mut p = s.read_sandbox(&id).unwrap();
+        p.user.root.table_mut(UPGRADES).set("weapon_plasmarifle", Value::Number(1.0));
+        p.user.root.table_mut(UPGRADES).set("stratagem_uav_drone", Value::Number(1.0));
+        s.write_sandbox(&id, &p).unwrap();
+        apply(&w, &id, vec![Edit::ResetProgression]);
+        let up = s.read_sandbox(&id).unwrap();
+        let up = up.user.root.table(UPGRADES).unwrap();
+        assert_eq!(up.number("weapon_plasmarifle"), None);
+        assert_eq!(up.number("stratagem_uav_drone"), Some(1.0));
     }
 
     #[test]

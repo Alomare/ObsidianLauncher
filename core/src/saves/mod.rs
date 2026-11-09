@@ -18,6 +18,7 @@ pub mod codec;
 pub mod editor;
 pub mod mod_data;
 
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -152,11 +153,11 @@ pub fn carry_counters(to: &mut Table, from: &Table) {
     }
 }
 
-/// Removes paid DLC names from `item_unlocks` of a user table.
-pub fn remove_paid_dlc(user: &mut Table) {
+/// Removes paid DLC the account does not own from `item_unlocks` of a user table.
+pub fn remove_unowned_dlc(user: &mut Table, owned: &BTreeSet<String>) {
     let cat = catalog::get();
     let Some(t) = user.get("item_unlocks").and_then(Value::as_table).cloned() else { return };
-    let keep: Vec<String> = t.strings().into_iter().filter(|n| !cat.is_dlc(n)).collect();
+    let keep: Vec<String> = t.strings().into_iter().filter(|n| !cat.is_locked(n, owned)).collect();
     if keep.len() != t.strings().len() {
         user.table_mut("item_unlocks").set_strings(&keep);
     }
@@ -508,6 +509,23 @@ impl Saves {
         Ok(SaveList { account: self.account.clone(), active, saves })
     }
 
+    /// The DLC the account owns, by entitlement id. The game rewrites the `entitlements` map of the
+    /// user file at each login from what Steam reports, so the Official save holds the game's own
+    /// record; a Sandbox made before the first login goes by the Official save as well. The active
+    /// Official save comes first, then the others. No map anywhere means no DLC.
+    pub(crate) fn owned_entitlements(&self) -> Result<BTreeSet<String>> {
+        let idx = self.ensure()?;
+        let mut officials: Vec<&SaveEntry> = idx.saves.iter().filter(|e| e.kind == SaveKind::Official).collect();
+        officials.sort_by_key(|e| idx.active_official.as_deref() != Some(e.id.as_str()));
+        for entry in officials {
+            let Ok(pair) = self.read_pair(&idx, entry) else { continue };
+            if let Some(map) = pair.user.root.table("entitlements") {
+                return Ok(map.0.iter().filter_map(|(k, _)| k.as_str().map(|s| s.to_string())).collect());
+            }
+        }
+        Ok(BTreeSet::new())
+    }
+
     /// The id the game boots next.
     pub fn active(&self) -> Result<Option<String>> {
         let idx = self.ensure()?;
@@ -681,7 +699,7 @@ impl Saves {
     }
 
     /// Adds the save in a zip from `export`, always as a Sandbox. The crc is checked, the upload queues
-    /// are dropped and paid DLC comes out of `item_unlocks`.
+    /// are dropped and paid DLC the account does not own comes out of `item_unlocks`.
     pub fn import(&self, src: &Path, name: Option<&str>) -> Result<String> {
         self.closed()?;
         let mut idx = self.ensure()?;
@@ -701,7 +719,7 @@ impl Saves {
         check_name(&name)?;
         let mut pair = Pair { common: decode_file(&read_entry(&mut z, "common.sav")?)?, user: decode_file(&read_entry(&mut z, "user.sav")?)? };
         strip_queues(&mut pair);
-        remove_paid_dlc(&mut pair.user.root);
+        remove_unowned_dlc(&mut pair.user.root, &self.owned_entitlements()?);
         let mod_data = read_entry(&mut z, "mod.obsidian").ok();
         let id = self.add_sandbox(&mut idx, &name, &pair, None)?;
         if let Some(bytes) = mod_data {
@@ -809,6 +827,16 @@ pub(crate) mod test_support {
         write_verified(&w.local_common(), &common_save(false), Format::Local).unwrap();
         write_verified(&w.local_user(), &user_save(1000.0, 5.0), Format::Local).unwrap();
         w
+    }
+
+    /// Writes the entitlements the game would, with the names as the keys, into the live user file.
+    pub fn own_dlc(w: &World, entitlements: &[&str]) {
+        let mut user = read_file(&w.local_user()).unwrap();
+        let map = user.root.table_mut("entitlements");
+        for e in entitlements {
+            map.table_mut(e).set("id", Value::text(e));
+        }
+        write_verified(&w.local_user(), &user, Format::Local).unwrap();
     }
 
     pub fn track(w: &World) {
@@ -1005,10 +1033,43 @@ mod tests {
     }
 
     #[test]
-    fn paid_dlc_removal_keeps_order_and_renumbers() {
+    fn import_keeps_the_dlc_the_account_owns() {
+        let w = world();
+        own_dlc(&w, &["ENT011"]);
+        let s = w.saves();
+        s.list().unwrap();
+        let id = s.create_sandbox("Trip").unwrap();
+        let mut p = s.read_sandbox(&id).unwrap();
+        p.user.root.table_mut("item_unlocks").set_strings(&["weapon_plasmarifle".to_string(), "stratagem_uav_drone".to_string()]);
+        s.write_sandbox(&id, &p).unwrap();
+        let zip = w.data.join("trip.zip");
+        s.export(&id, &zip).unwrap();
+        let got = s.read_sandbox(&s.import(&zip, None).unwrap()).unwrap();
+        assert_eq!(got.user.root.table("item_unlocks").unwrap().strings(), ["weapon_plasmarifle"], "ENT011 stays, ENT001 goes");
+    }
+
+    #[test]
+    fn ownership_comes_from_the_official_save_and_stays_empty_without_one() {
+        let w = world();
+        let s = w.saves();
+        assert!(s.owned_entitlements().unwrap().is_empty(), "no entitlements in the save");
+        own_dlc(&w, &["ENT001", "ENT003"]);
+        assert_eq!(s.owned_entitlements().unwrap(), ["ENT001".to_string(), "ENT003".to_string()].into());
+        let list = s.list().unwrap();
+        // A snapshot of a save from the first login on keeps the map: the older of two Official saves can answer.
+        let snap = s.snapshot(&list.saves[0].id, "Snap").unwrap();
+        s.activate(&snap).unwrap();
+        write_verified(&w.local_user(), &user_save(1.0, 1.0), Format::Local).unwrap();
+        let stored: Vec<_> = s.list().unwrap().saves.iter().map(|r| r.id.clone()).collect();
+        assert_eq!(stored.len(), 2);
+        assert_eq!(s.owned_entitlements().unwrap(), ["ENT001".to_string(), "ENT003".to_string()].into(), "the blank live save has no map");
+    }
+
+    #[test]
+    fn dlc_removal_keeps_order_and_renumbers() {
         let mut t = Table::default();
         t.table_mut("item_unlocks").set_strings(&["a_unknown".to_string(), "weapon_plasmarifle".to_string(), "b_unknown".to_string()]);
-        remove_paid_dlc(&mut t);
+        remove_unowned_dlc(&mut t, &BTreeSet::new());
         let list = t.table("item_unlocks").unwrap();
         assert_eq!(list.at(1).and_then(Value::as_str).as_deref(), Some("a_unknown"));
         assert_eq!(list.at(2).and_then(Value::as_str).as_deref(), Some("b_unknown"));

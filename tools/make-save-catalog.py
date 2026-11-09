@@ -6,10 +6,13 @@ Run from the repository root: python tools/make-save-catalog.py
 
 import json
 import pathlib
+import re
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DUMP = ROOT / "internal" / "research" / "save-catalog-dump.json"
 OUT = ROOT / "core" / "assets" / "save-catalog.json"
+# The decompiled DlcSettings: which entitlement grants which item.
+DLC_LUA = ROOT / "internal" / "research" / "lifted" / "lua" / "settings" / "dlc_settings.lua"
 
 
 def as_list(v):
@@ -17,9 +20,31 @@ def as_list(v):
     return v if isinstance(v, list) else []
 
 
+def dlc_entitlements():
+    """Item name to entitlement id, from DlcSettings. Each entry's four lists come before the line naming the entry."""
+    out = {}
+    lists = []
+    for line in DLC_LUA.read_text(encoding="utf8").splitlines():
+        m = re.match(r'\(\{\}\)\.(?:perks|primary_weapon|stratagems|customization) = \{(.*)\}', line)
+        if m:
+            lists.extend(re.findall(r'"([^"]+)"', m.group(1)))
+            continue
+        m = re.match(r'\(\{ id = "(ENT\d+)", steam_id = \d+ \}\)\.unlocks = \{\}', line)
+        if m:
+            for name in lists:
+                out[name] = m.group(1)
+            lists = []
+    return out
+
+
 def main():
     dump = json.loads(DUMP.read_text(encoding="utf8"))
     data, text = dump["data"], dump["text"]
+    entitlements = dlc_entitlements()
+
+    def entitlement(item):
+        # Every paid item names the entitlement that grants the item; a gap here is a bug in the data.
+        return {"entitlement": entitlements[item["name"]]} if item.get("_dlc") else {}
 
     def display(key, fallback=None):
         t = text.get(key) if key else None
@@ -44,6 +69,7 @@ def main():
             "upgrade_kind": "bitmask" if mask else "level",
             "max_upgrade": int(item.get("_max_upgrade") or 0),
             "upgrades": upgrades(item, mask),
+            **entitlement(item),
         }
         if item.get("group"):
             out["category"] = item["group"]
@@ -68,7 +94,7 @@ def main():
     for slot in ("helmet", "body", "cape", "gender"):
         # Every entry stays, in the game's order: the save stores a 1-based index into this list.
         customization[slot] = [
-            {"name": i.get("name", ""), "display": display(i.get("name")), "dlc": bool(i.get("_dlc"))}
+            {"name": i.get("name", ""), "display": display(i.get("name")), "dlc": bool(i.get("_dlc")), **entitlement(i)}
             for i in as_list(data["customization"][slot])
         ]
 
