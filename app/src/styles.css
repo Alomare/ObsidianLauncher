@@ -1372,3 +1372,5 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .cmd-found-text span { font-size: 0.8rem; color: var(--mu); }
 :root[data-theme="light"] .cmd-stage { background: #1b1e22; }
 :root[data-theme="light"] .cmd-intro { background: radial-gradient(ellipse at 22% 30%, rgba(60, 120, 200, 0.1), transparent 55%), radial-gradient(ellipse at 80% 15%, rgba(214, 80, 60, 0.08), transparent 50%); }
+.cmd-menu-wrap .btn.icon { width: 2.4rem; height: 2.1rem; }
+.cmd-menu-wrap .btn.icon svg { width: 1.15rem; height: 1.15rem; }
