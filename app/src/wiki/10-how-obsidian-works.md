@@ -4,7 +4,7 @@ group: Getting started
 summary: What Obsidian does to the game, what stays untouched, and what each tab is for.
 ---
 
-Obsidian is a mod manager for HELLDIVERS (2015). You keep your mods in a library, choose which ones to play with, and Obsidian puts them into the game. Your game files are never edited, so several mods can run side by side and the game can always go back to vanilla.
+Obsidian is a launcher for HELLDIVERS (2015) that manages your mods. You keep your mods in a library, choose which ones to play with, and Obsidian puts them into the game. Your game files are never edited, so several mods can run side by side and the game can always go back to vanilla.
 
 ## Patches instead of replaced files
 
@@ -52,6 +52,6 @@ A portable copy doesn't install new versions. Download them from the releases pa
 
 | What | Where |
 |---|---|
-| Mod library, profiles, app settings | `%LOCALAPPDATA%\ObsidianModManager`, or `data\` beside the app in a portable copy |
-| Options and keys the game reads, logs | `%APPDATA%\Arrowhead\Helldivers\ObsidianModManager` |
+| Mod library, profiles, app settings | `%LOCALAPPDATA%\ObsidianLauncher`, or `data\` beside the app in a portable copy |
+| Options and keys the game reads, logs | `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher` |
 | Save backups | the `backups` folder in the app data folder |

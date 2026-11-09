@@ -7,7 +7,12 @@ use crate::Result;
 
 pub const FILE: &str = "settings.txt";
 /// The name of every folder Obsidian makes on the PC.
-pub const DIR: &str = "ObsidianModManager";
+pub const DIR: &str = "ObsidianLauncher";
+/// What the folders were named before the product became Obsidian Launcher.
+pub const LEGACY_DIR: &str = "ObsidianModManager";
+/// In the game-side folder while a loader deployed before the rename may still read the old folder:
+/// the next deploy settles it.
+pub(crate) const CARRY_OVER: &str = "legacy-sync.pending";
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Settings {
@@ -25,10 +30,52 @@ pub struct Settings {
     pub keys: Vec<(String, String, String)>,
 }
 
-/// `%APPDATA%\Arrowhead\Helldivers\ObsidianModManager`, beside the game's own save folder. Folders
-/// are named ObsidianModManager, not Obsidian, which is the name of other software.
+/// `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher`, beside the game's own save folder. Folders
+/// are named ObsidianLauncher, not Obsidian, which is the name of other software.
+///
+/// The first call after the rename copies the folder an older copy made (`ObsidianModManager`:
+/// logs, `.store` files, settings) to the new name. It is a copy and not a move, because a loader
+/// deployed before the rename still reads and writes the old folder until the next deploy.
 pub fn game_side_dir(saves_dir: &Path) -> PathBuf {
-    saves_dir.parent().map(|p| p.join(DIR)).unwrap_or_else(|| saves_dir.join(DIR))
+    let parent = saves_dir.parent().unwrap_or(saves_dir);
+    let dir = parent.join(DIR);
+    carry_over(&parent.join(LEGACY_DIR), &dir);
+    dir
+}
+
+/// Copies `old` to `new` when only `old` exists, through a folder beside `new` that takes the name
+/// when the copy is whole, so a copy cut short is made again instead of kept. Failing is fine: the
+/// loader makes the folder again.
+fn carry_over(old: &Path, new: &Path) {
+    if new.exists() || !old.is_dir() {
+        return;
+    }
+    let tmp = crate::paths::with_suffix(new, ".copying");
+    let _ = std::fs::remove_dir_all(&tmp);
+    let done = crate::paths::copy_tree(old, &tmp, false)
+        .and_then(|_| std::fs::write(tmp.join(CARRY_OVER), b""))
+        .and_then(|_| crate::paths::rename_retrying(&tmp, new));
+    if done.is_err() {
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+}
+
+/// The folder an older copy made, while `dir` is waiting for the deploy that settles the rename.
+fn pending_legacy(dir: &Path) -> Option<PathBuf> {
+    if dir.file_name()? != std::ffi::OsStr::new(DIR) || !dir.join(CARRY_OVER).is_file() {
+        return None;
+    }
+    Some(dir.with_file_name(LEGACY_DIR)).filter(|old| old.is_dir())
+}
+
+/// Called by a deploy, which puts a loader that reads `dir` in the game: takes what the older loader
+/// wrote to the old folder since the copy (a file is taken only when it is newer), then stops
+/// keeping the old folder up to date. The old folder is left where it is.
+pub fn settle_carry_over(dir: &Path) {
+    if let Some(old) = pending_legacy(dir) {
+        let _ = crate::paths::copy_tree(&old, dir, true);
+    }
+    let _ = std::fs::remove_file(dir.join(CARRY_OVER));
 }
 
 /// A value on one line: a tab or a line break in it would start a field or a line of its own, and a
@@ -80,13 +127,75 @@ pub fn parse(text: &str) -> Settings {
 /// Writes the file atomically and makes sure the logs folder exists for the loader.
 pub fn write(dir: &Path, s: &Settings) -> Result<()> {
     std::fs::create_dir_all(dir.join("logs"))?;
-    crate::paths::write_atomic(&dir.join(FILE), render(s).as_bytes())?;
+    let text = render(s);
+    crate::paths::write_atomic(&dir.join(FILE), text.as_bytes())?;
+    // A loader deployed before the rename reads the old folder, and a guardrail must reach it.
+    if let Some(old) = pending_legacy(dir) {
+        let _ = crate::paths::write_atomic(&old.join(FILE), text.as_bytes());
+    }
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `saves`, with an older copy's game-side folder beside it holding a log and a mod's store.
+    fn older_copy() -> (tempfile::TempDir, PathBuf, PathBuf) {
+        let t = crate::testutil::spaced_tempdir();
+        let saves = t.path().join("Arrowhead/Helldivers/saves");
+        let old = t.path().join("Arrowhead/Helldivers").join(LEGACY_DIR);
+        crate::testutil::put(&old, "logs/loader.log", b"old log");
+        crate::testutil::put(&old, "logs/a.b.store", b"store");
+        crate::testutil::put(&old, FILE, b"consent\t1\n");
+        (t, saves, old)
+    }
+
+    #[test]
+    fn the_game_side_folder_of_an_older_copy_is_copied_not_moved() {
+        let (_t, saves, old) = older_copy();
+        let dir = game_side_dir(&saves);
+        assert_eq!(dir.file_name().unwrap(), DIR);
+        assert_eq!(std::fs::read(dir.join("logs/a.b.store")).unwrap(), b"store");
+        assert_eq!(std::fs::read(dir.join("logs/loader.log")).unwrap(), b"old log");
+        assert_eq!(std::fs::read(dir.join(FILE)).unwrap(), b"consent\t1\n");
+        assert!(old.join("logs/a.b.store").is_file() && old.join(FILE).is_file(), "an older loader still reads it");
+        assert!(!crate::paths::with_suffix(&dir, ".copying").exists());
+        // A second call, and a folder that has changed since, are left as they are.
+        std::fs::write(dir.join("logs/a.b.store"), b"new store").unwrap();
+        game_side_dir(&saves);
+        assert_eq!(std::fs::read(dir.join("logs/a.b.store")).unwrap(), b"new store");
+    }
+
+    #[test]
+    fn no_older_game_side_folder_makes_nothing() {
+        let t = crate::testutil::spaced_tempdir();
+        let saves = t.path().join("Arrowhead/Helldivers/saves");
+        let dir = game_side_dir(&saves);
+        assert!(!dir.exists() && !dir.with_file_name(LEGACY_DIR).exists());
+    }
+
+    #[test]
+    fn until_a_deploy_settles_it_settings_reach_the_older_folder_too() {
+        let (_t, saves, old) = older_copy();
+        let dir = game_side_dir(&saves);
+        let s = Settings { block_achievements: true, ..Default::default() };
+        write(&dir, &s).unwrap();
+        assert_eq!(parse(&std::fs::read_to_string(old.join(FILE)).unwrap()), s, "an older loader gets the guardrail");
+        // The older loader keeps writing to the old folder until the deploy.
+        let later = std::time::SystemTime::now() + std::time::Duration::from_secs(60);
+        std::fs::write(old.join("logs/a.b.store"), b"written meanwhile").unwrap();
+        std::fs::File::options().write(true).open(old.join("logs/a.b.store")).unwrap().set_modified(later).unwrap();
+        settle_carry_over(&dir);
+        assert_eq!(std::fs::read(dir.join("logs/a.b.store")).unwrap(), b"written meanwhile");
+        assert!(!dir.join(CARRY_OVER).exists());
+        // Settled: the old folder is no longer written, and a store deleted since stays deleted.
+        write(&dir, &Settings::default()).unwrap();
+        assert!(parse(&std::fs::read_to_string(old.join(FILE)).unwrap()).block_achievements);
+        std::fs::remove_file(dir.join("logs/a.b.store")).unwrap();
+        settle_carry_over(&dir);
+        assert!(!dir.join("logs/a.b.store").exists());
+    }
 
     #[test]
     fn a_value_cant_write_a_line_of_its_own() {
@@ -124,6 +233,6 @@ mod tests {
 
     #[test]
     fn game_side_dir_is_beside_the_saves() {
-        assert_eq!(game_side_dir(Path::new("C:/x/Arrowhead/Helldivers/saves")), Path::new("C:/x/Arrowhead/Helldivers/ObsidianModManager"));
+        assert_eq!(game_side_dir(Path::new("C:/x/Arrowhead/Helldivers/saves")), Path::new("C:/x/Arrowhead/Helldivers/ObsidianLauncher"));
     }
 }

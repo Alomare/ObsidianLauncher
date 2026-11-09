@@ -94,7 +94,7 @@ end)
 
 test("log_marks_mod_loading_before_start", function()
 	local e = E.new({ deploy = E.deploy({ mods = { E.mod("a.b") } }) })
-	e.opts.mods = { ["obsidian/mods/a.b/main"] = "SEEN = io.open(os.getenv('APPDATA') .. '/Arrowhead/Helldivers/ObsidianModManager/logs/loader.log'):read('*a')" }
+	e.opts.mods = { ["obsidian/mods/a.b/main"] = "SEEN = io.open(os.getenv('APPDATA') .. '/Arrowhead/Helldivers/ObsidianLauncher/logs/loader.log'):read('*a')" }
 	e:boot()
 	local seen = rawget(_G, "SEEN")
 	E.has(seen, "loading a.b", "log during start")

@@ -58,8 +58,8 @@ jobs:
             || { echo "::error::$TAG is a draft or a pre-release: not uploaded."; exit 1; }
           # tags are v1.0.4, ...; the files are named by the version without the v (as tools/verify_release.py checks)
           VERSION="${TAG#v}"
-          SETUP="Obsidian.Mod.Manager_${VERSION}_x64-setup.exe"
-          PORTABLE="ObsidianModManager-${VERSION}-portable.zip"
+          SETUP="Obsidian.Launcher_${VERSION}_x64-setup.exe"
+          PORTABLE="ObsidianLauncher-${VERSION}-portable.zip"
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$SETUP" --pattern "$PORTABLE"
           test -s "$SETUP" || { echo "::error::$SETUP is missing from the release $TAG."; exit 1; }
           test -s "$PORTABLE" || { echo "::error::$PORTABLE is missing from the release $TAG."; exit 1; }
@@ -73,7 +73,7 @@ jobs:
       # API key, so it is pinned to the commit of the tag v1.0.0-beta.11 (a tag can be moved); a new version of the
       # action means a new commit here. Only the Setup bumps the mod's version, so the second upload doesn't set it
       # again.
-      - name: Upload Obsidian Mod Manager Setup
+      - name: Upload Obsidian Launcher Setup
         uses: Nexus-Mods/upload-action@98532f7670c27cbecc78fae03fa3e278147827e2  # v1.0.0-beta.11
         with:
           api_key: ${{ secrets.NEXUSMODS_API_KEY }}
@@ -89,7 +89,7 @@ jobs:
           update_mod_version: true
           mod_id: ${{ env.NEXUS_MOD_ID }}
 
-      - name: Upload Obsidian Mod Manager Portable
+      - name: Upload Obsidian Launcher Portable
         uses: Nexus-Mods/upload-action@98532f7670c27cbecc78fae03fa3e278147827e2  # v1.0.0-beta.11
         with:
           api_key: ${{ secrets.NEXUSMODS_API_KEY }}

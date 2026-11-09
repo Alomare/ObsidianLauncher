@@ -28,7 +28,7 @@ If the game itself says the version is unknown, the game program isn't the versi
 
 ## Logs
 
-The logs are in `%APPDATA%\Arrowhead\Helldivers\ObsidianModManager\logs`:
+The logs are in `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher\logs`:
 
 | File | What it holds |
 |---|---|

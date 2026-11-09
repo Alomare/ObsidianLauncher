@@ -28,7 +28,7 @@ summary: 日志、启动时崩溃、模组不加载，以及如何恢复原版�
 
 ## 日志 {#logs}
 
-日志位于 `%APPDATA%\Arrowhead\Helldivers\ObsidianModManager\logs`：
+日志位于 `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher\logs`：
 
 | 文件 | 内容 |
 |---|---|

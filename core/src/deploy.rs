@@ -521,7 +521,9 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
     for (old, _) in &aside {
         let _ = std::fs::remove_file(old);
     }
-    settings::write(&settings::game_side_dir(&game.saves_dir), &settings)?;
+    let game_side = settings::game_side_dir(&game.saves_dir);
+    settings::settle_carry_over(&game_side);
+    settings::write(&game_side, &settings)?;
     report.send(1.0, "done", None);
     let foreign_paths = foreign.into_iter().filter(|(b, _, _)| comp.bundles.contains_key(b)).map(|(_, _, p)| p).collect();
     Ok(DeployReport { patches: state.files.into_iter().map(|f| f.path).collect(), conflicts: comp.conflicts, foreign: foreign_paths, backup, unchanged: false, settings_changed })
@@ -1060,6 +1062,19 @@ mod tests {
         assert_eq!(waiting(&w), ChangesWaiting::UpToDate, "the moved patch is still the deploy");
         let r = purge(&w.game, &w.data).unwrap();
         assert!(r.kept_changed.is_empty() && !patch(&w, "00000000000000aa.patch_0").exists());
+    }
+
+    #[test]
+    fn a_deploy_settles_the_game_side_folder_of_an_older_copy() {
+        let w = world();
+        let old = w.game.saves_dir.with_file_name(crate::settings::LEGACY_DIR);
+        put(&old, "logs/a.b.store", b"store");
+        let dir = settings::game_side_dir(&w.game.saves_dir);
+        assert!(dir.join(settings::CARRY_OVER).is_file(), "copied, and waiting for the deploy");
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert!(!dir.join(settings::CARRY_OVER).exists());
+        assert_eq!(std::fs::read(dir.join("logs/a.b.store")).unwrap(), b"store");
+        assert!(dir.join(settings::FILE).is_file() && old.join("logs/a.b.store").is_file());
     }
 
     #[test]

@@ -57,7 +57,7 @@ The loader gives every mod a global table named `obsidian` with the functions of
 1. Drag the folder onto the mod list in the [Mods](app:mods) tab.
 2. Turn the mod on and click **Deploy**.
 3. Start the game, then close it.
-4. Open `%APPDATA%\Arrowhead\Helldivers\ObsidianModManager\logs`. `yournamehello-helldiver.log` has your two lines, and `loader.log` shows the mod starting. A mod log is named after the mod id, keeping only letters, digits, `_` and `-`.
+4. Open `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher\logs`. `yournamehello-helldiver.log` has your two lines, and `loader.log` shows the mod starting. A mod log is named after the mod id, keeping only letters, digits, `_` and `-`.
 
 To change the mod, edit the files and import the folder again: a mod with the same id replaces the old copy. Raise `version` when you share a new release.
 

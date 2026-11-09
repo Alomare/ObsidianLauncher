@@ -52,6 +52,6 @@ Uma cópia portátil não instala novas versões. Baixe-as na página de lançam
 
 | O quê | Onde |
 |---|---|
-| Biblioteca de mods, perfis, configurações do app | `%LOCALAPPDATA%\ObsidianModManager`, ou `data\` ao lado do app numa cópia portátil |
-| Opções e teclas que o jogo lê, logs | `%APPDATA%\Arrowhead\Helldivers\ObsidianModManager` |
+| Biblioteca de mods, perfis, configurações do app | `%LOCALAPPDATA%\ObsidianLauncher`, ou `data\` ao lado do app numa cópia portátil |
+| Opções e teclas que o jogo lê, logs | `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher` |
 | Backups do save | a pasta `backups` dentro da pasta de dados do app |

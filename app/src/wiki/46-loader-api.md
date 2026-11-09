@@ -103,7 +103,7 @@ The text `key` from the `locales` folder of the mod, in the language of the game
 
 ### obsidian.log(...)
 
-Writes a line to the log of this mod, in `%APPDATA%\Arrowhead\Helldivers\ObsidianModManager\logs`.
+Writes a line to the log of this mod, in `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher\logs`.
 
 ## Other mods and more files {#other-mods}
 

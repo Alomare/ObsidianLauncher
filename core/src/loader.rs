@@ -836,6 +836,22 @@ mod tests {
     }
 
     #[test]
+    fn a_changed_loader_script_counts_as_a_change_to_deploy() {
+        // The game-side folder moved with the rename of the product: a loader deployed before it
+        // reads the old folder, so the first deploy after the upgrade must be asked for.
+        let t = spaced_tempdir();
+        let lib = Library::open(&t.path().join("data")).unwrap();
+        let comp = compose(&lib, &Profile::default()).unwrap();
+        let root = t.path().join("game");
+        put(&root, "loader/src/core.lua", b"local dir = 'ObsidianModManager'\n");
+        put(&root, "locales/en.json", b"{}");
+        let dir = root.join("loader").join("src");
+        let before = build_inputs(&dir, &comp).unwrap();
+        put(&root, "loader/src/core.lua", b"local dir = 'ObsidianLauncher'\n");
+        assert_ne!(before, build_inputs(&dir, &comp).unwrap());
+    }
+
+    #[test]
     fn only_fonts_in_the_boot_bundle_are_offered() {
         let t = spaced_tempdir();
         let lib = Library::open(&t.path().join("data")).unwrap();

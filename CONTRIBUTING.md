@@ -32,7 +32,7 @@ Obsidian API, Obsidian Trainer and Obsidian Patches each have their own reposito
 
 ## Bug reports
 
-Include the output of `obsidian status`, the file `%APPDATA%\Arrowhead\Helldivers\ObsidianModManager\logs\loader.log` if one exists, and the mods you had enabled.
+Include the output of `obsidian status`, the file `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher\logs\loader.log` if one exists, and the mods you had enabled.
 
 ## License
 

@@ -22,7 +22,7 @@ def files():
     q = {"query": f"{{ modFiles(modId: {MOD_ID}, gameId: {GAME_ID}) {{ name description category }} }}"}
     req = urllib.request.Request(
         "https://api.nexusmods.com/v2/graphql", data=json.dumps(q).encode(),
-        headers={"Content-Type": "application/json", "User-Agent": "ObsidianModManager-release"},
+        headers={"Content-Type": "application/json", "User-Agent": "ObsidianLauncher-release"},
     )
     with urllib.request.urlopen(req, timeout=30) as r:
         data = json.load(r)

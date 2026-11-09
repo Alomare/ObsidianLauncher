@@ -65,8 +65,8 @@ def main():
     release = {"isDraft": rel["draft"], "isPrerelease": rel["prerelease"], "body": rel.get("body") or "",
                "assets": rel["assets"], "createdAt": rel["created_at"]}
     print(f"{tag}: {'draft' if release['isDraft'] else 'published'}{', prerelease' if release['isPrerelease'] else ''}")
-    setup = f"Obsidian.Mod.Manager_{version}_x64-setup.exe"
-    portable = f"ObsidianModManager-{version}-portable.zip"
+    setup = f"Obsidian.Launcher_{version}_x64-setup.exe"
+    portable = f"ObsidianLauncher-{version}-portable.zip"
     names = {a["name"] for a in release["assets"]}
     for name in (setup, setup + ".sig", "latest.json", portable):
         check(name in names, f"the release has {name}")
@@ -108,7 +108,7 @@ def main():
 
     with zipfile.ZipFile(out / portable) as z:
         files = set(z.namelist())
-        top = "ObsidianModManager/"
+        top = "ObsidianLauncher/"
         for need in ("Obsidian.exe", "portable.txt", "loader/src/boot.lua", "locales/en.json"):
             check(top + need in files, f"the portable ZIP has {need}")
         check(any(f.startswith(top + "luajit/") for f in files), "the portable ZIP has LuaJIT")

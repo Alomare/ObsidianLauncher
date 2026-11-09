@@ -28,7 +28,7 @@ Se o próprio jogo disser que a versão é desconhecida, o programa do jogo não
 
 ## Logs {#logs}
 
-Os logs ficam em `%APPDATA%\Arrowhead\Helldivers\ObsidianModManager\logs`:
+Os logs ficam em `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher\logs`:
 
 | Arquivo | O que tem |
 |---|---|

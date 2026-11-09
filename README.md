@@ -7,7 +7,7 @@
 
 <h1 align="center">Obsidian</h1>
 
-<p align="center">Mod manager and mod loader for HELLDIVERS (2015).</p>
+<p align="center">Launcher and mod loader for HELLDIVERS (2015).</p>
 
 <p align="center">
   <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-2f7bf5?style=flat-square">
@@ -103,7 +103,7 @@ To go back to vanilla, close the game and press **Purge**. Your library and prof
 | Download | What it is |
 |---|---|
 | The `x64-setup.exe` file | The installer. It checks for new versions at startup and installs them when you say so. **Updates** in Settings changes that. |
-| `ObsidianModManager-<version>-portable.zip` | The portable copy, with your library in a `data` folder beside the app. Unzip it anywhere and start `Obsidian.exe`. New versions are downloaded by hand. |
+| `ObsidianLauncher-<version>-portable.zip` | The portable copy, with your library in a `data` folder beside the app. Unzip it anywhere and start `Obsidian.exe`. New versions are downloaded by hand. |
 
 The window needs the Microsoft Edge WebView2 Runtime. The installer adds it when it's missing. For the portable copy, Windows 11 has it, nearly every Windows 10 PC has it too, and the rest can get [Microsoft's free download](https://developer.microsoft.com/microsoft-edge/webview2/).
 

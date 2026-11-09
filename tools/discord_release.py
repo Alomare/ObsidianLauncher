@@ -115,7 +115,7 @@ def payload(rel):
         "url": rel["url"],
         "description": desc,
         "color": GOLD,
-        "footer": {"text": "Obsidian Mod Manager"},
+        "footer": {"text": "Obsidian Launcher"},
     }
     if re.fullmatch(r"\d+\.\d+\.0", version):
         embed["image"] = {"url": BANNER}

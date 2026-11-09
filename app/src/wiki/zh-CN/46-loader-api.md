@@ -103,7 +103,7 @@ end)
 
 ### obsidian.log(...) {#obsidian-log}
 
-向本模组的日志写一行，位于 `%APPDATA%\Arrowhead\Helldivers\ObsidianModManager\logs`。
+向本模组的日志写一行，位于 `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher\logs`。
 
 ## 其他模组和更多文件 {#other-mods}
 

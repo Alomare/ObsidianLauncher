@@ -16,7 +16,7 @@ use obsidian_core::updates::{self, GitHub};
 use obsidian_core::{ObsidianError, Result};
 
 #[derive(Parser)]
-#[command(name = "obsidian", version, about = "Mod manager for HELLDIVERS (2015)")]
+#[command(name = "obsidian", version, about = "Launcher and mod loader for HELLDIVERS (2015)")]
 struct Cli {
     /// The Helldivers game folder (skips the Steam search)
     #[arg(long, global = true)]
