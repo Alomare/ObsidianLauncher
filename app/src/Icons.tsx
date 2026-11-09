@@ -10,6 +10,8 @@ const Icon = ({ children, ...p }: SVGProps<SVGSVGElement> & { children: ReactNod
 
 /** A wrench. */
 export const ModsIcon = () => <Icon><path d="M14.6 6.4a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.4-3.4a5.6 5.6 0 0 1-7.6 7.3l-7 7a2.1 2.1 0 0 1-3-3l7-7a5.6 5.6 0 0 1 7.3-7.6z" /></Icon>;
+export const EyeIcon = () => <Icon><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="2.8" /></Icon>;
+export const EyeOffIcon = () => <Icon><path d="M9.8 5.8A8.9 8.9 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16.6 16.6 0 0 1-2.6 3.5M6.2 7.4A16 16 0 0 0 2.5 12S6 18.5 12 18.5a8.8 8.8 0 0 0 4.4-1.2" /><path d="M9.9 10a2.8 2.8 0 0 0 3.9 4" /><path d="M3.5 3.5l17 17" /></Icon>;
 export const HomeIcon = () => <Icon><path d="M3.5 11L12 3.5l8.5 7.5" /><path d="M5.5 9.5v11h5v-6h3v6h5v-11" /></Icon>;
 const FOLDER = "M3 6.5a1.5 1.5 0 0 1 1.5-1.5h4.8l2 2.2h8.2A1.5 1.5 0 0 1 21 8.7v9.8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z";
 export const FolderIcon = () => <Icon><path d={FOLDER} /></Icon>;

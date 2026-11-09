@@ -83,13 +83,12 @@ export default function App() {
   if (!settings) return null;
   return (
     <div className="app">
-      <NavBar tab={tab} onTab={(to) => { if (to === "settings" && update.phase === "found") setSettingsTab("updates"); setTab(to); }} snap={snap} busy={busy} updateFound={update.phase === "found"} wave={wave} onWaveEnd={() => setWave(null)} onPurge={() => { startWave(snap?.deployed ? "red" : "grey"); purge(); }}
-        onDeploy={() => { startWave(snap?.changes === "Waiting" ? "green" : "grey"); deploy(); }}
+      <NavBar tab={tab} onTab={(to) => { if (to === "settings" && update.phase === "found") setSettingsTab("updates"); setTab(to); }} snap={snap} busy={busy} updateFound={update.phase === "found"} wave={wave} onWaveEnd={() => setWave(null)}
         onPlay={() => (snap && asksBeforePlay(snap, settings) ? setAskPlay(true) : startPlay())} />
       <main className={tab === "home" || tab === "wiki" ? "page bleed" : "page"}>
         {tab === "home" && <div className="view" key="home"><HomePage /></div>}
         {/* Mods stays mounted while hidden: a long list then costs nothing to come back to. */}
-        {snap && <div className="view" hidden={tab !== "mods"}><ModsPage snap={snap} /></div>}
+        {snap && <div className="view" hidden={tab !== "mods"}><ModsPage snap={snap} busy={busy} onPurge={() => { startWave(snap.deployed ? "red" : "grey"); purge(); }} onDeploy={() => { startWave(snap.changes === "Waiting" ? "green" : "grey"); deploy(); }} /></div>}
         {tab === "wiki" && <div className="view" key="wiki"><WikiPage /></div>}
         {snap && tab === "settings" && <div className="view" key="settings"><SettingsPage snap={snap} tab={settingsTab} onTab={setSettingsTab} /></div>}
       </main>

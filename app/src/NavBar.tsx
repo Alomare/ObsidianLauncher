@@ -1,10 +1,10 @@
-// The navigation bar: the tabs (Home, Mods), then the "prepare to play" area: the Guardrails of the active
-// profile, Purge, Deploy and Play, and the Wiki and Settings tabs as icons at the far end (spec section 3). Deploy turns green while changes wait.
-// When one of the three starts, one glow in its color crosses from Play toward the tabs, and fades out before them.
+// The navigation bar: the tabs (Home, Mods), then the Guardrails of the active profile and Play, and the
+// Wiki and Settings tabs as icons at the far end. Deploy and Purge are on the Mods tab.
+// When a deploy, a purge or Play starts, one glow in the action's color crosses from Play toward the tabs, and fades out before them.
 import { type ComponentType, useLayoutEffect, useRef, useState } from "react";
 import { BuildDialog } from "./BuildDialog";
 import { GuardrailsDialog, guardrailsSummary, guardsOn } from "./GuardrailsDialog";
-import { BookIcon, CogIcon, DeployIcon, HomeIcon, ModsIcon, PlayIcon, PurgeIcon, ShieldIcon, WarnIcon } from "./Icons";
+import { BookIcon, CogIcon, HomeIcon, ModsIcon, PlayIcon, ShieldIcon, WarnIcon } from "./Icons";
 import { t } from "./i18n";
 import type { Tab } from "./nav";
 import type { Snapshot } from "./types";
@@ -21,20 +21,17 @@ type Props = {
   updateFound: boolean;
   wave: Wave | null;
   onWaveEnd: () => void;
-  onPurge: () => void;
-  onDeploy: () => void;
   onPlay: () => void;
 };
 
 // Home and Mods carry their names; the Wiki and Settings are icons at the far end (the user, 2026-11-04).
 const TABS: [Tab, ComponentType][] = [["home", HomeIcon], ["mods", ModsIcon]];
 
-export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, onPurge, onDeploy, onPlay }: Props) {
+export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, onPlay }: Props) {
   const running = snap?.game === "running";
   const missing = snap?.game === "notFound";
   const locked = busy || running || !snap || missing;
   const why = running ? t("app.action.closeGameFirst") : missing ? t("app.error.GameNotFound") : undefined;
-  const waiting = snap?.changes === "Waiting";
   const [guarding, setGuarding] = useState(false);
   const guards = snap ? guardsOn(snap) : 0;
   // HD1 gets no more updates, so only a missing game or an unknown build needs a word here.
@@ -78,13 +75,6 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
         {showBuild && snap?.game === "unknown" && <BuildDialog snap={snap} onClose={() => setShowBuild(false)} />}
         {guarding && snap && <GuardrailsDialog snap={snap} onClose={() => setGuarding(false)} />}
         <div className="actions">
-          <button className={snap?.deployed ? "btn icon danger" : "btn icon"} onClick={onPurge} disabled={locked} data-tip-title={t("app.action.purge")} data-tip={why ?? t("app.action.purgeHint")} aria-label={t("app.action.purge")}>
-            <PurgeIcon />
-          </button>
-          <button className={waiting ? "btn icon go" : "btn icon"} onClick={onDeploy} disabled={locked} data-tip-title={t("app.action.deploy")}
-            data-tip={why ?? (waiting ? t("app.action.deployWaiting") : t(`app.action.deploy${snap?.changes ?? "UpToDate"}`))} aria-label={t("app.action.deploy")}>
-            <DeployIcon />
-          </button>
           {snap && (
             <button className={guards ? "btn icon guard on" : "btn icon guard"} onClick={() => setGuarding(true)} aria-haspopup="dialog" aria-label={t("app.nav.guardrails")}
               data-tip-title={t("app.guardrails.button", snap.profile)} data-tip={guardrailsSummary(snap)}>

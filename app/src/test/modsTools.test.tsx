@@ -37,7 +37,7 @@ function show(s: Snapshot) {
   const host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
-  act(() => root!.render(<ModsPage snap={s} />));
+  act(() => root!.render(<ModsPage snap={s} busy={false} onPurge={() => {}} onDeploy={() => {}} />));
   return [...host.querySelectorAll<HTMLButtonElement>(".mods .head > button")];
 }
 

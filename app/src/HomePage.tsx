@@ -1,7 +1,7 @@
-// Home: the game's art under a blur and a dark gradient that come from the top left corner, the
-// name at the top left and links at the bottom left. Each link opens in the browser; the tooltip
-// shows where. The button beside the links tucks them away for a clear view of the art, and
-// brings them back; the choice is remembered.
+// Home: the game's art under an even darkening, the logo and name in the middle and the links
+// centered at the bottom. Each link opens in the browser; the tooltip shows where. The eye beside the
+// links moves to the center and the links slide into it, for a clear view of the art; a click brings
+// them back, and the choice is remembered.
 //
 // The art goes round by itself: each picture fills the page, drifts in very slowly (a 2% zoom over
 // its time on screen) and gives way to the next with a cross-fade. The small controls at the bottom
@@ -10,7 +10,7 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import logo from "./assets/logo-shaded.png";
-import { ChevronIcon, DiscordIcon, GitHubIcon, KofiIcon, OutboundIcon, SearchIcon } from "./Icons";
+import { ChevronIcon, DiscordIcon, EyeIcon, EyeOffIcon, GitHubIcon, KofiIcon, OutboundIcon, SearchIcon } from "./Icons";
 import { t } from "./i18n";
 import { LINKS } from "./links";
 import { useAppSettings } from "./settings";
@@ -96,13 +96,19 @@ function readTucked(): boolean {
 
 export function HomePage() {
   const [tucked, setTucked] = useState(readTucked);
+  const row = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
-  // Each link flies to and from the toggle button, so each needs to know how far away it is.
+  const eye = useRef<HTMLButtonElement>(null);
+  // The eye and each link travel to the center of the row, so each needs to know how far away that is.
   useLayoutEffect(() => {
-    for (const el of list.current?.children ?? []) {
-      const b = el as HTMLElement;
-      b.style.setProperty("--off", `${b.offsetLeft + b.offsetWidth / 2}px`);
-    }
+    const box = row.current;
+    if (!box) return;
+    const place = (b: HTMLElement) => {
+      b.style.setProperty("--off-x", `${box.offsetWidth / 2 - (b.offsetLeft + b.offsetWidth / 2)}px`);
+      b.style.setProperty("--off-y", `${box.offsetHeight / 2 - (b.offsetTop + b.offsetHeight / 2)}px`);
+    };
+    if (eye.current) place(eye.current);
+    for (const el of list.current?.children ?? []) place(el as HTMLElement);
   });
   const toggle = () =>
     setTucked((v) => {
@@ -117,7 +123,6 @@ export function HomePage() {
       <div className="home-art" aria-hidden="true" style={time}>
         {art.layers.map((l) => <img key={l.key} className="home-art-img" src={ART[l.at]} alt="" draggable={false} />)}
       </div>
-      <div className="home-blur" aria-hidden="true"><i /><i /><i /><i /></div>
       <div className="home-shade" aria-hidden="true" />
       <div className="home-body">
         <div className="home-brand">
@@ -128,9 +133,9 @@ export function HomePage() {
           </div>
         </div>
         <div className="home-foot">
-          <div className={tucked ? "home-links tucked" : "home-links"}>
-            <button className="btn home-tuck" onClick={toggle} aria-expanded={!tucked} aria-label={label} data-tip={label}>
-              <ChevronIcon />
+          <div className={tucked ? "home-links tucked" : "home-links"} ref={row}>
+            <button className="btn home-tuck" ref={eye} onClick={toggle} aria-expanded={!tucked} aria-label={label} data-tip={label}>
+              {tucked ? <EyeOffIcon /> : <EyeIcon />}
             </button>
             <div className="home-link-list" ref={list} style={{ ["--n" as string]: 4 }}>
               <Link i={0} hidden={tucked} url={LINKS.nexus} cls="play" icon={<SearchIcon />} label={t("app.home.nexus")} />

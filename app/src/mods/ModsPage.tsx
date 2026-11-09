@@ -9,7 +9,7 @@ import { notify } from "../notices";
 import { SortDialog, SortIcon, type SortPlan } from "./SortDialog";
 import { Confirm } from "../Confirm";
 import { ContextMenu, type MenuItem } from "../ContextMenu";
-import { ChevronIcon, CloseIcon, ExternalIcon, FolderAddIcon, FolderIcon, ImportIcon, LockIcon, PlusIcon, ProfilesIcon, SearchIcon, SlidersIcon, SwitchOffIcon, SwitchOnIcon, TrashIcon, UnlockIcon, UpdateIcon } from "../Icons";
+import { ChevronIcon, CloseIcon, DeployIcon, ExternalIcon, FolderAddIcon, FolderIcon, ImportIcon, LockIcon, PlusIcon, ProfilesIcon, PurgeIcon, SearchIcon, SlidersIcon, SwitchOffIcon, SwitchOnIcon, TrashIcon, UnlockIcon, UpdateIcon } from "../Icons";
 import { language, pick, t } from "../i18n";
 import { useNav } from "../nav";
 import { ProfileGuards, ProfilesDialog } from "../ProfilesDialog";
@@ -49,7 +49,12 @@ function savedWidth(): number {
   }
 }
 
-export function ModsPage({ snap }: { snap: Snapshot }) {
+export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; busy: boolean; onPurge: () => void; onDeploy: () => void }) {
+  const gameRunning = snap.game === "running";
+  const gameMissing = snap.game === "notFound";
+  const locked = busy || gameRunning || gameMissing;
+  const lockedWhy = gameRunning ? t("app.action.closeGameFirst") : gameMissing ? t("app.error.GameNotFound") : undefined;
+  const changesWaiting = snap.changes === "Waiting";
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState<Node[] | null>(null);
   const [view, setView] = useState<DrawerView>(null);
@@ -269,13 +274,22 @@ export function ModsPage({ snap }: { snap: Snapshot }) {
           onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAddMenu({ x: r.left, y: r.bottom + 4 }); }}>
           <PlusIcon /><span className="label">{t("app.mods.addButton")}</span>
         </button>
-        {waiting.length > 0 && <button className="btn play head-update" onClick={() => updateMods(waiting, names)}><UpdateIcon />{t("app.mods.updateAll", waiting.length)}</button>}
         <label className="search">
           <SearchIcon />
           <input ref={search} type="text" value={query} placeholder={t("app.mods.search")} aria-label={t("app.mods.search")} onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Escape" && setQuery("")} />
           {query && <button className="bare" onClick={() => setQuery("")} aria-label={t("app.mods.clearSearch")} data-tip={t("app.mods.clearSearch")}><CloseIcon /></button>}
         </label>
+        {waiting.length > 0 && <button className="btn play head-update" onClick={() => updateMods(waiting, names)}><UpdateIcon />{t("app.mods.updateAll", waiting.length)}</button>}
+        <div className="actions head-actions">
+          <button className={snap.deployed ? "btn icon danger" : "btn icon"} onClick={onPurge} disabled={locked} data-tip-title={t("app.action.purge")} data-tip={lockedWhy ?? t("app.action.purgeHint")} aria-label={t("app.action.purge")}>
+            <PurgeIcon />
+          </button>
+          <button className={changesWaiting ? "btn icon go" : "btn icon"} onClick={onDeploy} disabled={locked} data-tip-title={t("app.action.deploy")}
+            data-tip={lockedWhy ?? (changesWaiting ? t("app.action.deployWaiting") : t(`app.action.deploy${snap.changes ?? "UpToDate"}`))} aria-label={t("app.action.deploy")}>
+            <DeployIcon />
+          </button>
+        </div>
       </div>
       <CrashBanner snap={snap} />
       <Problems snap={snap} />
