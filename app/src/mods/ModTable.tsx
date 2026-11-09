@@ -128,11 +128,15 @@ const SCOPE_ANCHORS: Record<string, string> = { client: "client-mods", session: 
 
 /** How long the mods of a closing folder take to fade before the rows below move up. */
 const CLOSE_MS = 140;
+/** The slide of `.tr` (160 ms in styles.css) with a little room. */
+const SLIDE_MS = 200;
 
 export function ModTable({ tree: saved, rows, byId, order, names, conflicts, selected, checked, onCheck, onSelect, onToggle, onConflicts, onArrange, onCollapse, onLock, onMenu, updates, onUpdate }: Props) {
   const body = useRef<HTMLDivElement>(null);
   const drag = useRef<Drag | null>(null);
   const before = useRef<Map<string, number> | null>(null);
+  const slideEnd = useRef(0);
+  useEffect(() => () => clearTimeout(slideEnd.current), []);
   const lastCheck = useRef<string | null>(null);
   useEffect(() => {
     try { localStorage.removeItem(OLD_COLUMN_KEY); } catch { /* storage may be off; nothing reads the key */ }
@@ -196,6 +200,15 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
       if (dy) moved.push([el, dy]);
     }
     if (!moved.length) return;
+    // Rows held back at their old place by the slide still count as content of the list: when a folder
+    // closes in a list that now fits, they would bring up a scrollbar for the length of the slide, and
+    // the narrower rows would move every column to the left and back. The list scrolls again after.
+    const list = body.current;
+    if (list && list.scrollHeight <= list.clientHeight) {
+      clearTimeout(slideEnd.current);
+      list.style.overflowY = "hidden";
+      slideEnd.current = window.setTimeout(() => { list.style.overflowY = ""; }, SLIDE_MS);
+    }
     for (const [el, dy] of moved) {
       el.style.transition = "none";
       el.style.transform = `translateY(${dy}px)`;

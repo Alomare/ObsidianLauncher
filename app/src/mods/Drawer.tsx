@@ -113,20 +113,23 @@ function OptionsTab({ mod }: { mod: ModRow }) {
   if (!own.length) return <p className="muted pad">{t("app.drawer.noOptions")}</p>;
   return (
     <ul className="opts opt-table">
-      {own.filter((o) => o.visible).map((o) => (
-        <li key={o.id} className="opt">
-          <div className="opt-text">
-            <div className="l">{pick(o.label, o.id)}</div>
-            {pick(o.description) && <div className="d">{pick(o.description)}</div>}
-            {o.deploy && <div className="d note">{t("app.drawer.afterDeploy")}</div>}
-          </div>
-          <div className="opt-cell"><OptionControl mod={mod} o={o} /></div>
-          <div className="opt-cell">
-            <button className="bare" disabled={same(o.value, o.default)} onClick={() => run("set_option", { id: mod.id, option: o.id, value: null })}
-              aria-label={t("app.drawer.reset")} data-tip={t("app.drawer.reset")}><ResetIcon /></button>
-          </div>
-        </li>
-      ))}
+      {own.filter((o) => o.visible).map((o) => {
+        const about = pick(o.description);
+        return (
+          <li key={o.id} className="opt">
+            <div className="opt-text">
+              {/* The description shows in the tooltip of the name box, on hover or keyboard focus. */}
+              <div className="l opt-name" tabIndex={about ? 0 : undefined} data-tip={about || undefined}>{pick(o.label, o.id)}</div>
+              {o.deploy && <div className="d note">{t("app.drawer.afterDeploy")}</div>}
+            </div>
+            <div className="opt-cell"><OptionControl mod={mod} o={o} /></div>
+            <div className="opt-cell">
+              <button className="bare" disabled={same(o.value, o.default)} onClick={() => run("set_option", { id: mod.id, option: o.id, value: null })}
+                aria-label={t("app.drawer.reset")} data-tip={t("app.drawer.reset")}><ResetIcon /></button>
+            </div>
+          </li>
+        );
+      })}
     </ul>
   );
 }

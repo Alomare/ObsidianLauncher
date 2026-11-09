@@ -447,6 +447,12 @@ button.link:hover { filter: brightness(1.2); }
 .opt .d { font-size: 0.8rem; color: var(--mu); margin-top: 0.15rem; line-height: 1.35; }
 .opt .d.note { color: var(--goldtx); }
 .opt .d.warn { color: var(--warn); }
+/* Mod options: the name in a thin box across the cell, a little in from the edges; the description shows
+   in the tooltip of the box. */
+.opt .opt-name { margin: 0.15rem 0.25rem; padding: 0.3rem 0.55rem; border: 1px solid color-mix(in srgb, var(--tx) 18%, transparent); overflow-wrap: anywhere; transition: border-color var(--fast); }
+.opt .opt-name[data-tip]:hover { border-color: var(--goldtx); }
+.opt .opt-name:focus-visible { outline-offset: -1px; border-color: var(--goldtx); }
+.opt .opt-name + .d { margin-left: 0.25rem; }
 .opt-ctl { display: flex; align-items: center; gap: 0.3rem; flex: none; }
 .opt-ctl .bare:disabled, .opt-cell .bare:disabled { opacity: 0.3; cursor: default; }
 /* Three columns without a head, the same width in every row: text, control, reset. Each control starts at
