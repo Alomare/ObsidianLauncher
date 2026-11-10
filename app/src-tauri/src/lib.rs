@@ -117,6 +117,7 @@ pub fn run() {
             commands::set_hide_client_mods,
             commander::commander_state,
             commander::commander_install,
+            commander::commander_fetch,
             commander::commander_uninstall,
             commander::commander_server_start,
             commander::commander_server_stop,

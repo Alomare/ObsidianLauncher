@@ -274,6 +274,24 @@ impl GitHub {
         res.body_mut().read_to_string().map_err(network)
     }
 
+    /// Downloads the ZIP of `repo`'s newest release whose name starts with `prefix` (any case) into
+    /// `to`, and gives the release's version. For a program Obsidian installs from a release of its
+    /// own, such as the Commander package; mods go through `stage`.
+    pub fn download_latest_zip(&self, repo: &Repo, prefix: &str, to: &Path) -> Result<Version> {
+        let release = self.latest(repo)?;
+        let prefix = prefix.to_lowercase();
+        let asset = release
+            .assets
+            .iter()
+            .find(|a| {
+                let n = a.name.to_lowercase();
+                n.starts_with(&prefix) && n.ends_with(".zip")
+            })
+            .ok_or_else(|| ObsidianError::NoUpdateAsset(repo.to_string()))?;
+        self.download(&asset.browser_download_url, to)?;
+        Ok(release.version)
+    }
+
     fn download(&self, url: &str, to: &Path) -> Result<()> {
         let mut res = self.agent.get(url).call().map_err(network)?;
         if !res.status().is_success() {
@@ -855,6 +873,18 @@ mod tests {
         let outcome = staged.install(&lib).unwrap();
         assert_eq!(outcome, InstallOutcome::Replaced { old_version: Version::new(1, 0, 0) });
         assert_eq!(load_manifest(&lib.mod_dir("a.mod")).unwrap().version, Version::new(1, 1, 0));
+    }
+
+    #[test]
+    fn a_program_zip_comes_from_the_latest_release_by_name() {
+        let t = spaced_tempdir();
+        let to = t.path().join("p.zip");
+        let g = github("v0.2.0", vec![("notes.txt", b"x".to_vec()), ("Obsidian-Commander-0.2.0.zip", b"PK-zip".to_vec())]);
+        let repo = github_repo("https://github.com/me/mod").unwrap();
+        assert_eq!(g.download_latest_zip(&repo, "obsidian-commander-", &to).unwrap(), Version::new(0, 2, 0));
+        assert_eq!(std::fs::read(&to).unwrap(), b"PK-zip");
+        let g = github("v0.2.0", vec![("other.zip", b"x".to_vec())]);
+        assert!(matches!(g.download_latest_zip(&repo, "obsidian-commander-", &to), Err(ObsidianError::NoUpdateAsset(_))));
     }
 
     #[test]

@@ -21,6 +21,19 @@ struct Manifest {
     ui: String,
 }
 
+/// Where the package comes from: its releases, each with an `obsidian-commander-<version>.zip`.
+pub const SOURCE: &str = "https://github.com/Alomare/ObsidianCommander";
+const ASSET_PREFIX: &str = "obsidian-commander-";
+
+/// Downloads the newest released package from GitHub and installs it.
+pub fn fetch(data: &Path, github: &crate::updates::GitHub) -> Result<Installed> {
+    let repo = crate::updates::github_repo(SOURCE).expect("a GitHub address");
+    let dir = tempfile::tempdir()?;
+    let zip = dir.path().join("commander.zip");
+    github.download_latest_zip(&repo, ASSET_PREFIX, &zip)?;
+    install(data, &zip)
+}
+
 pub fn package_dir(data: &Path) -> PathBuf {
     dir(data).join("package")
 }

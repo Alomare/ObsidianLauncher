@@ -125,14 +125,30 @@ export function CommanderPage({ snap, visible, onPlay }: Props) {
     return () => window.removeEventListener("message", on);
   }, [frameOrigin, hello, official, select, source]);
 
+  const installed_ = (v: CommanderView) => {
+    setView(v);
+    setSource({ kind: "local" });
+    notify("info", t("app.commander.installed", v.installed?.version ?? ""));
+  };
+
+  // The newest release from GitHub.
   const install = async () => {
+    setMenu(false);
+    try {
+      installed_(await withTask(t("app.commander.fetching"), () => call<CommanderView>("commander_fetch"), true));
+    } catch (e) {
+      const code = (e as { code?: string })?.code;
+      notify("error", code === "NoRelease" || code === "NoUpdateAsset" ? t("app.commander.noRelease") : errorText(e));
+    }
+  };
+
+  // A package ZIP from disk, such as a local build.
+  const installFile = async () => {
+    setMenu(false);
     const path = await open({ filters: [{ name: t("app.commander.zipFilter"), extensions: ["zip"] }] });
     if (typeof path !== "string") return;
     try {
-      const v = await withTask(t("app.commander.installing"), () => call<CommanderView>("commander_install", { path }), true);
-      setView(v);
-      setSource({ kind: "local" });
-      notify("info", t("app.commander.installed", v.installed?.version ?? ""));
+      installed_(await withTask(t("app.commander.installing"), () => call<CommanderView>("commander_install", { path }), true));
     } catch (e) { notify("error", errorText(e)); }
   };
 
@@ -161,7 +177,7 @@ export function CommanderPage({ snap, visible, onPlay }: Props) {
   if (!installed && lanWars.length === 0) {
     return (
       <div className="commander">
-        <Intro onInstall={install} onJoin={() => setJoining(true)} />
+        <Intro onInstall={install} onInstallFile={installFile} onJoin={() => setJoining(true)} />
         {joining && <JoinDialog onClose={() => setJoining(false)} onJoin={(f) => { setJoining(false); select({ id: f.war, name: f.name, host: "lan", base: f.base, computer: f.computer }, false).then(load); setSource({ kind: "lan", war: { id: f.war, name: f.name, host: "lan", base: f.base, computer: f.computer } }); }} />}
       </div>
     );
@@ -200,7 +216,8 @@ export function CommanderPage({ snap, visible, onPlay }: Props) {
               {menu && (
                 <div className="cmd-menu" onMouseLeave={() => setMenu(false)}>
                   <div className="cmd-menu-head">{t("app.commander.packageVersion", view.installed?.version ?? "")}</div>
-                  <button onClick={() => { setMenu(false); install(); }}>{t("app.commander.reinstall")}</button>
+                  <button onClick={install}>{t("app.commander.update")}</button>
+                  <button onClick={installFile}>{t("app.commander.installFile")}</button>
                   <button onClick={uninstall}>{t("app.commander.uninstall")}</button>
                 </div>
               )}
@@ -226,7 +243,7 @@ export function CommanderPage({ snap, visible, onPlay }: Props) {
   );
 }
 
-function Intro({ onInstall, onJoin }: { onInstall: () => void; onJoin: () => void }) {
+function Intro({ onInstall, onInstallFile, onJoin }: { onInstall: () => void; onInstallFile: () => void; onJoin: () => void }) {
   return (
     <div className="cmd-intro">
       <div className="cmd-hero">
@@ -238,7 +255,7 @@ function Intro({ onInstall, onJoin }: { onInstall: () => void; onJoin: () => voi
             <button className="btn play" onClick={onInstall}>{t("app.commander.install")}</button>
             <button className="btn" onClick={onJoin}>{t("app.commander.joinLan")}</button>
           </div>
-          <p className="cmd-note">{t("app.commander.installNote")}</p>
+          <p className="cmd-note">{t("app.commander.installNote")} <button className="link" onClick={onInstallFile}>{t("app.commander.installFile")}</button></p>
         </div>
       </div>
       <div className="cmd-cards">

@@ -772,7 +772,7 @@
   "app.commander.title": "Commander",
   "app.commander.lead": "Host custom Galactic Wars for HELLDIVERS: run the fronts, start defenses and push the enemy, then fight the war in the game.",
   "app.commander.install": "Install Package",
-  "app.commander.installNote": "Commander comes as a separate package, a ZIP with the war server and the war screens. It updates apart from Obsidian.",
+  "app.commander.installNote": "Install Package downloads the newest Commander release from GitHub: the war server and the war screens, updated apart from Obsidian. A local build installs with",
   "app.commander.joinLan": "Join LAN War",
   "app.commander.cardVanilla": "Vanilla War",
   "app.commander.cardVanillaText": "The game's own campaign: three fronts, ten sectors each, defenses, home world attacks and Super Earth under siege. Every rule is a setting.",
@@ -793,7 +793,6 @@
   "app.commander.officialWar": "Official War",
   "app.commander.package": "Package",
   "app.commander.packageVersion": "Commander %s",
-  "app.commander.reinstall": "Install Another Version",
   "app.commander.uninstall": "Remove Package",
   "app.commander.starting": "Starting the war server",
   "app.commander.nothing": "No war screens to show. Install the package or join a LAN war.",
@@ -810,5 +809,9 @@
   "app.error.CommanderPackage": "Not a Commander package, or one for another version of Obsidian",
   "app.error.CommanderMissing": "Commander isn't installed",
   "app.error.WarUnknown": "This war isn't on this PC",
-  "app.error.CommanderServer": "The Commander server didn't start"
+  "app.error.CommanderServer": "The Commander server didn't start",
+  "app.commander.fetching": "Downloading Commander",
+  "app.commander.installFile": "Install from File",
+  "app.commander.update": "Update Package",
+  "app.commander.noRelease": "No Commander release to download yet. A local build installs with Install from File."
 }

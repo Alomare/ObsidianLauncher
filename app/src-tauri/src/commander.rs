@@ -126,6 +126,16 @@ pub async fn commander_install(ctx: TauriState<'_, Ctx>, path: PathBuf) -> CmdRe
     Ok(view(&ctx, &mut runtime))
 }
 
+/// Downloads the newest released package from GitHub and installs it, stopping the server that
+/// runs the old one.
+#[tauri::command]
+pub async fn commander_fetch(ctx: TauriState<'_, Ctx>) -> CmdResult<CommanderView> {
+    let mut runtime = rt(&ctx);
+    runtime.server = None;
+    package::fetch(&ctx.data, &obsidian_core::updates::GitHub::default())?;
+    Ok(view(&ctx, &mut runtime))
+}
+
 #[tauri::command]
 pub async fn commander_uninstall(ctx: TauriState<'_, Ctx>) -> CmdResult<CommanderView> {
     let mut runtime = rt(&ctx);
