@@ -1,16 +1,16 @@
-//! Commander: custom Galactic Wars. Obsidian's side of it (the contract is ObsidianCommander's
+//! Commander: custom Galactic Wars. The Obsidian side of it (the contract is the ObsidianCommander
 //! `docs/spec-m1.md`):
 //!
 //! - which wars this PC plays, and which one is selected (`state.json` in `<data>/commander`);
 //! - the Commander package: installed from a ZIP into `<data>/commander/package`, run as a separate
 //!   server process by the app;
 //! - the relay ([`relay`]): the game only ever talks to it, on loopback, and it carries the war
-//!   requests to the war's server without the Steam ticket;
-//! - the war line of the settings file, which turns on the loader's war mode;
+//!   requests to the war server without the Steam ticket;
+//! - the war line of the settings file, which turns on the loader war mode;
 //! - finding wars on the local network ([`lan`]);
 //! - removing everything Commander left on this PC ([`wipe`]).
 //!
-//! A war is only played on a Sandbox save of its own, so nothing from it reaches the Official save,
+//! A war is only played on a dedicated Sandbox save, so nothing from it reaches the Official save,
 //! and the loader refuses war mode without one.
 
 pub mod lan;
@@ -36,7 +36,7 @@ pub const PROTOCOL: u32 = 1;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum WarHost {
-    /// On this PC's Commander server.
+    /// On the Commander server on this PC.
     Local,
     /// On another PC of the local network.
     Lan,
@@ -49,10 +49,10 @@ pub struct WarRef {
     pub id: String,
     pub name: String,
     pub host: WarHost,
-    /// For a LAN war: `http://<address>:<port>`. A local war's address follows the server's port.
+    /// For a LAN war: `http://<address>:<port>`. A local war address follows the server port.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub base: Option<String>,
-    /// The war's Sandbox save, once made.
+    /// The war Sandbox save, once made.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub save: Option<String>,
     /// The computer that hosts a LAN war, as it announced itself.
@@ -65,9 +65,9 @@ pub struct WarRef {
 pub struct Installed {
     pub version: String,
     pub protocol: u32,
-    /// The server's file name inside the package folder.
+    /// The server file name inside the package folder.
     pub server: String,
-    /// The interface's folder inside the package folder.
+    /// The interface folder inside the package folder.
     pub ui: String,
 }
 
@@ -81,13 +81,13 @@ pub struct State {
     /// The war the next launch plays. None: the Official war.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub playing: Option<String>,
-    /// The relay's port. Chosen once, so the settings file a game already read stays right.
+    /// The relay port. Chosen once, so the settings file a game already read stays right.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub relay_port: Option<u16>,
-    /// The secret in the relay's path. Changed each time a war is selected.
+    /// The secret in the relay path. Changed each time a war is selected.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub token: Option<String>,
-    /// The local server's port. Chosen once, so local wars keep their address.
+    /// The local server port. Chosen once, so local war addresses stay the same.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server_port: Option<u16>,
 }
@@ -112,7 +112,7 @@ impl State {
         self.wars.iter().find(|w| w.id == id)
     }
 
-    /// Adds a war or updates the one with that id, keeping its save.
+    /// Adds a war or updates the one with that id, keeping the save.
     pub fn upsert(&mut self, war: WarRef) {
         match self.wars.iter_mut().find(|w| w.id == war.id) {
             Some(w) => {
@@ -123,7 +123,7 @@ impl State {
         }
     }
 
-    /// Where the relay sends the game's requests for `war`: its war API.
+    /// Where the relay sends the game requests for `war`: the war API.
     pub fn war_api(&self, war: &WarRef) -> Option<String> {
         let base = match war.host {
             WarHost::Local => format!("http://127.0.0.1:{}", self.server_port?),
@@ -132,25 +132,25 @@ impl State {
         Some(format!("{}/w/{}/1.0/", base.trim_end_matches('/'), war.id))
     }
 
-    /// The war being played, with where its requests go.
+    /// The war being played, with where the requests go.
     pub fn route(&self) -> Option<relay::Route> {
         let war = self.war(self.playing.as_deref()?)?;
         Some(relay::Route { token: self.token.clone()?, upstream: self.war_api(war)? })
     }
 }
 
-/// The war line of the settings file, for the war being played: only with its own Sandbox save
+/// The war line of the settings file, for the war being played: only with a dedicated Sandbox save
 /// selected, which the caller checks against the active Sandbox.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct WarLine {
     pub id: String,
-    /// Where the game sends its war requests: the relay, with the launch token.
+    /// Where the game sends war requests: the relay, with the launch token.
     pub url: String,
-    /// The tag that keeps this war's players in a matchmaking pool of their own.
+    /// The tag that keeps the players of this war in a separate matchmaking pool.
     pub pool: String,
 }
 
-/// The war line, when a war is selected and `sandbox` is its save.
+/// The war line, when a war is selected and `sandbox` is the war save.
 pub fn war_line(data: &Path, sandbox: Option<&str>) -> Option<WarLine> {
     let s = State::load(data);
     let war = s.war(s.playing.as_deref()?)?;
@@ -167,7 +167,7 @@ pub fn war_pool_tag(id: &str) -> String {
     d.iter().take(6).map(|b| format!("{b:02x}")).collect()
 }
 
-/// A fresh random hex string from the system's random source.
+/// A fresh random hex string from the system random source.
 pub fn random_token(bytes: usize) -> String {
     let mut out = String::new();
     // RandomState is seeded from the OS; hashing a counter through fresh ones gives unpredictable bits.
@@ -202,7 +202,7 @@ pub fn ensure_relay_port(data: &Path) -> Result<u16> {
     Ok(p)
 }
 
-/// Selects `id` for play with a new launch token. The caller then selects the war's save, which
+/// Selects `id` for play with a new launch token. The caller then selects the war save, which
 /// writes the settings file with the war line.
 pub fn select(data: &Path, id: Option<&str>) -> Result<State> {
     let mut s = State::load(data);
@@ -228,7 +228,7 @@ pub fn set_save(data: &Path, id: &str, save: &str) -> Result<()> {
     s.save(data)
 }
 
-/// Forgets a war on this PC. Its save stays in Saves.
+/// Forgets a war on this PC. The save stays in Saves.
 pub fn forget(data: &Path, id: &str) -> Result<State> {
     let mut s = State::load(data);
     s.wars.retain(|w| w.id != id);
@@ -261,7 +261,7 @@ pub fn valid_pick(war: &WarRef) -> bool {
 
 /// Selects a war for the next launch: remembers it, gives it a Sandbox save on first use, and
 /// selects that save, which writes the settings file with the war line. A local war needs the
-/// server's port known, so start the server first.
+/// server port known, so start the server first.
 pub fn play_war(data: &Path, saves: &crate::saves::Saves, war: WarRef) -> Result<()> {
     if !valid_pick(&war) {
         return Err(ObsidianError::WarUnknown(war.id));
@@ -284,7 +284,7 @@ pub fn play_war(data: &Path, saves: &crate::saves::Saves, war: WarRef) -> Result
     saves.activate(&save)
 }
 
-/// Back to the official war: no war selected, and the Official save that's in the game's files.
+/// Back to the official war: no war selected, and the Official save that's in the game files.
 pub fn play_official(data: &Path, saves: &crate::saves::Saves) -> Result<()> {
     select(data, None)?;
     let list = saves.list()?;
@@ -299,7 +299,7 @@ pub fn play_official(data: &Path, saves: &crate::saves::Saves) -> Result<()> {
     }
 }
 
-/// The names of the game's regions in the player's language, as the loader wrote them the last
+/// The names of the game regions in the player language, as the loader wrote them the last
 /// time the game started in war mode: `key<TAB>words` lines.
 pub fn region_names(game_side: &Path) -> Vec<(String, String)> {
     let Ok(text) = std::fs::read_to_string(game_side.join(NAMES_FILE)) else { return Vec::new() };
@@ -375,7 +375,7 @@ mod tests {
         let w = |host, base: Option<&str>, id: &str| WarRef { id: id.into(), name: "War".into(), host, base: base.map(str::to_string), save: None, computer: None };
         assert!(valid_pick(&w(WarHost::Local, None, "k3x9q2")));
         assert!(valid_pick(&w(WarHost::Lan, Some("http://192.168.0.7:17494"), "k3x9q2")));
-        assert!(!valid_pick(&w(WarHost::Lan, None, "k3x9q2")), "a LAN war needs its address");
+        assert!(!valid_pick(&w(WarHost::Lan, None, "k3x9q2")), "a LAN war needs an address");
         assert!(!valid_pick(&w(WarHost::Lan, Some("file:///c:/x"), "k3x9q2")));
         assert!(!valid_pick(&w(WarHost::Lan, Some("http://h:1/w/x"), "k3x9q2")), "the relay adds the path");
         assert!(!valid_pick(&w(WarHost::Local, None, "../etc")));

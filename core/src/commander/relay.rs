@@ -1,8 +1,8 @@
-//! The relay: a small HTTP server on loopback that the game sends its Galactic War requests to while
-//! a custom war is selected. It carries each one to the war's server and brings the answer back.
+//! The relay: a small HTTP server on loopback that the game sends Galactic War requests to while
+//! a custom war is selected. It carries each one to the war server and brings the answer back.
 //!
-//! On the way it removes the `auth` field, which holds the player's Steam session ticket: a war's
-//! host never receives a ticket that could be replayed against the official servers. The player's
+//! On the way it removes the `auth` field, which holds the Steam session ticket of the player: a war
+//! host never receives a ticket that could be replayed against the official servers. The
 //! Steam ID from that field goes on as the `X-Commander-Player` header instead. The `sign` header is
 //! dropped too. Only a path with the launch token is served, so another program on the PC that
 //! finds the port gets nothing from it.
@@ -11,14 +11,14 @@ use std::io::Read;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
-/// Where requests go now: the token the game's URL carries and the war's API.
+/// Where requests go now: the token the game URL carries and the war API.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Route {
     pub token: String,
     pub upstream: String,
 }
 
-/// The game's requests are small form posts; a war answer is a few KB.
+/// The game requests are small form posts; a war answer is a few KB.
 const MAX_BODY: usize = 1024 * 1024;
 
 pub struct Relay {
@@ -28,7 +28,7 @@ pub struct Relay {
 }
 
 impl Relay {
-    /// Listens on `127.0.0.1:port` and serves on a thread of its own until dropped.
+    /// Listens on `127.0.0.1:port` and serves on a dedicated thread until dropped.
     pub fn start(port: u16) -> std::io::Result<Relay> {
         let server = tiny_http::Server::http(("127.0.0.1", port)).map_err(|e| std::io::Error::other(e.to_string()))?;
         let port = server.server_addr().to_ip().map(|a| a.port()).unwrap_or(port);
@@ -122,7 +122,7 @@ fn handle(mut request: tiny_http::Request, route: Option<Route>, agent: &ureq::A
     }
 }
 
-/// The form without its `auth` field, and the Steam ID that field named. The other fields stay
+/// The form without the `auth` field, and the Steam ID that field named. The other fields stay
 /// exactly as the game encoded them.
 pub fn strip_auth(form: &str) -> (String, Option<String>) {
     let mut player = None;
@@ -247,7 +247,7 @@ mod tests {
         assert!(!got.contains("%22T%22"), "the ticket never leaves");
     }
 
-    /// Against a real Commander server: `COMMANDER_E2E` is a war's API URL. Run by ObsidianCommander's
+    /// Against a real Commander server: `COMMANDER_E2E` is a war API URL. Run by the ObsidianCommander
     /// tools/e2e.py, which starts the server and creates the war.
     #[test]
     #[ignore]

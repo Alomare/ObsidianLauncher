@@ -1,8 +1,8 @@
 // The Commander tab: custom Galactic Wars (ObsidianCommander, docs/spec-m1.md). Obsidian keeps the
 // frame: installing the package, the wars this PC plays, LAN join and which war the next launch
-// plays. The package's server serves the war screens, shown here in a frame; a LAN war's screens
+// plays. The package server serves the war screens, shown here in a frame; LAN war screens
 // come read-only from the PC that hosts it. The frame talks to Obsidian only through the messages
-// in the spec's section 6, and only from the frame's own window.
+// in section 6 of the spec, and only from the frame window.
 import { open } from "@tauri-apps/plugin-dialog";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -30,7 +30,7 @@ type Done = { commander: CommanderView; snapshot: Snapshot };
 type Found = { war: string; name: string; model: string; season: number; base: string; computer: string; players: number; version: string };
 type Pick = { id: string; name: string; host: WarHost; base?: string; computer?: string };
 
-/** What the frame shows: this PC's server, or one LAN war. */
+/** What the frame shows: the server on this PC, or one LAN war. */
 type Source = { kind: "local" } | { kind: "lan"; war: WarRef };
 
 const sameSource = (a: Source, b: Source) => a.kind === b.kind && (a.kind === "local" || (b.kind === "lan" && a.war.id === b.war.id));
@@ -69,7 +69,7 @@ export function CommanderPage({ snap, visible, onPlay }: Props) {
     else if (lanWars[0]) setSource({ kind: "lan", war: lanWars[0] });
   }, [view, source, installed, lanWars]);
 
-  // The frame's address: this PC's server, started when needed, or the LAN host's read-only screens.
+  // The frame address: the server on this PC, started when needed, or the read-only screens of the LAN host.
   useEffect(() => {
     if (!source) { setFrameUrl(null); return; }
     if (source.kind === "lan") {
@@ -104,7 +104,7 @@ export function CommanderPage({ snap, visible, onPlay }: Props) {
     return () => mo.disconnect();
   }, [hello]);
 
-  // The frame learns when the war being played or the game's state changes.
+  // The frame learns when the war being played or the game state changes.
   useEffect(() => { post({ type: "obsidian:state", playing: view?.playing ?? null, game_running: running }); }, [post, view?.playing, running]);
 
   const applied = (r: Done) => { setView(r.commander); setSnapshot(r.snapshot); };
@@ -127,7 +127,7 @@ export function CommanderPage({ snap, visible, onPlay }: Props) {
     } catch (e) { notify("error", errorText(e)); }
   }, [running]);
 
-  // Messages from the frame, checked: its own window, a known type, plain fields.
+  // Messages from the frame, checked: the frame window, a known type, plain fields.
   useEffect(() => {
     const on = (e: MessageEvent) => {
       if (!frame.current || e.source !== frame.current.contentWindow || e.origin !== frameOrigin) return;
@@ -296,7 +296,7 @@ export function CommanderPage({ snap, visible, onPlay }: Props) {
 }
 
 /** Remove All Commander Data: lists what Commander keeps here, with the war saves and the firewall
- *  rules as choices, since those are the player's progress and need Windows' permission. */
+ *  rules as choices, since those are player progress and need Windows permission. */
 function WipeDialog({ running, onClose, onDone }: { running: boolean; onClose: () => void; onDone: (r: { commander: CommanderView; snapshot: Snapshot; report: WipeReport }) => void }) {
   const [fp, setFp] = useState<Footprint | null>(null);
   const [saves, setSaves] = useState(true);
@@ -385,7 +385,7 @@ function Intro({ onInstall, onInstallFile, onJoin, leftovers, onWipe }: { onInst
   );
 }
 
-/** The game's war map in miniature: three fronts of ten rings around Super Earth. */
+/** The in-game war map in miniature: three fronts of ten rings around Super Earth. */
 function GalaxyArt() {
   const fronts = [
     { from: -165, to: -60, color: "var(--cmd-cyborgs)" },

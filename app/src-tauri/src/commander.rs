@@ -1,5 +1,5 @@
-//! The app's side of Commander (custom Galactic Wars, `obsidian_core::commander`): the relay, which
-//! runs as long as the app does once a war has been played, and the package's server, a child
+//! The app side of Commander (custom Galactic Wars, `obsidian_core::commander`): the relay, which
+//! runs as long as the app does once a war has been played, and the package server, a child
 //! process that ends with the app.
 
 use std::path::PathBuf;
@@ -37,7 +37,7 @@ fn ensure_server(ctx: &Ctx, runtime: &mut Runtime) -> CmdResult<(u16, String)> {
     Ok(out)
 }
 
-/// The relay, started on its port if it isn't running, pointed at the war being played.
+/// The relay, started on the chosen port if it isn't running, pointed at the war being played.
 fn ensure_relay(ctx: &Ctx, runtime: &mut Runtime) -> CmdResult<()> {
     if runtime.relay.is_none() {
         let port = commander::ensure_relay_port(&ctx.data)?;
@@ -50,7 +50,7 @@ fn ensure_relay(ctx: &Ctx, runtime: &mut Runtime) -> CmdResult<()> {
     Ok(())
 }
 
-/// At app start: a war selected last time gets its relay, and its server when it's hosted here, so
+/// At app start: a war selected last time gets the relay, and the server when it's hosted here, so
 /// a game started from Steam still reaches it.
 pub fn resume(ctx: &Ctx) {
     resume_with(ctx, &mut rt(ctx));
@@ -80,7 +80,7 @@ pub struct CommanderView {
     pub wars: Vec<WarRef>,
     pub playing: Option<String>,
     pub server: Option<ServerInfo>,
-    /// Region and city names in the player's language, from the last war launch.
+    /// Region and city names in the player language, from the last war launch.
     pub names: Vec<(String, String)>,
 }
 
@@ -151,7 +151,7 @@ pub async fn commander_uninstall(ctx: TauriState<'_, Ctx>) -> CmdResult<Commande
 pub async fn commander_server_start(ctx: TauriState<'_, Ctx>) -> CmdResult<ServerInfo> {
     let mut runtime = rt(&ctx);
     let (port, token) = ensure_server(&ctx, &mut runtime)?;
-    // A local war being played follows the server's port.
+    // A local war being played follows the server port.
     ensure_relay(&ctx, &mut runtime)?;
     Ok(ServerInfo { port, token })
 }
@@ -198,7 +198,7 @@ pub async fn commander_select(ctx: TauriState<'_, Ctx>, war: WarPick) -> CmdResu
     done(&ctx, &mut runtime)
 }
 
-/// Back to the official war: no war selected, and the Official save that's in the game's files.
+/// Back to the official war: no war selected, and the Official save that's in the game files.
 #[tauri::command]
 pub async fn commander_official(ctx: TauriState<'_, Ctx>) -> CmdResult<CommanderDone> {
     let _turn = ctx.turn();
@@ -248,22 +248,22 @@ pub struct CommanderWipeDone {
     pub report: wipe::WipeReport,
 }
 
-/// Removes everything Commander left on this PC; `saves` deletes the wars' Sandbox saves too, and
-/// `firewall` the server's firewall rules (Windows asks for admin). The server and the relay stop
+/// Removes everything Commander left on this PC; `saves` deletes the war Sandbox saves too, and
+/// `firewall` the server firewall rules (Windows asks for admin). The server and the relay stop
 /// first. Refused while the game runs.
 #[tauri::command]
 pub async fn commander_wipe(ctx: TauriState<'_, Ctx>, saves: bool, firewall: bool) -> CmdResult<CommanderWipeDone> {
     let _turn = ctx.turn();
     obsidian_core::game::ensure_closed()?;
     let mut runtime = rt(&ctx);
-    // The server's process ends and the relay's port closes before their files go.
+    // The server process ends and the relay port closes before the files go.
     runtime.server = None;
     runtime.relay = None;
     let (s, side) = saves_and_side(&ctx);
     let report = match wipe::wipe(&ctx.data, s.as_ref(), side.as_deref(), saves, firewall) {
         Ok(r) => r,
         Err(e) => {
-            // A war still selected gets its relay and server back.
+            // A war still selected gets the relay and server back.
             resume_with(&ctx, &mut runtime);
             return Err(e.into());
         }

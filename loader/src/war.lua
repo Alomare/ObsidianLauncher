@@ -1,9 +1,9 @@
 -- War mode: a custom Galactic War from Obsidian Commander. With a war line in the settings file and
--- that war's Sandbox save selected, the game's war requests go to Obsidian's relay on this PC, which
--- carries them to the war's server without the Steam ticket. The analytics events and the game's
--- tamper report don't go out at all. The war's players keep a matchmaking pool of their own (pool.lua
+-- that war Sandbox save selected, the game sends war requests to the Obsidian relay on this PC, which
+-- carries them to the war server without the Steam ticket. The analytics events and the in-game
+-- tamper report don't go out at all. The war players keep a separate matchmaking pool (pool.lua
 -- takes the tag). Without a Sandbox, the war line is refused and the game stays on the official war:
--- a war's results never touch the Official save.
+-- war results never touch the Official save.
 local B = require("obsidian/loader/builtins")
 local log = require("obsidian/loader/log")
 
@@ -27,13 +27,13 @@ function M.pool_tag(core)
 	return M.active and core.war and core.war.pool or nil
 end
 
--- Whether the game's war requests can only reach the relay: uploads are then the war's own.
+-- Whether the in-game war requests can only reach the relay: uploads then belong to the war.
 function M.reporting(core)
 	return M.active and M.confirmed and core.war ~= nil
 end
 
--- The region and city names in the player's language, for Commander's map: once a launch, as soon as
--- the game's text and settings are there. Plain key<TAB>words lines.
+-- The region and city names in the player language, for the Commander map: once a launch, as soon as
+-- the game text and settings are there. Plain key<TAB>words lines.
 local function write_names(game_side)
 	if M.names_written or not game_side then return end
 	local lm, cs = B.rawget(B.G, "LocalizationManager"), B.rawget(B.G, "CampaignSettings")
@@ -82,12 +82,12 @@ function M.setup(core, hooks, game_side)
 		local function done(...)
 			self.url = w.url
 			M.confirmed = true
-			log.line("war: the game's war requests go to the relay")
+			log.line("war: game war requests go to the relay")
 			return ...
 		end
 		return done(original(self, ...))
 	end)
-	-- The game's tamper report goes straight to a queue the upload hooks never see.
+	-- The in-game tamper report goes straight to a queue the upload hooks never see.
 	hooks.loader_hook("CampaignManager", "feedback", function()
 		log.limited("war feedback", "war: the tamper report stays home")
 	end)
@@ -99,7 +99,7 @@ function M.setup(core, hooks, game_side)
 		if frames % 30 ~= 0 then return end
 		local cm = B.rawget(B.G, "CampaignManager")
 		if B.type(cm) == "table" and cm.url ~= nil and cm.url ~= w.url then
-			-- Something set the URL again: the war's requests must never reach another server.
+			-- Something set the URL again: war requests must never reach another server.
 			cm.url = w.url
 			log.limited("war url", "war: the war URL was changed and is set back")
 		end

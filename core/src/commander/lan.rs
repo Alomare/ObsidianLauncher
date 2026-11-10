@@ -1,6 +1,6 @@
 //! Finding wars on the local network. A Commander server with a war open to LAN broadcasts a small
 //! JSON packet to UDP port 17493 every 3 seconds (`docs/spec-m1.md`, section 2); this listens for a
-//! while and lists what it heard. The address is the packet's source, never a field in it.
+//! while and lists what it heard. The address is the packet source, never a field in it.
 
 use std::collections::BTreeMap;
 use std::net::{SocketAddr, UdpSocket};

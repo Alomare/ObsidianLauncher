@@ -1,4 +1,4 @@
-//! The package's server as a child process. It exits when its stdin closes, so it never outlives
+//! The package server as a child process. It exits when stdin closes, so it never outlives
 //! the app or the CLI that started it.
 
 use std::io::{BufRead, BufReader};
@@ -40,12 +40,12 @@ impl Drop for Server {
     }
 }
 
-/// Where the server keeps its wars.
+/// Where the server keeps wars.
 pub fn server_data(data: &Path) -> PathBuf {
     dir(data).join("server")
 }
 
-/// Starts the installed server on `port` (0: any) and waits for its ready line.
+/// Starts the installed server on `port` (0: any) and waits for the ready line.
 pub fn spawn(data: &Path, installed: &Installed, port: u16, token: &str) -> Result<Server> {
     let pkg = package::package_dir(data);
     let mut cmd = Command::new(pkg.join(&installed.server));
@@ -91,7 +91,7 @@ pub fn spawn(data: &Path, installed: &Installed, port: u16, token: &str) -> Resu
 }
 
 /// Starts the server on the port local wars were made on, or any port when that one is taken, and
-/// remembers the port: a local war's address follows it.
+/// remembers the port: local war addresses follow it.
 pub fn start(data: &Path) -> Result<Server> {
     let installed = package::installed(data).ok_or(ObsidianError::CommanderMissing)?;
     let mut state = State::load(data);

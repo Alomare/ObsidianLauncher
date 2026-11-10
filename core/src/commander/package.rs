@@ -21,7 +21,7 @@ struct Manifest {
     ui: String,
 }
 
-/// Where the package comes from: its releases, each with an `obsidian-commander-<version>.zip`.
+/// Where the package comes from: the package releases, each with an `obsidian-commander-<version>.zip`.
 pub const SOURCE: &str = "https://github.com/Alomare/ObsidianCommander";
 const ASSET_PREFIX: &str = "obsidian-commander-";
 
@@ -93,7 +93,7 @@ fn unpack(zip_path: &Path, to: &Path) -> Result<()> {
     Ok(())
 }
 
-/// The package's root inside an unpacked folder: the folder itself, or its only subfolder when a
+/// The package root inside an unpacked folder: the folder itself, or the only subfolder when a
 /// ZIP wraps everything in one.
 fn root_of(folder: &Path) -> PathBuf {
     if folder.join(MANIFEST).is_file() {

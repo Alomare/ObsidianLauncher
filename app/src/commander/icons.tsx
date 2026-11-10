@@ -1,4 +1,4 @@
-// Commander's icons. The tab icon: three fronts around Super Earth, the shape of the game's war map.
+// The Commander icons. The tab icon: three fronts around Super Earth, the shape of the in-game war map.
 export const CommanderIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <circle cx="12" cy="12" r="2.6" />

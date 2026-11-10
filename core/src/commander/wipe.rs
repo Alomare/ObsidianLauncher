@@ -1,5 +1,5 @@
 //! Removing everything Commander left on this PC: the package, the wars hosted here, the war list,
-//! the names file the loader wrote and, when asked, the wars' Sandbox saves and the firewall rules
+//! the names file the loader wrote and, when asked, the war Sandbox saves and the firewall rules
 //! Windows made for the server. The app stops the server and the relay before a wipe.
 
 use std::path::{Path, PathBuf};
@@ -10,13 +10,13 @@ use super::{NAMES_FILE, State, WarHost, dir, package, play_official, select, ser
 use crate::saves::{SaveKind, Saves};
 use crate::{ObsidianError, Result};
 
-/// The server's file name when the war list doesn't name it.
+/// The server file name when the war list doesn't name it.
 const DEFAULT_SERVER: &str = "commander-server.exe";
 const REMOVE_TRIES: u32 = 8;
 /// What Windows answers when the admin prompt is declined (ERROR_CANCELLED).
 const DECLINED: i32 = 1223;
 
-/// A war's Sandbox save.
+/// A war Sandbox save.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveRef {
@@ -28,13 +28,13 @@ pub struct SaveRef {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Footprint {
-    /// The installed package's version. Empty when the folder is there and the version isn't known.
+    /// The installed package version. Empty when the folder is there and the version isn't known.
     pub package: Option<String>,
-    /// Wars hosted on this PC, in the server's folder.
+    /// Wars hosted on this PC, in the server folder.
     pub hosted: u32,
     /// Wars of other PCs on the local network that this PC joined.
     pub joined: u32,
-    /// The wars' Sandbox saves that are still in Saves.
+    /// The war Sandbox saves that are still in Saves.
     pub saves: Vec<SaveRef>,
     /// Whether the region names the loader wrote are in the game-side folder.
     pub names_file: bool,
@@ -137,7 +137,7 @@ impl Machine for Live {
     }
 }
 
-/// PowerShell that runs netsh as admin to delete the rules for `program`. It exits with netsh's
+/// PowerShell that runs netsh as admin to delete the rules for `program`. It exits with the netsh
 /// code, or 1223 when the admin prompt is declined.
 #[cfg_attr(not(windows), allow(dead_code))]
 fn elevated_delete_script(program: &Path) -> String {
@@ -176,13 +176,13 @@ fn base64(bytes: &[u8]) -> String {
     out
 }
 
-/// A path or a line of netsh's text, for comparing: trimmed, lower case, `\` separators.
+/// A path or a line of netsh text, for comparing: trimmed, lower case, `\` separators.
 fn plain(s: &str) -> String {
     s.trim().to_ascii_lowercase().replace('/', "\\")
 }
 
-/// How many rules in netsh's text are for `program`. netsh writes its labels in the system's
-/// language and its text in the console's code page, so a rule is found by a line whose value is
+/// How many rules in the netsh text are for `program`. netsh writes labels in the system
+/// language and text in the console code page, so a rule is found by a line whose value is
 /// the path, with every byte past ASCII taken as `?`: one per letter in an OEM code page, or one per
 /// UTF-8 byte.
 fn count_rules(text: &[u8], program: &Path) -> u32 {
@@ -216,7 +216,7 @@ fn server_exe(data: &Path, state: &State) -> PathBuf {
     std::path::absolute(&exe).unwrap_or(exe)
 }
 
-/// The wars' saves, once each.
+/// The war saves, once each.
 fn war_saves(state: &State) -> Vec<String> {
     let mut ids: Vec<String> = Vec::new();
     for id in state.wars.iter().filter_map(|w| w.save.clone()) {
@@ -235,7 +235,7 @@ fn existing_saves(saves: &Saves, ids: &[String]) -> Result<Vec<SaveRef>> {
     Ok(saves.list()?.saves.into_iter().filter(|r| r.kind == SaveKind::Sandbox && ids.contains(&r.id)).map(|r| SaveRef { id: r.id, name: r.name }).collect())
 }
 
-/// The wars in the server's folder: a folder with a `war.json` each.
+/// The wars in the server folder: a folder with a `war.json` each.
 fn hosted_wars(data: &Path) -> u32 {
     let wars = server::server_data(data).join("wars");
     let Ok(rd) = std::fs::read_dir(wars) else { return 0 };
@@ -251,7 +251,7 @@ fn size_of(p: &Path) -> u64 {
     std::fs::read_dir(p).into_iter().flatten().flatten().map(|e| size_of(&e.path())).sum()
 }
 
-/// Removes a folder, trying again for a moment: Windows holds a just-ended program's file a little
+/// Removes a folder, trying again for a moment: Windows holds the file of a just-ended program a little
 /// while, and an antivirus or the search indexer may hold others.
 fn remove_tree(p: &Path) -> Result<()> {
     for _ in 1..REMOVE_TRIES {
@@ -267,7 +267,7 @@ fn remove_tree(p: &Path) -> Result<()> {
     }
 }
 
-/// What Commander has on this PC. `saves` and `game_side` are None when the game isn't found; their
+/// What Commander has on this PC. `saves` and `game_side` are None when the game isn't found; those
 /// parts then count nothing.
 pub fn footprint(data: &Path, saves: Option<&Saves>, game_side: Option<&Path>) -> Footprint {
     footprint_on(&Live, data, saves, game_side)
@@ -287,11 +287,11 @@ fn footprint_on(m: &dyn Machine, data: &Path, saves: Option<&Saves>, game_side: 
 }
 
 /// Removes everything Commander left on this PC, in this order: back to the Official war (so the
-/// settings file loses the war line and the Official save is active again), the wars' saves when
-/// `delete_saves`, the server's firewall rules when `firewall` (Windows asks for admin), then
+/// settings file loses the war line and the Official save is active again), the war saves when
+/// `delete_saves`, the server firewall rules when `firewall` (Windows asks for admin), then
 /// `<data>/commander` and the names file. A save that can't be deleted is skipped and listed.
-/// Refused while the game runs (checked through `saves`) or while the package's server runs; the
-/// app stops its own server first.
+/// Refused while the game runs (checked through `saves`) or while the package server runs; the
+/// app stops the server first.
 pub fn wipe(data: &Path, saves: Option<&Saves>, game_side: Option<&Path>, delete_saves: bool, firewall: bool) -> Result<WipeReport> {
     wipe_on(&Live, data, saves, game_side, delete_saves, firewall)
 }
@@ -301,7 +301,7 @@ fn wipe_on(m: &dyn Machine, data: &Path, saves: Option<&Saves>, game_side: Optio
         s.closed()?;
     }
     let state = State::load(data);
-    // Found before the folder goes: the rules name the server's path.
+    // Found before the folder goes: the rules name the server path.
     let exe = server_exe(data, &state);
     if package::package_dir(data).is_dir() && exe.file_name().is_some_and(|n| m.running(&n.to_string_lossy())) {
         return Err(ObsidianError::CommanderRunning);
@@ -376,7 +376,7 @@ mod tests {
     use crate::saves::test_support::{ACCOUNT, World, world};
     use crate::testutil::put;
 
-    /// netsh as a fake: the rules' text, what deleting them does, and whether the server runs.
+    /// netsh as a fake: the rule text, what deleting them does, and whether the server runs.
     struct Fake {
         rules: RefCell<Option<Vec<u8>>>,
         delete: Elevated,
@@ -408,7 +408,7 @@ mod tests {
         }
     }
 
-    /// netsh's text in Portuguese, with two rules for `exe` (as Windows writes them: lower case
+    /// netsh text in Portuguese, with two rules for `exe` (as Windows writes them: lower case
     /// but the drive) and one for another program.
     fn rules_for(exe: &Path) -> String {
         let p = exe.display().to_string();
@@ -426,7 +426,7 @@ mod tests {
     }
 
     /// A PC that installed Commander, hosts two wars, played a local and a LAN war (the LAN one
-    /// selected) and has a Sandbox of its own. Returns the game-side folder.
+    /// selected) and has a dedicated Sandbox. Returns the game-side folder.
     fn played(w: &World) -> PathBuf {
         let data = &w.data;
         let s = w.saves();
@@ -525,7 +525,7 @@ mod tests {
     fn a_war_save_left_selected_goes_when_the_saves_do() {
         let w = world();
         let side = played(&w);
-        // Forgetting the war clears the selection and leaves its save selected.
+        // Forgetting the war clears the selection and leaves the war save selected.
         forget(&w.data, "k3x9q2").unwrap();
         let mut state = State::load(&w.data);
         state.upsert(WarRef { save: crate::saves::active_sandbox(&w.data), ..lan_war() });
