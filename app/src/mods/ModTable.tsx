@@ -80,12 +80,14 @@ type RowProps = {
   id: string; folder: string | null; color: string | null; name: string; description: string; version: string | null; update: string | null;
   scope: string; on: boolean; imagePath: string | null; imageV: number; num: number; pinned: boolean; selected: boolean; checked: boolean;
   lifted: boolean; leaving: boolean; tips: string | null; lose: boolean; h: MutableRefObject<Handlers>;
+  /** One line per part of the mod, with the scope, for the diamond's tooltip; null for a mod with no parts. */
+  parts: string | null;
   /** The UI language: the row's texts change with it. */
   lang: string;
 };
 
 /** One mod. Every prop is a plain value, so a click elsewhere in a long list leaves this row alone. */
-const ModLine = memo(function ModLine({ id, folder, color, name, description, version, update, scope, on, imagePath, imageV, num, pinned: fixed, selected, checked, lifted, leaving, tips, lose, h }: RowProps) {
+const ModLine = memo(function ModLine({ id, folder, color, name, description, version, update, scope, on, imagePath, imageV, num, pinned: fixed, selected, checked, lifted, leaving, tips, lose, h, parts }: RowProps) {
   const line: Line = { kind: "mod", id, folder };
   const image: ImageRef | null = useMemo(() => (imagePath ? { path: imagePath, v: imageV } : null), [imagePath, imageV]);
   const cls = ["tr", folder && "in", fixed && "pinned", selected && "sel", checked && "checked", lifted && "lifted", leaving && "leaving"].filter(Boolean).join(" ");
@@ -116,15 +118,21 @@ const ModLine = memo(function ModLine({ id, folder, color, name, description, ve
           <span>{version ?? t("app.mods.imported")}</span><UpArrowIcon />
         </button>
       ) : <span className="ver">{version ?? t("app.mods.imported")}</span>}
-      <button className={`bare scope ${scope}`} aria-label={t(`app.scope.${scope}`)} data-tip-title={t(`app.scope.${scope}`)} data-tip={`${t(`app.scope.${scope}Hint`)}
-${t("app.scope.wikiHint")}`}
+      <button className={`bare scope ${scope}`} aria-label={t(`app.scope.${scope}`)} data-tip-title={t(`app.scope.${scope}`)}
+        data-tip={[t(`app.scope.${scope}Hint`), parts, t("app.scope.wikiHint")].filter(Boolean).join("\n")}
         {...stop} onClick={() => go("wiki", `scopes#${SCOPE_ANCHORS[scope] ?? ""}`)}><i /></button>
     </div>
   );
 });
 
 /** The part of the Scopes page in the Wiki about each scope. */
-const SCOPE_ANCHORS: Record<string, string> = { client: "client-mods", session: "session-mods", expansion: "expansions", unspecified: "unspecified-mods", library: "libraries" };
+const SCOPE_ANCHORS: Record<string, string> = { client: "client-mods", session: "session-mods", hybrid: "mods-with-parts", expansion: "expansions", unspecified: "unspecified-mods", library: "libraries" };
+
+/** The tooltip lines of a mod's parts: name and scope, and whether the part is off. */
+export function partLines(m: ModRow): string | null {
+  if (!m.parts.length) return null;
+  return m.parts.map((p) => t(p.on ? "app.mods.partLine" : "app.mods.partLineOff", pick(p.name, p.id), t(`app.scope.${p.scope}`))).join("\n");
+}
 
 /** How long the mods of a closing folder take to fade before the rows below move up. */
 const CLOSE_MS = 140;
@@ -389,7 +397,7 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
               description={pick(m.description)} version={m.version} update={offered(updates, m)} scope={m.scope} on={flips[m.id]?.on ?? m.on} imagePath={m.image?.path ?? null} imageV={m.image?.v ?? 0} num={position.get(m.id) ?? 0}
               pinned={!!folder && folder.kind === "folder" && folder.folder.locked} selected={selected === m.id} checked={checked.has(m.id)}
               lifted={draggingKeys.has(m.id)} leaving={leaving !== null && line.folder === leaving} tips={conflict?.tips ?? null} lose={conflict?.lose ?? false}
-              h={h} lang={language()} />
+              h={h} lang={language()} parts={partLines(m)} />
           );
         })}
         {marker && !marker.onto && <div className="drop-line" style={{ top: marker.y, ...(marker.color ? { ["--lc" as string]: marker.color } : {}) }} aria-hidden="true" />}

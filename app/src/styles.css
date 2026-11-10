@@ -258,6 +258,12 @@ button.bare.scope:hover { background: var(--ln); }
 .scope.library i { background-color: var(--library); }
 .scope.unspecified i { background-color: var(--unspecified); }
 .scope.expansion i { background-color: var(--expansion); }
+/* A mod with parts of both kinds: the left half green (client), the right half red (session). The rotation
+   turns the square's diagonal upright, so the split runs from corner to corner along it. */
+.scope.hybrid i {
+  background-image: linear-gradient(to bottom right, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0) 48%, rgba(0, 0, 0, 0) 52%, rgba(0, 0, 0, 0.3)),
+    linear-gradient(to top right, var(--client) 50%, var(--session) 50%);
+}
 /* Black on the dark theme gets an edge to stand out. On the light theme every diamond gets a thin dark
    ring, so they all read alike (the user, 2026-11-04). */
 :root:not([data-theme="light"]) .scope.unspecified i { box-shadow: 0 0 0 1px var(--scope-edge); }
@@ -417,6 +423,7 @@ button.link:hover { filter: brightness(1.2); }
 .drawer.session { border-top-color: var(--session); }
 .drawer.expansion { border-top-color: var(--expansion); }
 .drawer.unspecified { border-top-color: var(--unspecified); }
+.drawer.hybrid { border-image: linear-gradient(to right, var(--client) 50%, var(--session) 50%) 1; }
 .drawer.conflicts { border-top-color: var(--conflict); }
 /* The same edge as the diamonds, as a line under the band. */
 :root:not([data-theme="light"]) .drawer.unspecified,
@@ -501,6 +508,27 @@ button.link:hover { filter: brightness(1.2); }
 .files .f, .cf .f, .mono { font-family: Consolas, "Cascadia Mono", monospace; font-size: 0.78rem; color: var(--mu); overflow-wrap: anywhere; }
 .about-mod { display: flex; flex-direction: column; gap: 0.6rem; align-items: flex-start; }
 .about-mod p { margin: 0; line-height: 1.45; }
+/* The parts of a mod in About: a diamond, then the name and the description. */
+.parts { align-self: stretch; }
+.parts h3 { margin: 0 0 0.3rem; font-size: 0.72rem; color: var(--mu); }
+.parts ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
+.part { display: flex; align-items: flex-start; gap: 0.45rem; }
+.part > .scope { padding: 0.3rem 0.2rem 0; flex: none; }
+.part-text { min-width: 0; }
+.part-name { font-weight: 600; font-size: 0.9rem; display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+.part-about { font-size: 0.8rem; color: var(--mu); line-height: 1.35; margin-top: 0.1rem; }
+.part.off .part-name, .part.off .part-about { opacity: 0.6; }
+.part-off { font-family: "Saira Variable", sans-serif; font-size: 0.66rem; font-weight: 660; letter-spacing: 0.1em; text-transform: uppercase; padding: 0 0.4rem; border: 1px solid var(--ln); color: var(--mu); }
+/* Option groups: a heading that folds, as the changelog list does; previews at the top of a group. */
+.opt-group { border-bottom: 1px solid var(--ln); }
+.opt-group-head { display: flex; align-items: center; gap: 0.45rem; width: 100%; padding: 0.5rem 0.8rem; background: var(--row); border: 0; color: var(--tx); font: inherit; font-weight: 600; font-size: 0.86rem; text-align: left; cursor: pointer; transition: background var(--fast); }
+.opt-group-head:hover { background: var(--ln); }
+.opt-group-head svg { width: 0.9rem; height: 0.9rem; flex: none; color: var(--mu); transform: rotate(-90deg); transition: transform var(--fast); }
+.opt-group.open > .opt-group-head svg { transform: none; }
+.opt-group-body > .opt-table > .opt:last-child { border-bottom: 0; }
+.opt-preview { margin: 0; padding: 0.6rem 0.8rem; display: flex; flex-direction: column; align-items: center; gap: 0.35rem; border-bottom: 1px solid var(--ln); }
+.opt-preview figcaption { align-self: flex-start; font-size: 0.75rem; color: var(--mu); }
+.opt-preview img { display: block; max-width: 100%; height: auto; border: 1px solid var(--ln); background: var(--row); }
 /* The Changelogs in a mod's About: one fold for the list, one per version inside it. */
 .mod-log { align-self: stretch; margin-top: 0.4rem; border-top: 1px solid var(--ln); padding-top: 0.3rem; }
 .mod-log-head { display: flex; align-items: center; gap: 0.45rem; width: 100%; padding: 0.4rem 0.2rem; background: none; border: 0; color: var(--mu); font: inherit; font-size: 0.8rem; text-align: left; cursor: pointer; transition: color var(--fast); }

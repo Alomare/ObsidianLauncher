@@ -13,7 +13,8 @@ import { changelog, type ChangelogEntry } from "../updates";
 import { loadMore, useModReleases } from "./modReleases";
 import { offered } from "./modUpdates";
 import { Thumb } from "../Thumb";
-import type { ConflictRow, KeyRow, ModRow, OptionRow } from "../types";
+import type { ConflictRow, KeyRow, ModRow, OptionGroup, OptionPreview, OptionRow } from "../types";
+import { previewSrc } from "./preview";
 import { overrides, type Override } from "./conflicts";
 import { dependencies, type Dep } from "./deps";
 import { keyName } from "./keyCapture";
@@ -108,33 +109,96 @@ function ownOptions(mod: ModRow): OptionRow[] {
   return mod.options.filter((o) => !pads.has(o.id));
 }
 
+/** Which option groups the player folded or opened, by mod and group: kept across mods and restarts. */
+const GROUPS_KEY = "obsidian.optionGroups";
+function savedFolds(): Record<string, Record<string, boolean>> {
+  try {
+    const v = JSON.parse(localStorage.getItem(GROUPS_KEY) ?? "{}");
+    return v && typeof v === "object" ? v : {};
+  } catch { return {}; }
+}
+
+/** The Options tab: previews with no group and the options with none first, then each option group
+ *  under a heading that folds. A number being dragged shows in the previews before it is saved. */
 function OptionsTab({ mod }: { mod: ModRow }) {
   const own = ownOptions(mod);
+  const [draft, setDraft] = useState<Record<string, unknown>>({});
+  // A saved value replaces the one being dragged; a refresh that changes nothing keeps the drag.
+  const saved = JSON.stringify(mod.options.map((o) => o.value));
+  useEffect(() => setDraft({}), [saved]);
+  const [folds, setFolds] = useState<Record<string, boolean>>(() => savedFolds()[mod.id] ?? {});
   if (!own.length) return <p className="muted pad">{t("app.drawer.noOptions")}</p>;
+  const values: Record<string, unknown> = { ...Object.fromEntries(mod.options.map((o) => [o.id, o.value])), ...draft };
+  const known = new Set(mod.optionGroups.map((g) => g.id));
+  const groupOf = (g: string | null) => (g && known.has(g) ? g : null);
+  const folded = (g: OptionGroup) => folds[g.id] ?? g.collapsed;
+  const fold = (g: OptionGroup) => setFolds((f) => {
+    const next = { ...f, [g.id]: !(f[g.id] ?? g.collapsed) };
+    try { localStorage.setItem(GROUPS_KEY, JSON.stringify({ ...savedFolds(), [mod.id]: next })); } catch { /* kept for this session only */ }
+    return next;
+  });
+  const draftOf = (id: string) => (v: unknown) => setDraft((d) => ({ ...d, [id]: v }));
+  const previews = (g: string | null) => mod.optionPreviews.filter((p) => groupOf(p.group) === g).map((p) => <Preview key={p.id} p={p} values={values} />);
+  const table = (list: OptionRow[]) => list.length > 0 && (
+    <ul className="opts opt-table">{list.map((o) => <OptionLine key={o.id} mod={mod} o={o} onDraft={draftOf(o.id)} />)}</ul>
+  );
+  const shown = own.filter((o) => o.visible);
   return (
-    <ul className="opts opt-table">
-      {own.filter((o) => o.visible).map((o) => {
-        const about = pick(o.description);
+    <div className="opt-tab">
+      {previews(null)}
+      {table(shown.filter((o) => groupOf(o.group) === null))}
+      {mod.optionGroups.map((g) => {
+        const list = shown.filter((o) => o.group === g.id);
+        const pics = previews(g.id);
+        if (!list.length && !pics.length) return null;
+        const closed = folded(g);
+        const about = pick(g.description);
         return (
-          <li key={o.id} className="opt">
-            <div className="opt-text">
-              {/* The description shows in the tooltip of the name box, on hover or keyboard focus. */}
-              <div className="l opt-name" tabIndex={about ? 0 : undefined} data-tip={about || undefined}>{pick(o.label, o.id)}</div>
-              {o.deploy && <div className="d note">{t("app.drawer.afterDeploy")}</div>}
-            </div>
-            <div className="opt-cell"><OptionControl mod={mod} o={o} /></div>
-            <div className="opt-cell">
-              <button className="bare" disabled={same(o.value, o.default)} onClick={() => run("set_option", { id: mod.id, option: o.id, value: null })}
-                aria-label={t("app.drawer.reset")} data-tip={t("app.drawer.reset")}><ResetIcon /></button>
-            </div>
-          </li>
+          <section key={g.id} className={closed ? "opt-group" : "opt-group open"}>
+            <button className="opt-group-head" aria-expanded={!closed} onClick={() => fold(g)} data-tip={about || undefined}>
+              <ChevronIcon /><span>{pick(g.label, g.id)}</span>
+            </button>
+            {!closed && <div className="opt-group-body">{pics}{table(list)}</div>}
+          </section>
         );
       })}
-    </ul>
+    </div>
   );
 }
 
-function OptionControl({ mod, o }: { mod: ModRow; o: OptionRow }) {
+function OptionLine({ mod, o, onDraft }: { mod: ModRow; o: OptionRow; onDraft: (v: unknown) => void }) {
+  const about = pick(o.description);
+  return (
+    <li className="opt">
+      <div className="opt-text">
+        {/* The description shows in the tooltip of the name box, on hover or keyboard focus. */}
+        <div className="l opt-name" tabIndex={about ? 0 : undefined} data-tip={about || undefined}>{pick(o.label, o.id)}</div>
+        {o.deploy && <div className="d note">{t("app.drawer.afterDeploy")}</div>}
+      </div>
+      <div className="opt-cell"><OptionControl mod={mod} o={o} onDraft={onDraft} /></div>
+      <div className="opt-cell">
+        <button className="bare" disabled={same(o.value, o.default)} onClick={() => run("set_option", { id: mod.id, option: o.id, value: null })}
+          aria-label={t("app.drawer.reset")} data-tip={t("app.drawer.reset")}><ResetIcon /></button>
+      </div>
+    </li>
+  );
+}
+
+/** An option preview: the mod's SVG template with the values being edited, as an image. */
+function Preview({ p, values }: { p: OptionPreview; values: Record<string, unknown> }) {
+  const key = JSON.stringify(values);
+  const src = useMemo(() => previewSrc(p.svg, values), [p.svg, key]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!src) return null;
+  const label = pick(p.label);
+  return (
+    <figure className="opt-preview">
+      {label && <figcaption>{label}</figcaption>}
+      <img src={src} width={p.width} height={p.height} alt={label || t("app.drawer.preview")} draggable={false} />
+    </figure>
+  );
+}
+
+function OptionControl({ mod, o, onDraft }: { mod: ModRow; o: OptionRow; onDraft?: (v: unknown) => void }) {
   const set = (value: unknown) => run("set_option", { id: mod.id, option: o.id, value });
   const label = pick(o.label, o.id);
   if (o.kind === "toggle") {
@@ -151,14 +215,19 @@ function OptionControl({ mod, o }: { mod: ModRow; o: OptionRow }) {
       </button>
     );
   }
-  if (o.kind === "number") return <NumberControl o={o} label={label} onSet={set} />;
+  if (o.kind === "number") return <NumberControl o={o} label={label} onSet={set} onDraft={onDraft} />;
   if (o.kind === "key") return <KeyButton value={String(o.value)} label={label} onSet={set} />;
   return <span className="muted">{String(o.value)}</span>;
 }
 
-function NumberControl({ o, label, onSet }: { o: OptionRow; label: string; onSet: (v: number) => void }) {
+/** A slider and a box. onDraft hears every value on the way, for the previews; onSet only the one kept. */
+function NumberControl({ o, label, onSet, onDraft }: { o: OptionRow; label: string; onSet: (v: number) => void; onDraft?: (v: number) => void }) {
   const [v, setV] = useState(Number(o.value));
   useEffect(() => setV(Number(o.value)), [o.value]);
+  const change = (n: number) => {
+    setV(n);
+    if (Number.isFinite(n)) onDraft?.(clampNumber(n, o));
+  };
   const commit = (n: number) => {
     const c = clampNumber(n, o);
     setV(c);
@@ -168,10 +237,10 @@ function NumberControl({ o, label, onSet }: { o: OptionRow; label: string; onSet
     <div className="num-ctl">
       {o.min !== null && o.max !== null && (
         <input type="range" min={o.min} max={o.max} step={o.step ?? "any"} value={v} aria-label={label}
-          onChange={(e) => setV(Number(e.target.value))} onPointerUp={() => commit(v)} onKeyUp={() => commit(v)} />
+          onChange={(e) => change(Number(e.target.value))} onPointerUp={() => commit(v)} onKeyUp={() => commit(v)} />
       )}
       <input type="number" value={v} min={o.min ?? undefined} max={o.max ?? undefined} step={o.step ?? "any"} aria-label={label}
-        onChange={(e) => setV(Number(e.target.value))} onBlur={() => commit(v)} onKeyDown={(e) => e.key === "Enter" && commit(v)} />
+        onChange={(e) => change(Number(e.target.value))} onBlur={() => commit(v)} onKeyDown={(e) => e.key === "Enter" && commit(v)} />
     </div>
   );
 }
@@ -304,6 +373,7 @@ function AboutTab({ mod }: { mod: ModRow }) {
   return (
     <div className="about-mod pad">
       {pick(mod.description) && <p>{pick(mod.description)}</p>}
+      {mod.parts.length > 0 && <PartList mod={mod} />}
       <dl className="facts">
         {mod.authors.length > 0 && <><dt>{t("app.drawer.authors")}</dt><dd>{mod.authors.join(", ")}</dd></>}
         <dt>{t("app.drawer.id")}</dt><dd className="mono">{mod.id}</dd>
@@ -312,6 +382,30 @@ function AboutTab({ mod }: { mod: ModRow }) {
       </dl>
       {mod.updatable && <ModChangelog mod={mod} />}
     </div>
+  );
+}
+
+/** One line per part of the mod: the scope diamond, the name, the description, and Off while the
+ *  option that switches the part is off. */
+function PartList({ mod }: { mod: ModRow }) {
+  return (
+    <section className="parts" aria-label={t("app.drawer.parts")}>
+      <h3 className="cap">{t("app.drawer.parts")}</h3>
+      <ul>
+        {mod.parts.map((p) => (
+          <li key={p.id} className={p.on ? "part" : "part off"}>
+            <span className={`scope ${p.scope}`} role="img" aria-label={t(`app.scope.${p.scope}`)} data-tip={t(`app.scope.${p.scope}`)}><i /></span>
+            <div className="part-text">
+              <div className="part-name">
+                {pick(p.name, p.id)}
+                {!p.on && <span className="part-off" data-tip={t("app.drawer.partOffHint")}>{t("app.drawer.partOff")}</span>}
+              </div>
+              {pick(p.description) && <div className="part-about">{pick(p.description)}</div>}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

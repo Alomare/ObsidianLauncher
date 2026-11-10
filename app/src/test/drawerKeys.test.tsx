@@ -21,7 +21,7 @@ afterEach(() => {
 const choice = (id: string, value: string, extra: Partial<OptionRow> = {}): OptionRow => ({
   id, kind: "choice", label: { en: "Open the menu with a controller" }, description: { en: "The buttons that open the menu." },
   default: "thumbs", value, min: null, max: null, step: null, choices: ["thumbs", "off"],
-  choiceLabels: [{ en: "Both sticks pressed in (L3 + R3)" }, { en: "Off" }], visible: true, deploy: false, ...extra,
+  choiceLabels: [{ en: "Both sticks pressed in (L3 + R3)" }, { en: "Off" }], visible: true, deploy: false, group: null, part: null, ...extra,
 });
 
 const api = (padValue = "thumbs") =>
@@ -32,7 +32,7 @@ const api = (padValue = "thumbs") =>
       { id: "open", label: { en: "Open in-game menu" }, default: "f6", key: null, clash: [], pad: "pad_open" },
       { id: "shot", label: { en: "Take a screenshot" }, default: "f7", key: "f9", clash: [], pad: null },
     ],
-    files: [], import: null, source: null, updatable: false, image: null, folder: null, requires: [],
+    files: [], import: null, source: null, updatable: false, image: null, folder: null, requires: [], parts: [], optionGroups: [], optionPreviews: [],
   }) as ModRow;
 
 function show(m: ModRow, tab: "keys" | "options") {

@@ -16,7 +16,7 @@ const { ModsPage } = await import("../mods/ModsPage");
 /** A mod; one whose id starts with "gh." names a GitHub repository and can be checked for updates. */
 const mod = (id: string): ModRow => ({
   id, name: { en: id }, description: {}, authors: [], version: "1.0.0", scope: "client", on: true, options: [], keybinds: [], files: [],
-  import: null, source: null, updatable: id.startsWith("gh."), image: null, folder: null, requires: [],
+  import: null, source: null, updatable: id.startsWith("gh."), image: null, folder: null, requires: [], parts: [], optionGroups: [], optionPreviews: [],
 });
 const row = (name: string, extra: Partial<ProfileRow> = {}): ProfileRow => ({ name, on: 0, blockPublic: false, guarded: false, image: null, color: null, ...extra });
 const snap = (ids: string[], profileRows: ProfileRow[] = [row("Default")]): Snapshot => ({

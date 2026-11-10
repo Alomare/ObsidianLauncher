@@ -12,8 +12,8 @@ use obsidian_core::hash::{display_name, display_text};
 use obsidian_core::images;
 use obsidian_core::library::{BrokenMod, ImportInfo, Library, Profile};
 use obsidian_core::manifest::{Localized, Manifest};
-use obsidian_core::options::{OptionKind, effective_values, parse_keybinds};
-use obsidian_core::{Result, profiles, starter};
+use obsidian_core::options::{OptionKind, OptionSpec, effective_values, parse_keybinds};
+use obsidian_core::{Result, option_layout, profiles, starter};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -46,8 +46,48 @@ pub struct OptionRow {
     pub choice_labels: Vec<Localized>,
     /// False while `visible_when` doesn't match the other values: the app hides the option.
     pub visible: bool,
-    /// A change needs a deploy (it picks resources, or it is part of a session mod's mod set).
+    /// A change needs a deploy (it picks resources, switches a part, or is part of a session mod's mod set).
     pub deploy: bool,
+    /// The heading the option shows under (`option_groups`).
+    pub group: Option<String>,
+    /// The part of the mod the option belongs to.
+    pub part: Option<String>,
+}
+
+/// One part of a mod (`parts`), as the About tab lists it.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PartRow {
+    pub id: String,
+    /// client or session.
+    pub scope: &'static str,
+    pub name: Localized,
+    pub description: Localized,
+    /// False while the toggle option of the part is off.
+    pub on: bool,
+}
+
+/// A collapsible heading of the Options tab (`option_groups`).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GroupRow {
+    pub id: String,
+    pub label: Localized,
+    pub description: Localized,
+    /// Folded until the player opens it.
+    pub collapsed: bool,
+}
+
+/// A live picture of option values (`option_previews`): the SVG template the app fills in.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewRow {
+    pub id: String,
+    pub group: Option<String>,
+    pub svg: String,
+    pub width: f64,
+    pub height: f64,
+    pub label: Localized,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -87,8 +127,13 @@ pub struct ModRow {
     pub authors: Vec<String>,
     /// `None` for an imported legacy mod, which has no version number.
     pub version: Option<String>,
+    /// The scope the mod runs with: a mod with parts takes it from the parts that are on, and is
+    /// `hybrid` with a client part and a session part on.
     pub scope: &'static str,
     pub on: bool,
+    pub parts: Vec<PartRow>,
+    pub option_groups: Vec<GroupRow>,
+    pub option_previews: Vec<PreviewRow>,
     pub options: Vec<OptionRow>,
     pub keybinds: Vec<KeyRow>,
     /// The game resources the mod changes, as `bundle/name`.
@@ -229,11 +274,9 @@ fn localized(v: Option<&Value>) -> Localized {
     v.and_then(|v| serde_json::from_value(v.clone()).ok()).unwrap_or_default()
 }
 
-/// The option and keybind rows of one mod, with the player's values from the profile.
-fn option_rows(m: &Manifest, profile: &Profile) -> Result<Vec<OptionRow>> {
-    let specs = m.option_specs()?;
-    let values = effective_values(&specs, profile.options.get(&m.id));
-    Ok(specs
+/// The option rows of one mod, with the player's values.
+fn option_rows(m: &Manifest, specs: &[OptionSpec], values: &BTreeMap<String, Value>) -> Vec<OptionRow> {
+    specs
         .iter()
         .zip(&m.options)
         .map(|(s, raw)| {
@@ -241,7 +284,6 @@ fn option_rows(m: &Manifest, profile: &Profile) -> Result<Vec<OptionRow>> {
                 OptionKind::Number { min, max, step } => (*min, *max, *step),
                 _ => (None, None, None),
             };
-            let deploy = m.resources.iter().any(|r| r.when.contains_key(&s.id)) || (!m.scope.is_client() && !s.client) || m.entry.is_none();
             OptionRow {
                 id: s.id.clone(),
                 kind: s.kind.name(),
@@ -254,11 +296,38 @@ fn option_rows(m: &Manifest, profile: &Profile) -> Result<Vec<OptionRow>> {
                 step,
                 choices: if let OptionKind::Choice(c) = &s.kind { c.clone() } else { Vec::new() },
                 choice_labels: raw.get("choices").and_then(Value::as_array).map(|cs| cs.iter().map(|c| localized(c.get("label"))).collect()).unwrap_or_default(),
-                visible: obsidian_core::options::when_matches(&s.visible_when, &values),
-                deploy,
+                visible: obsidian_core::options::when_matches(&s.visible_when, values),
+                deploy: m.option_needs_deploy(s, values),
+                group: s.group.clone(),
+                part: s.part.clone(),
             }
         })
-        .collect())
+        .collect()
+}
+
+/// The parts, option groups and previews of one mod. A preview whose template can't be read is left out.
+fn layout_rows(lib: &Library, m: &Manifest, values: &BTreeMap<String, Value>) -> Result<(Vec<PartRow>, Vec<GroupRow>, Vec<PreviewRow>)> {
+    let parts = m
+        .parts
+        .iter()
+        .map(|p| PartRow { id: p.id.clone(), scope: p.scope.name(), name: p.name.clone(), description: p.description.clone().unwrap_or_default(), on: m.part_on(p, values) })
+        .collect();
+    let groups = m.option_groups()?.into_iter().map(|g| GroupRow { id: g.id, label: g.label, description: g.description, collapsed: g.collapsed }).collect();
+    let dir = lib.mod_dir(&m.id);
+    let previews = m
+        .option_previews()?
+        .into_iter()
+        .filter_map(|p| {
+            let svg = option_layout::template(&dir, &p)?;
+            Some(PreviewRow { id: p.id, group: p.group, svg, width: p.width, height: p.height, label: p.label })
+        })
+        .collect();
+    Ok((parts, groups, previews))
+}
+
+/// The scope the row shows: from the parts that are on, `hybrid` with both kinds on.
+fn shown_scope(m: &Manifest, values: &BTreeMap<String, Value>) -> &'static str {
+    if m.hybrid_with(values) { "hybrid" } else { m.scope_with(values).name() }
 }
 
 pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Result<Snapshot> {
@@ -313,15 +382,21 @@ pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Re
             .collect();
         // An imported legacy mod has no version number unless the Nexus file name gave one.
         let unversioned = m.extra.get("legacy") == Some(&Value::Bool(true)) && m.version == semver::Version::new(0, 0, 0);
+        let specs = m.option_specs()?;
+        let values = effective_values(&specs, profile.options.get(&m.id));
+        let (parts, option_groups, option_previews) = layout_rows(&lib, m, &values)?;
         mods.push(ModRow {
             id: m.id.clone(),
             name: m.name.clone(),
             description: m.description.clone().unwrap_or_default(),
             authors: m.authors.clone(),
             version: if unversioned { None } else { Some(m.version.to_string()) },
-            scope: m.scope.name(),
+            scope: shown_scope(m, &values),
             on: e.enabled,
-            options: option_rows(m, &profile)?,
+            parts,
+            option_groups,
+            option_previews,
+            options: option_rows(m, &specs, &values),
             keybinds,
             files: m.resources.iter().map(|r| resource_label(r.bundle.as_deref().unwrap_or_default(), &display_text(&r.name_text))).collect(),
             import: lib.import_info(&m.id),
@@ -429,6 +504,44 @@ mod tests {
         let order: Vec<&str> = s.mods.iter().map(|m| m.id.as_str()).filter(|id| !id.starts_with("obsidian.")).collect();
         assert_eq!(order, ["legacy.two", "a.one"]);
         assert_eq!((s.game, s.profile.as_str(), s.changes), (GameState::NotFound, "Default", ChangesWaiting::Waiting));
+    }
+
+    #[test]
+    fn a_mod_with_parts_groups_and_a_preview_shows_them() {
+        let t = tempfile::tempdir().unwrap();
+        let data = t.path().join("data");
+        let lib = Library::open(&data).unwrap();
+        let d = t.path().join("cam");
+        put(&d, "obsidian.json", r#"{"obsidian":1,"id":"a.cam","version":"1.0.0","name":{"en":"Cam"},"scope":"session","entry":"main.lua",
+            "parts":[{"id":"view","scope":"client","name":{"en":"View"},"description":{"en":"Any lobby."}},
+                     {"id":"range","scope":"session","option":"far","name":{"en":"Range"}}],
+            "option_groups":[{"id":"look","label":{"en":"Look"},"collapsed":true}],
+            "option_previews":[{"id":"pic","group":"look","template":"pic.svg","width":120,"height":60}],
+            "options":[{"id":"fov","type":"number","default":70,"part":"view","group":"look"},
+                       {"id":"far","type":"toggle","default":true,"part":"range"}]}"#);
+        put(&d, "main.lua", "return true\n");
+        put(&d, "pic.svg", r#"<svg xmlns="http://www.w3.org/2000/svg"><text>{{fov}}</text></svg>"#);
+        lib.install(&d).unwrap();
+        let settings = AppSettings { game_dir: Some(t.path().join("no game here")), ..Default::default() };
+        let row = |s: &Snapshot| s.mods.iter().find(|m| m.id == "a.cam").unwrap().clone();
+
+        let s = snapshot(&data, &settings, &mut GateCache::default()).unwrap();
+        let cam = row(&s);
+        assert_eq!(cam.scope, "hybrid");
+        assert_eq!(cam.parts.iter().map(|p| (p.id.as_str(), p.scope, p.on)).collect::<Vec<_>>(), [("view", "client", true), ("range", "session", true)]);
+        assert_eq!(cam.parts[0].description["en"], "Any lobby.");
+        assert_eq!((cam.option_groups[0].id.as_str(), cam.option_groups[0].collapsed), ("look", true));
+        assert_eq!((cam.option_previews[0].group.as_deref(), cam.option_previews[0].width), (Some("look"), 120.0));
+        assert!(cam.option_previews[0].svg.contains("{{fov}}"));
+        assert_eq!((cam.options[0].group.as_deref(), cam.options[0].part.as_deref(), cam.options[0].deploy), (Some("look"), Some("view"), false));
+        assert!(cam.options[1].deploy, "switching a part needs a deploy");
+
+        let mut p = Profile::load(&data).unwrap();
+        p.options.entry("a.cam".into()).or_default().insert("far".into(), Value::Bool(false));
+        p.save(&data).unwrap();
+        let cam = row(&snapshot(&data, &settings, &mut GateCache::default()).unwrap());
+        assert_eq!(cam.scope, "client", "only the client part is on");
+        assert!(!cam.parts[1].on);
     }
 
     /// The snapshot runs after every action, so the time it takes is the delay of every click.
