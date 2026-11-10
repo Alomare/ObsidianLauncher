@@ -97,6 +97,47 @@ test("a_session_that_stops_being_cleared_takes_every_change_away_and_gives_it_ba
 	E.eq(game.rifle.weapon_info.power, 500, "edit back")
 end)
 
+test("in_a_lobby_that_isnt_cleared_settings_and_shots_keep_going_and_shared_work_waits", function()
+	local lobby = { my_id = "me", members = { "me" }, data = {} }
+	local api, game, e = start({ lobby = lobby })
+	api.effects.set("infinite_ammo", true)
+	e:frames(31)
+	lobby.members = { "me", "stranger" }
+	e:frames(31)
+	E.eq(game.components.firearm.infinite_ammo, false, "effects pause")
+
+	-- The pause menu's Mod Settings keeps saving another mod's change.
+	local core = e:core()
+	local own = core.current
+	core.current = { id = "dev.hud", mod = { options = {} } }
+	local page = api.mod_settings.page("Better HUD")
+	page:number("scale", { label = "Scale", min = 0.5, max = 2, step = 0.5, default = 1 })
+	E.eq(page:set("scale", 1.5), true)
+	core.current = own
+	e:frames(1)
+	E.eq(rawget(_G, "obsidian").storage.get("mod_settings/dev.hud/scale"), 1.5, "saved from the frame")
+
+	-- A shot finishes and gives the screen back.
+	local capture, finished = api.capture, false
+	capture.pending = { opts = {}, frames = 2, done = function() finished = true end, run = function(fn, ...) return pcall(fn, ...) end }
+	capture.hold_screen(true, {})
+	e:frames(3)
+	E.eq(finished, true, "the shot finished")
+	E.eq(capture.busy(), false)
+	E.eq(capture.hidden, false, "the screen came back")
+
+	-- Work that can change the shared game waits for a cleared session, effects included.
+	local ran = false
+	api.game.after(1, function() ran = true end)
+	e:frames(31)
+	E.eq(ran, false)
+	E.eq(game.components.firearm.infinite_ammo, false)
+	lobby.members = { "me" }
+	e:frames(33)
+	E.eq(ran, true)
+	E.eq(game.components.firearm.infinite_ammo, true)
+end)
+
 test("an_edit_reaches_upgraded_weapons_and_undoes_exactly", function()
 	local api, game = start()
 	local base, upgraded = game.rifle.weapon_info, game.rifle_upgraded.weapon_info
