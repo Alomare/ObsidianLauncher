@@ -7,7 +7,7 @@ use serde_json::Value;
 
 use crate::library::{Library, Profile};
 use crate::manifest::Manifest;
-use crate::options::{parse_keybinds, validate};
+use crate::options::{effective_values, parse_keybinds, validate};
 use crate::{ObsidianError, Result};
 
 /// When a changed option reaches the game.
@@ -21,11 +21,6 @@ pub enum Applies {
 
 fn manifest(lib: &Library, id: &str) -> Result<Manifest> {
     lib.list()?.into_iter().find(|m| m.id == id).ok_or_else(|| ObsidianError::ModMissing(id.to_string()))
-}
-
-/// Whether a change to `option` of `m` needs a deploy.
-pub fn needs_deploy(m: &Manifest, option: &str, client: bool) -> bool {
-    m.resources.iter().any(|r| r.when.contains_key(option)) || (!m.scope.is_client() && !client) || m.entry.is_none()
 }
 
 /// Sets an option to `value`, or back to the default when `value` is `None`.
@@ -52,7 +47,9 @@ pub fn set_option_of(m: &Manifest, profile: &mut Profile, option: &str, value: O
             }
         }
     }
-    Ok(if needs_deploy(m, option, spec.client) { Applies::AfterDeploy } else { Applies::NextLaunch })
+    // With the values after the change: a part switched on or off changes what the rest counts as.
+    let values = effective_values(&specs, profile.options.get(id));
+    Ok(if m.option_needs_deploy(spec, &values) { Applies::AfterDeploy } else { Applies::NextLaunch })
 }
 
 /// Binds a keybind to `key`, or back to the mod's default when `key` is `None`.

@@ -212,10 +212,11 @@ fn libraries_of<'a>(from: &'a ComposedMod, mods: &'a [ComposedMod]) -> BTreeSet<
 }
 
 /// The ids of the libraries that run as session mods: those an enabled session mod requires,
-/// directly or through another library. Every other library runs as a client mod, or as part of
-/// the expansions that require it.
+/// directly or through another library. A mod with a session part on counts, as the session parts of the
+/// mod may call guarded functions. Every other library runs as a client mod, or as part of the expansions
+/// that require it.
 fn session_libraries(mods: &[ComposedMod]) -> BTreeSet<&str> {
-    mods.iter().filter(|c| c.manifest.scope == Scope::Session).flat_map(|c| libraries_of(c, mods)).collect()
+    mods.iter().filter(|c| c.manifest.scope_with(&c.values) == Scope::Session).flat_map(|c| libraries_of(c, mods)).collect()
 }
 
 /// Each library an enabled expansion requires, directly or through another library, with the ids
@@ -285,23 +286,26 @@ fn table_with(comp: &Composition, texts: Value, mod_texts: fn(&Path) -> Result<V
         let m = &c.manifest;
         let specs = m.option_specs()?;
         // A session mod's library is a session mod, and costs the deploy anyway. One only expansions
-        // need follows their content.
-        let scope = match m.scope {
+        // need follows their content. A mod with parts runs with the scope of the parts that are on.
+        let scope = match m.scope_with(&c.values) {
             Scope::Library if libraries.contains(m.id.as_str()) => Scope::Session,
             Scope::Library if served.contains_key(m.id.as_str()) => Scope::Expansion,
             Scope::Library => Scope::Client,
             scope => scope,
         };
+        let hybrid = scope == Scope::Session && m.hybrid_with(&c.values);
         let line = || SessionMod {
             id: m.id.clone(),
             version: m.version.clone(),
-            options: specs.iter().map(|s| (s.id.clone(), c.values[&s.id].clone(), s.client)).collect(),
+            options: specs.iter().map(|s| (s.id.clone(), c.values[&s.id].clone(), m.option_personal(s, &c.values))).collect(),
         };
         if scope == Scope::Session {
             has_session = true;
-            has_static_session |= c.resources > 0;
+            // The files of client parts are this player's own, as a client mod's are.
+            let shared_files = c.resources - c.client_resources;
+            has_static_session |= shared_files > 0;
             let sm = line();
-            if c.resources > 0 {
+            if shared_files > 0 {
                 static_session.push(sm.clone());
             }
             if m.every_player {
@@ -347,7 +351,8 @@ fn table_with(comp: &Composition, texts: Value, mod_texts: fn(&Path) -> Result<V
             // By language, for obsidian.info: Obsidian API names each mod's folder of the in-game window with it.
             "name": m.name,
             "version": m.version.to_string(),
-            "scope": scope_text(&scope),
+            // Hybrid: the session parts stop in a lobby that isn't cleared, the client parts keep running.
+            "scope": if hybrid { "hybrid" } else { scope_text(&scope) },
             "entry": entry_name(&m.id),
             "loader_api": m.loader_api,
             "requires": m.requires,
@@ -359,6 +364,11 @@ fn table_with(comp: &Composition, texts: Value, mod_texts: fn(&Path) -> Result<V
         // the expansions that require a library.
         if !gate.is_empty() {
             entry["expansions"] = json!(gate);
+        }
+        // Each part with the scope the code tagged with the part runs with, and whether the part is on. The name, by
+        // language, is for the notice when the session parts stop.
+        if !m.parts.is_empty() {
+            entry["parts"] = m.parts.iter().map(|p| json!({ "id": p.id, "scope": p.scope.name(), "on": m.part_on(p, &c.values), "name": p.name })).collect();
         }
         mods.push(entry);
     }
@@ -806,6 +816,113 @@ mod tests {
         };
         assert_ne!(hash("1.0.0", true), hash("1.0.1", true));
         assert_eq!(hash("1.0.0", false), hash("1.0.1", false));
+    }
+
+    #[test]
+    fn a_mod_with_no_parts_hashes_and_deploys_as_before_parts() {
+        use sha2::{Digest, Sha256};
+        let t = spaced_tempdir();
+        let lib = Library::open(&t.path().join("data")).unwrap();
+        let d = t.path().join("stage-plain");
+        put(&d, "obsidian.json", br#"{"obsidian":1,"id":"plain","version":"1.2.0","name":{"en":"Plain"},"scope":"session","entry":"main.lua",
+            "options":[{"id":"speed","type":"number","default":5},{"id":"cam","type":"toggle","default":true,"scope":"client"}],
+            "resources":[{"type":"texture","name":"a/b","bundle":"00000000000000aa","data":"f"}]}"#);
+        put(&d, "main.lua", b"return true\n");
+        put(&d, "f", b"x");
+        lib.install(&d).unwrap();
+        let table = table_of(&lib, &["plain"]);
+        // The line and the hash as they were written before parts: id@version and the shared options.
+        let want: String = Sha256::digest(b"plain@1.2.0;speed=5").iter().map(|b| format!("{b:02x}")).collect();
+        assert_eq!(table["modset"], json!(want));
+        assert_eq!((table["has_session"].clone(), table["has_static_session"].clone()), (json!(true), json!(true)));
+        let entry = &table["mods"][0];
+        assert_eq!(entry["scope"], "session");
+        assert!(entry.get("parts").is_none());
+        let keys: Vec<&str> = entry.as_object().unwrap().keys().map(String::as_str).collect();
+        assert_eq!(keys, ["entry", "id", "keybinds", "loader_api", "name", "options", "requires", "scope", "texts", "version"]);
+        assert_eq!(entry["options"][1], json!({ "id": "cam", "type": "toggle", "default": true, "client": true }));
+    }
+
+    /// A mod like Integrated Third Person, with the option `far` switching the session part, and a
+    /// library it requires.
+    fn hybrid_library(t: &Path) -> Library {
+        let lib = Library::open(&t.join("data")).unwrap();
+        add(t, &lib, "lib", "library");
+        let d = t.join("stage-cam");
+        put(&d, "obsidian.json", br#"{"obsidian":1,"id":"cam","version":"1.0.0","name":{"en":"Cam"},"scope":"session","entry":"main.lua","requires":["lib"],
+            "parts":[{"id":"view","scope":"client","name":{"en":"View"}},{"id":"range","scope":"session","option":"far","name":{"en":"Range"}}],
+            "options":[{"id":"fov","type":"number","default":70,"part":"view"},{"id":"far","type":"toggle","default":true,"part":"range"},
+                       {"id":"power","type":"number","default":1,"part":"range"}],
+            "resources":[{"type":"texture","name":"cam/sky","bundle":"00000000000000aa","data":"f","part":"view"},
+                         {"type":"texture","name":"cam/range","bundle":"00000000000000aa","data":"f","part":"range"}]}"#);
+        put(&d, "main.lua", b"return true\n");
+        put(&d, "f", b"x");
+        lib.install(&d).unwrap();
+        lib
+    }
+
+    fn hybrid_table(lib: &Library, values: &[(&str, Value)]) -> (Value, Composition) {
+        let entries = ["lib", "cam"].iter().map(|id| ProfileEntry { id: (*id).into(), enabled: true, folder: None }).collect();
+        let mut profile = Profile { mods: entries, ..Default::default() };
+        for (k, v) in values {
+            profile.options.entry("cam".into()).or_default().insert((*k).into(), v.clone());
+        }
+        let comp = compose(lib, &profile).unwrap();
+        (deploy_table(&comp, json!({})).unwrap(), comp)
+    }
+
+    #[test]
+    fn a_hybrid_mod_deploys_its_parts_and_the_library_it_needs_as_session() {
+        let t = spaced_tempdir();
+        let lib = hybrid_library(t.path());
+        let (table, comp) = hybrid_table(&lib, &[]);
+        assert_eq!(scope_in(&table, "cam"), "hybrid");
+        assert_eq!(scope_in(&table, "lib"), "session", "the session part may call guarded functions");
+        let cam = table["mods"].as_array().unwrap().iter().find(|m| m["id"] == "cam").unwrap();
+        assert_eq!(cam["parts"], json!([
+            { "id": "view", "scope": "client", "on": true, "name": { "en": "View" } },
+            { "id": "range", "scope": "session", "on": true, "name": { "en": "Range" } },
+        ]));
+        assert_eq!((table["has_session"].clone(), table["has_static_session"].clone()), (json!(true), json!(true)));
+        assert_eq!(comp.bundles["00000000000000aa"].len(), 2);
+
+        let (fov, _) = hybrid_table(&lib, &[("fov", json!(90))]);
+        assert_eq!(fov["modset"], table["modset"], "a client part's option stays out of the hash");
+        let (power, _) = hybrid_table(&lib, &[("power", json!(2))]);
+        assert_ne!(power["modset"], table["modset"]);
+    }
+
+    #[test]
+    fn a_session_part_that_is_off_counts_for_nothing() {
+        let t = spaced_tempdir();
+        let lib = hybrid_library(t.path());
+        let (table, comp) = hybrid_table(&lib, &[("far", json!(false))]);
+        assert_eq!(scope_in(&table, "cam"), "client");
+        assert_eq!(scope_in(&table, "lib"), "client");
+        assert_eq!(table["has_session"], false, "Galactic War results go out");
+        assert_eq!(table["has_static_session"], false);
+        assert_eq!(table["modset"], table_of(&lib, &[])["modset"], "as a client mod");
+        let cam = table["mods"].as_array().unwrap().iter().find(|m| m["id"] == "cam").unwrap();
+        assert_eq!(cam["parts"][1]["on"], false);
+        assert_eq!(comp.bundles["00000000000000aa"].len(), 1, "the part's file stays out");
+        let (power, _) = hybrid_table(&lib, &[("far", json!(false)), ("power", json!(2))]);
+        assert_eq!(power["modset"], table["modset"]);
+    }
+
+    #[test]
+    fn the_files_of_a_client_part_keep_the_public_door_open() {
+        let t = spaced_tempdir();
+        let lib = hybrid_library(t.path());
+        let json = std::fs::read_to_string(lib.mod_dir("cam").join("obsidian.json")).unwrap();
+        let d = t.path().join("stage-cam2");
+        let view_only = json.replace(r#""name":"cam/range","bundle":"00000000000000aa","data":"f","part":"range""#, r#""name":"cam/sky2","bundle":"00000000000000aa","data":"f","part":"view""#);
+        assert_ne!(view_only, json);
+        put(&d, "obsidian.json", view_only.as_bytes());
+        put(&d, "main.lua", b"return true\n");
+        put(&d, "f", b"x");
+        lib.install(&d).unwrap();
+        let (table, _) = hybrid_table(&lib, &[]);
+        assert_eq!((table["has_session"].clone(), table["has_static_session"].clone()), (json!(true), json!(false)));
     }
 
     #[test]

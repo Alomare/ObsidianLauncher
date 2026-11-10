@@ -11,7 +11,7 @@ use crate::library::{Library, Profile};
 use crate::lua::{check_bytecode, wrap_resource};
 use crate::luajit::compile;
 use crate::hash::hash_name;
-use crate::manifest::{Manifest, Payload, load_manifest};
+use crate::manifest::{Manifest, Payload, Scope, load_manifest};
 use crate::options::{effective_values, when_matches};
 use crate::{ObsidianError, Result};
 
@@ -241,6 +241,8 @@ pub struct ComposedMod {
     pub dir: PathBuf,
     pub values: BTreeMap<String, Value>,
     pub resources: usize,
+    /// Of those, the files of client parts, which a lobby that isn't cleared can keep.
+    pub client_resources: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -742,7 +744,9 @@ fn compose_with(lib: &Library, profile: &Profile, with_data: bool, contents: Opt
         if m.resources.iter().any(|r| (r.type_hash, r.name_hash) == reserved) {
             return Err(ObsidianError::ReservedResource { mod_id: m.id.clone(), name: crate::loader::ENTRY.into() });
         }
-        let chosen: Vec<_> = m.resources.iter().filter(|r| when_matches(&r.when, &values)).collect();
+        // A file of a part that is off stays out, as the part's code does.
+        let chosen: Vec<_> = m.resources.iter().filter(|r| when_matches(&r.when, &values) && m.tag_scope(r.part.as_deref(), &values).is_some()).collect();
+        let client_resources = if m.parts.is_empty() { 0 } else { chosen.iter().filter(|r| m.tag_scope(r.part.as_deref(), &values) == Some(Scope::Client)).count() };
         let stamps = if with_data { Default::default() } else { file_stamps(&dir) };
         for r in &chosen {
             if let Payload::Clips(list) = &r.payload {
@@ -895,7 +899,7 @@ fn compose_with(lib: &Library, profile: &Profile, with_data: bool, contents: Opt
             slots.insert(key, (planned, earlier));
         }
         let resources = chosen.len();
-        mods.push(ComposedMod { manifest: m, dir, values, resources });
+        mods.push(ComposedMod { manifest: m, dir, values, resources, client_resources });
     }
     if with_data {
         for c in &mods {

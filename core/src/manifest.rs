@@ -144,6 +144,8 @@ pub struct ResourceSpec {
     pub payload: Payload,
     /// Deploy options: the resource joins only when every listed option has the listed value.
     pub when: BTreeMap<String, Value>,
+    /// The part of the mod the file belongs to (`parts`): left out while that part is off.
+    pub part: Option<String>,
 }
 
 impl ResourceSpec {
@@ -176,6 +178,8 @@ struct RawResource {
     clips: Vec<ClipSpec>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     when: BTreeMap<String, Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    part: Option<String>,
 }
 
 fn is_zero(v: &u32) -> bool {
@@ -234,6 +238,7 @@ impl TryFrom<RawResource> for ResourceSpec {
             flags: r.flags,
             payload,
             when: r.when,
+            part: r.part,
         })
     }
 }
@@ -253,7 +258,7 @@ impl From<ResourceSpec> for RawResource {
             Payload::Variants(v) => variants = v,
             Payload::Clips(c) => clips = c,
         }
-        RawResource { type_: s.type_text, name: s.name_text, bundle: s.bundle, flags: s.flags, source, bytecode, data, stream, variants, clips, when: s.when }
+        RawResource { type_: s.type_text, name: s.name_text, bundle: s.bundle, flags: s.flags, source, bytecode, data, stream, variants, clips, when: s.when, part: s.part }
     }
 }
 
@@ -273,6 +278,10 @@ pub struct Manifest {
     /// the same shared option values. Players who allow other players' mods don't count.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub every_player: bool,
+    /// Pieces of the mod with a scope of their own (parts.rs). The top-level scope stays the strictest,
+    /// which is all an older Obsidian reads.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub parts: Vec<PartSpec>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub entry: Option<PathBuf>,
     /// More Lua scripts beside `entry`, which the mod loads with `obsidian.module`.
@@ -307,6 +316,24 @@ pub struct Manifest {
 
 fn one() -> u32 {
     1
+}
+
+/// One part of a mod (`parts`): the code, options and files tagged with the id run with this scope.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PartSpec {
+    pub id: String,
+    /// `client` or `session`; anything else is refused when the manifest is checked.
+    #[serde(default)]
+    pub scope: Scope,
+    #[serde(default)]
+    pub name: Localized,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<Localized>,
+    /// A toggle option of the mod: the part is on only while that option is true.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub option: Option<String>,
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, Value>,
 }
 
 /// A mod's items and fields in the save editor (`save_editor` in the manifest).
@@ -585,6 +612,8 @@ impl Manifest {
                 crate::options::validate(spec, value).map_err(|_| bad(&field, format!("when: {value} is not a value of {id}")))?;
             }
         }
+        crate::parts::check(self, &options)?;
+        crate::option_layout::check(self, mod_dir, &options, |p, field| check_path(mod_dir, p, field))?;
         Ok(())
     }
 

@@ -158,6 +158,7 @@ fn import_against(src: &Path, game: &GameInstall, lib: &Library, known: &[KnownB
                 flags: e.flags,
                 payload,
                 when: BTreeMap::new(),
+                part: None,
             };
             match placed.get(&(name.clone(), e.type_hash, e.name_hash)) {
                 Some(&i) => resources[i] = spec,
@@ -194,6 +195,7 @@ fn import_against(src: &Path, game: &GameInstall, lib: &Library, known: &[KnownB
         authors: Vec::new(),
         scope,
         every_player: false,
+        parts: Vec::new(),
         entry: entry_file,
         resources,
         options: Vec::new(),
