@@ -747,6 +747,8 @@
   "app.task.set_block_public": "Saving the Guardrails...",
   "uploads_blocked": "Galactic War and leaderboard results aren't sent while session mods are deployed.",
   "every_player_off": "%s is off, because not every player here runs it.",
+  "part_off": "%s: %s is off in this lobby. The rest keeps working.",
+  "parts_off": "%s: %s are off in this lobby. The rest keeps working.",
   "proving_grounds_blocked": "%s is ranked, so it's closed while session mods are in play.",
   "expansion_refused": "%s can't start. These players don't run it at the same version and settings: %s",
   "expansion_turned_away": "%s couldn't join: %s needs every player to run it.",

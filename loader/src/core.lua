@@ -31,7 +31,7 @@ local capabilities = {
 	after_startup = true, log = true, hook = true, wrap = true, on_require = true, on_session = true, session = true,
 	settings = true, keybind = true, text = true, on_frame = true, module = true, import = true, menu = true, toast = true, notify = true, storage = true, caller = true,
 	ui = true, scope = true, guardrails = true, info = true, expansion = true, save_data = true,
-	language = true, game_text = true,
+	language = true, game_text = true, parts = true,
 }
 local api = {
 	version = API_VERSION,
@@ -259,16 +259,22 @@ function api.log(...)
 end
 
 -- fn runs once per frame, protected; returning true stops the calls. A session mod's callbacks
--- run only in a cleared session, like the mod's hooks.
-function api.on_frame(fn)
-	if B.type(fn) == "function" then B.insert(M.frame_callbacks, { state = M.current, fn = fn }) end
+-- run only in a cleared session, like the mod's hooks. opts.part: the callback runs with the scope of
+-- that part of the mod, and never while the part is off. opts.always: in any lobby, as with keys.
+function api.on_frame(fn, opts)
+	if B.type(fn) ~= "function" then return end
+	local state = M.current
+	local scope, part = session.part_scope(state, opts)
+	if scope == "off" then return end
+	local always = B.type(opts) == "table" and opts.always == true
+	B.insert(M.frame_callbacks, { state = state, fn = fn, part = part, always = always })
 end
 
 local function run_frame_callbacks()
 	local list, keep = M.frame_callbacks, {}
 	for _, cb in B.ipairs(list) do
 		local state = cb.state
-		local gated = not (state and state.mod.scope == "client")
+		local gated = not cb.always and session.gated(state, cb.part)
 		local stop = false
 		if state and state.off then
 			stop = true
@@ -281,12 +287,13 @@ local function run_frame_callbacks()
 	M.frame_callbacks = keep
 end
 
--- How a mod runs in this deploy: "client", "session" or "expansion". A library has become client or
--- session: session when a session mod or an expansion requires it, so the library sets up what the
--- expansion may use.
+-- How a mod runs in this deploy: "client", "session", "hybrid" or "expansion". A library has become
+-- client or session: session when a session mod or an expansion requires it, so the library sets up
+-- what the expansion may use. Hybrid: the mod's session parts stop in a lobby that isn't cleared, and
+-- the client parts keep running.
 local function scope_of(state)
 	local scope = state.mod.scope
-	if scope == "client" then return "client" end
+	if scope == "client" or scope == "hybrid" then return scope end
 	if scope == "expansion" and expansion.is_own(state.id) then return "expansion" end
 	return "session"
 end
@@ -346,6 +353,15 @@ end
 
 local function start(mod)
 	local state = { id = B.tostring(mod.id), mod = mod, errors = 0, off = false }
+	-- The mod's parts by id, from the deploy: the scope of each, and whether the option of the part has it on.
+	if B.type(mod.parts) == "table" then
+		state.parts, state.part_list = {}, {}
+		for _, p in B.ipairs(mod.parts) do
+			local part = { id = B.tostring(p.id), scope = p.scope == "client" and "client" or "session", on = p.on ~= false, name = p.name }
+			state.parts[part.id] = part
+			B.insert(state.part_list, part)
+		end
+	end
 	B.insert(M.mods, state)
 	M.mods_by_id[state.id] = state
 	local needs = B.tonumber(mod.loader_api) or 1

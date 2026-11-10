@@ -79,23 +79,71 @@ function M.allows(state)
 	return M.state and not (state and M.missing[state.id])
 end
 
+-- The part a registration names (opts.part), with what the code tagged with it runs as: "client",
+-- "session", or "off" for a part that is off, whose code never runs. nil without a part, or with one
+-- the mod doesn't declare: then the mod's own scope decides, a hybrid mod's as a session mod's.
+function M.part_scope(state, opts)
+	local id = B.type(opts) == "table" and opts.part or nil
+	if id == nil or not state then return nil end
+	local part = state.parts and state.parts[B.tostring(id)]
+	if not part then
+		log.limited(state.id .. "\0part " .. B.tostring(id), "part: " .. state.id .. " names " .. B.tostring(id) .. ", which is not one of the mod's parts")
+		return nil
+	end
+	if not part.on then return "off", part end
+	return part.scope == "client" and "client" or "session", part
+end
+
+-- Whether code of `state` tagged with `part` (nil: untagged) runs only in a cleared session.
+function M.gated(state, part)
+	if part then return part.scope ~= "client" end
+	return not (state and state.mod.scope == "client")
+end
+
 -- What obsidian.on_session reports: whether the loader has the mod on. For a library that only
 -- expansions require, that's their content, so it can undo what an expansion changed once it ends.
-local function switched(state)
+-- A client part is always on.
+local function switched(state, part)
+	if part and part.scope == "client" then return true end
 	local mod = state and state.mod
 	if mod and mod.scope == "expansion" then return expansion.serves(mod.expansions) end
 	return M.allows(state)
 end
 
+-- A notice when a hybrid mod's session parts stop and the client parts keep running.
+local function parts_notice()
+	for _, state in B.ipairs(M.core.mods or {}) do
+		if state.mod.scope == "hybrid" and not state.off then
+			local now = M.allows(state)
+			if state.parts_were ~= false and not now then
+				local lang, names = M.core.language(), {}
+				for _, p in B.ipairs(state.part_list or {}) do
+					if p.on and p.scope ~= "client" then
+						local n = B.type(p.name) == "table" and (p.name[lang] or p.name.en) or nil
+						B.insert(names, B.type(n) == "string" and n ~= "" and n or p.id)
+					end
+				end
+				if #names > 0 then
+					log.line("session: " .. state.id .. " session parts off, client parts on")
+					local list = #names == 1 and names[1] or (B.concat(names, ", ", 1, #names - 1) .. " and " .. names[#names])
+					M.core.notice(#names == 1 and "part_off" or "parts_off", M.core.name_of(state), list)
+				end
+			end
+			state.parts_were = now
+		end
+	end
+end
+
 -- Tells each on_session listener whose answer changed.
 function M.refresh()
 	for _, l in B.ipairs(M.listeners) do
-		local now = switched(l.state)
+		local now = switched(l.state, l.part)
 		if now ~= l.on then
 			l.on = now
 			M.core.call(l.state, "on_session", l.fn, now)
 		end
 	end
+	parts_notice()
 end
 
 -- The mods every player has to run, as "<id>:<hash>", sorted.
@@ -193,9 +241,24 @@ function M.cleared()
 	return M.state
 end
 
-function M.on_session(fn)
+-- opts.part: the listener hears only the switch of that part. A client part's never switches off, and
+-- a part that is off registers nothing.
+function M.on_session(fn, opts)
 	local state = M.core.current
-	B.insert(M.listeners, { state = state, fn = fn, on = switched(state) })
+	local scope, part = M.part_scope(state, opts)
+	if scope == "off" then return end
+	B.insert(M.listeners, { state = state, fn = fn, part = part, on = switched(state, part) })
+end
+
+-- obsidian.session.cleared(part): for the calling mod, or for one of the calling mod's parts.
+function M.cleared_for(part)
+	local state = M.core.current
+	if part ~= nil then
+		local scope, p = M.part_scope(state, { part = part })
+		if scope == "off" then return false end
+		if p then return switched(state, p) end
+	end
+	return M.allows(state)
 end
 
 -- A guarded function of the mod `state`, called by another mod. An expansion gets full use of the
@@ -251,8 +314,9 @@ end
 function M.api()
 	return {
 		guard = M.guard,
-		-- For the calling mod, so a mod every player has to run hears when one doesn't.
-		cleared = function() return M.allows(M.core.current) end,
+		-- For the calling mod, so a mod every player has to run hears when one doesn't. With a part
+		-- id: for that part of the calling mod, true for a client part, false for a part that is off.
+		cleared = function(part) return M.cleared_for(part) end,
 		-- A player's own save is theirs, so Obsidian holds none of it back. These stay for the mods that
 		-- still ask, and do nothing.
 		forfeit_progress = function() end,

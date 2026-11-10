@@ -16,8 +16,9 @@ end
 -- Puts the hook around target[method] and returns the new function.
 local function wrap(h, target, original)
 	local core, session, state, fn, site = M.core, M.session, h.state, h.fn, "hook " .. B.tostring(h.method)
-	-- A missing or unknown scope counts as session. The loader's own hooks are never gated.
-	local gated = not h.loader and not h.always and not (state and state.mod.scope == "client")
+	-- A missing or unknown scope counts as session, a hybrid mod's untagged hooks too. A client part's
+	-- hooks run in any lobby. The loader's own hooks are never gated.
+	local gated = not h.loader and not h.always and session.gated(state, h.part)
 	-- A hook that fails falls back to the game's function, unless it already ran it: that would
 	-- spawn, spend or save twice. One closure per hook, as a new one per call stops the JIT here.
 	local ran, results = false, nil
@@ -46,7 +47,7 @@ end
 
 local function describe(h)
 	local where = B.type(h.target) == "string" and h.target or "table"
-	return where .. "." .. B.tostring(h.method) .. (h.state and (" by " .. h.state.id) or "")
+	return where .. "." .. B.tostring(h.method) .. (h.state and (" by " .. h.state.id) or "") .. (h.part and (" part " .. h.part.id) or "")
 end
 
 local function install(h)
@@ -116,8 +117,16 @@ local function recheck()
 	end
 end
 
-function M.hook(target, method, fn)
-	local h = { state = M.core.current, target = target, method = method, fn = fn }
+-- opts.part: the hook belongs to that part of the mod, and runs with the part's scope. A part that is
+-- off gets no hook at all.
+function M.hook(target, method, fn, opts)
+	local state = M.core.current
+	local scope, part = M.session.part_scope(state, opts)
+	if scope == "off" then
+		log.line("hook left out: " .. (B.type(target) == "string" and target or "table") .. "." .. B.tostring(method) .. " by " .. state.id .. ", part " .. part.id .. " is off")
+		return
+	end
+	local h = { state = state, part = part, target = target, method = method, fn = fn }
 	if not install(h) then B.insert(M.pending, h) end
 end
 

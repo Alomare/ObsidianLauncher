@@ -133,7 +133,8 @@ function M.get(id, mod_id)
 end
 
 -- Calls fn once each time the key bound to `id` goes down: the key from the app, else the default.
--- opts.always: the session gate leaves it alone, as with obsidian.wrap.
+-- opts.always: the session gate leaves it alone, as with obsidian.wrap. opts.part: the key belongs to
+-- that part of the mod, and does nothing while the part is off.
 function M.keybind(id, fn, opts)
 	local state = M.core and M.core.current
 	if not state or B.type(fn) ~= "function" then return end
@@ -143,8 +144,10 @@ function M.keybind(id, fn, opts)
 		log.line("keybind " .. state.id .. "." .. B.tostring(id) .. ": not declared")
 		return
 	end
+	local scope, part = M.core.session.part_scope(state, opts)
+	if scope == "off" then return end
 	local always = B.type(opts) == "table" and opts.always == true
-	B.insert(M.binds, { state = state, id = B.tostring(id), key = key, fn = fn, down = false, always = always })
+	B.insert(M.binds, { state = state, part = part, id = B.tostring(id), key = key, fn = fn, down = false, always = always })
 end
 
 -- From the frame hook. Keyboard.pressed may stay true while a key is held, so a bind fires on the
@@ -164,7 +167,7 @@ function M.tick()
 			local ok, down = B.pcall(kb.pressed, b.index)
 			down = ok and down and true or false
 			if down and not b.down then
-				local gated = b.state.mod.scope ~= "client" and not b.always
+				local gated = not b.always and session and session.gated(b.state, b.part)
 				if not b.state.off and not (gated and session and not session.allows(b.state)) then
 					M.core.call(b.state, "keybind " .. b.id, b.fn)
 				end
