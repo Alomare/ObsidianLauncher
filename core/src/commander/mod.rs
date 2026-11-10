@@ -31,6 +31,9 @@ const STATE: &str = "state.json";
 pub const NAMES_FILE: &str = "commander-names.txt";
 /// The protocol of `docs/spec-m1.md` this Obsidian speaks.
 pub const PROTOCOL: u32 = 1;
+/// The mod an Evolved war plays through: the galaxy map, the missions and the reports
+/// (github.com/Alomare/HD1-EvolvedWarEngine).
+pub const EVOLVED_MOD: &str = "alomare.evolvedwar";
 
 /// Where a war runs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

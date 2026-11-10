@@ -28,7 +28,7 @@ type ServerInfo = { port: number; token: string };
 export type CommanderView = { protocol: number; installed: Installed | null; wars: WarRef[]; playing: string | null; server: ServerInfo | null; names: [string, string][] };
 type Done = { commander: CommanderView; snapshot: Snapshot };
 type Found = { war: string; name: string; model: string; season: number; base: string; computer: string; players: number; version: string };
-type Pick = { id: string; name: string; host: WarHost; base?: string; computer?: string };
+type Pick = { id: string; name: string; host: WarHost; base?: string; computer?: string; model?: "evolved" };
 
 /** What the frame shows: the server on this PC, or one LAN war. */
 type Source = { kind: "local" } | { kind: "lan"; war: WarRef };
@@ -131,16 +131,18 @@ export function CommanderPage({ snap, visible, onPlay }: Props) {
   useEffect(() => {
     const on = (e: MessageEvent) => {
       if (!frame.current || e.source !== frame.current.contentWindow || e.origin !== frameOrigin) return;
-      const m = e.data as { type?: unknown; war?: unknown; name?: unknown };
+      const m = e.data as { type?: unknown; war?: unknown; name?: unknown; model?: unknown };
       if (!m || typeof m.type !== "string") return;
       if (m.type === "commander:ready") { hello(); return; }
       if (m.type === "commander:official") { official(); return; }
       if (m.type !== "commander:play" && m.type !== "commander:select") return;
       if (typeof m.war !== "string" || !/^[\w-]{1,32}$/.test(m.war)) return;
       const name = typeof m.name === "string" ? m.name.slice(0, 60) : m.war;
+      // An Evolved war plays through the Evolved War Engine mod, which the selection switches on.
+      const model = m.model === "evolved" ? "evolved" as const : undefined;
       const pick: Pick | null = source?.kind === "lan"
-        ? (source.war.id === m.war ? { id: m.war, name, host: "lan", base: source.war.base, computer: source.war.computer } : null)
-        : { id: m.war, name, host: "local" };
+        ? (source.war.id === m.war ? { id: m.war, name, host: "lan", base: source.war.base, computer: source.war.computer, model } : null)
+        : { id: m.war, name, host: "local", model };
       if (pick) select(pick, m.type === "commander:play");
     };
     window.addEventListener("message", on);

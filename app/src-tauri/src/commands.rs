@@ -65,7 +65,7 @@ pub fn fresh(ctx: &Ctx) -> CmdResult<Snapshot> {
 }
 
 /// Loads the active profile in step with the library, lets `f` change it, and saves it.
-fn with_profile(data: &Path, f: impl FnOnce(&mut Profile) -> obsidian_core::Result<()>) -> CmdResult<()> {
+pub(crate) fn with_profile(data: &Path, f: impl FnOnce(&mut Profile) -> obsidian_core::Result<()>) -> CmdResult<()> {
     let lib = Library::open(data)?;
     let mut p = Profile::load(data)?;
     p.sync(&lib)?;

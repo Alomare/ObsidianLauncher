@@ -174,6 +174,9 @@ pub struct WarPick {
     pub base: Option<String>,
     #[serde(default)]
     pub computer: Option<String>,
+    /// "evolved" for an Evolved war, which plays through the Evolved War Engine mod.
+    #[serde(default)]
+    pub model: Option<String>,
 }
 
 impl WarPick {
@@ -186,9 +189,21 @@ impl WarPick {
 pub async fn commander_select(ctx: TauriState<'_, Ctx>, war: WarPick) -> CmdResult<CommanderDone> {
     let _turn = ctx.turn();
     let mut runtime = rt(&ctx);
+    let evolved = war.model.as_deref() == Some("evolved");
     let war = war.into_ref();
     if !commander::valid_pick(&war) {
         return Err(CmdError { code: "WarUnknown".into(), message: format!("not a war: {}", war.id) });
+    }
+    // An Evolved war draws its map and counts its missions through the companion mod.
+    if evolved {
+        let lib = obsidian_core::library::Library::open(&ctx.data)?;
+        if !lib.list()?.iter().any(|m| m.id == commander::EVOLVED_MOD) {
+            return Err(CmdError {
+                code: "EvolvedModMissing".into(),
+                message: "An Evolved war needs the Evolved War Engine mod: github.com/Alomare/HD1-EvolvedWarEngine".into(),
+            });
+        }
+        crate::commands::with_profile(&ctx.data, |p| p.switch(&lib, commander::EVOLVED_MOD, true).map(|_| ()))?;
     }
     if war.host == WarHost::Local {
         ensure_server(&ctx, &mut runtime)?;
