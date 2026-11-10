@@ -136,6 +136,8 @@ pub enum ObsidianError {
     WarUnknown(String),
     #[error("the Commander server didn't start: {0}")]
     CommanderServer(String),
+    #[error("the Commander server is still running, so stop it first")]
+    CommanderRunning,
     #[error(transparent)]
     Json(#[from] serde_json::Error),
     #[error(transparent)]

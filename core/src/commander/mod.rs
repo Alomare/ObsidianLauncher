@@ -7,7 +7,8 @@
 //! - the relay ([`relay`]): the game only ever talks to it, on loopback, and it carries the war
 //!   requests to the war's server without the Steam ticket;
 //! - the war line of the settings file, which turns on the loader's war mode;
-//! - finding wars on the local network ([`lan`]).
+//! - finding wars on the local network ([`lan`]);
+//! - removing everything Commander left on this PC ([`wipe`]).
 //!
 //! A war is only played on a Sandbox save of its own, so nothing from it reaches the Official save,
 //! and the loader refuses war mode without one.
@@ -16,6 +17,7 @@ pub mod lan;
 pub mod package;
 pub mod relay;
 pub mod server;
+pub mod wipe;
 
 use std::path::{Path, PathBuf};
 
@@ -25,6 +27,8 @@ use crate::paths::write_atomic;
 use crate::{ObsidianError, Result};
 
 const STATE: &str = "state.json";
+/// The region names the loader writes in the game-side folder.
+pub const NAMES_FILE: &str = "commander-names.txt";
 /// The protocol of `docs/spec-m1.md` this Obsidian speaks.
 pub const PROTOCOL: u32 = 1;
 
@@ -298,7 +302,7 @@ pub fn play_official(data: &Path, saves: &crate::saves::Saves) -> Result<()> {
 /// The names of the game's regions in the player's language, as the loader wrote them the last
 /// time the game started in war mode: `key<TAB>words` lines.
 pub fn region_names(game_side: &Path) -> Vec<(String, String)> {
-    let Ok(text) = std::fs::read_to_string(game_side.join("commander-names.txt")) else { return Vec::new() };
+    let Ok(text) = std::fs::read_to_string(game_side.join(NAMES_FILE)) else { return Vec::new() };
     text.lines().filter_map(|l| l.split_once('\t')).filter(|(k, v)| !k.is_empty() && !v.is_empty()).map(|(k, v)| (k.to_string(), v.to_string())).collect()
 }
 

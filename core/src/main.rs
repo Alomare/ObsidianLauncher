@@ -94,6 +94,16 @@ enum CommanderAction {
     Install { path: PathBuf },
     /// Remove the Commander package; hosted wars stay in the data folder
     Uninstall,
+    /// Remove everything Commander left on this PC: the package, hosted wars, the war list and the
+    /// region names. The official war plays next.
+    Wipe {
+        /// Delete the wars' Sandbox saves too
+        #[arg(long)]
+        saves: bool,
+        /// Remove the firewall rules Windows made for the war server (asks for admin)
+        #[arg(long)]
+        firewall: bool,
+    },
     /// Host: run the war server and the relay until Enter is pressed or input ends
     Serve,
     /// Play a war on the next launch: a war hosted here, or with --lan http://<address>:<port>
@@ -406,7 +416,7 @@ fn run(cli: Cli) -> Result<()> {
 }
 
 fn run_commander(action: CommanderAction, data: &std::path::Path, game: impl Fn() -> Result<GameInstall>) -> Result<()> {
-    use obsidian_core::commander::{self, State, WarHost, WarRef, package, relay::Relay, server};
+    use obsidian_core::commander::{self, State, WarHost, WarRef, package, relay::Relay, server, wipe};
     let saves = || -> Result<obsidian_core::saves::Saves> { obsidian_core::saves::Saves::open(data, &game()?, obsidian_core::game::is_running) };
     match action {
         CommanderAction::Status => {
@@ -434,6 +444,15 @@ fn run_commander(action: CommanderAction, data: &std::path::Path, game: impl Fn(
         CommanderAction::Uninstall => {
             package::uninstall(data)?;
             println!("Commander removed");
+        }
+        CommanderAction::Wipe { saves: delete_saves, firewall } => {
+            obsidian_core::game::ensure_closed()?;
+            let g = game().ok();
+            let s = g.as_ref().and_then(|g| obsidian_core::saves::Saves::open(data, g, obsidian_core::game::is_running).ok());
+            let side = g.as_ref().map(|g| obsidian_core::settings::game_side_dir(&g.saves_dir));
+            let before = wipe::footprint(data, s.as_ref(), side.as_deref());
+            let report = wipe::wipe(data, s.as_ref(), side.as_deref(), delete_saves, firewall)?;
+            print_wipe(&before, &report, delete_saves);
         }
         CommanderAction::Serve => {
             let srv = server::start(data)?;
@@ -471,6 +490,56 @@ fn run_commander(action: CommanderAction, data: &std::path::Path, game: impl Fn(
         }
     }
     Ok(())
+}
+
+/// What `commander wipe` removed, from what was there before.
+fn print_wipe(before: &obsidian_core::commander::wipe::Footprint, r: &obsidian_core::commander::wipe::WipeReport, delete_saves: bool) {
+    use obsidian_core::commander::wipe::FirewallOutcome;
+    let mut said = false;
+    let mut say = |line: String| {
+        println!("{line}");
+        said = true;
+    };
+    if before.bytes > 0 {
+        let mut parts = Vec::new();
+        if let Some(v) = &before.package {
+            parts.push(if v.is_empty() { "the package".to_string() } else { format!("package {v}") });
+        }
+        if before.hosted > 0 {
+            parts.push(format!("{} hosted war(s)", before.hosted));
+        }
+        if before.joined > 0 {
+            parts.push(format!("{} joined LAN war(s)", before.joined));
+        }
+        let what = if parts.is_empty() { String::new() } else { format!(": {}", parts.join(", ")) };
+        let size = if before.bytes < 1024 * 1024 { format!("{} KB", before.bytes.div_ceil(1024)) } else { format!("{:.1} MB", before.bytes as f64 / (1024.0 * 1024.0)) };
+        say(format!("Removed the Commander folder ({size}){what}"));
+    }
+    if r.removed_saves > 0 {
+        say(format!("Deleted {} war save(s)", r.removed_saves));
+    }
+    if !r.kept_saves.is_empty() {
+        say(format!("Couldn't delete war save(s): {}", r.kept_saves.join(", ")));
+    }
+    if !delete_saves && !before.saves.is_empty() {
+        let names: Vec<&str> = before.saves.iter().map(|s| s.name.as_str()).collect();
+        say(format!("Kept {} war save(s) in Saves: {}", names.len(), names.join(", ")));
+    }
+    if before.names_file {
+        say(format!("Removed {}", obsidian_core::commander::NAMES_FILE));
+    }
+    match &r.firewall {
+        FirewallOutcome::NotAsked if before.firewall_rules > 0 => {
+            say(format!("{} firewall rule(s) for the war server stay. Remove them with --firewall (asks for admin)", before.firewall_rules));
+        }
+        FirewallOutcome::NotAsked | FirewallOutcome::None => {}
+        FirewallOutcome::Removed { count } => say(format!("Removed {count} firewall rule(s)")),
+        FirewallOutcome::Declined => say("The firewall rules stay: the admin prompt was declined".to_string()),
+        FirewallOutcome::Failed { message } => say(format!("The firewall rules stay: {message}")),
+    }
+    if !said {
+        println!("Commander left nothing on this PC");
+    }
 }
 
 fn run_saves(action: SavesAction, data: &std::path::Path, g: &GameInstall) -> Result<()> {

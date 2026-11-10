@@ -8,11 +8,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { call, errorText, setSnapshot } from "../api";
 import { withTask } from "../busy";
+import { Confirm } from "../Confirm";
+import { ContextMenu } from "../ContextMenu";
 import { t } from "../i18n";
-import { CloseIcon } from "../Icons";
+import { CheckIcon, CloseIcon, ImportIcon, TrashIcon, UpdateIcon } from "../Icons";
 import { notify } from "../notices";
 import type { Snapshot } from "../types";
-import { CommanderIcon } from "./icons";
+import { PackageIcon, ThisPcIcon } from "./icons";
+
+/** What Commander keeps on this PC, for Remove All Commander Data (`commander_footprint`). */
+type Footprint = { package: string | null; hosted: number; joined: number; saves: { id: string; name: string }[]; namesFile: boolean; firewallRules: number; bytes: number };
+type WipeReport = { removedSaves: number; keptSaves: string[]; firewall: { kind: "notAsked" | "none" | "removed" | "declined" | "failed"; count?: number; message?: string } };
+const hasData = (f: Footprint | null) => !!f && (f.package != null || f.hosted > 0 || f.joined > 0 || f.saves.length > 0 || f.namesFile || f.firewallRules > 0 || f.bytes > 0);
 
 type WarHost = "local" | "lan";
 type WarRef = { id: string; name: string; host: WarHost; base?: string; save?: string; computer?: string };
@@ -36,7 +43,9 @@ export function CommanderPage({ snap, visible, onPlay }: Props) {
   const [frameUrl, setFrameUrl] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [joining, setJoining] = useState(false);
-  const [menu, setMenu] = useState(false);
+  const [menu, setMenu] = useState<{ x: number; y: number; opener: HTMLElement } | null>(null);
+  const [ask, setAsk] = useState<null | "remove" | "wipe">(null);
+  const [footprint, setFootprint] = useState<Footprint | null>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const running = snap.game === "running";
 
@@ -44,6 +53,11 @@ export function CommanderPage({ snap, visible, onPlay }: Props) {
     try { setView(await call<CommanderView>("commander_state")); } catch (e) { notify("error", errorText(e)); }
   }, []);
   useEffect(() => { if (visible) load(); }, [visible, load]);
+  // Without the package, the intro says when Commander still keeps something on this PC.
+  const loadFootprint = useCallback(async () => {
+    try { setFootprint(await call<Footprint>("commander_footprint")); } catch { setFootprint(null); }
+  }, []);
+  useEffect(() => { if (visible && view && !view.installed) loadFootprint(); }, [visible, view, loadFootprint]);
 
   const lanWars = useMemo(() => (view?.wars ?? []).filter((w) => w.host === "lan"), [view]);
   const installed = !!view?.installed;
@@ -81,6 +95,14 @@ export function CommanderPage({ snap, visible, onPlay }: Props) {
     const theme = document.documentElement.dataset.theme === "light" ? "light" : "dark";
     post({ type: "obsidian:hello", theme, lang: document.documentElement.lang || "en", names: Object.fromEntries(view?.names ?? []), playing: view?.playing ?? null, game_running: running });
   }, [post, view, running]);
+
+  // A theme or language switch while the frame is open reaches it as a new hello, which every
+  // package version reads whole.
+  useEffect(() => {
+    const mo = new MutationObserver(() => hello());
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "lang"] });
+    return () => mo.disconnect();
+  }, [hello]);
 
   // The frame learns when the war being played or the game's state changes.
   useEffect(() => { post({ type: "obsidian:state", playing: view?.playing ?? null, game_running: running }); }, [post, view?.playing, running]);
@@ -125,6 +147,7 @@ export function CommanderPage({ snap, visible, onPlay }: Props) {
     return () => window.removeEventListener("message", on);
   }, [frameOrigin, hello, official, select, source]);
 
+
   const installed_ = (v: CommanderView) => {
     setView(v);
     setSource({ kind: "local" });
@@ -133,7 +156,6 @@ export function CommanderPage({ snap, visible, onPlay }: Props) {
 
   // The newest release from GitHub.
   const install = async () => {
-    setMenu(false);
     try {
       installed_(await withTask(t("app.commander.fetching"), () => call<CommanderView>("commander_fetch"), true));
     } catch (e) {
@@ -144,7 +166,6 @@ export function CommanderPage({ snap, visible, onPlay }: Props) {
 
   // A package ZIP from disk, such as a local build.
   const installFile = async () => {
-    setMenu(false);
     const path = await open({ filters: [{ name: t("app.commander.zipFilter"), extensions: ["zip"] }] });
     if (typeof path !== "string") return;
     try {
@@ -153,7 +174,7 @@ export function CommanderPage({ snap, visible, onPlay }: Props) {
   };
 
   const uninstall = async () => {
-    setMenu(false);
+    setAsk(null);
     try {
       const v = await call<CommanderView>("commander_uninstall");
       setView(v);
@@ -161,6 +182,20 @@ export function CommanderPage({ snap, visible, onPlay }: Props) {
       setFrameUrl(null);
       notify("info", t("app.commander.uninstalled"));
     } catch (e) { notify("error", errorText(e)); }
+  };
+
+  // Everything Commander keeps on this PC goes; the dialog says what that is first.
+  const wiped = (r: { commander: CommanderView; snapshot: Snapshot; report: WipeReport }) => {
+    setAsk(null);
+    setSource(null);
+    setFrameUrl(null);
+    setView(r.commander);
+    setSnapshot(r.snapshot);
+    setFootprint(null);
+    loadFootprint();
+    notify("info", r.report.keptSaves.length ? t("app.commander.wipedKept", r.report.keptSaves.length) : t("app.commander.wiped"));
+    const fw = r.report.firewall.kind;
+    if (fw === "declined" || fw === "failed") notify("error", t("app.commander.firewallKept"));
   };
 
   const forget = async (war: WarRef) => {
@@ -171,14 +206,46 @@ export function CommanderPage({ snap, visible, onPlay }: Props) {
     } catch (e) { notify("error", errorText(e)); }
   };
 
+  const openMenu = (e: { currentTarget: HTMLButtonElement }) => {
+    if (menu) { setMenu(null); return; }
+    const r = e.currentTarget.getBoundingClientRect();
+    setMenu({ x: r.right - 240, y: r.bottom + 4, opener: e.currentTarget });
+  };
+
   if (!view) return <div className="commander" />;
   const playingWar = view.playing ? view.wars.find((w) => w.id === view.playing) : null;
+
+  const dialogs = (
+    <>
+      {menu && (
+        <ContextMenu x={Math.max(8, menu.x)} y={menu.y} opener={menu.opener} label={t("app.commander.package")} onClose={() => setMenu(null)} items={[
+          ...(installed ? [
+            { label: t("app.commander.packageVersion", view.installed?.version ?? ""), disabled: true },
+            { label: t("app.commander.update"), icon: <UpdateIcon />, run: install },
+          ] : []),
+          { label: t("app.commander.installFile"), icon: <ImportIcon />, run: installFile },
+          "sep",
+          ...(installed ? [{ label: t("app.commander.uninstall"), icon: <TrashIcon />, run: () => setAsk("remove") }] : []),
+          { label: t("app.commander.wipe"), icon: <TrashIcon />, danger: true, disabled: running, hint: running ? t("app.commander.gameRunning") : undefined, run: () => setAsk("wipe") },
+        ]} />
+      )}
+      {ask === "remove" && (
+        <Confirm title={t("app.commander.uninstall")} text={t("app.commander.uninstallText")} confirm={t("app.commander.uninstall")} onConfirm={uninstall} onCancel={() => setAsk(null)} />
+      )}
+      {ask === "wipe" && <WipeDialog running={running} onClose={() => setAsk(null)} onDone={wiped} />}
+      {joining && <JoinDialog onClose={() => setJoining(false)} onJoin={(f) => {
+        setJoining(false);
+        const war: WarRef = { id: f.war, name: f.name, host: "lan", base: f.base, computer: f.computer };
+        select({ id: f.war, name: f.name, host: "lan", base: f.base, computer: f.computer }, false).then(() => { load(); setSource({ kind: "lan", war }); });
+      }} />}
+    </>
+  );
 
   if (!installed && lanWars.length === 0) {
     return (
       <div className="commander">
-        <Intro onInstall={install} onInstallFile={installFile} onJoin={() => setJoining(true)} />
-        {joining && <JoinDialog onClose={() => setJoining(false)} onJoin={(f) => { setJoining(false); select({ id: f.war, name: f.name, host: "lan", base: f.base, computer: f.computer }, false).then(load); setSource({ kind: "lan", war: { id: f.war, name: f.name, host: "lan", base: f.base, computer: f.computer } }); }} />}
+        <Intro onInstall={install} onInstallFile={installFile} onJoin={() => setJoining(true)} leftovers={hasData(footprint) ? footprint : null} onWipe={() => setAsk("wipe")} />
+        {dialogs}
       </div>
     );
   }
@@ -188,8 +255,9 @@ export function CommanderPage({ snap, visible, onPlay }: Props) {
       <div className="cmd-bar">
         <div className="cmd-sources" role="tablist">
           {installed && (
-            <button role="tab" aria-selected={source?.kind === "local"} className={source?.kind === "local" ? "cmd-src cur" : "cmd-src"} onClick={() => setSource({ kind: "local" })}>
-              <CommanderIcon /><span>{t("app.commander.thisPc")}</span>
+            <button role="tab" aria-selected={source?.kind === "local"} className={source?.kind === "local" ? "cmd-src cur" : "cmd-src"} onClick={() => setSource({ kind: "local" })}
+              data-tip={t("app.commander.thisPcHint")}>
+              <ThisPcIcon /><span>{t("app.commander.thisPc")}</span>
             </button>
           )}
           {lanWars.map((w) => {
@@ -208,23 +276,11 @@ export function CommanderPage({ snap, visible, onPlay }: Props) {
         </div>
         <div className="cmd-next">
           <span className="cmd-next-label">{t("app.commander.nextLaunch")}</span>
-          <span className={playingWar ? "cmd-next-war on" : "cmd-next-war"}>{playingWar ? playingWar.name : t("app.commander.officialWar")}</span>
-          {playingWar && <button className="btn" disabled={running} onClick={official}>{t("app.commander.officialWar")}</button>}
-          {installed ? (
-            <span className="cmd-menu-wrap">
-              <button className="btn icon" aria-label={t("app.commander.package")} data-tip={t("app.commander.package")} onClick={() => setMenu((m) => !m)}><CommanderIcon /></button>
-              {menu && (
-                <div className="cmd-menu" onMouseLeave={() => setMenu(false)}>
-                  <div className="cmd-menu-head">{t("app.commander.packageVersion", view.installed?.version ?? "")}</div>
-                  <button onClick={install}>{t("app.commander.update")}</button>
-                  <button onClick={installFile}>{t("app.commander.installFile")}</button>
-                  <button onClick={uninstall}>{t("app.commander.uninstall")}</button>
-                </div>
-              )}
-            </span>
-          ) : (
-            <button className="btn" onClick={install}>{t("app.commander.install")}</button>
-          )}
+          <span className={playingWar ? "cmd-next-war on" : "cmd-next-war"} data-tip={t("app.commander.nextLaunchHint")}>{playingWar ? playingWar.name : t("app.commander.officialWar")}</span>
+          {playingWar && <button className="btn" disabled={running} onClick={official} data-tip={running ? t("app.commander.gameRunning") : t("app.commander.officialHint")}>{t("app.commander.officialWar")}</button>}
+          {!installed && <button className="btn" onClick={install}>{t("app.commander.install")}</button>}
+          <button className={menu ? "btn icon cmd-pkg open" : "btn icon cmd-pkg"} aria-haspopup="menu" aria-expanded={!!menu} aria-label={t("app.commander.package")}
+            data-tip={menu ? undefined : t("app.commander.package")} onClick={openMenu}><PackageIcon /></button>
         </div>
       </div>
       <div className="cmd-stage">
@@ -234,16 +290,70 @@ export function CommanderPage({ snap, visible, onPlay }: Props) {
           <div className="cmd-wait">{starting ? t("app.commander.starting") : t("app.commander.nothing")}</div>
         )}
       </div>
-      {joining && <JoinDialog onClose={() => setJoining(false)} onJoin={(f) => {
-        setJoining(false);
-        const war: WarRef = { id: f.war, name: f.name, host: "lan", base: f.base, computer: f.computer };
-        select({ id: f.war, name: f.name, host: "lan", base: f.base, computer: f.computer }, false).then(() => { load(); setSource({ kind: "lan", war }); });
-      }} />}
+      {dialogs}
     </div>
   );
 }
 
-function Intro({ onInstall, onInstallFile, onJoin }: { onInstall: () => void; onInstallFile: () => void; onJoin: () => void }) {
+/** Remove All Commander Data: lists what Commander keeps here, with the war saves and the firewall
+ *  rules as choices, since those are the player's progress and need Windows' permission. */
+function WipeDialog({ running, onClose, onDone }: { running: boolean; onClose: () => void; onDone: (r: { commander: CommanderView; snapshot: Snapshot; report: WipeReport }) => void }) {
+  const [fp, setFp] = useState<Footprint | null>(null);
+  const [saves, setSaves] = useState(true);
+  const [firewall, setFirewall] = useState(true);
+  const [busy, setBusy] = useState(false);
+  // Once per opening: the count reads the firewall rules through netsh, which takes a moment.
+  const close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => {
+    call<Footprint>("commander_footprint").then(setFp).catch((e) => { notify("error", errorText(e)); close.current(); });
+  }, []);
+  const go = async () => {
+    if (busy || running || !fp) return;
+    setBusy(true);
+    try {
+      onDone(await withTask(t("app.commander.wiping"), () => call<{ commander: CommanderView; snapshot: Snapshot; report: WipeReport }>("commander_wipe", { saves: saves && !!fp?.saves.length, firewall: firewall && !!fp?.firewallRules }), true));
+    } catch (e) {
+      notify("error", errorText(e));
+      setBusy(false);
+    }
+  };
+  const mb = fp ? Math.max(0.1, fp.bytes / 1048576) : 0;
+  const lines = fp ? [
+    fp.package != null ? (fp.package ? t("app.commander.wipePackage", fp.package) : t("app.commander.wipePackageAny")) : null,
+    fp.hosted ? t("app.commander.wipeHosted", fp.hosted) : null,
+    fp.joined ? t("app.commander.wipeJoined", fp.joined) : null,
+    t("app.commander.wipeFiles", mb.toFixed(1)),
+  ].filter(Boolean) as string[] : [];
+  return (
+    <Confirm title={t("app.commander.wipe")} text={running ? t("app.commander.gameRunning") : t("app.commander.wipeText")} confirm={t("app.commander.wipeConfirm")} onConfirm={go} onCancel={onClose}>
+      {!fp ? <p className="cmd-wipe-wait">{t("app.commander.wipeLooking")}</p> : (
+        <div className="cmd-wipe">
+          <ul>{lines.map((l) => <li key={l}>{l}</li>)}</ul>
+          {fp.saves.length > 0 && (
+            <button role="checkbox" aria-checked={saves} className="check-line" onClick={() => setSaves(!saves)} data-tip={fp.saves.map((s) => s.name).join("\n")}>
+              <span className={saves ? "ck on" : "ck"} aria-hidden="true">{saves && <CheckIcon />}</span>
+              {t("app.commander.wipeSaves", fp.saves.length)}
+            </button>
+          )}
+          {fp.firewallRules > 0 && (
+            <button role="checkbox" aria-checked={firewall} className="check-line" onClick={() => setFirewall(!firewall)} data-tip={t("app.commander.wipeFirewallHint")}>
+              <span className={firewall ? "ck on" : "ck"} aria-hidden="true">{firewall && <CheckIcon />}</span>
+              {t("app.commander.wipeFirewall", fp.firewallRules)}
+            </button>
+          )}
+        </div>
+      )}
+    </Confirm>
+  );
+}
+
+function Intro({ onInstall, onInstallFile, onJoin, leftovers, onWipe }: { onInstall: () => void; onInstallFile: () => void; onJoin: () => void; leftovers: Footprint | null; onWipe: () => void }) {
+  const left = leftovers ? [
+    leftovers.hosted ? t("app.commander.wipeHosted", leftovers.hosted) : null,
+    leftovers.joined ? t("app.commander.wipeJoined", leftovers.joined) : null,
+    leftovers.saves.length ? t("app.commander.leftSaves", leftovers.saves.length) : null,
+  ].filter(Boolean).join(", ") : "";
   return (
     <div className="cmd-intro">
       <div className="cmd-hero">
@@ -252,10 +362,16 @@ function Intro({ onInstall, onInstallFile, onJoin }: { onInstall: () => void; on
           <h1 className="cap">{t("app.commander.title")}</h1>
           <p className="cmd-lead">{t("app.commander.lead")}</p>
           <div className="cmd-actions">
-            <button className="btn play" onClick={onInstall}>{t("app.commander.install")}</button>
-            <button className="btn" onClick={onJoin}>{t("app.commander.joinLan")}</button>
+            <button className="btn play" onClick={onInstall} data-tip={t("app.commander.installNote")}>{t("app.commander.install")}</button>
+            <button className="btn" onClick={onJoin} data-tip={t("app.commander.joinHint")}>{t("app.commander.joinLan")}</button>
           </div>
-          <p className="cmd-note">{t("app.commander.installNote")} <button className="link" onClick={onInstallFile}>{t("app.commander.installFile")}</button></p>
+          <p className="cmd-note"><button className="link" onClick={onInstallFile} data-tip={t("app.commander.installFileHint")}>{t("app.commander.installFile")}</button></p>
+          {leftovers && (
+            <p className="cmd-left">
+              <span>{left ? t("app.commander.leftover", left) : t("app.commander.leftoverFiles")}</span>
+              <button className="link" onClick={onWipe}>{t("app.commander.wipe")}</button>
+            </p>
+          )}
         </div>
       </div>
       <div className="cmd-cards">

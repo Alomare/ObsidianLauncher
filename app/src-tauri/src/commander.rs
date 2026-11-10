@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use obsidian_core::commander::{self, Installed, State, WarHost, WarRef, lan, package, relay::Relay, server::Server};
+use obsidian_core::commander::{self, Installed, State, WarHost, WarRef, lan, package, relay::Relay, server::Server, wipe};
 use serde::{Deserialize, Serialize};
 use tauri::State as TauriState;
 
@@ -53,13 +53,16 @@ fn ensure_relay(ctx: &Ctx, runtime: &mut Runtime) -> CmdResult<()> {
 /// At app start: a war selected last time gets its relay, and its server when it's hosted here, so
 /// a game started from Steam still reaches it.
 pub fn resume(ctx: &Ctx) {
+    resume_with(ctx, &mut rt(ctx));
+}
+
+fn resume_with(ctx: &Ctx, runtime: &mut Runtime) {
     let state = State::load(&ctx.data);
     let Some(war) = state.playing.as_deref().and_then(|id| state.war(id)).cloned() else { return };
-    let mut runtime = rt(ctx);
     if war.host == WarHost::Local && package::installed(&ctx.data).is_some() {
-        let _ = ensure_server(ctx, &mut runtime);
+        let _ = ensure_server(ctx, runtime);
     }
-    let _ = ensure_relay(ctx, &mut runtime);
+    let _ = ensure_relay(ctx, runtime);
 }
 
 #[derive(Debug, Serialize)]
@@ -221,4 +224,49 @@ pub async fn commander_forget(ctx: TauriState<'_, Ctx>, id: String) -> CmdResult
 #[tauri::command]
 pub async fn commander_scan(ms: u64) -> CmdResult<Vec<lan::Found>> {
     Ok(lan::scan(Duration::from_millis(ms.clamp(500, 10_000)))?)
+}
+
+/// The saves and the game-side folder, when the game and a Steam account are found.
+fn saves_and_side(ctx: &Ctx) -> (Option<obsidian_core::saves::Saves>, Option<PathBuf>) {
+    let side = find(&AppSettings::load(&ctx.data)).map(|g| obsidian_core::settings::game_side_dir(&g.saves_dir));
+    (saves_of(ctx).ok(), side)
+}
+
+/// What Commander has on this PC, for the remove dialog.
+#[tauri::command]
+pub async fn commander_footprint(ctx: TauriState<'_, Ctx>) -> CmdResult<wipe::Footprint> {
+    let _turn = ctx.turn();
+    let (saves, side) = saves_and_side(&ctx);
+    Ok(wipe::footprint(&ctx.data, saves.as_ref(), side.as_deref()))
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommanderWipeDone {
+    pub commander: CommanderView,
+    pub snapshot: Snapshot,
+    pub report: wipe::WipeReport,
+}
+
+/// Removes everything Commander left on this PC; `saves` deletes the wars' Sandbox saves too, and
+/// `firewall` the server's firewall rules (Windows asks for admin). The server and the relay stop
+/// first. Refused while the game runs.
+#[tauri::command]
+pub async fn commander_wipe(ctx: TauriState<'_, Ctx>, saves: bool, firewall: bool) -> CmdResult<CommanderWipeDone> {
+    let _turn = ctx.turn();
+    obsidian_core::game::ensure_closed()?;
+    let mut runtime = rt(&ctx);
+    // The server's process ends and the relay's port closes before their files go.
+    runtime.server = None;
+    runtime.relay = None;
+    let (s, side) = saves_and_side(&ctx);
+    let report = match wipe::wipe(&ctx.data, s.as_ref(), side.as_deref(), saves, firewall) {
+        Ok(r) => r,
+        Err(e) => {
+            // A war still selected gets its relay and server back.
+            resume_with(&ctx, &mut runtime);
+            return Err(e.into());
+        }
+    };
+    Ok(CommanderWipeDone { commander: view(&ctx, &mut runtime), snapshot: fresh(&ctx)?, report })
 }
