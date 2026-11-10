@@ -45,6 +45,7 @@ summary: Every field of the file that describes a mod.
 | `source` | no | The mod's address, shown in its details. A GitHub repository such as `https://github.com/you/mod` also lets players update the mod from the app ([Sharing a mod](wiki:sharing#updates)). |
 | `scope` | no | `client`, `session`, `expansion` or `library` ([Scopes](wiki:scopes)). Missing or unknown makes the mod unspecified, which runs as a client mod, or as a session mod with `every_player`. |
 | `every_player` | no | `true` for a mod that only works when every player in the lobby runs it ([Mods every player needs](wiki:session-mods#every-player)). Not for client mods or expansions. |
+| `parts` | no | Pieces of the mod with a scope of their own ([Parts](#parts)). Not for libraries or expansions. |
 | `entry` | no | The Lua script the loader starts. Mods that only replace game files leave it out. |
 | `modules` | no | More `.lua` files beside `entry`, which the mod loads with `obsidian.module`. Paths inside the mod folder. |
 | `requires` | no | Ids of mods this one needs. Switching the mod on switches them on, and they start first. Players see them in the mod's Dependencies tab. A deploy stops with a message if one is missing. |
@@ -53,6 +54,8 @@ summary: Every field of the file that describes a mod.
 | `loader_api` | no | The version of the [Loader API](wiki:loader-api) the mod needs. `1` when left out. |
 | `min_obsidian` | no | The oldest Obsidian the mod works with, such as `"1.1.0"`. An older one refuses the mod and asks the player to update. Obsidian before 1.1 doesn't read it. |
 | `options` | no | Settings players change in the app ([Options and keys](wiki:options-and-keys)). |
+| `option_groups` | no | Headings that fold, to sort the options under ([Option groups](wiki:options-and-keys#option-groups)). |
+| `option_previews` | no | Pictures of the option values, from SVG templates ([Option previews](wiki:options-and-keys#option-previews)). |
 | `keybinds` | no | Keys players can rebind in the app. A keybind's `pad` names the choice option with the controller input for the same action ([Controller input](wiki:options-and-keys#controller-input)). |
 | `resources` | no | Game files the mod replaces or adds ([Replacing game files](wiki:resources)). |
 | `save_editor` | no | What the mod shows on the Mods tab of the [save editor](wiki:saves) ([The save editor](#save-editor)). |
@@ -83,6 +86,31 @@ A new mod takes the place it asks for when it joins a profile. After that the pl
 Ask only for what the mod needs. Two mods that both ask to load last, or that ask to load after each other, can't both have their way: Sort Mods leaves them where they are and tells the player to order them by hand.
 
 Obsidian checks `load` on import: a position other than `first` or `last`, an unknown field, a mod's own id, or the same id in `before` and `after` is refused. Obsidian 1.3.1 and earlier read only `"last"`, and list a mod with any other `load` as one that can't be read.
+
+## Parts
+
+`parts` splits a session mod into pieces, each `client` or `session`, so the personal pieces keep running in a lobby that isn't cleared ([Mods with parts](wiki:scopes#mods-with-parts)).
+
+```json
+"scope": "session",
+"parts": [
+  { "id": "view", "scope": "client",
+    "name": { "en": "Camera and view" }, "description": { "en": "Keeps working in any lobby." } },
+  { "id": "weapon_range", "scope": "session", "option": "max_weapon_range",
+    "name": { "en": "Max weapon range" } }
+]
+```
+
+| Field | What it is |
+|---|---|
+| `id` | Lowercase letters, digits and `_`, as an option id. |
+| `scope` | `client` or `session`. |
+| `name`, `description` | Text by language, shown in the mod's details and in the in-game notice. |
+| `option` | A toggle option of the mod. The part is on only while that option is on, and changing it needs a deploy. |
+
+Code, options and files name their part: `opts.part` in the [Loader API](wiki:loader-api#parts), `part` on an [option](wiki:options-and-keys) and on a [resource](wiki:resources#parts). Anything without a part follows the strictest part that is on. A part that is off runs no code, deploys no file and doesn't count for what players compare.
+
+The top-level `scope` stays the strictest one: `session` when any part is. An older Obsidian reads only that, and runs the whole mod as a session mod. Obsidian refuses a part id that isn't unique, a scope other than `client` or `session`, an `option` that isn't a toggle, and a `part` that names no part.
 
 ## Text in several languages
 

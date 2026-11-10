@@ -102,7 +102,12 @@ A game update counts as changes waiting, and a new deploy reads the game again. 
 | `bundle` | The bundle the resource goes in, 16 hex digits. Needed for every resource except one with `clips` |
 | `flags` | A value bundles keep beside each resource; leave it out unless a converter set it |
 | `when` | Options that must have these values for the resource to be used ([Options and keys](wiki:options-and-keys#options-that-pick-files)) |
+| `part` | The [part](wiki:manifest#parts) of the mod the resource belongs to |
+
+## Files in parts {#parts}
+
+In a mod with parts, `"part": "<part id>"` puts a resource in that part. A resource of a part that is off isn't deployed, as with `when`. A resource of a client part is this player's own: it doesn't keep vanilla players out of a public lobby, as the files of a session mod do. A resource without a part follows the strictest part that is on, so in a session or hybrid mod it counts as session content.
 
 ## Limits
 
-A replaced resource is static: it can't be switched off in the middle of a game. In a session mod, use resources for data the game reads at startup and hooks for behavior.
+A replaced resource is static: it can't be switched off in the middle of a game. In a session mod, use resources for data the game reads at startup and hooks for behavior. A part doesn't change that: the files of a session part stay in the game in every lobby, and only the deploy decides which go in.

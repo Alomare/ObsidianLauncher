@@ -48,6 +48,17 @@ In a friends-only or private lobby, every row is On.
 
 The check runs again whenever someone joins, leaves or changes setup, and when the host changes who can join. Mods switch on and off live, and a session mod can undo what it changed when that happens.
 
+## Mods with parts
+
+A [mod with parts](wiki:scopes#mods-with-parts) follows the same rules, part by part. The session parts run where session mods run, and the client parts run in any lobby. When the session parts switch off in a public lobby, the game names them and says the rest keeps working.
+
+| Other players | A's camera part (client) | A's weapon range part (session) |
+|---|---|---|
+| B runs the same set | On | On |
+| B has vanilla HELLDIVERS | On | Off |
+
+The options of client parts don't count when Obsidian compares sets, and a part switched off in the mod's options counts for nothing.
+
 ## Mods every player needs
 
 Some mods only work when everyone has them, such as one that lets more players into a lobby. The author marks those, and they follow a stricter rule: such a mod runs only when every other player runs it too, at the same version and with the same option values, in any lobby, friends only included. Not blocking doesn't count for them. When a player who doesn't have it is in your lobby, that one mod switches off and the game tells you. Your other session mods follow the usual rules.

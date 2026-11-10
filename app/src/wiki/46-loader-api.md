@@ -8,7 +8,7 @@ Obsidian Loader starts the `entry` script of each enabled mod in load order, onc
 
 ## Hooks {#hooks}
 
-### obsidian.hook(target, method, fn)
+### obsidian.hook(target, method, fn, opts)
 
 Wraps a function of the game. `target` is a table, or the name of a global table as a string. `fn` receives the original function first, then the arguments of the call:
 
@@ -23,7 +23,7 @@ end)
 
 When the global doesn't exist yet, the hook waits and goes in as soon as the game defines it. If `fn` fails, the original runs instead.
 
-In a session mod, the hook calls only the original while the lobby isn't cleared ([Writing session mods](wiki:session-mods)). In an expansion, it calls only the original until the content starts ([Writing an expansion](wiki:session-mods#expansions)).
+In a session mod, the hook calls only the original while the lobby isn't cleared ([Writing session mods](wiki:session-mods)). In an expansion, it calls only the original until the content starts ([Writing an expansion](wiki:session-mods#expansions)). `opts.part` puts the hook in a [part](#parts) of the mod.
 
 ### obsidian.wrap(target, method, fn)
 
@@ -33,9 +33,9 @@ The same as `obsidian.hook`, with the same safety if `fn` fails, except that it 
 
 Calls `fn(module)` when the game loads the script `name`, such as `"lua/settings/perk_settings"`. Use it to change a settings table right after the game builds it. When the script has already loaded, `fn` runs at once.
 
-### obsidian.on_frame(fn)
+### obsidian.on_frame(fn, opts)
 
-Calls `fn` once per frame. Return `true` to stop the calls. The frame functions of a session mod only run in a cleared lobby, and those of an expansion only while the content runs.
+Calls `fn` once per frame. Return `true` to stop the calls. The frame functions of a session mod only run in a cleared lobby, and those of an expansion only while the content runs. `opts.part` puts the function in a [part](#parts) of the mod. `opts.always` runs it in any lobby, as `obsidian.wrap` does a hook, for work only this player sees; check `obsidian.capabilities.parts` first, since an older loader gates it as before.
 
 ### obsidian.after_startup(fn)
 
@@ -49,13 +49,13 @@ The value of option `id` of this mod: the one the player chose in the app, or th
 
 ### obsidian.keybind(id, fn, opts)
 
-Calls `fn` each time the key bound to `id` goes down. The key comes from the app, or from the default in `obsidian.json`. The keys of a session mod wait for a cleared lobby, and those of an expansion for the content, as the hooks of the mod do. `opts.always` leaves the key alone, as `obsidian.wrap` does a hook, for a key that only acts on this player's screen.
+Calls `fn` each time the key bound to `id` goes down. The key comes from the app, or from the default in `obsidian.json`. The keys of a session mod wait for a cleared lobby, and those of an expansion for the content, as the hooks of the mod do. `opts.always` leaves the key alone, as `obsidian.wrap` does a hook, for a key that only acts on this player's screen. `opts.part` puts the key in a [part](#parts) of the mod.
 
 ## Multiplayer
 
-### obsidian.session.cleared()
+### obsidian.session.cleared(part)
 
-`true` while the calling mod may run: the session is cleared, and for a mod marked `every_player`, every other player runs it too ([Mods every player needs](wiki:session-mods#every-player)). For an expansion, `true` while the content runs. Client mods rarely need it.
+`true` while the calling mod may run: the session is cleared, and for a mod marked `every_player`, every other player runs it too ([Mods every player needs](wiki:session-mods#every-player)). For an expansion, `true` while the content runs. Client mods rarely need it. With a part id, the answer for that [part](#parts): always `true` for a client part, and `false` for a part that is off.
 
 ### obsidian.session.guard(t, free)
 
@@ -75,9 +75,25 @@ These do nothing. A player's own save is theirs, so Obsidian holds none of a mis
 
 What the player chose in **Guardrails** for this launch, as `{ consent, block_achievements, freeze_progress }`, where `consent` is false while the player blocks other players' session mods in a public lobby. A mod can read them, for example to tell the player their account is frozen. Only the player can change them, and the loader enforces them under every mod ([Guardrails](wiki:guardrails)).
 
-### obsidian.on_session(fn)
+### obsidian.on_session(fn, opts)
 
-Calls `fn(on)` whenever the loader switches this mod on or off, so the mod can undo what other players would see. A mod marked `every_player` also hears when a player who doesn't run it comes or goes. An expansion hears `true` when the content starts and `false` when it ends, in every game in the lobby, and so does a library that only expansions require.
+Calls `fn(on)` whenever the loader switches this mod on or off, so the mod can undo what other players would see. A mod marked `every_player` also hears when a player who doesn't run it comes or goes. An expansion hears `true` when the content starts and `false` when it ends, in every game in the lobby, and so does a library that only expansions require. With `opts.part`, `fn` hears only the switch of that [part](#parts): a client part never switches off.
+
+### Parts {#parts}
+
+A mod with [`parts`](wiki:manifest#parts) tags each registration with the part it belongs to, as the last argument of `obsidian.hook`, `obsidian.on_frame`, `obsidian.keybind` and `obsidian.on_session`:
+
+```lua
+local view = { part = "view" }
+obsidian.hook("CameraManager", "update", on_camera, view)
+obsidian.on_frame(tick_view, view)
+obsidian.keybind("toggle_view", toggle, { part = "view", always = true })
+obsidian.on_session(function(on) if not on then undo_range() end end, { part = "weapon_range" })
+```
+
+The code of a client part runs in any lobby, the code of a session part only in a cleared one. Untagged code follows the strictest part that is on. A part that is off registers nothing. Code that runs once, such as the entry script and `on_require`, isn't tagged. One Lua state serves every part, so a client part can still call session code directly: only the registrations are gated.
+
+`obsidian.scope()` answers `"hybrid"` while a client part and a session part are both on. The calls a library guards treat a hybrid mod as a session mod, from any part. An older loader ignores `opts.part` and gates everything as a session mod's, so check `obsidian.capabilities.parts` before telling the player that the personal parts keep running.
 
 ## Expansions {#expansions}
 
@@ -125,7 +141,7 @@ What the `entry` script of another mod returned, or `nil` when that mod isn't ru
 
 ### obsidian.scope()
 
-How the calling mod runs in this deploy: `"client"`, `"session"` or `"expansion"`. A library gets `"client"` or `"session"`, and `"session"` when an expansion requires it, so the library sets up what the expansion may use ([Writing a library](wiki:session-mods#libraries)).
+How the calling mod runs in this deploy: `"client"`, `"session"`, `"hybrid"` (a mod with a client part and a session part on, [Parts](#parts)) or `"expansion"`. A library gets `"client"` or `"session"`, and `"session"` when an expansion requires it, so the library sets up what the expansion may use ([Writing a library](wiki:session-mods#libraries)).
 
 ### obsidian.caller()
 
@@ -361,7 +377,7 @@ Values a player should be able to edit in the save editor go in the [`save_edito
 
 `obsidian.version` is the API version, `1` today. A mod that needs a newer API sets `loader_api` in `obsidian.json`, and older loaders refuse to start it.
 
-`obsidian.capabilities` is a read-only table of what the running loader supports, one entry per feature: `hook`, `on_require`, `on_frame`, `on_session`, `after_startup`, `settings`, `keybind`, `session`, `text`, `log`, `module`, `import`, `caller`, `info`, `menu`, `toast`, `notify`, `storage`, `save_data`, `ui`, `expansion`, `language`, `game_text`. Test a feature by name before using one that came later:
+`obsidian.capabilities` is a read-only table of what the running loader supports, one entry per feature: `hook`, `on_require`, `on_frame`, `on_session`, `after_startup`, `settings`, `keybind`, `session`, `text`, `log`, `module`, `import`, `caller`, `info`, `menu`, `toast`, `notify`, `storage`, `save_data`, `ui`, `expansion`, `language`, `game_text`, `parts`. Test a feature by name before using one that came later:
 
 ```lua
 if obsidian.capabilities.on_frame then

@@ -48,6 +48,33 @@ obsidian.on_session(function(on)
 end)
 ```
 
+## Split the mod into parts {#parts}
+
+A session mod often has pieces only this player sees, such as a camera, next to pieces that change the shared game. Declare [`parts`](wiki:manifest#parts) and tag the code of each, and the personal pieces keep running when the lobby stops being cleared:
+
+```json
+"scope": "session",
+"parts": [
+  { "id": "view", "scope": "client", "name": { "en": "Camera" } },
+  { "id": "weapon_range", "scope": "session", "option": "max_weapon_range", "name": { "en": "Max weapon range" } }
+]
+```
+
+```lua
+local VIEW = { part = "view" }
+obsidian.hook("CameraManager", "update", update_camera, VIEW)
+obsidian.on_frame(steer, VIEW)
+obsidian.hook("WeaponSettings", "range", longer_range, { part = "weapon_range" })
+obsidian.on_session(function(on) restore_range(on) end, { part = "weapon_range" })
+```
+
+- A client part follows the rules of a client mod: only what this player sees, hears or presses. A camera is personal; time scale and gravity are not, even though they run on one machine.
+- When the session parts switch off, the game tells the player which ones, and that the rest keeps working.
+- A part with `option` is on only while that toggle is on. With every session part off, the mod deploys as a client mod, so the player gets Galactic War results back.
+- A library the mod requires runs as a session mod while a session part is on, and treats the whole mod as a session mod in the calls it guards.
+- One Lua state holds every part. Code in a client part can still reach session code directly, so read what a session part changed each time instead of keeping a copy.
+- [Loader API: Parts](wiki:loader-api#parts) lists the arguments.
+
 ## Things to avoid
 
 - **Replacing globals directly.** `SomeTable.func = mine` keeps running in every lobby, because the loader can't switch it off. The loader log lists such changes for every mod at startup.
@@ -181,4 +208,4 @@ A library that an expansion requires counts as a client mod at deploy, unless a 
 
 ## Options in session mods
 
-Every option value counts when Obsidian compares players' sets, unless you mark it `"scope": "client"`. The same goes for an expansion. Mark the options that only change what this player sees ([Options and keys](wiki:options-and-keys#personal-options-in-session-mods)).
+Every option value counts when Obsidian compares players' sets, unless you mark it `"scope": "client"` or put it in a client part. The same goes for an expansion. Mark the options that only change what this player sees ([Options and keys](wiki:options-and-keys#personal-options-in-session-mods)).

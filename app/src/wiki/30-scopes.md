@@ -1,7 +1,7 @@
 ---
 title: Scopes
 group: Playing online
-summary: Client, session, expansion, library and unspecified mods, and what each one may do.
+summary: Client, session, hybrid, expansion, library and unspecified mods, and what each one may do.
 ---
 
 HELLDIVERS is a co-op game. A mod that changes enemies, weapons or missions changes the game for everyone in your lobby, not only for you. Obsidian sorts every mod into a scope so that a player who never installed a mod is never affected by one.
@@ -17,6 +17,12 @@ Obsidian Patches is a client mod.
 A session mod can change the shared game: balance, enemies, spawns, missions, physics, anything other players would notice. In a public lobby, session mods only run when every other player allows them. Alone, and in a friends-only or private lobby, they always run ([Playing online](wiki:multiplayer)).
 
 A session mod changes the whole deploy, in every mission: Galactic War and leaderboard results aren't sent, Proving Grounds is closed, and matchmaking finds only other Obsidian players ([The Galactic War](wiki:galactic-war)).
+
+## Mods with parts
+
+A session mod can come in parts, and each part has a scope. A camera mod, for example, can keep the camera as a client part and put a longer weapon range in a session part. In a lobby that isn't cleared, the session parts switch off and the client parts keep running, and the game says which parts went off.
+
+A mod with both kinds of part on is **hybrid**. While any session part is on, the mod counts as a session mod for the deploy: Galactic War results aren't sent and Proving Grounds is closed. A part can have an option that switches it on and off in the mod's details. With every session part off, the mod is a client mod, and the Galactic War and Proving Grounds are back after the next deploy.
 
 ## Expansions
 
@@ -41,11 +47,11 @@ A mod that asks to run only while every player runs it (`every_player`) is a ses
 
 ## Libraries
 
-A library is code other mods build on, such as Obsidian API. It takes the scope of the mods using it: a session mod while an enabled session mod requires it, and a client mod the rest of the time. A library that no mod uses, or that only client mods and expansions use, doesn't move you out of the normal matchmaking pool or stop your Galactic War results. An expansion gets full use of the libraries it requires while the content runs.
+A library is code other mods build on, such as Obsidian API. It takes the scope of the mods using it: a session mod while an enabled session or hybrid mod requires it, and a client mod the rest of the time. A library that no mod uses, or that only client mods and expansions use, doesn't move you out of the normal matchmaking pool or stop your Galactic War results. An expansion gets full use of the libraries it requires while the content runs.
 
 ## In the app
 
-Every row of the mod list has a diamond for the scope: black for unspecified, green for client, red for session, white for a library (grey on the light theme) and yellow for an expansion. Hover over it for the name, and click it to open this page at that scope. The details of each mod say it too.
+Every row of the mod list has a diamond for the scope: black for unspecified, green for client, red for session, white for a library (grey on the light theme) and yellow for an expansion. A hybrid mod has a diamond split in two, green on the left and red on the right. Hover over it for the name, and the parts with their scopes, and click it to open this page at that scope. The details of each mod say it too, and the About tab lists the parts, marking a part that is off.
 
 ## Who decides the scope
 
