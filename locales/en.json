@@ -839,5 +839,6 @@
   "app.commander.firewallKept": "Windows Firewall rules stay: Windows didn't give permission to remove them.",
   "app.commander.leftover": "Commander data from before is still on this PC. %s.",
   "app.commander.leftoverFiles": "Commander data from before is still on this PC.",
-  "app.commander.leftSaves": "War saves: %s"
+  "app.commander.leftSaves": "War saves: %s",
+  "app.commander.leftFirewall": "Firewall rules: %s"
 }

@@ -353,6 +353,7 @@ function Intro({ onInstall, onInstallFile, onJoin, leftovers, onWipe }: { onInst
     leftovers.hosted ? t("app.commander.wipeHosted", leftovers.hosted) : null,
     leftovers.joined ? t("app.commander.wipeJoined", leftovers.joined) : null,
     leftovers.saves.length ? t("app.commander.leftSaves", leftovers.saves.length) : null,
+    leftovers.firewallRules ? t("app.commander.leftFirewall", leftovers.firewallRules) : null,
   ].filter(Boolean).join(", ") : "";
   return (
     <div className="cmd-intro">
