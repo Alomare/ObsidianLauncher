@@ -4,7 +4,7 @@ group: Making mods
 summary: Settings players change in the app, and keys they can rebind, read from Lua.
 ---
 
-Options show in the panel on the right when a player selects your mod. Obsidian checks every value against what you declared, so the mod never receives a value outside the range you set. Values belong to the profile, so two profiles can run the same mod with different settings.
+Options show in the panel on the right when a player selects the mod. Obsidian checks every value against the declaration, so the mod never receives a value outside the declared range. Values belong to the profile, so two profiles can run the same mod with different settings.
 
 ## Declaring options
 
@@ -133,7 +133,7 @@ The function runs once each time the key goes down. Players rebind keys in the a
 
 ### Controller input
 
-The Keys tab has a column for the mouse and keyboard and one for a controller. When an action also has a controller input, declare that input as a `choice` option and name the option in the keybind's `pad`:
+The Keys tab has a column for the mouse and keyboard and one for a controller. When an action also has a controller input, declare that input as a `choice` option and name the option in the `pad` of the keybind:
 
 ```json
 "options": [ { "id": "pad_toggle", "type": "choice", "default": "thumbs",
@@ -141,4 +141,4 @@ The Keys tab has a column for the mouse and keyboard and one for a controller. W
 "keybinds": [ { "id": "toggle", "default": "f8", "pad": "pad_toggle", "label": { "en": "Turn the compass on or off" } } ]
 ```
 
-The app then shows the option in the keybind's row, under the controller column, and leaves it out of the Options tab. The mod reads the option like any other and watches the pad itself. A keybind with no `pad` shows a dash in that column. Obsidian versions without the controller column ignore `pad` and list the option under Options.
+The app then shows the option in the row of the keybind, under the controller column, and leaves it out of the Options tab. The mod reads the option like any other and watches the pad itself. A keybind with no `pad` shows a dash in that column. Obsidian versions without the controller column ignore `pad` and list the option under Options.

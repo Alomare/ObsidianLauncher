@@ -4,7 +4,7 @@ group: Making mods
 summary: How to change the shared game so the guardrails keep working for you.
 ---
 
-A session mod changes something other players notice: damage, enemies, spawns, missions. The loader decides when such a mod may run ([Playing online](wiki:multiplayer)), and switches it on and off as players come and go. Your part is to make every change through the loader, so it can be switched off.
+A session mod changes something other players notice: damage, enemies, spawns, missions. The loader decides when such a mod may run ([Playing online](wiki:multiplayer)), and switches it on and off as players come and go. The job of the mod is to make every change through the loader, so the loader can switch it off.
 
 A mod whose changes all happen inside content of a separate kind, such as a game mode with a separate mission screen, can be an [expansion](#expansions) instead, and leave every other mission alone.
 
@@ -78,11 +78,11 @@ obsidian.on_session(function(on) restore_range(on) end, { part = "weapon_range" 
 ## Things to avoid
 
 - **Replacing globals directly.** `SomeTable.func = mine` keeps running in every lobby, because the loader can't switch it off. The loader log lists such changes for every mod at startup.
-- **Replacing game scripts with resources for gameplay changes.** A replaced script can't be switched off live either. Obsidian accepts it, but in a public lobby with a player who blocks session mods, the change stays in your game while the rest of your session mods switch off.
-- **Sending your own network messages** to other players outside the game's own code.
+- **Replacing game scripts with resources for gameplay changes.** A replaced script can't be switched off live either. Obsidian accepts it, but in a public lobby with a player who blocks session mods, the change stays in the game while the other session mods switch off.
+- **Sending custom network messages** to other players outside the game code.
 
 > [!NOTE]
-> Changing your own progress, such as XP or unlocks, is allowed. Obsidian backs up the save before every deploy and doesn't undo those changes.
+> Changing the progress of the player who runs the mod, such as XP or unlocks, is allowed. Obsidian backs up the save before every deploy and doesn't undo those changes.
 
 ## Writing a library {#libraries}
 
@@ -92,9 +92,9 @@ A mod that exists for other mods to build on can declare itself a library:
 "scope": "library"
 ```
 
-On each deploy, Obsidian makes it a session mod if an enabled session mod requires it, directly or through another library. Otherwise it's a client mod. Anything it does as a session mod goes through the usual rules, and it joins the set players compare. A library that replaces game files with `resources` keeps them in both cases, so keep gameplay changes out of those.
+On each deploy, Obsidian makes it a session mod if an enabled session mod requires it, directly or through another library. Otherwise it is a client mod. Anything it does as a session mod goes through the usual rules, and it joins the set players compare. A library that replaces game files with `resources` keeps them in both cases, so keep gameplay changes out of those.
 
-Your code has to work both ways. `obsidian.scope()` says which one this deploy gave you, and `obsidian.session.guard` sorts the functions you hand to other mods. Name the ones that are safe for anyone: reading, undoing, and changes only this player sees or hears. Every other function answers `false, "needs_session"` when your library runs as a client mod, and `false, "not_cleared"` in a lobby that isn't cleared. A function you forget to list is refused.
+The library code has to work both ways. `obsidian.scope()` says which one this deploy gave, and `obsidian.session.guard` sorts the functions the library hands to other mods. Name the ones that are safe for anyone: reading, undoing, and changes only this player sees or hears. Every other function answers `false, "needs_session"` when the library runs as a client mod, and `false, "not_cleared"` in a lobby that isn't cleared. A function left off the list is refused.
 
 ```lua
 local M = obsidian.module("lib/enemies")
@@ -109,11 +109,11 @@ return {
 }
 ```
 
-Your own code keeps the real table, so it can still undo what it changed after the lobby stops being cleared.
+The library itself keeps the real table, so it can still undo what it changed after the lobby stops being cleared.
 
 ## Mods every player needs {#every-player}
 
-A player's `consent` tells your mod that they allow it, not that they run it. That's enough for most mods, since the host's game decides what happens. A mod that only works when every game in the lobby has it, such as one that changes how many players fit in a lobby, can ask for more:
+The `consent` of a player tells the mod that the player allows it, not that the player runs it. That is enough for most mods, since the game of the host decides what happens. A mod that only works when every game in the lobby has it, such as one that changes how many players fit in a lobby, can ask for more:
 
 ```json
 "scope": "session",
@@ -122,7 +122,7 @@ A player's `consent` tells your mod that they allow it, not that they run it. Th
 
 Such a mod runs only when every other player runs it too, at the same version and with the same shared option values. Players who only allow it don't count. Obsidian switches it off, and back on, like any session mod, and tells the player why.
 
-`obsidian.session.cleared()` answers for the mod that asks, and `obsidian.on_session` calls the mod when its own switch changes.
+`obsidian.session.cleared()` answers for the mod that asks, and `obsidian.on_session` calls the mod when the switch of that mod changes.
 
 The check runs once a player is in the lobby, and anyone can join first, so leave the game as it was until every player is confirmed: for a bigger lobby, keep the usual limit until `obsidian.session.cleared()` is true, and go back to it when `on_session` says `false`.
 
@@ -142,7 +142,7 @@ An expansion is content that stands apart from the normal game, such as an arcad
 
 | | Outside the content | While the content runs |
 |---|---|---|
-| `obsidian.hook`, `obsidian.on_frame` and keys | Off: hooks call only the game's function | On, in every game in the lobby |
+| `obsidian.hook`, `obsidian.on_frame` and keys | Off: hooks call only the original function | On, in every game in the lobby |
 | `obsidian.wrap`, and keys with `opts.always` | On | On |
 | `obsidian.ui`, menu pages and overlays | On | On |
 | Guarded functions of a library, such as most of Obsidian API | `false, "not_started"` | Full use |
@@ -178,7 +178,7 @@ obsidian.on_session(function(on)
 end)
 ```
 
-`obsidian.expansion.start()` works on the host's game. It checks that every other player in the lobby runs the same expansion, at the same version and with the same shared option values. Then the content starts, and every other game in the lobby follows within about a second. `obsidian.on_session(true)` runs in each of them, and `obsidian.on_session(false)` once the content ends, so that's where to set up and undo. The other games learn about the content only that way, from the host.
+`obsidian.expansion.start()` works on the game of the host. It checks that every other player in the lobby runs the same expansion, at the same version and with the same shared option values. Then the content starts, and every other game in the lobby follows within about a second. `obsidian.on_session(true)` runs in each of them, and `obsidian.on_session(false)` once the content ends, so those are the places to set up and undo. The other games learn about the content only that way, from the host.
 
 The answer is `true`, or `false` and a reason:
 
@@ -189,11 +189,11 @@ The answer is `true`, or `false` and a reason:
 | `"busy"` | The content of another expansion runs. One runs at a time |
 | `"not_expansion"` | The calling mod isn't an expansion |
 
-`obsidian.expansion.stop()` ends the content, on the host's game, and answers `false, "not_running"` when it isn't running. Leaving the lobby ends it too. When the host leaves, the player who takes over the lobby carries the content on. `obsidian.expansion.running()` says whether the content of the calling mod runs now, and `running(id)` asks about another mod.
+`obsidian.expansion.stop()` ends the content, on the game of the host, and answers `false, "not_running"` when it isn't running. Leaving the lobby ends it too. When the host leaves, the player who takes over the lobby carries the content on. `obsidian.expansion.running()` says whether the content of the calling mod runs now, and `running(id)` asks about another mod.
 
 ### Players who join
 
-While the content runs, the host's lobby shows in matchmaking only to players who run the same expansion at the same version. A player who tries to join without it, through an invite or a friend, is turned away before loading in, and the host sees the name. Someone who reaches the mission without it anyway is removed with the game's kick, and can come back once the content ends. Players joining or leaving never turn the content off for the players already in it.
+While the content runs, the lobby of the host shows in matchmaking only to players who run the same expansion at the same version. A player who tries to join without it, through an invite or a friend, is turned away before loading in, and the host sees the name. Someone who reaches the mission without it anyway is removed with the kick built into the game, and can come back once the content ends. Players joining or leaving never turn the content off for the players already in it.
 
 ### Libraries an expansion requires
 

@@ -18,7 +18,7 @@ A firewall prompt answered with Cancel blocks the war server until the rule chan
 
 **Join by Address** got no war back. On the host side, check that **Internet** is on in Share (it also turns off when Obsidian closes), that the router forwards the TCP port Share shows to the host PC, and that the address is the current public one. On the player side, check the port after the colon and the invite code: after **New Code**, only the new code works.
 
-Port forwarding fails without an error when the provider shares one public address between many homes (CGNAT). The public address on the router status page then differs from the one a "what is my IP" site shows. A VPN such as Tailscale works on such connections ([VPN](wiki:commander-sharing#vpn)).
+Port forwarding fails without an error when the provider shares one public address between many homes (CGNAT). The public address on the router status page then differs from the one a "what is my IP" site shows. A [tunnel](wiki:commander-sharing#tunnel) or a [VPN](wiki:commander-sharing#vpn) works on such connections. Through a tunnel, check that the tunnel program runs on the host PC, points at `127.0.0.1` and the port Share shows, and still has the address friends typed.
 
 ## The game shows the war as offline
 

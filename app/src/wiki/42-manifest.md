@@ -15,7 +15,7 @@ summary: Every field of the file that describes a mod.
   "version": "1.2.0",
   "name": { "en": "Better Camera", "pt-BR": "Câmera Melhor" },
   "description": { "en": "A closer camera with a toggle key." },
-  "authors": ["Your name"],
+  "authors": ["Author Name"],
   "image": "image.png",
   "scope": "client",
   "entry": "main.lua",
@@ -42,13 +42,13 @@ summary: Every field of the file that describes a mod.
 | `description` | no | One or two sentences by language, shown under the name. |
 | `authors` | no | A list of names. |
 | `image` | no | A square PNG, JPG or WebP inside the mod folder, up to 4 MB. |
-| `source` | no | The mod's address, shown in its details. A GitHub repository such as `https://github.com/you/mod` also lets players update the mod from the app ([Sharing a mod](wiki:sharing#updates)). |
+| `source` | no | The web address of the mod, shown in the details. A GitHub repository such as `https://github.com/author/mod` also lets players update the mod from the app ([Sharing a mod](wiki:sharing#updates)). |
 | `scope` | no | `client`, `session`, `expansion` or `library` ([Scopes](wiki:scopes)). Missing or unknown makes the mod unspecified, which runs as a client mod, or as a session mod with `every_player`. |
 | `every_player` | no | `true` for a mod that only works when every player in the lobby runs it ([Mods every player needs](wiki:session-mods#every-player)). Not for client mods or expansions. |
 | `parts` | no | Pieces of the mod with a scope of their own ([Parts](#parts)). Not for libraries or expansions. |
 | `entry` | no | The Lua script the loader starts. Mods that only replace game files leave it out. |
 | `modules` | no | More `.lua` files beside `entry`, which the mod loads with `obsidian.module`. Paths inside the mod folder. |
-| `requires` | no | Ids of mods this one needs. Switching the mod on switches them on, and they start first. Players see them in the mod's Dependencies tab. A deploy stops with a message if one is missing. |
+| `requires` | no | Ids of mods this one needs. Switching the mod on switches them on, and they start first. Players see them in the Dependencies tab of the mod. A deploy stops with a message if one is missing. |
 | `load` | no | Where the mod asks to sit in the load order: `"first"`, `"last"`, or an object with more requests ([Load order requests](#load-order-requests)). |
 | `load_after` | no | Ids of mods this one asks to load after. The same as `after` inside `load`, kept for mods written before it. |
 | `loader_api` | no | The version of the [Loader API](wiki:loader-api) the mod needs. `1` when left out. |
@@ -56,7 +56,7 @@ summary: Every field of the file that describes a mod.
 | `options` | no | Settings players change in the app ([Options and keys](wiki:options-and-keys)). |
 | `option_groups` | no | Headings that fold, to sort the options under ([Option groups](wiki:options-and-keys#option-groups)). |
 | `option_previews` | no | Pictures of the option values, from SVG templates ([Option previews](wiki:options-and-keys#option-previews)). |
-| `keybinds` | no | Keys players can rebind in the app. A keybind's `pad` names the choice option with the controller input for the same action ([Controller input](wiki:options-and-keys#controller-input)). |
+| `keybinds` | no | Keys players can rebind in the app. The `pad` of a keybind names the choice option with the controller input for the same action ([Controller input](wiki:options-and-keys#controller-input)). |
 | `resources` | no | Game files the mod replaces or adds ([Replacing game files](wiki:resources)). |
 | `save_editor` | no | What the mod shows on the Mods tab of the [save editor](wiki:saves) ([The save editor](#save-editor)). |
 
@@ -81,11 +81,11 @@ summary: Every field of the file that describes a mod.
 | `before_patches` | `true` to load before every mod that replaces game files (has `resources`). |
 | `after_patches` | `true` to load after every mod that replaces game files. |
 
-A new mod takes the place it asks for when it joins a profile. After that the player's order stands until the player clicks **Sort Mods** on the Mods tab ([Sort Mods](wiki:load-order#sort-mods)), which moves only the mods that need it. Ids of mods the player doesn't have are skipped, and Sort Mods says so.
+A new mod takes the place it asks for when it joins a profile. After that the order the player set stands until the player clicks **Sort Mods** on the Mods tab ([Sort Mods](wiki:load-order#sort-mods)), which moves only the mods that need it. Ids of mods the player doesn't have are skipped, and Sort Mods says so.
 
 Ask only for what the mod needs. Two mods that both ask to load last, or that ask to load after each other, can't both have their way: Sort Mods leaves them where they are and tells the player to order them by hand.
 
-Obsidian checks `load` on import: a position other than `first` or `last`, an unknown field, a mod's own id, or the same id in `before` and `after` is refused. Obsidian 1.3.1 and earlier read only `"last"`, and list a mod with any other `load` as one that can't be read.
+Obsidian checks `load` on import: a position other than `first` or `last`, an unknown field, the id of the mod itself, or the same id in `before` and `after` is refused. Obsidian 1.3.1 and earlier read only `"last"`, and list a mod with any other `load` as one that can't be read.
 
 ## Parts
 
@@ -105,7 +105,7 @@ Obsidian checks `load` on import: a position other than `first` or `last`, an un
 |---|---|
 | `id` | Lowercase letters, digits and `_`, as an option id. |
 | `scope` | `client` or `session`. |
-| `name`, `description` | Text by language, shown in the mod's details and in the in-game notice. |
+| `name`, `description` | Text by language, shown in the details of the mod and in the in-game notice. |
 | `option` | A toggle option of the mod. The part is on only while that option is on, and changing it needs a deploy. |
 
 Code, options and files name their part: `opts.part` in the [Loader API](wiki:loader-api#parts), `part` on an [option](wiki:options-and-keys) and on a [resource](wiki:resources#parts). Anything without a part follows the strictest part that is on. A part that is off runs no code, deploys no file and doesn't count for what players compare.

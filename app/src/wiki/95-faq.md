@@ -57,7 +57,7 @@ A client mod that comes with Obsidian, made of small fixes that are each an opti
 
 ### Which tools does making a mod take? {#do-i-need-any-tools}
 
-A text editor. Obsidian compiles Lua when it deploys ([Your first mod](wiki:first-mod)).
+A text editor. Obsidian compiles Lua when it deploys ([A first mod](wiki:first-mod)).
 
 ### Client or session? {#client-or-session}
 

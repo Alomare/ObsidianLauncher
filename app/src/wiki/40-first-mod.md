@@ -1,10 +1,10 @@
 ---
-title: Your first mod
+title: A first mod
 group: Making mods
 summary: A working mod from two files, with no compiler or other tools to install.
 ---
 
-An Obsidian mod is a folder with an `obsidian.json` file that describes the mod, plus the files it uses. A script mod needs one Lua file. Obsidian compiles the Lua when it deploys, so you write plain text and never touch the game's own tools.
+An Obsidian mod is a folder with an `obsidian.json` file that describes the mod, plus the files it uses. A script mod needs one Lua file. Obsidian compiles the Lua when it deploys, so a mod is plain text, and the game tools are never needed.
 
 ## 1. Make the folder
 
@@ -23,18 +23,18 @@ hello-helldiver/
 ```json
 {
   "obsidian": 1,
-  "id": "yourname.hello-helldiver",
+  "id": "author.hello-helldiver",
   "version": "1.0.0",
   "name": { "en": "Hello Helldiver" },
   "description": { "en": "Writes a line to the log when the game starts." },
-  "authors": ["Your name"],
+  "authors": ["Author Name"],
   "scope": "client",
   "entry": "main.lua",
   "loader_api": 1
 }
 ```
 
-- `id` is permanent and must be unique. Start it with your name, so two authors never pick the same one.
+- `id` is permanent and must be unique. Start it with the author name, so two authors never pick the same one.
 - `scope` is `client` because this mod changes nothing other players could notice ([Scopes](wiki:scopes)).
 - `entry` is the script the loader starts.
 
@@ -43,7 +43,7 @@ hello-helldiver/
 `main.lua`:
 
 ```lua
-obsidian.log("Hello from my first mod")
+obsidian.log("Hello from a first mod")
 
 obsidian.after_startup(function()
   obsidian.log("Every mod has started")
@@ -57,16 +57,16 @@ The loader gives every mod a global table named `obsidian` with the functions of
 1. Drag the folder onto the mod list in the [Mods](app:mods) tab.
 2. Turn the mod on and click **Deploy**.
 3. Start the game, then close it.
-4. Open `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher\logs`. `yournamehello-helldiver.log` has your two lines, and `loader.log` shows the mod starting. A mod log is named after the mod id, keeping only letters, digits, `_` and `-`.
+4. Open `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher\logs`. `authorhello-helldiver.log` has the two lines, and `loader.log` shows the mod starting. A mod log is named after the mod id, keeping only letters, digits, `_` and `-`.
 
-To change the mod, edit the files and import the folder again: a mod with the same id replaces the old copy. Raise `version` when you share a new release.
+To change the mod, edit the files and import the folder again: a mod with the same id replaces the old copy. Raise `version` for every new release shared.
 
 > [!TIP]
-> The mods that come with Obsidian are normal mods too. Obsidian Patches is a good example of a client mod with options; the files are in [its repository](https://github.com/Alomare/ObsidianPatches).
+> The mods that come with Obsidian are normal mods too. Obsidian Patches is a good example of a client mod with options, and the files are in [the ObsidianPatches repository](https://github.com/Alomare/ObsidianPatches).
 
 ## Next steps
 
 - [The obsidian.json file](wiki:manifest) lists every field.
-- [Options and keys](wiki:options-and-keys) lets players set up your mod in the app.
+- [Options and keys](wiki:options-and-keys) lets players set up the mod in the app.
 - [Hooks](wiki:loader-api#hooks) are how a mod changes what the game does.
-- [Writing session mods](wiki:session-mods) matters as soon as your mod changes the shared game.
+- [Writing session mods](wiki:session-mods) matters as soon as the mod changes the shared game.

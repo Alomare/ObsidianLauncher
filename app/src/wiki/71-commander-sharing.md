@@ -1,11 +1,11 @@
 ---
 title: Sharing a war
 group: Hosting and sharing
-summary: LAN, VPN and internet play, the invite code, and what is possible today for a war shared outside the home network.
+summary: LAN, VPN, port forwarding and tunnels, the invite code, and what is possible today for a war shared outside the home network.
 wiki: commander
 ---
 
-## Three ways to share
+## Ways to share
 
 Only the war data crosses the network: the map state once a minute, a report after each mission, and the war screens. Game traffic between players still goes through Steam as always, so sharing a war changes nothing about lobbies or connection quality.
 
@@ -14,6 +14,7 @@ Only the war data crosses the network: the map state once a minute, a report aft
 | LAN | Players on the same home or local network | **LAN** in Share | Nothing: the war shows under **Join War** |
 | VPN | Friends on a VPN such as Tailscale or ZeroTier | **LAN** in Share, everyone on the same VPN | The VPN address of the host, with the port |
 | Internet | Friends anywhere | **Internet** in Share, a port forwarded on the router | The public address of the host with the port, and the invite code |
+| Tunnel | Friends anywhere, when the router can't forward a port | **Internet** in Share, a tunnel program such as playit.gg or ngrok on the host PC | The tunnel address, and the invite code |
 
 ## LAN
 
@@ -35,7 +36,17 @@ A VPN like Tailscale or ZeroTier puts the PCs of friends on one private network 
 
 Friends open **Join War** in Obsidian, type the address and the code under **Join by Address**, press **Find Wars** and join. The code stays with the joined war on that PC, so it is typed once.
 
-Many home connections change the public address from time to time. When that happens, friends join again with the new address. Some providers put many homes behind one shared address (called CGNAT), and then no port forward reaches the host PC: a VPN works there.
+Many home connections change the public address from time to time. When that happens, friends join again with the new address. Some providers put many homes behind one shared address (called CGNAT), and then no port forward reaches the host PC. A tunnel or a VPN works there.
+
+## Tunnel
+
+A tunnel service gives the war a public address without touching the router. A program from the service runs on the host PC and passes every caller of that address on to the war server, so the router and the provider play no part. playit.gg and ngrok are two such services, and any service with TCP tunnels works.
+
+1. Switch **Internet** on in Share, as for a port forward.
+2. In the tunnel program, create a TCP tunnel to `127.0.0.1` and the port Share shows.
+3. Send friends the address the service gives, such as `example.at.ply.gg:12345`, and the invite code.
+
+Friends type that address and the code under **Join by Address**. Every caller through a tunnel counts as a caller from outside, so the code is required even for a friend on the same network. The tunnel program has to run while the war is played, and with some services the address changes each time the program restarts.
 
 ## The invite code
 
@@ -43,7 +54,7 @@ A war open to the internet answers a caller from outside the network only with t
 
 ## What is possible today
 
-Sharing a war with friends works today, on a LAN, over a VPN or over the internet with the invite code. Players who join see the war screens of the host in view-only mode and play the war, and every mission they finish counts.
+Sharing a war with friends works today, on a LAN, over a VPN, or over the internet through a port forward or a tunnel with the invite code. Players who join see the war screens of the host in view-only mode and play the war, and every mission they finish counts.
 
 An open war that anyone can find and join is not supported yet. Posting the address and the code in public turns the code into a public password, and the war server has no defense past it:
 
@@ -51,7 +62,5 @@ An open war that anyone can find and join is not supported yet. Posting the addr
 - The host can't kick or ban a single player. **New Code** is the only lock, and it locks out everyone.
 - The connection is plain HTTP, readable on the way.
 - The war server runs inside Obsidian on a player PC. It isn't made to run unattended on a rented server.
-
-Tunnel services that forward traffic through a program on the host PC, such as playit.gg or ngrok, make every caller look local to the war server. The war then answers them without asking for the code, so use a port forward or a VPN instead.
 
 A war holds up to 5000 players. Lobbies in the game stay at four players, as always.

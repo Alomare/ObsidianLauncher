@@ -45,11 +45,11 @@ Calls `fn` once every mod has started, so mods can work together without dependi
 
 ### obsidian.settings.get(id, mod_id)
 
-The value of option `id` of this mod: the one the player chose in the app, or the default ([Options and keys](wiki:options-and-keys)). A game script your mod replaces runs outside the mod, so give the id of the mod as `mod_id` there.
+The value of option `id` of this mod: the one the player chose in the app, or the default ([Options and keys](wiki:options-and-keys)). A game script the mod replaces runs outside the mod, so give the id of the mod as `mod_id` there.
 
 ### obsidian.keybind(id, fn, opts)
 
-Calls `fn` each time the key bound to `id` goes down. The key comes from the app, or from the default in `obsidian.json`. The keys of a session mod wait for a cleared lobby, and those of an expansion for the content, as the hooks of the mod do. `opts.always` leaves the key alone, as `obsidian.wrap` does a hook, for a key that only acts on this player's screen. `opts.part` puts the key in a [part](#parts) of the mod.
+Calls `fn` each time the key bound to `id` goes down. The key comes from the app, or from the default in `obsidian.json`. The keys of a session mod wait for a cleared lobby, and those of an expansion for the content, as the hooks of the mod do. `opts.always` leaves the key alone, as `obsidian.wrap` does a hook, for a key that only acts on the screen of this player. `opts.part` puts the key in a [part](#parts) of the mod.
 
 ## Multiplayer
 
@@ -65,11 +65,11 @@ A view of table `t` to hand to other mods. The functions named in the list `free
 
 A list of the other players in the lobby. Each entry has `peer`, `obsidian` (whether that player runs Obsidian), `modset` and `consent` (true unless that player blocks other players' session mods in a public lobby).
 
-To run only when every player has your mod, set [`every_player`](wiki:session-mods#every-player) in the manifest instead of comparing these yourself.
+To run only when every player has the mod, set [`every_player`](wiki:session-mods#every-player) in the manifest instead of comparing these yourself.
 
 ### obsidian.session.forfeit_progress(), release_progress(key) and hold_progress()
 
-These do nothing. A player's own save is theirs, so Obsidian holds none of a mission's progress back, whatever the mods do. They stay so mods that call them keep working. Only Galactic War and leaderboard reports stay blocked, while session content is deployed and for missions the content of an expansion ran in ([The Galactic War](wiki:galactic-war)). To play without a mission counting, a player switches on **Freeze account progression** in [Guardrails](wiki:guardrails).
+These do nothing. The save belongs to the player, so Obsidian holds back none of the progress from a mission, whatever the mods do. They stay so mods that call them keep working. Only Galactic War and leaderboard reports stay blocked, while session content is deployed and for missions the content of an expansion ran in ([The Galactic War](wiki:galactic-war)). To play without a mission counting, a player switches on **Freeze account progression** in [Guardrails](wiki:guardrails).
 
 ### obsidian.guardrails()
 
@@ -93,7 +93,7 @@ obsidian.on_session(function(on) if not on then undo_range() end end, { part = "
 
 The code of a client part runs in any lobby, the code of a session part only in a cleared one. Untagged code follows the strictest part that is on. A part that is off registers nothing. Code that runs once, such as the entry script and `on_require`, isn't tagged. One Lua state serves every part, so a client part can still call session code directly: only the registrations are gated.
 
-`obsidian.scope()` answers `"hybrid"` while a client part and a session part are both on. The calls a library guards treat a hybrid mod as a session mod, from any part. An older loader ignores `opts.part` and gates everything as a session mod's, so check `obsidian.capabilities.parts` before telling the player that the personal parts keep running.
+`obsidian.scope()` answers `"hybrid"` while a client part and a session part are both on. The calls a library guards treat a hybrid mod as a session mod, from any part. An older loader ignores `opts.part` and gates everything as session content, so check `obsidian.capabilities.parts` before telling the player that the personal parts keep running.
 
 ## Expansions {#expansions}
 
@@ -101,11 +101,11 @@ For a mod with `"scope": "expansion"` ([Writing an expansion](wiki:session-mods#
 
 ### obsidian.expansion.start()
 
-Starts the content of the calling expansion, on the host's game. Every other player in the lobby has to run the same expansion, at the same version and with the same shared option values. Answers `true`, or `false` and a reason: `"players_missing"` with a list of the names of the players who don't run it as a third value, `"not_host"`, `"busy"` while the content of another expansion runs, or `"not_expansion"`. A refused start also shows the host a notice with the names.
+Starts the content of the calling expansion, on the game of the host. Every other player in the lobby has to run the same expansion, at the same version and with the same shared option values. Answers `true`, or `false` and a reason: `"players_missing"` with a list of the names of the players who don't run it as a third value, `"not_host"`, `"busy"` while the content of another expansion runs, or `"not_expansion"`. A refused start also shows the host a notice with the names.
 
 ### obsidian.expansion.stop()
 
-Ends the content, on the host's game. Answers `true`, or `false` and `"not_running"` or `"not_host"`. Leaving the lobby ends the content too.
+Ends the content, on the game of the host. Answers `true`, or `false` and `"not_running"` or `"not_host"`. Leaving the lobby ends the content too.
 
 ### obsidian.expansion.running(id)
 
@@ -123,7 +123,7 @@ The language the game runs in, by those same names, such as `"ru"`. `"en"` for a
 
 ### obsidian.game_text(key, words)
 
-Makes the game show `words` for one of the game's text keys, or for a key your mod invents, such as the title of a new rank. `words` is a string, or a table by language such as `{ en = "Warden", ru = "Страж" }`, which falls back to English. `nil` gives the key back to the game. Answers `false` for anything else. A text is only what this player sees, so it keeps working while the lobby isn't cleared. Check `obsidian.capabilities.game_text` on an older loader.
+Makes the game show `words` for one of the game text keys, or for a key the mod invents, such as the title of a new rank. `words` is a string, or a table by language such as `{ en = "Warden", ru = "Страж" }`, which falls back to English. `nil` gives the key back to the game. Answers `false` for anything else. A text is only what this player sees, so it keeps working while the lobby isn't cleared. Check `obsidian.capabilities.game_text` on an older loader.
 
 ### obsidian.log(...)
 
@@ -133,7 +133,7 @@ Writes a line to the log of this mod, in `%APPDATA%\Arrowhead\Helldivers\Obsidia
 
 ### obsidian.module(name)
 
-Loads another Lua file of this mod and returns what it returns. The file has to be listed in `modules` in `obsidian.json`, and `name` is its path without `.lua`, such as `"lib/parts"`.
+Loads another Lua file of this mod and returns what it returns. The file has to be listed in `modules` in `obsidian.json`, and `name` is the file path without `.lua`, such as `"lib/parts"`.
 
 ### obsidian.import(id)
 
@@ -149,18 +149,18 @@ The id of the mod whose code is running, so a shared mod can record who asked fo
 
 ### obsidian.info(id)
 
-What a running mod is: `{ id, name, version, scope }`. `name` comes from the mod's `obsidian.json`, in the game's language, else English, and `scope` is what `obsidian.scope()` answers in that mod. With no `id`, the calling mod. `nil` for a mod that isn't running.
+What a running mod is: `{ id, name, version, scope }`. `name` comes from the `obsidian.json` of the mod, in the game language, else English, and `scope` is what `obsidian.scope()` answers in that mod. With no `id`, the calling mod. `nil` for a mod that isn't running.
 
 ## In-game menu {#menu}
 
-The in-game window belongs to Obsidian API, so it changes with the API's releases, and new mods use `api.menu` ([Obsidian API](wiki:obsidian-api)). **F6** opens it, a key of Obsidian API's, which players change in the Keys tab of Obsidian API, and each mod's pages sit in a folder named after the mod. `obsidian.menu` stays for mods written before, and hands every call to Obsidian API's window, as the mod that made it. List `obsidian.api` in `requires`: with no Obsidian API running there's no window, and `open()` answers `false`.
+The in-game window belongs to Obsidian API, so it changes with the releases of the API, and new mods use `api.menu` ([Obsidian API](wiki:obsidian-api)). **F6** opens it, a key that belongs to Obsidian API and that players change in the Keys tab of Obsidian API, and the pages of each mod sit in a folder named after the mod. `obsidian.menu` stays for mods written before, and hands every call to the Obsidian API window, as the mod that made it. List `obsidian.api` in `requires`: with no Obsidian API running there's no window, and `open()` answers `false`.
 
 ### obsidian.menu.add(title, build, opts)
 
-Adds a page to the list down the left of the in-game menu, in your mod's folder. `title` is text, or a function that returns it. `build(page)` runs each time the page opens. `opts.icon` is one of `obsidian.ui.glyphs()`:
+Adds a page to the list down the left of the in-game menu, in the folder of the mod. `title` is text, or a function that returns it. `build(page)` runs each time the page opens. `opts.icon` is one of `obsidian.ui.glyphs()`:
 
 ```lua
-obsidian.menu.add("My mod", function(page)
+obsidian.menu.add("Example Mod", function(page)
   page:header("Tuning")
   page:toggle("Enabled", { get = function() return on end, set = function(v) on = v end })
   page:number("Power", { min = 1, max = 10, step = 1, get = get_power, set = set_power })
@@ -171,7 +171,7 @@ obsidian.menu.add("My mod", function(page)
 end, { icon = "player" })
 ```
 
-Any row takes `help`, a text shown while it's selected, and `enabled`, a function that returns `false` and a reason. A string returned by an action shows as a toast. An action can call `page:refresh()` to build the page again. A failing row shows the error and doesn't count against your mod.
+Any row takes `help`, a text shown while it's selected, and `enabled`, a function that returns `false` and a reason. A string returned by an action shows as a toast. An action can call `page:refresh()` to build the page again. A failing row shows the error and doesn't count against the mod.
 
 A `toggle`, `number` or `choice` row takes `default`, the value it starts at. It then gets a reset button at the end of the row, lit once the value has moved, and R does the same from the keyboard. Where writing a value isn't the way back, give `reset`, a function that undoes it, and `changed`, one that says whether there's anything to undo.
 
@@ -179,7 +179,7 @@ The pages of a session mod aren't listed, and close, while the lobby isn't clear
 
 ### obsidian.menu.open(), close(), toggle(), is_open()
 
-Obsidian API's key opens the window once a page is listed, so your mod needs no key for it. These are for a mod that opens the window at a moment it picks.
+The Obsidian API key opens the window once a page is listed, so the mod needs no key for it. These are for a mod that opens the window at a moment it picks.
 
 ### obsidian.menu.overlay(fn)
 
@@ -187,19 +187,19 @@ Calls `fn(draw, width, height)` every frame, to put something on screen outside 
 
 ### obsidian.toast(text, seconds)
 
-Shows a short message at the top left of the screen, or beside the in-game menu while it's open. With Obsidian API running, the API's window draws it.
+Shows a short message at the top left of the screen, or beside the in-game menu while it's open. With Obsidian API running, the API window draws it.
 
 ### obsidian.notify(text, seconds) {#obsidian-notify-text-seconds}
 
-Shows your words in the game's own hint box, with its icon and sound, even with the game's hints turned off. `seconds` is 7 if you leave it out. Where the game has no hint box, such as the main menu, it shows as a toast instead.
+Shows `text` in the hint box of the game, with the hint icon and sound, even with game hints turned off. `seconds` is 7 if you leave it out. Where the game has no hint box, such as the main menu, it shows as a toast instead.
 
-The box shows one message at a time, so use it for what's rare and matters, and `obsidian.toast` for quick feedback such as a key press. A text already waiting isn't added again, and a mod can have 3 waiting: past that, `notify` returns `false` and `"queue_full"`. Obsidian's own messages go first.
+The box shows one message at a time, so use it for what's rare and matters, and `obsidian.toast` for quick feedback such as a key press. A text already waiting isn't added again, and a mod can have 3 waiting: past that, `notify` returns `false` and `"queue_full"`. Messages from Obsidian go first.
 
-## Replacing the game's screens {#ui}
+## Replacing game screens {#ui}
 
-`obsidian.ui` is for a mod that redraws the game's menus and HUD. Any mod can use it, of any scope, with nothing in `requires`, so a reskin stays a client mod and keeps the Galactic War and matchmaking. Nothing here runs until a mod asks for it.
+`obsidian.ui` is for a mod that redraws the game menus and HUD. Any mod can use it, of any scope, with nothing in `requires`, so a reskin stays a client mod and keeps the Galactic War and matchmaking. Nothing here runs until a mod asks for it.
 
-The idea is to keep the game's logic and input, stop its drawing, read its data and draw on top. The game's update and draw functions always run, because keys, mouse and network code live inside them.
+The idea is to keep the game logic and input, stop the game drawing, read the game data and draw on top. The update and draw functions of the game always run, because keys, mouse and network code live inside them.
 
 ```lua
 local ui = obsidian.ui
@@ -224,11 +224,11 @@ ui.on("loadout", {
 })
 ```
 
-If a screen's code fails, that screen stops for the session, the game draws its own again, and the error goes in `loader.log`.
+If the code for a screen fails, that screen stops for the session, the game draws the original again, and the error goes in `loader.log`.
 
 ### obsidian.ui.current()
 
-Where the player is: `{ state, screen, sub }`. `screen` is the id the rest of this section uses: a menu by its name (`"loadout"`, `"armory_profile"`, `"main"`), `"title"` and `"ship"` with no menu open, `"hud"` in a mission, or the state's own name, such as `"mission_end"`. `sub` is the step inside it, when it has one.
+Where the player is: `{ state, screen, sub }`. `screen` is the id the rest of this section uses: a menu by name (`"loadout"`, `"armory_profile"`, `"main"`), `"title"` and `"ship"` with no menu open, `"hud"` in a mission, or the name of the state, such as `"mission_end"`. `sub` is the step inside it, when it has one.
 
 ### obsidian.ui.on(id, handlers), off(id)
 
@@ -237,7 +237,7 @@ Runs code while a screen is up. `id` is a value of `screen`, or `"*"` for all of
 | Handler | When |
 |---|---|
 | `enter(screen)` | The screen came up. It gets what `current()` gives |
-| `draw(kit, data, dt)` | Every frame. `kit` is a canvas of its own and `data` is `obsidian.ui.data` |
+| `draw(kit, data, dt)` | Every frame. `kit` is a separate canvas and `data` is `obsidian.ui.data` |
 | `exit()` | The screen went away |
 | `mute` | Not a function: `true` for this screen, or a list of ids, held only while it's up |
 
@@ -245,11 +245,11 @@ The handlers of a session mod stop, and the mutes of that mod lift, while the lo
 
 ### obsidian.ui.mute(id), unmute(id)
 
-Stops a part of the game drawing, until `unmute`. Its logic keeps running.
+Stops a part of the game drawing, until `unmute`. The logic of that part keeps running.
 
 | Id | What goes |
 |---|---|
-| A menu's name | That menu: `"loadout"`, `"armory"`, `"options"`, `"mission_briefing"`, and so on |
+| The name of a menu | That menu: `"loadout"`, `"armory"`, `"options"`, `"mission_briefing"`, and so on |
 | `"hud"` | Every part below |
 | `"hud.panels"` | The player panels |
 | `"hud.map"` | The map |
@@ -265,7 +265,7 @@ Parts nest: muting `"hud.panels"` leaves the map, until you mute that too. The 3
 
 ### obsidian.ui.scope(id, target, method)
 
-Adds your own part. `mute(id)` then stops whatever that function of the game draws: `target` is a table or the name of a global one. It changes nothing else.
+Adds a custom part. `mute(id)` then stops whatever that function of the game draws: `target` is a table or the name of a global one. It changes nothing else.
 
 ### obsidian.ui.data
 
@@ -275,7 +275,7 @@ Copies of what the game knows, so writing to one changes nothing. Each answers `
 |---|---|
 | `players()` | `name`, `title`, `rank_icon`, `xp`, `color`, `index`, `slot`, `is_local`, `pad`, for each player |
 | `loadout(player)` | On the Loadout screen: `items`, `available`, `selection`, `submenu`, `slot`, `ready`, `random`, `loadout`, `presets`, `new_unlocks`, `upgrades` |
-| `hud(player)` | `state`, `health`, `shield`, `inventory`, `character`, `stratagems`, `cooldowns`, `respawn`. The tables use the game's own field names |
+| `hud(player)` | `state`, `health`, `shield`, `inventory`, `character`, `stratagems`, `cooldowns`, `respawn`. The tables use the field names of the game |
 | `map(player)` | `zoom`, `offset`, `size`, `pings`, `markers` |
 | `mission()` | `objectives`, `enemy`, `difficulty`, `environment`, `type`, `seed`, `game_over`, `exit` |
 | `campaign()` | `status`, `statistics`, `season`. It's large, so ask once |
@@ -285,7 +285,7 @@ Copies of what the game knows, so writing to one changes nothing. Each answers `
 
 A drawing kit, for code that isn't a `draw` handler. `opts.layer` runs from 0 to 875, and `opts.over_fades` keeps it at full strength while the game fades to black. By default a kit fades with the game.
 
-Coordinates are pixels from the bottom left, or your design space after `obsidian.ui.frame`. Colors are `{ r, g, b }`, `{ r, g, b, a }`, `"#rrggbb"` or `"#rrggbbaa"`.
+Coordinates are pixels from the bottom left, or the design space of the mod after `obsidian.ui.frame`. Colors are `{ r, g, b }`, `{ r, g, b, a }`, `"#rrggbb"` or `"#rrggbbaa"`.
 
 | Method | Draws |
 |---|---|
@@ -294,33 +294,33 @@ Coordinates are pixels from the bottom left, or your design space after `obsidia
 | `kit:outline(points, color, width)` | The edge of a shape, inside it |
 | `kit:panel{ x, y, w, h, cut, corners, fill, line, line_width }` | A panel with corners cut at 45 degrees. `corners` is any of `"tl tr br bl"`, by default `"tr bl"` |
 | `kit:hex(x, y, r, color, icon)` | A hexagon around a point, with an icon in it if you give one |
-| `kit:glyph(name, x, y, size, color)` | One of the icons drawn from shapes, from its bottom left corner. `obsidian.ui.glyphs()` lists the names |
+| `kit:glyph(name, x, y, size, color)` | One of the icons drawn from shapes, from the bottom left corner. `obsidian.ui.glyphs()` lists the names |
 | `kit:text(text, x, y, opts)` | Text. `y` is the baseline and a line break starts a new line. `opts`: `font`, `size`, `tracking`, `align`, `color`, `leading` |
 | `kit:measure(text, opts)` | Width and height of a text, tracking included. Draws nothing |
-| `kit:point(x, y)` | A point in pixels, such as the mouse's, in this kit's coordinates |
-| `kit:icon(name, x, y, w, h, color, uv)` | One of the game's images. `uv` is `{ u0, v0, u1, v1 }`. `obsidian.ui.icons()` lists the names |
-| `kit:art(name, x, y, w, h, color, uv)` | An image from a material your mod ships, added with `obsidian.ui.art`. `uv` is `{ u0, v0, u1, v1 }`, and `u0` above `u1` mirrors it |
-| `kit:band(x, y, w, h, color)` | The game's player band: its gradient, tinted |
+| `kit:point(x, y)` | A point in pixels, such as the mouse position, in the coordinates of this kit |
+| `kit:icon(name, x, y, w, h, color, uv)` | One of the game images. `uv` is `{ u0, v0, u1, v1 }`. `obsidian.ui.icons()` lists the names |
+| `kit:art(name, x, y, w, h, color, uv)` | An image from a material the mod ships, added with `obsidian.ui.art`. `uv` is `{ u0, v0, u1, v1 }`, and `u0` above `u1` mirrors it |
+| `kit:band(x, y, w, h, color)` | The player band of the game, with the band gradient, tinted |
 | `kit:bar(x, y, w, h, value, color, back)` | A bar filled from 0 to 1, over `back` |
 | `kit:clip(x, y, w, h, fn)` | Runs `fn(kit)` with drawing kept inside the rectangle |
 | `kit:layer(n)`, `kit:opacity(a)` | The layer and strength of what comes next |
 
 Glyphs need no art, so they keep working where `kit:icon` doesn't. The in-game menu is built from these same calls, so anything it draws, a mod can draw too.
 
-Fonts: `"body"`, `"body_large"`, `"heading"`, `"heading_large"`, `"ui"`, `"ui_heading"`, `"chat"`, `"debug"`, `"debug_medium"`. `"ui"` and `"ui_heading"` are Barlow and Saira, the in-game menu's fonts, and they carry Latin letters with accents. `"heading"` is Insignia, and `"chat"` is the one with Chinese, Japanese and Korean, which a text falls back to when its font lacks a letter. `"debug"` needs nothing loaded, and every other font falls back to it until the game has loaded them.
+Fonts: `"body"`, `"body_large"`, `"heading"`, `"heading_large"`, `"ui"`, `"ui_heading"`, `"chat"`, `"debug"`, `"debug_medium"`. `"ui"` and `"ui_heading"` are Barlow and Saira, the fonts of the in-game menu, and they carry Latin letters with accents. `"heading"` is Insignia, and `"chat"` is the one with Chinese, Japanese and Korean, which a text falls back to when the chosen font lacks a letter. `"debug"` needs nothing loaded, and every other font falls back to it until the game has loaded them.
 
-A clip cuts shapes and icons exactly, and text at whole letters. The Loadout screen's menu art isn't available: its material unloads between states, and a gui that lists one that isn't loaded can stop the game. Your own art needs the same check, so a canvas takes only the game's images for now.
+A clip cuts shapes and icons exactly, and text at whole letters. The menu art of the Loadout screen isn't available: the material unloads between states, and a gui that lists one that isn't loaded can stop the game. Custom art needs the same check, so a canvas takes only the game images for now.
 
 ### obsidian.ui.font(id, opts)
 
-Adds a font of your own, for `kit:text`. `tools/bake_font.py` in Obsidian's repository turns a TrueType file into what the game reads:
+Adds a custom font, for `kit:text`. `tools/bake_font.py` in the Obsidian repository turns a TrueType file into what the game reads:
 
 ```
 pip install pillow uharfbuzz
 python tools/bake_font.py --out res --base mymod/fonts title=MyFont.ttf
 ```
 
-Then list each file in your manifest's `resources`, in the boot bundle:
+Then list each file in the `resources` of the manifest, in the boot bundle:
 
 ```json
 "resources": [
@@ -330,36 +330,36 @@ Then list each file in your manifest's `resources`, in the boot bundle:
 ]
 ```
 
-Add it when your mod starts, and use it by its id:
+Add it when the mod starts, and use it by id:
 
 ```lua
 obsidian.ui.font("title", { path = "mymod/fonts/title", size = 32 })
 kit:text("HELLDIVERS", 100, 200, { font = "title" })
 ```
 
-`size` is the size a text gets when it doesn't ask for one. The answer is `false` for a font the deploy doesn't have, and a text naming it gets the debug font. It has to be in the boot bundle, because a gui that lists a material that isn't loaded can stop the game. Text stays sharp up to the size you baked, 48 by default, and a letter your font lacks comes from `"chat"`. Check your font's license: a bake is a modified version, so a font with a reserved name can't keep that name.
+`size` is the size a text gets when it doesn't ask for one. The answer is `false` for a font the deploy doesn't have, and a text naming it gets the debug font. It has to be in the boot bundle, because a gui that lists a material that isn't loaded can stop the game. Text stays sharp up to the size you baked, 48 by default, and a letter the font lacks comes from `"chat"`. Check the font license: a bake is a modified version, so a font with a reserved name can't keep that name.
 
 ### obsidian.ui.art(name, opts)
 
-Adds a sub-material of a material your mod ships in the boot bundle, for `kit:art`. `opts.path` is the material's resource name. The answer is `false` for a material the deploy doesn't have, or when you ask for a new material after the game has started drawing, so ask while your mod starts.
+Adds a sub-material of a material the mod ships in the boot bundle, for `kit:art`. `opts.path` is the resource name of the material. The answer is `false` for a material the deploy doesn't have, or when you ask for a new material after the game has started drawing, so ask while the mod starts.
 
 ### obsidian.ui.list_with(path, with)
 
-Makes every gui the game creates that lists the material `with` list `path` too, so the game can draw a sub-material of `path` where it draws the ones of `with`. `with` is `"hud/hud"` if you leave it out, the material that holds the rank and stratagem icons. `path` is a material your mod ships in the boot bundle, and the answer is `false` for one the deploy doesn't have. Call it while your mod starts, before the game makes the guis. Put many icons in one material and list that one.
+Makes every gui the game creates that lists the material `with` list `path` too, so the game can draw a sub-material of `path` where it draws the ones of `with`. `with` is `"hud/hud"` if you leave it out, the material that holds the rank and stratagem icons. `path` is a material the mod ships in the boot bundle, and the answer is `false` for one the deploy doesn't have. Call it while the mod starts, before the game makes the guis. Put many icons in one material and list that one.
 
 ### obsidian.ui.frame(w, h), safe()
 
-`frame(1920, 1080)` makes this mod's coordinates a design space, scaled and centred the way the game does it, from the player's window and UI scale. `frame()` goes back to pixels. Call it once, even while the mod starts. The game leaves the space at the bottom of the window when the UI scale is below 1; `frame(1920, 1080, { centered = true })` keeps it in the middle.
+`frame(1920, 1080)` makes the coordinates of this mod a design space, scaled and centred the way the game does it, from the window and UI scale of the player. `frame()` goes back to pixels. Call it once, even while the mod starts. The game leaves the space at the bottom of the window when the UI scale is below 1; `frame(1920, 1080, { centered = true })` keeps it in the middle.
 
-`safe()` gives `{ x, y, w, h, scale }`, the area the game keeps its own menus in, in your coordinates.
+`safe()` gives `{ x, y, w, h, scale }`, the area the game keeps the game menus in, in the coordinates of the mod.
 
 ### obsidian.ui.remap_hits(id, fn)
 
-The game tests the mouse against where it draws. When your layout moves something, `fn(x, y, w, h)` gets each rectangle in pixels and answers where it is now, `nil` to leave it, or `false` for nowhere. `remap_hits(id)` stops it.
+The game tests the mouse against where it draws. When the layout of the mod moves something, `fn(x, y, w, h)` gets each rectangle in pixels and answers where it is now, `nil` to leave it, or `false` for nowhere. `remap_hits(id)` stops it.
 
 ### obsidian.ui.prompt(name, pad)
 
-The button for a player's device, as text to draw. `name` is an action such as `"select"`, `"back"`, `"fire"`, `"reload"` or `"map"`, a token such as `"#mod_map"`, or one of the game's text keys, which comes back with its buttons filled in. `pad` is the pad number from `data.players()`, and `nil` means the main player.
+The button on the device of a player, as text to draw. `name` is an action such as `"select"`, `"back"`, `"fire"`, `"reload"` or `"map"`, a token such as `"#mod_map"`, or one of the game text keys, which comes back with the buttons filled in. `pad` is the pad number from `data.players()`, and `nil` means the main player.
 
 ## Saved values {#storage}
 
