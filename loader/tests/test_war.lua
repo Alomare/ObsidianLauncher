@@ -151,4 +151,89 @@ test("a_war_writes_the_region_names_for_commander", function()
 	E.lacks(text, "superearth", "a key the game has no words for stays out")
 end)
 
+-- The game fills "#TOKEN" placeholders from pairs; this one lists them, and how many came.
+local function load_localization(e)
+	local lm = {}
+	function lm:string_format(key, ...)
+		local text, n = key, select("#", ...)
+		for i = 1, n - 1, 2 do
+			local token, value = select(i, ...)
+			text = text .. " " .. tostring(token) .. "=" .. tostring(value)
+		end
+		return text, n
+	end
+	rawset(_G, "LocalizationManager", lm)
+	e.opts.modules["lua/managers/localization_manager"] = true
+	rawget(_G, "require")("lua/managers/localization_manager")
+	return lm
+end
+
+test("the_season_offset_comes_from_the_status_rows", function()
+	E.new()
+	local war = require("obsidian/loader/war")
+	E.eq(war.offset_from({ { season = 1003, shown_season = 3 } }), 1000)
+	E.eq(war.offset_from({ { season = 1003, shown_season = 1003 } }), 0)
+	E.eq(war.offset_from({ { season = 162 } }), nil, "the official rows carry no shown season")
+	E.eq(war.offset_from({ { season = 1003, shown_season = 0 } }), nil)
+	E.eq(war.offset_from({ { season = 1003, shown_season = 1004 } }), nil)
+	E.eq(war.offset_from({ { season = 1003, shown_season = 2.5 } }), nil)
+	E.eq(war.offset_from({}), nil)
+	E.eq(war.offset_from(nil), nil)
+end)
+
+test("a_season_number_maps_to_the_war_season", function()
+	E.new()
+	local war = require("obsidian/loader/war")
+	E.eq(war.shown(1003, 1000), 3)
+	E.eq(war.shown("1001", 1000), "1", "a string stays a string")
+	E.eq(war.shown(1000, 1000), 1000, "no season of this war")
+	E.eq(war.shown(162, 1000), 162)
+	E.eq(war.shown(1003, nil), 1003)
+	E.eq(war.shown(1003, 0), 1003)
+	E.eq(war.shown(nil, 1000), nil)
+	E.eq(war.shown("day", 1000), "day")
+end)
+
+test("only_the_value_after_season_changes", function()
+	E.new()
+	local war = require("obsidian/loader/war")
+	local calls = 0
+	local function offset() calls = calls + 1 return 1000 end
+	local a, n = war.season_args(offset, "#SEASON", 1003, "#DAY", 1004)
+	E.eq(n, 4)
+	E.eq(a[1], "#SEASON")
+	E.eq(a[2], 3)
+	E.eq(a[3], "#DAY")
+	E.eq(a[4], 1004, "another token keeps the number")
+	E.eq(war.season_args(offset, "#DAY", 1004), nil)
+	E.eq(war.season_args(offset), nil)
+	E.eq(calls, 1, "the offset is looked up only for a season text")
+	E.eq(war.season_args(function() return nil end, "#SEASON", 1003), nil, "no offset known, no change")
+end)
+
+test("a_war_shows_its_own_season_in_the_game_texts", function()
+	local e = boot(SANDBOX .. WAR)
+	local cm = load_campaign_manager(e)
+	local lm = load_localization(e)
+	E.eq(lm:string_format("recap_date", "#SEASON", 1003, "#DAY", 4), "recap_date #SEASON=1003 #DAY=4", "no status yet")
+	cm.cache = { status = { { season = 1003, shown_season = 3 }, { season = 1003, shown_season = 3 } } }
+	E.eq(lm:string_format("recap_date", "#SEASON", 1003, "#DAY", 4), "recap_date #SEASON=3 #DAY=4")
+	E.eq(lm:string_format("season_end_statistics_season_title", "#SEASON", 1002), "season_end_statistics_season_title #SEASON=2", "a past season of the war")
+	E.eq(lm:string_format("news_date", "#DAY", 1003), "news_date #DAY=1003")
+	local _, n = lm:string_format("recap_date", "#SEASON", 1003, "#DAY", nil)
+	E.eq(n, 4, "a trailing nil still reaches the game")
+	cm.cache = nil
+	E.eq(lm:string_format("recap_date", "#SEASON", 1004, "#DAY", 1), "recap_date #SEASON=4 #DAY=1", "the last offset stays")
+	E.has(e:log(), "war: the game texts show the war season, game season minus 1000")
+end)
+
+test("without_a_war_the_season_texts_stay", function()
+	local e = boot(SANDBOX)
+	local cm = load_campaign_manager(e)
+	cm.cache = { status = { { season = 1003, shown_season = 3 } } }
+	local lm = load_localization(e)
+	E.eq(lm:string_format("recap_date", "#SEASON", 1003, "#DAY", 4), "recap_date #SEASON=1003 #DAY=4")
+	E.lacks(e:log(), "LocalizationManager.string_format")
+end)
+
 return T

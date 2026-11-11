@@ -32,6 +32,57 @@ function M.reporting(core)
 	return M.active and M.confirmed and core.war ~= nil
 end
 
+-- A war plays a game season far above the official ones (the lobby browser pairs players of one season
+-- only), while Commander counts the war seasons from 1. The war server puts `shown_season` next to
+-- `season` in the campaign status rows; the difference is the offset, the same for every season of a war.
+-- Nil when the rows carry no such field, or one that makes no sense.
+function M.offset_from(rows)
+	local row = B.type(rows) == "table" and rows[1] or nil
+	if B.type(row) ~= "table" then return nil end
+	local season, shown = B.tonumber(row.season), B.tonumber(row.shown_season)
+	if not (season and shown) or shown < 1 or shown > season or B.floor(shown) ~= shown or B.floor(season) ~= season then return nil end
+	return season - shown
+end
+
+-- A season number as the war counts it. A number at or under the offset belongs to no season of the
+-- war and stays as it is, like anything that is not a number. A string stays a string.
+function M.shown(value, offset)
+	local n = B.tonumber(value)
+	if not (offset and offset > 0 and n and n > offset) then return value end
+	if B.type(value) == "string" then return B.tostring(n - offset) end
+	return n - offset
+end
+
+-- The arguments of a LocalizationManager.string_format call with each value after "#SEASON" as the
+-- war counts it, and their count, or nil when no "#SEASON" is there. offset() runs only then.
+function M.season_args(offset, ...)
+	local n = B.select("#", ...)
+	local a, o
+	for i = 1, n - 1 do
+		if B.select(i, ...) == "#SEASON" then
+			if not a then
+				a, o = { ... }, offset()
+				if not o then return nil end
+			end
+			a[i + 1] = M.shown(a[i + 1], o)
+		end
+	end
+	return a, n
+end
+
+-- The offset of the war played now, from the campaign status the game keeps. The last one known stays
+-- while the status is missing.
+local function current_offset()
+	local cm = B.rawget(B.G, "CampaignManager")
+	local cache = B.type(cm) == "table" and cm.cache or nil
+	local o = M.offset_from(B.type(cache) == "table" and cache.status or nil)
+	if o and o ~= M.offset then
+		M.offset = o
+		log.line("war: the game texts show the war season, game season minus " .. o)
+	end
+	return M.offset
+end
+
 -- The region and city names in the player language, for the Commander map: once a launch, as soon as
 -- the game text and settings are there. Plain key<TAB>words lines.
 local function write_names(game_side)
@@ -93,6 +144,15 @@ function M.setup(core, hooks, game_side)
 	end)
 	-- Analytics go to another host, which a custom war has no business reaching.
 	hooks.loader_hook("TelemetryWwsgaManager", "queue_event", function() end)
+	-- The season number on screen: the recap date on the ship ("recap_date") and the title of the
+	-- season end statistics ("season_end_statistics_season_title") are the only game texts with
+	-- "#SEASON". Only the words change: the game season itself still goes to the lobby, the requests
+	-- and the save.
+	hooks.loader_hook("LocalizationManager", "string_format", function(original, self, key, ...)
+		local a, n = M.season_args(current_offset, ...)
+		if a then return original(self, key, B.unpack(a, 1, n)) end
+		return original(self, key, ...)
+	end)
 	local frames = 0
 	hooks.on_frame(function()
 		frames = frames + 1
