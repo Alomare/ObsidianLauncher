@@ -367,8 +367,7 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
           <>
             <div className="split" role="separator" aria-orientation="vertical" aria-label={t("app.mods.resize")} onPointerDown={resize}
               onDoubleClick={() => { setWidth(0); try { localStorage.removeItem(DRAWER_KEY); } catch { /* fine */ } }} data-tip={t("app.mods.resizeHint")} />
-            <Drawer view={view} mods={snap.mods} conflicts={shownConflicts} order={order} names={names} onOpen={(id) => setView({ kind: "mod", id })} onClose={closeDrawer} conflictsClosed={conflictsClosed}
-              updates={modUpdates.found} onUpdate={(id) => setAsk({ kind: "update", id })} />
+            <Drawer view={view} mods={snap.mods} conflicts={shownConflicts} order={order} names={names} onOpen={(id) => setView({ kind: "mod", id })} onClose={closeDrawer} conflictsClosed={conflictsClosed} />
           </>
         )}
       </div>

@@ -40,7 +40,7 @@ function show(m: ModRow, tab: "keys" | "options") {
   document.body.append(box);
   root = createRoot(box);
   act(() => root!.render(<Drawer view={{ kind: "mod", id: m.id }} mods={[m]} conflicts={[]} order={[m.id]} names={new Map([[m.id, "Obsidian API"]])}
-    onOpen={() => {}} onClose={() => {}} updates={{}} onUpdate={() => {}} />));
+    onOpen={() => {}} onClose={() => {}} />));
   const tabs = [...box.querySelectorAll<HTMLButtonElement>(".dtabs button")];
   act(() => tabs.find((b) => b.getAttribute("aria-label") === (tab === "keys" ? "Keys" : "Options"))!.click());
   return box;
@@ -69,11 +69,23 @@ describe("the Keys tab", () => {
     expect(shot.querySelector<HTMLElement>(".pad-col .none")!.dataset.tip).toBe("No controller input for this action");
   });
 
+  it("draws the buttons a controller choice names as glyphs, with the full name in the tooltip", () => {
+    const open = show(api(), "keys").querySelector(".keys .opt")!;
+    const btn = open.querySelector<HTMLButtonElement>(".pad-col .select-btn")!;
+    expect(btn.querySelectorAll(".pad-glyph")).toHaveLength(2);
+    expect(btn.dataset.tip).toBe("Both sticks pressed in (L3 + R3)");
+    act(() => btn.click());
+    const items = [...document.querySelectorAll<HTMLLIElement>(".select-list li")];
+    expect(items[0].querySelectorAll(".pad-glyph")).toHaveLength(2);
+    expect(items[1].querySelector(".pad-glyph")).toBeNull();
+    expect(items[1].textContent).toBe("Off");
+  });
+
   it("changes and resets the controller input as an option", () => {
     const open = show(api("off"), "keys").querySelector(".keys .opt")!;
     act(() => open.querySelector<HTMLButtonElement>(".pad-col .select-btn")!.click());
     const choices = [...document.querySelectorAll<HTMLLIElement>(".select-list li")];
-    act(() => choices.find((c) => c.textContent === "Both sticks pressed in (L3 + R3)")!.click());
+    act(() => choices.find((c) => c.textContent!.endsWith("Both sticks pressed in (L3 + R3)"))!.click());
     expect(run).toHaveBeenCalledWith("set_option", { id: "obsidian.api", option: "pad_open", value: "thumbs" });
     const reset = open.querySelector<HTMLButtonElement>(".pad-col button.bare")!;
     expect(reset.disabled).toBe(false);
@@ -83,6 +95,20 @@ describe("the Keys tab", () => {
 });
 
 describe("the Options tab", () => {
+  it("marks an option that applies after Deploy with an asterisk and puts the note in the tooltip, under the description", () => {
+    const m = api();
+    m.options = [choice("power", "off", { deploy: true, label: { en: "Power" } }), choice("calm", "off", { label: { en: "Calm" }, description: { en: "" } })];
+    m.keybinds = [];
+    const names = [...show(m, "options").querySelectorAll<HTMLElement>(".opt-name")];
+    expect(names[0].querySelector(".opt-star")?.textContent).toBe("*");
+    expect(names[0].dataset.tip).toBe("The buttons that open the menu.");
+    expect(names[0].dataset.tipNote).toBe("Applies after Deploy.");
+    expect(names[0].tabIndex).toBe(0);
+    expect(names[1].querySelector(".opt-star")).toBeNull();
+    expect(names[1].dataset.tipNote).toBeUndefined();
+    expect(document.body.textContent).not.toContain("Applies after Deploy.");
+  });
+
   it("leaves out an option a keybind shows as its controller input, and counts the rest", () => {
     const box = show(api(), "options");
     expect([...box.querySelectorAll(".opts .l")].map((l) => l.textContent)).toEqual(["Another choice"]);

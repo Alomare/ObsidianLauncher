@@ -5,19 +5,20 @@ import { useEffect, useMemo, useState } from "react";
 import { run } from "../api";
 import { openColorPicker } from "../ColorPicker";
 import { Confirm } from "../Confirm";
-import { ArrowIcon, ChevronIcon, CloseIcon, ExternalIcon, FileIcon, GamepadIcon, InfoIcon, KeyboardIcon, KeyboardMouseIcon, LinkIcon, ResetIcon, SlidersIcon, TrashIcon, UpArrowIcon } from "../Icons";
+import { ArrowIcon, ChevronIcon, CloseIcon, ExternalIcon, FileIcon, GamepadIcon, InfoIcon, KeyboardIcon, KeyboardMouseIcon, LinkIcon, ResetIcon, SlidersIcon, TrashIcon } from "../Icons";
 import { language, pick, t } from "../i18n";
 import { Markdown, parse } from "../Markdown";
 import { Select } from "../Select";
 import { changelog, type ChangelogEntry } from "../updates";
 import { loadMore, useModReleases } from "./modReleases";
-import { offered } from "./modUpdates";
 import { Thumb } from "../Thumb";
 import type { ConflictRow, KeyRow, ModRow, OptionGroup, OptionPreview, OptionRow } from "../types";
 import { previewSrc } from "./preview";
 import { overrides, type Override } from "./conflicts";
 import { dependencies, type Dep } from "./deps";
 import { keyName } from "./keyCapture";
+import { PadGlyphs } from "./PadGlyphs";
+import { padButtons } from "./padButtons";
 import type { DrawerView } from "./ModsPage";
 import { clampNumber } from "./optionValue";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -33,14 +34,11 @@ type Props = {
   onClose: () => void;
   /** The X closed the conflicts: they stay away until a conflict icon asks for them. */
   conflictsClosed?: boolean;
-  /** New versions found by the last check, by mod id: the panel offers them too. */
-  updates: Record<string, string>;
-  onUpdate: (id: string) => void;
 };
 
-export function Drawer({ view, mods, conflicts, order, names, onOpen, onClose, conflictsClosed, updates, onUpdate }: Props) {
+export function Drawer({ view, mods, conflicts, order, names, onOpen, onClose, conflictsClosed }: Props) {
   const mod = view?.kind === "mod" ? mods.find((m) => m.id === view.id) : undefined;
-  if (mod) return <ModDrawer key={mod.id} mod={mod} mods={mods} conflicts={conflicts} names={names} onOpen={onOpen} onClose={onClose} update={offered(updates, mod)} onUpdate={() => onUpdate(mod.id)} />;
+  if (mod) return <ModDrawer key={mod.id} mod={mod} mods={mods} conflicts={conflicts} names={names} onOpen={onOpen} onClose={onClose} />;
   if (view?.kind === "conflicts" || (conflicts.length && !conflictsClosed)) return <ConflictsView conflicts={conflicts} order={order} names={names} focus={view?.kind === "conflicts" ? view.focus : undefined} onClose={onClose} />;
   return null;
 }
@@ -49,7 +47,7 @@ type Tab = "about" | "options" | "keys" | "files" | "deps";
 
 const TAB_ICONS: Record<Tab, () => React.JSX.Element> = { about: InfoIcon, options: SlidersIcon, keys: KeyboardIcon, files: FileIcon, deps: LinkIcon };
 
-function ModDrawer({ mod, mods, conflicts, names, onOpen, onClose, update, onUpdate }: { mod: ModRow; mods: ModRow[]; conflicts: ConflictRow[]; names: Map<string, string>; onOpen: (id: string) => void; onClose: () => void; update: string | null; onUpdate: () => void }) {
+function ModDrawer({ mod, mods, conflicts, names, onOpen, onClose }: { mod: ModRow; mods: ModRow[]; conflicts: ConflictRow[]; names: Map<string, string>; onOpen: (id: string) => void; onClose: () => void }) {
   const [tab, setTab] = useState<Tab>("about");
   const [ask, setAsk] = useState(false);
   const name = pick(mod.name, mod.id);
@@ -64,11 +62,6 @@ function ModDrawer({ mod, mods, conflicts, names, onOpen, onClose, update, onUpd
           <div className="meta">
             {[mod.authors.join(", "), mod.version ?? t("app.mods.imported"), t(`app.scope.${mod.scope}`)].filter(Boolean).join(" · ")}
           </div>
-          {update && (
-            <button className="ver-up dh-update" onClick={onUpdate} data-tip={t("app.mods.updateHint")}>
-              <span>{t("app.mods.updateTo", update)}</span><UpArrowIcon />
-            </button>
-          )}
         </div>
         <div className="dh-end">
           <button className="bare" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /></button>
@@ -171,9 +164,11 @@ function OptionLine({ mod, o, onDraft }: { mod: ModRow; o: OptionRow; onDraft: (
   return (
     <li className="opt">
       <div className="opt-text">
-        {/* The description shows in the tooltip of the name box, on hover or keyboard focus. */}
-        <div className="l opt-name" tabIndex={about ? 0 : undefined} data-tip={about || undefined}>{pick(o.label, o.id)}</div>
-        {o.deploy && <div className="d note">{t("app.drawer.afterDeploy")}</div>}
+        {/* The description shows in the tooltip of the name box, on hover or keyboard focus, with the
+            note about Deploy under it; a yellow asterisk after the name says there is one. */}
+        <div className="l opt-name" tabIndex={about || o.deploy ? 0 : undefined} data-tip={about || undefined} data-tip-note={o.deploy ? t("app.drawer.afterDeploy") : undefined}>
+          {pick(o.label, o.id)}{o.deploy && <span className="opt-star" aria-hidden="true">*</span>}
+        </div>
       </div>
       <div className="opt-cell"><OptionControl mod={mod} o={o} onDraft={onDraft} /></div>
       <div className="opt-cell">
@@ -264,7 +259,7 @@ function KeyButton({ value, label, onSet, clash }: { value: string; label: strin
           if (k !== value) onSet(k);
         }
       }}>
-      {waiting ? t("app.drawer.pressKey") : value}
+      <span className="key-text">{waiting ? t("app.drawer.pressKey") : value}</span>
     </button>
   );
 }
@@ -290,8 +285,9 @@ function KeysTab({ mod, names }: { mod: ModRow; names: Map<string, string> }) {
           return (
             <li key={k.id} className="opt">
               <div className="opt-text">
-                <div className="l">{label}</div>
-                {shown?.deploy && <div className="d note">{t("app.drawer.afterDeploy")}</div>}
+                <div className="l" tabIndex={shown?.deploy ? 0 : undefined} data-tip-note={shown?.deploy ? t("app.drawer.afterDeploy") : undefined}>
+                  {label}{shown?.deploy && <span className="opt-star" aria-hidden="true">*</span>}
+                </div>
                 {k.clash.length > 0 && <div className="d warn">{t("app.drawer.keyClash", [pick(mod.name, mod.id), ...k.clash.map((id) => names.get(id) ?? id)].join(", "))}</div>}
               </div>
               <div className="opt-ctl key-col">
@@ -313,7 +309,12 @@ function KeysTab({ mod, names }: { mod: ModRow; names: Map<string, string> }) {
 /** The controller input of a keybind: its choice option, narrowed to the column, the whole choice in a tooltip. */
 function PadControl({ mod, o }: { mod: ModRow; o: OptionRow }) {
   const label = pick(o.label, o.id);
-  const options = o.choices.map((c, i) => ({ value: c, label: pick(o.choiceLabels[i], c) }));
+  // A choice that names controller buttons is drawn as them; the full name is in the tooltip and the list.
+  const options = o.choices.map((c, i) => {
+    const name = pick(o.choiceLabels[i], c);
+    const buttons = padButtons(name, c);
+    return { value: c, label: name, view: buttons ? <PadGlyphs buttons={buttons} /> : undefined };
+  });
   const current = options.find((c) => c.value === String(o.value))?.label;
   return (
     <>

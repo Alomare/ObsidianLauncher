@@ -50,7 +50,7 @@ function show(m: ModRow, tab: "About" | "Options") {
   document.body.append(box);
   root = createRoot(box);
   act(() => root!.render(<Drawer view={{ kind: "mod", id: m.id }} mods={[m]} conflicts={[]} order={[m.id]} names={new Map([[m.id, "Cam"]])}
-    onOpen={() => {}} onClose={() => {}} updates={{}} onUpdate={() => {}} />));
+    onOpen={() => {}} onClose={() => {}} />));
   const tabs = [...box.querySelectorAll<HTMLButtonElement>(".dtabs button")];
   act(() => tabs.find((b) => b.getAttribute("aria-label") === tab)!.click());
   return box;

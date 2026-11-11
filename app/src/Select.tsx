@@ -1,7 +1,7 @@
 // A styled dropdown in place of the native <select>: a button that opens a list. Arrow keys move,
 // Enter or Space picks, Esc, a click outside, a scroll or a resize closes. The list sits on the
 // body: inside a box with a folded corner, the corner's mask would cut it off at the edge of the box.
-import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ChevronIcon } from "./Icons";
 import { ScrollText } from "./ScrollText";
@@ -11,7 +11,8 @@ const EDGE = 8;
 
 type Props<T extends string> = {
   value: T;
-  options: { value: T; label: string }[];
+  /** `view` draws the option in place of its label (a glyph, say); the label stays the name and shows beside it in the list. */
+  options: { value: T; label: string; view?: ReactNode }[];
   onChange: (v: T) => void;
   /** Shown before the value inside the button, muted. */
   prefix?: string;
@@ -98,7 +99,7 @@ export function Select<T extends string>({ value, options, onChange, prefix, lab
         {prefix && <span className="select-prefix">{prefix}</span>}
         {/* Every label sits in the same grid cell, so the button keeps the width of the widest. */}
         <span className="select-value">
-          {fill ? <ScrollText text={current?.label ?? ""} /> : options.map((o) => <span key={o.value} aria-hidden={o.value !== value || undefined}>{o.label}</span>)}
+          {fill && !current?.view ? <ScrollText text={current?.label ?? ""} /> : options.map((o) => <span key={o.value} aria-hidden={o.value !== value || undefined}>{o.view ?? o.label}</span>)}
         </span>
         <ChevronIcon />
       </button>
@@ -107,7 +108,7 @@ export function Select<T extends string>({ value, options, onChange, prefix, lab
           {options.map((o, i) => (
             <li key={o.value} role="option" aria-selected={o.value === value} className={i === hi ? "hi" : undefined}
               onPointerEnter={() => setHi(i)} onClick={() => pick(o.value)}>
-              {o.label}
+              {o.view ? <><span className="select-view">{o.view}</span>{o.label}</> : o.label}
             </li>
           ))}
         </ul>,
