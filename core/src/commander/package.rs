@@ -25,13 +25,53 @@ struct Manifest {
 pub const SOURCE: &str = "https://github.com/Alomare/ObsidianCommander";
 const ASSET_PREFIX: &str = "obsidian-commander-";
 
-/// Downloads the newest released package from GitHub and installs it.
+/// The public key downloaded packages are signed for: the key of Obsidian updates
+/// (`plugins.updater.pubkey` in `tauri.conf.json`). The package holds a program that Obsidian
+/// starts, so a download is installed only when its signature was made with that key.
+const PACKAGE_KEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENFMDk3NEVCQ0Q4M0YwMTAKUldRUThJUE42M1FKem84YlozRG44OUJuenJvRzNGeE9sajE4R2NpeHFXY3NoZEtUdEtuSmtIbFkK";
+
+/// Downloads the newest released package from GitHub, checks its signature and installs it.
 pub fn fetch(data: &Path, github: &crate::updates::GitHub) -> Result<Installed> {
     let repo = crate::updates::github_repo(SOURCE).expect("a GitHub address");
     let dir = tempfile::tempdir()?;
     let zip = dir.path().join("commander.zip");
-    github.download_latest_zip(&repo, ASSET_PREFIX, &zip)?;
+    let (_, sig) = github.download_latest_zip(&repo, ASSET_PREFIX, &zip)?;
+    let sig = sig.ok_or(ObsidianError::CommanderUnsigned)?;
+    verify_signed(&std::fs::read(&zip)?, &sig, PACKAGE_KEY)?;
     install(data, &zip)
+}
+
+/// Standard base64 to bytes; None for anything else.
+fn unbase64(text: &str) -> Option<Vec<u8>> {
+    let mut out = Vec::with_capacity(text.len() / 4 * 3);
+    let (mut acc, mut bits) = (0u32, 0u32);
+    for c in text.trim().trim_end_matches('=').bytes() {
+        let v = match c {
+            b'A'..=b'Z' => c - b'A',
+            b'a'..=b'z' => c - b'a' + 26,
+            b'0'..=b'9' => c - b'0' + 52,
+            b'+' => 62,
+            b'/' => 63,
+            _ => return None,
+        };
+        acc = (acc << 6) | u32::from(v);
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((acc >> bits) as u8);
+        }
+    }
+    Some(out)
+}
+
+/// Whether `signature` (the text of a `.sig` file from `tauri signer sign`) is a signature of
+/// `bytes` made with the private half of `key` (a public key as `tauri.conf.json` holds it).
+fn verify_signed(bytes: &[u8], signature: &str, key: &str) -> Result<()> {
+    let unsigned = || ObsidianError::CommanderUnsigned;
+    let text = |b64: &str| unbase64(b64).and_then(|b| String::from_utf8(b).ok());
+    let key = text(key).and_then(|t| minisign_verify::PublicKey::decode(&t).ok()).ok_or_else(unsigned)?;
+    let signature = text(signature).and_then(|t| minisign_verify::Signature::decode(&t).ok()).ok_or_else(unsigned)?;
+    key.verify(bytes, &signature, false).map_err(|_| unsigned())
 }
 
 /// The version of a newer released package than the one installed, if there is one.
@@ -201,6 +241,28 @@ mod tests {
         assert!(!is_newer("0.4.0", "0.3.2"));
         assert!(is_newer("local build", "0.3.2"));
         assert!(!is_newer("0.3.2", "nightly"));
+    }
+
+    /// A key made for this test with `tauri signer generate`, and its signature of `SIGNED`.
+    const TEST_KEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDYwM0VDODRENUQ5RTYyQjAKUldTd1lwNWRUY2crWUFBNjAzOSszMjltdXBRUzZINDY0S0tDT21oendaUU8zYkxMV295dXZ5aDAK";
+    const TEST_SIG: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTd1lwNWRUY2crWURmandvSW1aUGk2S1pBMFE5NkZSdWd5aGE4R0wyQXNGdmUyYk5kQVRCdmt3d2dIcjFEeWVUYnFOb0NLZUpxSnowL0sxZGZQcU01ZmtjUnFiYm0wcUFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NDE5OTMxCWZpbGU6cGtnLnppcAorQW94TzlrRE5hRUhQRnltS0lqNnpDVEY2WDd4dFBydUlXY1J2N0p4bkUrQVpXVFd0MFRpUHBXV21OdjMzL3lDVkRCU0dva2t5UXROc3ZaMGFRZFlCUT09Cg==";
+    const SIGNED: &[u8] = b"a test package";
+
+    #[test]
+    fn a_download_needs_a_signature_from_the_right_key_over_the_same_bytes() {
+        verify_signed(SIGNED, TEST_SIG, TEST_KEY).unwrap();
+        assert!(matches!(verify_signed(b"a test package.", TEST_SIG, TEST_KEY), Err(ObsidianError::CommanderUnsigned)), "changed bytes");
+        assert!(matches!(verify_signed(SIGNED, TEST_SIG, PACKAGE_KEY), Err(ObsidianError::CommanderUnsigned)), "another key");
+        assert!(matches!(verify_signed(SIGNED, "not a signature", TEST_KEY), Err(ObsidianError::CommanderUnsigned)));
+        assert!(matches!(verify_signed(SIGNED, "", TEST_KEY), Err(ObsidianError::CommanderUnsigned)));
+        assert_eq!(unbase64("TWFueQ==").as_deref(), Some(&b"Many"[..]));
+        assert_eq!(unbase64("TQ=="), Some(b"M".to_vec()));
+        assert_eq!(unbase64("M*"), None);
+        // The key in this file reads as a key, and is the one the app updates are checked with.
+        let conf = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../app/src-tauri/tauri.conf.json")).unwrap();
+        assert!(conf.contains(PACKAGE_KEY), "PACKAGE_KEY is the updater key");
+        let text = String::from_utf8(unbase64(PACKAGE_KEY).unwrap()).unwrap();
+        assert!(minisign_verify::PublicKey::decode(&text).is_ok());
     }
 
     fn zip_of(path: &Path, files: &[(&str, &[u8])]) {

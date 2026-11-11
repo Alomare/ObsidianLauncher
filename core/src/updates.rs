@@ -280,9 +280,10 @@ impl GitHub {
     }
 
     /// Downloads the ZIP of `repo`'s newest release whose name starts with `prefix` (any case) into
-    /// `to`, and gives the release's version. For a program Obsidian installs from a release of its
-    /// own, such as the Commander package; mods go through `stage`.
-    pub fn download_latest_zip(&self, repo: &Repo, prefix: &str, to: &Path) -> Result<Version> {
+    /// `to`, and gives the release's version with the text of the signature file beside the ZIP
+    /// (`<zip name>.sig`), when the release has one. For a program Obsidian installs from a release
+    /// of its own, such as the Commander package; mods go through `stage`.
+    pub fn download_latest_zip(&self, repo: &Repo, prefix: &str, to: &Path) -> Result<(Version, Option<String>)> {
         let release = self.latest(repo)?;
         let prefix = prefix.to_lowercase();
         let asset = release
@@ -294,7 +295,18 @@ impl GitHub {
             })
             .ok_or_else(|| ObsidianError::NoUpdateAsset(repo.to_string()))?;
         self.download(&asset.browser_download_url, to)?;
-        Ok(release.version)
+        let sig_name = format!("{}.sig", asset.name.to_lowercase());
+        let sig = match release.assets.iter().find(|a| a.name.to_lowercase() == sig_name) {
+            Some(a) => {
+                let mut res = self.agent.get(&a.browser_download_url).call().map_err(network)?;
+                if !res.status().is_success() {
+                    return Err(network(format!("GitHub answered {}", res.status().as_u16())));
+                }
+                Some(res.body_mut().with_config().limit(16 * 1024).read_to_string().map_err(network)?)
+            }
+            None => None,
+        };
+        Ok((release.version, sig))
     }
 
     fn download(&self, url: &str, to: &Path) -> Result<()> {
@@ -903,8 +915,10 @@ mod tests {
         let to = t.path().join("p.zip");
         let g = github("v0.2.0", vec![("notes.txt", b"x".to_vec()), ("Obsidian-Commander-0.2.0.zip", b"PK-zip".to_vec())]);
         let repo = github_repo("https://github.com/me/mod").unwrap();
-        assert_eq!(g.download_latest_zip(&repo, "obsidian-commander-", &to).unwrap(), Version::new(0, 2, 0));
+        assert_eq!(g.download_latest_zip(&repo, "obsidian-commander-", &to).unwrap(), (Version::new(0, 2, 0), None));
         assert_eq!(std::fs::read(&to).unwrap(), b"PK-zip");
+        let g = github("v0.2.0", vec![("obsidian-commander-0.2.0.zip.sig", b"SIG".to_vec()), ("obsidian-commander-0.2.0.zip", b"PK-zip".to_vec())]);
+        assert_eq!(g.download_latest_zip(&repo, "obsidian-commander-", &to).unwrap().1.as_deref(), Some("SIG"), "the signature beside the ZIP");
         let g = github("v0.2.0", vec![("other.zip", b"x".to_vec())]);
         assert!(matches!(g.download_latest_zip(&repo, "obsidian-commander-", &to), Err(ObsidianError::NoUpdateAsset(_))));
     }

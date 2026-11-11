@@ -843,6 +843,7 @@
   "app.commander.addressHint": "203.0.113.7:17494",
   "app.commander.addressFind": "Find Wars",
   "app.commander.addressNone": "The war server at that address has no war open to this PC.",
+  "app.error.CommanderUnsigned": "The downloaded package has no valid signature, so it was not installed",
   "app.error.CommanderPackage": "Not a Commander package, or one for another version of Obsidian",
   "app.error.CommanderMissing": "Commander isn't installed",
   "app.error.WarUnknown": "This war isn't on this PC",

@@ -130,6 +130,8 @@ pub enum ObsidianError {
     BadSaveEdit { field: String, value: String },
     #[error("not a Commander package: {0}")]
     CommanderPackage(String),
+    #[error("the downloaded Commander package has no valid signature")]
+    CommanderUnsigned,
     #[error("Commander isn't installed")]
     CommanderMissing,
     #[error("no war {0} on this PC")]
