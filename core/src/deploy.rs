@@ -333,11 +333,16 @@ pub fn changes_waiting_for(comp: &Composition, profile: &Profile, settings: &str
 fn hold_lock(data_dir: &Path) -> Result<std::fs::File> {
     std::fs::create_dir_all(data_dir)?;
     let f = std::fs::OpenOptions::new().create(true).write(true).truncate(false).open(data_dir.join("deploy.lock"))?;
-    match f.try_lock() {
-        Ok(()) => Ok(f),
-        Err(std::fs::TryLockError::WouldBlock) => Err(ObsidianError::Busy),
-        Err(std::fs::TryLockError::Error(e)) => Err(e.into()),
+    // On Linux a child process started by another thread holds a copy of the lock until the child
+    // starts the program, so a lock dropped a moment ago can still look held. A short wait covers that.
+    for _ in 0..25 {
+        match f.try_lock() {
+            Ok(()) => return Ok(f),
+            Err(std::fs::TryLockError::WouldBlock) => std::thread::sleep(std::time::Duration::from_millis(20)),
+            Err(std::fs::TryLockError::Error(e)) => return Err(e.into()),
+        }
     }
+    Err(ObsidianError::Busy)
 }
 
 pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Result<DeployReport> {

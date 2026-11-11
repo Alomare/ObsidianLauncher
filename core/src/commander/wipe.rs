@@ -638,6 +638,8 @@ mod tests {
         assert_eq!(count_rules(b"", exe), 0);
     }
 
+    // System32 paths only exist on Windows.
+    #[cfg(windows)]
     #[test]
     fn the_admin_script_quotes_each_path_and_travels_encoded() {
         assert_eq!([base64(b""), base64(b"M"), base64(b"Ma"), base64(b"Man"), base64(b"Many")], ["", "TQ==", "TWE=", "TWFu", "TWFueQ=="]);

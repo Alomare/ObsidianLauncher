@@ -21,9 +21,27 @@ struct Manifest {
     ui: String,
 }
 
-/// Where the package comes from: the package releases, each with an `obsidian-commander-<version>.zip`.
+/// Where the package comes from: the package releases, each with an `obsidian-commander-<version>.zip`
+/// for Windows and a `commander-linux-x86_64-<version>.zip` for Linux. The Linux name shares no
+/// prefix with the Windows one, so Obsidian releases before Linux support never pick it.
 pub const SOURCE: &str = "https://github.com/Alomare/ObsidianCommander";
+#[cfg(windows)]
 const ASSET_PREFIX: &str = "obsidian-commander-";
+#[cfg(not(windows))]
+const ASSET_PREFIX: &str = "commander-linux-x86_64-";
+
+/// How a program for this system starts: a Windows exe, or an ELF file on Linux.
+#[cfg(windows)]
+const PROGRAM_MAGIC: &[u8] = b"MZ";
+#[cfg(not(windows))]
+const PROGRAM_MAGIC: &[u8] = b"\x7fELF";
+
+/// Whether `path` is a program this system can start, going by the first bytes.
+fn native_program(path: &Path) -> bool {
+    let mut head = [0u8; 4];
+    let n = std::fs::File::open(path).and_then(|mut f| f.read(&mut head)).unwrap_or(0);
+    head[..n].starts_with(PROGRAM_MAGIC)
+}
 
 /// The public key downloaded packages are signed for: the key of Obsidian updates
 /// (`plugins.updater.pubkey` in `tauri.conf.json`). The package holds a program that Obsidian
@@ -116,6 +134,9 @@ fn read_manifest(folder: &Path) -> Result<Manifest> {
     if !safe_name(&m.server) || !folder.join(&m.server).is_file() {
         return Err(bad(format!("no server file {:?}", m.server)));
     }
+    if !native_program(&folder.join(&m.server)) {
+        return Err(bad(format!("the server file {:?} is made for another system", m.server)));
+    }
     if !safe_name(&m.ui) || !folder.join(&m.ui).join("index.html").is_file() {
         return Err(bad(format!("no interface in {:?}", m.ui)));
     }
@@ -196,6 +217,12 @@ pub fn install(data: &Path, source: &Path) -> Result<Installed> {
                 let _ = std::fs::rename(&old, &target);
             }
             return Err(e.into());
+        }
+        // A ZIP keeps no run permission that Obsidian reads back, so the server gets one here.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(target.join(&m.server), std::fs::Permissions::from_mode(0o755))?;
         }
         let _ = std::fs::remove_dir_all(&old);
         Ok(Installed { version: m.version, protocol: m.protocol, server: m.server, ui: m.ui })
@@ -281,13 +308,19 @@ mod tests {
     fn installs_a_good_package_and_replaces_it() {
         let t = tempfile::tempdir().unwrap();
         let z = t.path().join("c.zip");
-        zip_of(&z, &[("commander.json", GOOD), ("commander-server.exe", b"MZ"), ("ui/index.html", b"<html>")]);
+        zip_of(&z, &[("commander.json", GOOD), ("commander-server.exe", PROGRAM_MAGIC), ("ui/index.html", b"<html>")]);
         let i = install(&t.path().join("data"), &z).unwrap();
         assert_eq!(i.version, "0.1.0");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(package_dir(&t.path().join("data")).join(&i.server)).unwrap().permissions().mode();
+            assert_eq!(mode & 0o111, 0o111, "the server can run");
+        }
         assert_eq!(installed(&t.path().join("data")), Some(i));
         let z2 = t.path().join("c2.zip");
         let newer = String::from_utf8_lossy(GOOD).replace("0.1.0", "0.2.0");
-        zip_of(&z2, &[("Commander/commander.json", newer.as_bytes()), ("Commander/commander-server.exe", b"MZ"), ("Commander/ui/index.html", b"<html>")]);
+        zip_of(&z2, &[("Commander/commander.json", newer.as_bytes()), ("Commander/commander-server.exe", PROGRAM_MAGIC), ("Commander/ui/index.html", b"<html>")]);
         assert_eq!(install(&t.path().join("data"), &z2).unwrap().version, "0.2.0", "a ZIP wrapped in one folder");
         uninstall(&t.path().join("data")).unwrap();
         assert_eq!(installed(&t.path().join("data")), None);
@@ -298,11 +331,16 @@ mod tests {
         let t = tempfile::tempdir().unwrap();
         let data = t.path().join("data");
         let good = t.path().join("good.zip");
-        zip_of(&good, &[("commander.json", GOOD), ("commander-server.exe", b"MZ"), ("ui/index.html", b"<html>")]);
+        zip_of(&good, &[("commander.json", GOOD), ("commander-server.exe", PROGRAM_MAGIC), ("ui/index.html", b"<html>")]);
         install(&data, &good).unwrap();
-        let cases: [(&str, Vec<(&str, &[u8])>); 4] = [
+        #[cfg(windows)]
+        const OTHER_SYSTEM: &[u8] = b"ELF";
+        #[cfg(not(windows))]
+        const OTHER_SYSTEM: &[u8] = b"MZ";
+        let cases: [(&str, Vec<(&str, &[u8])>); 5] = [
             ("no manifest", vec![("x.txt", b"x")]),
-            ("wrong protocol", vec![("commander.json", br#"{"version":"9","protocol":99,"server":"s.exe","ui":"ui"}"#), ("s.exe", b"MZ"), ("ui/index.html", b"x")]),
+            ("server for another system", vec![("commander.json", GOOD), ("commander-server.exe", OTHER_SYSTEM), ("ui/index.html", b"x")]),
+            ("wrong protocol", vec![("commander.json", br#"{"version":"9","protocol":99,"server":"s.exe","ui":"ui"}"#), ("s.exe", PROGRAM_MAGIC), ("ui/index.html", b"x")]),
             ("no server", vec![("commander.json", GOOD), ("ui/index.html", b"x")]),
             ("escaping path", vec![("commander.json", GOOD), ("../evil.txt", b"x")]),
         ];
