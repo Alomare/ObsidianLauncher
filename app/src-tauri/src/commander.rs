@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use obsidian_core::commander::{self, Installed, State, WarHost, WarRef, lan, package, relay::Relay, server::Server, wipe};
+use obsidian_core::commander::{self, Installed, State, WarHost, WarRef, engine, lan, package, relay::Relay, server::Server, wipe};
 use serde::{Deserialize, Serialize};
 use tauri::State as TauriState;
 
@@ -187,23 +187,18 @@ impl WarPick {
 
 #[tauri::command]
 pub async fn commander_select(ctx: TauriState<'_, Ctx>, war: WarPick) -> CmdResult<CommanderDone> {
-    let _turn = ctx.turn();
-    let mut runtime = rt(&ctx);
     let evolved = war.model.as_deref() == Some("evolved");
     let war = war.into_ref();
     if !commander::valid_pick(&war) {
         return Err(CmdError { code: "WarUnknown".into(), message: format!("not a war: {}", war.id) });
     }
-    // An Evolved war draws its map and counts its missions through the companion mod.
+    // An Evolved war draws the map and counts the missions through the Evolved War Engine mod,
+    // downloaded first when the library lacks it.
+    let staged = if evolved { engine_download(&ctx)? } else { None };
+    let _turn = ctx.turn();
+    let mut runtime = rt(&ctx);
     if evolved {
-        let lib = obsidian_core::library::Library::open(&ctx.data)?;
-        if !lib.list()?.iter().any(|m| m.id == commander::EVOLVED_MOD) {
-            return Err(CmdError {
-                code: "EvolvedModMissing".into(),
-                message: "An Evolved war needs the Evolved War Engine mod: github.com/Alomare/HD1-EvolvedWarEngine".into(),
-            });
-        }
-        crate::commands::with_profile(&ctx.data, |p| p.switch(&lib, commander::EVOLVED_MOD, true).map(|_| ()))?;
+        engine::switch_on(&ctx.data, staged.as_ref())?;
     }
     if war.host == WarHost::Local {
         ensure_server(&ctx, &mut runtime)?;
@@ -211,6 +206,33 @@ pub async fn commander_select(ctx: TauriState<'_, Ctx>, war: WarPick) -> CmdResu
     commander::play_war(&ctx.data, &saves_of(&ctx)?, war)?;
     ensure_relay(&ctx, &mut runtime)?;
     done(&ctx, &mut runtime)
+}
+
+/// The newest Evolved War Engine release when the library lacks the mod. The download runs outside
+/// the turn, as mod updates do.
+fn engine_download(ctx: &Ctx) -> CmdResult<Option<obsidian_core::updates::Staged>> {
+    let missing = {
+        let _turn = ctx.turn();
+        engine::missing(&ctx.data)?
+    };
+    Ok(if missing { Some(engine::fetch(&obsidian_core::updates::GitHub::default())?) } else { None })
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineDone {
+    pub switched: engine::Switched,
+    pub snapshot: Snapshot,
+}
+
+/// After the war screens create an Evolved war: the Evolved War Engine mod in the library and on in
+/// the active profile, so the host plays it like everyone who joins.
+#[tauri::command]
+pub async fn commander_evolved_engine(ctx: TauriState<'_, Ctx>) -> CmdResult<EngineDone> {
+    let staged = engine_download(&ctx)?;
+    let _turn = ctx.turn();
+    let switched = engine::switch_on(&ctx.data, staged.as_ref())?;
+    Ok(EngineDone { switched, snapshot: fresh(&ctx)? })
 }
 
 /// Back to the official war: no war selected, and the Official save that's in the game files.

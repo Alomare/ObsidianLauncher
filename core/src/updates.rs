@@ -418,16 +418,33 @@ pub fn stage(github: &GitHub, current: &Manifest) -> Result<Staged> {
     if release.version <= current.version {
         return Err(mismatch(format!("{} {}", current.id, release.version)));
     }
-    let asset = pick_zip(&release.assets, &current.id).ok_or_else(|| ObsidianError::NoUpdateAsset(repo.to_string()))?;
+    let staged = unpack(github, &repo, &release, &current.id)?;
+    if staged.manifest.id != current.id || staged.manifest.version <= current.version {
+        return Err(mismatch(format!("{} {}", staged.manifest.id, staged.manifest.version)));
+    }
+    Ok(staged)
+}
+
+/// Downloads the latest release of a mod that isn't installed yet, from `repo`, and checks that it
+/// is the mod `id`. Like `stage`, it touches nothing in the library.
+pub fn stage_new(github: &GitHub, repo: &Repo, id: &str) -> Result<Staged> {
+    let release = github.latest(repo)?;
+    let staged = unpack(github, repo, &release, id)?;
+    if staged.manifest.id != id {
+        return Err(ObsidianError::UpdateMismatch { wanted: id.to_string(), found: format!("{} {}", staged.manifest.id, staged.manifest.version) });
+    }
+    Ok(staged)
+}
+
+/// The mod ZIP of a release, downloaded and unpacked into a temporary folder.
+fn unpack(github: &GitHub, repo: &Repo, release: &Release, id: &str) -> Result<Staged> {
+    let asset = pick_zip(&release.assets, id).ok_or_else(|| ObsidianError::NoUpdateAsset(repo.to_string()))?;
     let dir = tempfile::tempdir()?;
     let (zip, unpacked) = (dir.path().join("update.zip"), dir.path().join("mod"));
     github.download(&asset.browser_download_url, &zip)?;
     crate::import::unzip(&zip, &unpacked)?;
     let root = crate::import::mod_folder(&unpacked)?.ok_or_else(|| ObsidianError::NoUpdateAsset(repo.to_string()))?;
     let manifest = load_manifest(&root)?;
-    if manifest.id != current.id || manifest.version <= current.version {
-        return Err(mismatch(format!("{} {}", manifest.id, manifest.version)));
-    }
     Ok(Staged { _dir: dir, root, manifest })
 }
 
@@ -935,6 +952,22 @@ mod tests {
         fake.ok("/repos/me/mod/releases/latest", format!(r#"{{"tag_name":"v1.1.0","assets":[{{"name":"mod.zip","browser_download_url":"{base}/gone.zip"}}]}}"#));
         let e = stage(&fake.github(), &installed("a.mod", "1.0.0")).err().unwrap();
         assert!(matches!(e, ObsidianError::UpdateNetwork(_)), "{e}");
+    }
+
+    #[test]
+    fn a_new_mod_installs_from_the_latest_release() {
+        let t = spaced_tempdir();
+        let lib = Library::open(t.path()).unwrap();
+        let repo = github_repo("https://github.com/me/mod").unwrap();
+        let g = github("v0.3.0", vec![("a.mod-0.3.0.zip", zipped("a.mod/", &manifest("a.mod", "0.3.0")))]);
+        let staged = stage_new(&g, &repo, "a.mod").unwrap();
+        assert!(lib.list().unwrap().is_empty(), "staging leaves the library alone");
+        assert_eq!(staged.install(&lib).unwrap(), InstallOutcome::Added);
+        assert_eq!(load_manifest(&lib.mod_dir("a.mod")).unwrap().version, Version::new(0, 3, 0));
+
+        let other = github("v0.3.0", vec![("mod.zip", zipped("", &manifest("other.mod", "0.3.0")))]);
+        assert!(matches!(stage_new(&other, &repo, "a.mod"), Err(ObsidianError::UpdateMismatch { .. })));
+        assert!(matches!(stage_new(&github("v0.3.0", vec![]), &repo, "a.mod"), Err(ObsidianError::NoUpdateAsset(_))));
     }
 
     #[test]

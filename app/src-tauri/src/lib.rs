@@ -122,6 +122,7 @@ pub fn run() {
             commander::commander_server_start,
             commander::commander_server_stop,
             commander::commander_select,
+            commander::commander_evolved_engine,
             commander::commander_official,
             commander::commander_forget,
             commander::commander_scan,

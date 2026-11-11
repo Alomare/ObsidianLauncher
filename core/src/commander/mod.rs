@@ -13,6 +13,7 @@
 //! A war is only played on a dedicated Sandbox save, so nothing from it reaches the Official save,
 //! and the loader refuses war mode without one.
 
+pub mod engine;
 pub mod lan;
 pub mod package;
 pub mod relay;

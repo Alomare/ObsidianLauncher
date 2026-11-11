@@ -127,6 +127,16 @@ export function CommanderPage({ snap, visible, onPlay }: Props) {
     } catch (e) { notify("error", errorText(e)); }
   }, [running]);
 
+  // The Evolved War Engine mod in the library (from GitHub when missing) and on in the active profile.
+  const evolvedEngine = useCallback(async () => {
+    try {
+      const r = await withTask(t("app.commander.engineInstalling"), () => call<{ switched: { installed: string | null; enabled: boolean }; snapshot: Snapshot }>("commander_evolved_engine"), true);
+      setSnapshot(r.snapshot);
+      if (r.switched.installed) notify("info", t("app.commander.engineInstalled", r.switched.installed));
+      else if (r.switched.enabled) notify("info", t("app.commander.engineEnabled"));
+    } catch (e) { notify("error", t("app.commander.engineFailed", errorText(e))); }
+  }, []);
+
   // Messages from the frame, checked: the frame window, a known type, plain fields.
   useEffect(() => {
     const on = (e: MessageEvent) => {
@@ -135,6 +145,8 @@ export function CommanderPage({ snap, visible, onPlay }: Props) {
       if (!m || typeof m.type !== "string") return;
       if (m.type === "commander:ready") { hello(); return; }
       if (m.type === "commander:official") { official(); return; }
+      // A new Evolved war: the host gets the Evolved War Engine mod now, as players who join do on selecting.
+      if (m.type === "commander:created") { if (m.model === "evolved" && source?.kind === "local") evolvedEngine(); return; }
       if (m.type !== "commander:play" && m.type !== "commander:select") return;
       if (typeof m.war !== "string" || !/^[\w-]{1,32}$/.test(m.war)) return;
       const name = typeof m.name === "string" ? m.name.slice(0, 60) : m.war;
@@ -147,7 +159,7 @@ export function CommanderPage({ snap, visible, onPlay }: Props) {
     };
     window.addEventListener("message", on);
     return () => window.removeEventListener("message", on);
-  }, [frameOrigin, hello, official, select, source]);
+  }, [frameOrigin, hello, official, select, source, evolvedEngine]);
 
 
   const installed_ = (v: CommanderView) => {
