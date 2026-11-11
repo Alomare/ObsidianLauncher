@@ -8,7 +8,7 @@ use crate::backup::backup_game_saves;
 use crate::bundle::{self, Bundle, Entry, Variant};
 use crate::compose::{Composition, Conflict};
 use crate::game::GameInstall;
-use crate::gate::{GateReport, KNOWN_BUILDS, KnownBuild, check_build, sha256_file};
+use crate::gate::{GateReport, KNOWN_BUILDS, KnownBuild, check_build, sha256_file, sha256_files};
 use crate::library::{Library, Profile};
 use crate::paths::{rename_retrying, write_atomic};
 use crate::{ObsidianError, Result, loader, settings};
@@ -372,7 +372,10 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
     // aren't in the patches, so the settings are written all the same.
     if let Some(prev) = previous.as_ref().filter(|p| !p.incomplete && !p.files.is_empty()) {
         let planned = crate::compose::plan_for(&lib, &profile, Some(&contents))?;
-        let intact = || prev.files.iter().all(|f| sha256_file(&here(&contents, f)).is_ok_and(|s| s == f.sha256));
+        let intact = || {
+            let places: Vec<PathBuf> = prev.files.iter().map(|f| here(&contents, f)).collect();
+            sha256_files(&places).into_iter().zip(&prev.files).all(|(now, f)| now.is_ok_and(|s| s == f.sha256))
+        };
         if planned.unplaced.is_empty() && prev.fingerprint.as_deref() == Some(fingerprint(&planned, &profile, &loader_dir)?.as_str()) && intact() {
             let live = loader::settings_for(&lib, &profile)?;
             let digest = settings_digest(&live);
@@ -488,9 +491,11 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
             return Err(e);
         }
     }
-    let files = temps
-        .iter()
-        .map(|(tmp, p)| Ok(DeployedFile { path: p.clone(), sha256: sha256_file(tmp)? }))
+    let written: Vec<PathBuf> = temps.iter().map(|(tmp, _)| tmp.clone()).collect();
+    let files = sha256_files(&written)
+        .into_iter()
+        .zip(&temps)
+        .map(|(sha256, (_, p))| Ok(DeployedFile { path: p.clone(), sha256: sha256? }))
         .collect::<Result<Vec<_>>>()?;
     let mods = profile.mods.iter().filter(|m| m.enabled).map(|m| m.id.clone()).collect();
     let state = DeployState { build, files, mods, time: chrono::Local::now().to_rfc3339(), fingerprint: Some(fingerprint), settings: Some(digest), incomplete: false, previous: None };

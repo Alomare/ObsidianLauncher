@@ -31,6 +31,34 @@ pub const KNOWN_BUILDS: &[KnownBuild] = &[KnownBuild {
 }];
 
 /// SHA-256 of a file as lowercase hex.
+/// `sha256_file` of each path, in the order given, on as many cores as there are: a deploy of a
+/// large mod writes several patches of hundreds of megabytes, and each is read once more for its hash.
+pub fn sha256_files(paths: &[std::path::PathBuf]) -> Vec<Result<String>> {
+    let cores = std::thread::available_parallelism().map_or(1, |n| n.get()).min(paths.len().max(1));
+    if cores < 2 {
+        return paths.iter().map(|p| sha256_file(p)).collect();
+    }
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let mut done: Vec<(usize, Result<String>)> = std::thread::scope(|s| {
+        let running: Vec<_> = (0..cores)
+            .map(|_| {
+                s.spawn(|| {
+                    let mut mine = Vec::new();
+                    loop {
+                        let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        let Some(p) = paths.get(i) else { break };
+                        mine.push((i, sha256_file(p)));
+                    }
+                    mine
+                })
+            })
+            .collect();
+        running.into_iter().flat_map(|t| t.join().expect("hashing a file doesn't panic")).collect()
+    });
+    done.sort_by_key(|(i, _)| *i);
+    done.into_iter().map(|(_, r)| r).collect()
+}
+
 pub fn sha256_file(path: &Path) -> Result<String> {
     use sha2::{Digest, Sha256};
     use std::io::Read;
@@ -85,6 +113,27 @@ pub(crate) fn fake_build(root: &Path, files: &[&str]) -> &'static [KnownBuild] {
 mod tests {
     use super::*;
     use crate::testutil::{put, spaced_tempdir};
+
+    #[test]
+    fn many_files_hash_in_the_order_given_and_a_missing_one_is_an_error_in_place() {
+        let g = spaced_tempdir();
+        let mut paths = Vec::new();
+        for i in 0..40 {
+            put(g.path(), &format!("f{i}.bin"), format!("file {i}").as_bytes());
+            paths.push(g.path().join(format!("f{i}.bin")));
+        }
+        paths.insert(7, g.path().join("missing.bin"));
+        let all = sha256_files(&paths);
+        assert_eq!(all.len(), 41);
+        for (p, got) in paths.iter().zip(&all) {
+            match sha256_file(p) {
+                Ok(want) => assert_eq!(got.as_ref().unwrap(), &want),
+                Err(_) => assert!(got.is_err(), "{p:?}"),
+            }
+        }
+        assert!(all[7].is_err());
+        assert!(sha256_files(&[]).is_empty());
+    }
 
     #[test]
     fn gate_accepts_matching_files_and_names_mismatches() {
