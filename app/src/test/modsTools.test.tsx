@@ -21,7 +21,7 @@ const mod = (id: string): ModRow => ({
 const row = (name: string, extra: Partial<ProfileRow> = {}): ProfileRow => ({ name, on: 0, blockPublic: false, guarded: false, image: null, color: null, ...extra });
 const snap = (ids: string[], profileRows: ProfileRow[] = [row("Default")]): Snapshot => ({
   mods: ids.map(mod), folders: [], profile: "Default", profiles: profileRows.map((p) => p.name), profileRows,
-  blockPublic: false, blockAchievements: false, freezeProgress: false, hideClientMods: false, loader: false, sandbox: null, conflicts: [], changes: "UpToDate", deployed: true, game: "supported",
+  blockPublic: false, blockAchievements: false, freezeProgress: false, hideClientMods: false, loader: false, sandbox: null, conflicts: [], changes: "UpToDate", deployed: true, modded: true, game: "supported",
   gameChanges: [], gameDir: "C:\\Game", crashCulprit: null, broken: [], damagedProfiles: [], uncleanEnd: null, portable: false, version: "1.3.1",
 });
 

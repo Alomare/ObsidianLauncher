@@ -1,8 +1,10 @@
 // The navigation bar: the tabs (Home, Mods, Saves), then the Guardrails of the active profile and Play, and the
 // Wiki and Settings tabs as icons at the far end. Deploy and Purge are on the Mods tab.
 // When a deploy, a purge or Play starts, one glow in the action's color crosses from Play toward the tabs, and fades out before them.
-import { type ComponentType, useLayoutEffect, useRef, useState } from "react";
-import { CommanderIcon } from "./commander/icons";
+import { type ComponentType, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { playingWar, playLabel, playLabelText, reloadChoices, useChoices } from "./commander/choices";
+import { CommanderIcon, MenuIcon } from "./commander/icons";
+import { PlayChoice } from "./commander/PlayChoice";
 import { BuildDialog } from "./BuildDialog";
 import { GuardrailsDialog, guardrailsSummary, guardsOn } from "./GuardrailsDialog";
 import { BookIcon, CogIcon, HomeIcon, ModsIcon, PlayIcon, SaveIcon, ShieldIcon, WarnIcon } from "./Icons";
@@ -38,6 +40,24 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
   // HD1 gets no more updates, so only a missing game or an unknown build needs a word here.
   const warn = snap && (missing || snap.game === "unknown") ? t(`app.game.${snap.game}`) : null;
   const [showBuild, setShowBuild] = useState(false);
+  // What Play starts: the war and whether the last deploy put mods in. With custom wars to choose from,
+  // Play splits, and the narrow part opens the Play choice.
+  const choices = useChoices();
+  const [choosing, setChoosing] = useState(false);
+  useEffect(() => { reloadChoices(); }, [snap]);
+  const war = playingWar(choices);
+  const label = playLabel(war?.name ?? null, !!snap?.modded);
+  const split = (choices?.wars.length ?? 0) > 0;
+  const playButton = (
+    <button className="btn play" onClick={onPlay} disabled={locked} aria-label={playLabelText(label)} data-tip-title={playLabelText(label)} data-tip={why ?? t("app.action.playHint")}>
+      <PlayIcon />
+      <span className="play-text">
+        <span>{label.before}</span>
+        {label.war && <span className="play-war">{label.war}</span>}
+        {label.after && <span>{label.after}</span>}
+      </span>
+    </button>
+  );
   // The glow runs from the end of Play to the end of the first tabs, so it never reaches them.
   const waveRef = useRef<HTMLSpanElement>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
@@ -83,10 +103,16 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
               {guards > 0 && <i className="guard-count" aria-hidden="true">{guards}</i>}
             </button>
           )}
-          <button className="btn play" onClick={onPlay} disabled={locked} data-tip={why ?? t("app.action.playHint")}>
-            <PlayIcon />
-            <span>{t("app.action.play")}</span>
-          </button>
+          {split ? (
+            <div className="play-split">
+              {playButton}
+              <button className="btn play play-more" onClick={() => setChoosing(true)} disabled={!snap || missing} aria-haspopup="dialog" aria-expanded={choosing}
+                aria-label={t("app.play.choose")} data-tip={t("app.play.choose")}>
+                <MenuIcon />
+              </button>
+            </div>
+          ) : playButton}
+          {choosing && snap && choices && <PlayChoice snap={snap} choices={choices} onClose={() => setChoosing(false)} />}
         </div>
       </div>
       <div className="tabs end-tabs" role="tablist">

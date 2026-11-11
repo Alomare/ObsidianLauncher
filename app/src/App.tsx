@@ -44,6 +44,8 @@ export default function App() {
   useEffect(() => { if (tab === "saves") setSavesOpened(true); }, [tab]);
   // Commander's war screens stay loaded once opened, so a war view keeps its place between tabs.
   const [commanderOpened, setCommanderOpened] = useState(false);
+  // Each click on the Commander tab while it is open takes Commander back to the war list.
+  const [commanderHome, setCommanderHome] = useState(0);
   useEffect(() => { if (tab === "commander") setCommanderOpened(true); }, [tab]);
   const [wave, setWave] = useState<Wave | null>(null);
   const update = useUpdates();
@@ -93,14 +95,14 @@ export default function App() {
   if (!settings) return null;
   return (
     <div className="app">
-      <NavBar tab={tab} onTab={(to) => { if (to === "settings" && update.phase === "found") setSettingsTab("updates"); setTab(to); }} snap={snap} busy={busy} updateFound={update.phase === "found"} wave={wave} onWaveEnd={() => setWave(null)}
+      <NavBar tab={tab} onTab={(to) => { if (to === "settings" && update.phase === "found") setSettingsTab("updates"); if (to === "commander" && tab === "commander") setCommanderHome((n) => n + 1); setTab(to); }} snap={snap} busy={busy} updateFound={update.phase === "found"} wave={wave} onWaveEnd={() => setWave(null)}
         onPlay={() => (snap && asksBeforePlay(snap, settings) ? setAskPlay(true) : startPlay())} />
       <main className={tab === "home" || tab === "wiki" || tab === "commander" ? "page bleed" : "page"}>
         {tab === "home" && <div className="view" key="home"><HomePage /></div>}
         {/* Mods stays mounted while hidden: a long list then costs nothing to come back to. */}
         {snap && <div className="view" hidden={tab !== "mods"}><ModsPage snap={snap} busy={busy} onPurge={() => { startWave(snap.deployed ? "red" : "grey"); purge(); }} onDeploy={() => { startWave(snap.changes === "Waiting" ? "green" : "grey"); deploy(); }} /></div>}
         {snap && (tab === "saves" || savesOpened) && <div className="view" hidden={tab !== "saves"}><SavesPage snap={snap} visible={tab === "saves"} /></div>}
-        {snap && (tab === "commander" || commanderOpened) && <div className="view" hidden={tab !== "commander"}><CommanderPage snap={snap} visible={tab === "commander"} onPlay={startPlay} /></div>}
+        {snap && (tab === "commander" || commanderOpened) && <div className="view" hidden={tab !== "commander"}><CommanderPage snap={snap} visible={tab === "commander"} onPlay={startPlay} home={commanderHome} /></div>}
         {tab === "wiki" && <div className="view" key="wiki"><WikiPage /></div>}
         {snap && tab === "settings" && <div className="view" key="settings"><SettingsPage snap={snap} tab={settingsTab} onTab={setSettingsTab} /></div>}
       </main>

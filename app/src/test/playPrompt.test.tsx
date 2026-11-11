@@ -28,7 +28,7 @@ const mod = (id: string, on: boolean): ModRow => ({
 const snap = ({ deployed, on }: { deployed: boolean; on: boolean }): Snapshot => ({
   mods: [mod("a.one", on)], folders: [], profile: "Default", profiles: ["Default"],
   profileRows: [{ name: "Default", on: on ? 1 : 0, blockPublic: false, guarded: false, image: null, color: null }],
-  blockPublic: false, blockAchievements: false, freezeProgress: false, hideClientMods: false, loader: false, sandbox: null, conflicts: [], changes: on === deployed ? "UpToDate" : "Waiting", deployed,
+  blockPublic: false, blockAchievements: false, freezeProgress: false, hideClientMods: false, loader: false, sandbox: null, conflicts: [], changes: on === deployed ? "UpToDate" : "Waiting", deployed, modded: deployed,
   game: "supported", gameChanges: [], gameDir: "C:\\Game", crashCulprit: null, broken: [], damagedProfiles: [], uncleanEnd: null, portable: false, version: "1.3.1",
 });
 const settings = (askVanillaPlay: boolean): AppSettings => ({ ...DEFAULTS, language: "en", updates: "manual", askVanillaPlay });

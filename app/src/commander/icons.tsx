@@ -15,6 +15,13 @@ export const ThisPcIcon = () => (
   </svg>
 );
 
+/** Three lines: the list of what Play can start. */
+export const MenuIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" aria-hidden="true">
+    <path d="M5 7h14M5 12h14M5 17h14" />
+  </svg>
+);
+
 /** A box: the Commander package and what can be done with it. */
 export const PackageIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true">
