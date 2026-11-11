@@ -294,6 +294,13 @@ pub async fn commander_scan(ms: u64) -> CmdResult<Vec<lan::Found>> {
     Ok(lan::scan(Duration::from_millis(ms.clamp(500, 10_000)))?)
 }
 
+/// The wars open at an address the player typed (`host` or `host:port`): the way into a war over
+/// the internet.
+#[tauri::command]
+pub async fn commander_ask(address: String) -> CmdResult<Vec<lan::Found>> {
+    Ok(lan::ask(&address)?)
+}
+
 /// The saves and the game-side folder, when the game and a Steam account are found.
 fn saves_and_side(ctx: &Ctx) -> (Option<obsidian_core::saves::Saves>, Option<PathBuf>) {
     let side = find(&AppSettings::load(&ctx.data)).map(|g| obsidian_core::settings::game_side_dir(&g.saves_dir));

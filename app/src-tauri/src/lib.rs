@@ -129,6 +129,7 @@ pub fn run() {
             commander::commander_package_check,
             commander::commander_forget,
             commander::commander_scan,
+            commander::commander_ask,
             commander::commander_footprint,
             commander::commander_wipe,
         ])

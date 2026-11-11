@@ -491,6 +491,19 @@ function JoinDialog({ onClose, onJoin }: { onClose: () => void; onJoin: (f: Foun
     setScanning(false);
   }, []);
   useEffect(() => { scan(); }, [scan]);
+  // A war over the internet: the announcements do not reach this PC, so the player types the address.
+  const [address, setAddress] = useState("");
+  const [asking, setAsking] = useState(false);
+  const ask = useCallback(async () => {
+    if (!address.trim()) return;
+    setAsking(true);
+    try {
+      const wars = await call<Found[]>("commander_ask", { address });
+      if (wars.length === 0) notify("error", t("app.commander.addressNone"));
+      setFound((old) => [...wars, ...(old ?? []).filter((f) => !wars.some((w) => w.war === f.war && w.base === f.base))]);
+    } catch (e) { notify("error", errorText(e)); }
+    setAsking(false);
+  }, [address]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", key);
@@ -517,6 +530,12 @@ function JoinDialog({ onClose, onJoin }: { onClose: () => void; onJoin: (f: Foun
             </div>
           ))}
         </div>
+        <form className="cmd-join-address" onSubmit={(e) => { e.preventDefault(); ask(); }}>
+          <label htmlFor="cmd-join-address">{t("app.commander.joinAddress")}</label>
+          <input id="cmd-join-address" type="text" value={address} maxLength={120} spellCheck={false} autoComplete="off"
+            placeholder={t("app.commander.addressHint")} onChange={(e) => setAddress(e.target.value)} />
+          <button className="btn" type="submit" disabled={asking || !address.trim()}>{t("app.commander.addressFind")}</button>
+        </form>
         <div className="modal-foot">
           <button className="btn" disabled={scanning} onClick={scan}>{t("app.commander.scanAgain")}</button>
         </div>
