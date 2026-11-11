@@ -89,8 +89,16 @@ trait Machine {
 
 struct Live;
 
+/// A Windows tool by full path, so a file of the same name beside the app or in the working
+/// folder is never the one that runs, least of all as admin.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn system_tool(relative: &str) -> PathBuf {
+    let root = std::env::var_os("SystemRoot").map(PathBuf::from).filter(|p| p.is_absolute()).unwrap_or_else(|| PathBuf::from(r"C:\Windows"));
+    root.join("System32").join(relative)
+}
+
 #[cfg(windows)]
-fn hidden(program: &str) -> std::process::Command {
+fn hidden(program: &Path) -> std::process::Command {
     use std::os::windows::process::CommandExt;
     let mut cmd = std::process::Command::new(program);
     // No console window.
@@ -102,7 +110,7 @@ impl Machine for Live {
     #[cfg(windows)]
     fn firewall_rules(&self) -> Option<Vec<u8>> {
         // netsh exits with 1 when no rule matches; the text says so and is read either way.
-        hidden("netsh").args(["advfirewall", "firewall", "show", "rule", "name=all", "verbose"]).output().ok().map(|o| o.stdout)
+        hidden(&system_tool("netsh.exe")).args(["advfirewall", "firewall", "show", "rule", "name=all", "verbose"]).output().ok().map(|o| o.stdout)
     }
 
     #[cfg(not(windows))]
@@ -113,7 +121,7 @@ impl Machine for Live {
     #[cfg(windows)]
     fn delete_firewall_rules(&self, program: &Path) -> Elevated {
         let script: Vec<u8> = elevated_delete_script(program).encode_utf16().flat_map(u16::to_le_bytes).collect();
-        let out = hidden("powershell").args(["-NoProfile", "-NonInteractive", "-EncodedCommand", &base64(&script)]).output();
+        let out = hidden(&system_tool(r"WindowsPowerShell\v1.0\powershell.exe")).args(["-NoProfile", "-NonInteractive", "-EncodedCommand", &base64(&script)]).output();
         match out {
             Err(e) => Elevated::Failed(e.to_string()),
             Ok(o) => match o.status.code() {
@@ -143,16 +151,21 @@ impl Machine for Live {
 fn elevated_delete_script(program: &Path) -> String {
     let args = format!("advfirewall firewall delete rule name=all program=\"{}\"", program.display());
     // A single-quoted PowerShell string ends at any kind of single quote; doubled, each stays.
-    let mut quoted = String::with_capacity(args.len());
-    for c in args.chars() {
-        if matches!(c, '\'' | '\u{2018}' | '\u{2019}' | '\u{201a}' | '\u{201b}') {
+    let single = |s: &str| {
+        let mut quoted = String::with_capacity(s.len());
+        for c in s.chars() {
+            if matches!(c, '\'' | '\u{2018}' | '\u{2019}' | '\u{201a}' | '\u{201b}') {
+                quoted.push(c);
+            }
             quoted.push(c);
         }
-        quoted.push(c);
-    }
+        quoted
+    };
+    let quoted = single(&args);
+    let netsh = single(&system_tool("netsh.exe").display().to_string());
     format!(
         "$i = New-Object System.Diagnostics.ProcessStartInfo\n\
-         $i.FileName = 'netsh.exe'\n\
+         $i.FileName = '{netsh}'\n\
          $i.Arguments = '{quoted}'\n\
          $i.Verb = 'runas'\n\
          $i.UseShellExecute = $true\n\
@@ -581,5 +594,8 @@ mod tests {
         let s = elevated_delete_script(Path::new(r"C:\Users\O'Neil\x\commander-server.exe"));
         assert!(s.contains(r#"$i.Arguments = 'advfirewall firewall delete rule name=all program="C:\Users\O''Neil\x\commander-server.exe"'"#), "{s}");
         assert!(s.contains("$i.Verb = 'runas'") && s.contains("exit 1223"));
+        let tool = system_tool("netsh.exe");
+        assert!(tool.is_absolute() && tool.ends_with(r"System32\netsh.exe"), "{tool:?}");
+        assert!(s.contains(&format!("$i.FileName = '{}'", tool.display())), "netsh by full path: {s}");
     }
 }

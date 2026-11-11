@@ -105,7 +105,17 @@ pub fn dir(data: &Path) -> PathBuf {
 
 impl State {
     pub fn load(data: &Path) -> State {
-        std::fs::read_to_string(dir(data).join(STATE)).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+        let path = dir(data).join(STATE);
+        let Ok(text) = std::fs::read_to_string(&path) else { return State::default() };
+        match serde_json::from_str(&text) {
+            Ok(s) => s,
+            Err(_) => {
+                // A file that no longer reads is kept beside the new one, so the war list in it
+                // can still be recovered by hand.
+                let _ = std::fs::copy(&path, path.with_extension("json.bad"));
+                State::default()
+            }
+        }
     }
 
     pub fn save(&self, data: &Path) -> Result<()> {
@@ -176,6 +186,11 @@ pub fn war_pool_tag(id: &str) -> String {
 
 /// A fresh random hex string from the system random source.
 pub fn random_token(bytes: usize) -> String {
+    let mut raw = vec![0u8; bytes];
+    if getrandom::fill(&mut raw).is_ok() {
+        return raw.iter().map(|b| format!("{b:02x}")).collect();
+    }
+    // The system source failed, which Windows and Linux do not do in practice: hashed bits instead.
     let mut out = String::new();
     // RandomState is seeded from the OS; hashing a counter through fresh ones gives unpredictable bits.
     use std::collections::hash_map::RandomState;
@@ -407,6 +422,24 @@ mod tests {
         assert_eq!(r.upstream, "http://192.168.0.7:17494/w/k3x9q2/1.0/");
         assert_eq!(r.token.len(), 32);
         assert_eq!(State::load(t.path()), s);
+    }
+
+    #[test]
+    fn tokens_are_fresh_hex_of_the_asked_length() {
+        let (a, b) = (random_token(16), random_token(16));
+        assert_eq!((a.len(), b.len()), (32, 32));
+        assert!(a.chars().all(|c| c.is_ascii_hexdigit()));
+        assert_ne!(a, b);
+        assert_eq!(random_token(0), "");
+    }
+
+    #[test]
+    fn a_state_file_that_no_longer_reads_is_kept_aside() {
+        let t = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir(t.path())).unwrap();
+        std::fs::write(dir(t.path()).join(STATE), b"{\"wars\": [").unwrap();
+        assert_eq!(State::load(t.path()), State::default());
+        assert_eq!(std::fs::read(dir(t.path()).join("state.json.bad")).unwrap(), b"{\"wars\": [");
     }
 
     #[test]

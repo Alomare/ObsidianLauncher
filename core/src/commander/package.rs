@@ -98,15 +98,19 @@ fn unpack(zip_path: &Path, to: &Path) -> Result<()> {
             std::fs::create_dir_all(&out)?;
             continue;
         }
-        total += entry.size();
-        if total > MAX_UNPACKED {
+        if total + entry.size() > MAX_UNPACKED {
             return Err(bad("larger than 256 MB unpacked"));
         }
         if let Some(p) = out.parent() {
             std::fs::create_dir_all(p)?;
         }
+        // Counted as read, not as the entry header says: a header can understate the size.
         let mut bytes = Vec::with_capacity(entry.size() as usize);
-        entry.read_to_end(&mut bytes)?;
+        (&mut entry).take(MAX_UNPACKED - total + 1).read_to_end(&mut bytes)?;
+        total += bytes.len() as u64;
+        if total > MAX_UNPACKED {
+            return Err(bad("larger than 256 MB unpacked"));
+        }
         std::fs::write(&out, bytes)?;
     }
     Ok(())
