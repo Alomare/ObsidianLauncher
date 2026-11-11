@@ -90,8 +90,11 @@ enum Command {
 enum CommanderAction {
     /// Show the package, the wars this PC plays and the one the next launch plays
     Status,
-    /// Install a Commander package (.zip or folder)
-    Install { path: PathBuf },
+    /// Install a Commander package: a .zip or folder, or the newest release when no path is given
+    Install {
+        /// The package file or folder. Left out: the newest release is downloaded and its signature checked
+        path: Option<PathBuf>,
+    },
     /// Remove the Commander package; hosted wars stay in the data folder
     Uninstall,
     /// Remove everything Commander left on this PC: the package, hosted wars, the war list and the
@@ -438,7 +441,10 @@ fn run_commander(action: CommanderAction, data: &std::path::Path, game: impl Fn(
             }
         }
         CommanderAction::Install { path } => {
-            let i = package::install(data, &path)?;
+            let i = match path {
+                Some(path) => package::install(data, &path)?,
+                None => package::fetch(data, &obsidian_core::updates::GitHub::default())?,
+            };
             println!("Commander {} installed", i.version);
         }
         CommanderAction::Uninstall => {
