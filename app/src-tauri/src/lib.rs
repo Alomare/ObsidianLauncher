@@ -28,6 +28,13 @@ fn watch_game(app: tauri::AppHandle) {
 }
 
 pub fn run() {
+    // WebKitGTK's DMA-BUF renderer leaves a blank window with some graphics drivers (NVIDIA most of
+    // all). The app draws little, so the older path costs nothing seen. A value already set wins.
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+        // SAFETY: nothing else runs yet; no other thread reads the environment.
+        unsafe { std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1") };
+    }
     // OBSIDIAN_DATA_DIR points the app at another data folder, for the performance suite.
     let data = obsidian_core::paths::data_dir(std::env::var_os("OBSIDIAN_DATA_DIR").map(std::path::PathBuf::from).as_deref());
     let ctx = commands::Ctx { data, gate: Mutex::new(Default::default()), work: Mutex::new(()), commander: Mutex::new(Default::default()) };
@@ -132,6 +139,7 @@ pub fn run() {
             commander::commander_ask,
             commander::commander_footprint,
             commander::commander_wipe,
+            commander::commander_launch_option,
         ])
         .run(tauri::generate_context!())
         .expect("Obsidian failed to start");

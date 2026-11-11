@@ -1,8 +1,12 @@
 //! obsidian-core: everything Obsidian does to game files.
 
+// The command line in `cli` names the crate as other programs do.
+extern crate self as obsidian_core;
+
 pub mod backup;
 pub mod bank;
 pub mod bundle;
+pub mod cli;
 pub mod commander;
 pub mod compose;
 pub mod deploy;

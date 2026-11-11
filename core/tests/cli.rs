@@ -212,3 +212,17 @@ fn a_guardrail_asks_for_a_deploy_when_the_loader_is_not_in_the_game() {
     let text = String::from_utf8(out).unwrap();
     assert!(text.contains("Run obsidian deploy to apply."), "{text}");
 }
+
+/// A Steam launch option: `launch` runs the command after it, flags and all, and hands the exit code
+/// back. With no game found and no war selected it is only the game command.
+#[test]
+fn launch_runs_the_game_command_and_returns_its_exit_code() {
+    let t = spaced();
+    let data = t.path().join("data");
+    #[cfg(windows)]
+    let game: &[&str] = &["cmd", "/c", "exit 3"];
+    #[cfg(not(windows))]
+    let game: &[&str] = &["sh", "-c", "exit 3"];
+    obsidian(&t.path().join("no game"), &data).arg("launch").args(game).assert().code(3);
+    obsidian(&t.path().join("no game"), &data).arg("launch").assert().failure();
+}
