@@ -31,6 +31,8 @@ Backups of your game files are listed in [Settings](wiki:how-obsidian-works#wher
 
 A Sandbox lives only on this PC, so it never touches Steam Cloud or your Official files. Sandbox saves can be created, duplicated (also from an Official save), renamed, deleted, exported to a zip, imported from one, and [edited](#the-save-editor).
 
+Every new Sandbox, blank, duplicated or imported, starts with all the tutorials done: boot camp, the galactic war tutorials, the introduction and hints of the admiral on the ship, and the hellpod arrows.
+
 A Sandbox needs the Obsidian loader in the game, so the mods have to be deployed. If you press Play with a Sandbox selected and nothing deployed, Obsidian asks to [Deploy](wiki:deploy-and-purge) first. Without the loader the game opens your Official save, untouched.
 
 ### The Sandbox matchmaking pool

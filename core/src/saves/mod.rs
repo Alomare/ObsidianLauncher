@@ -35,6 +35,23 @@ const BLANK_USER: &[u8] = include_bytes!("../../assets/blank-user.sav");
 const COMMON_QUEUES: [&str; 3] = ["mission_stats", "mission_stats_to_upload", "completed_planets"];
 const USER_QUEUES: [&str; 4] = ["leaderboard_stats", "leaderboard_stats_to_upload", "leaderboard_provinggrounds_stats", "leaderboard_provinggrounds_stats_to_upload"];
 const COUNTERS: [&str; 4] = ["planet", "mission_stats", "leaderboard_stats", "leaderboard_provinggrounds_stats"];
+/// The flags of every tutorial the game runs once, all in the common file: boot camp, the galaxy
+/// map tutorials, the admiral introduction and hints on the ship, and the hellpod arrows. Without
+/// `dia_admiral_introduction_performed` the ship opens the galaxy map on first boarding.
+const TUTORIALS: [&str; 12] = [
+    "tutorial_finished",
+    "galcamp_tutorial_completed_attack_event",
+    "galcamp_tutorial_completed_defend_event",
+    "galcamp_tutorial_completed_defend_superearth_event",
+    "galcamp_tutorial_completed_mission",
+    "galcamp_tutorial_completed_planet",
+    "galcamp_tutorial_completed_recap",
+    "galcamp_tutorial_completed_region",
+    "dia_admiral_introduction_performed",
+    "dia_admiral_armory_hint_performed",
+    "dia_admiral_multiplayer_hint_performed",
+    "has_shown_pod_arrows",
+];
 
 /// As many backups as a deploy keeps.
 const KEEP_BACKUPS: usize = 10;
@@ -124,6 +141,13 @@ pub struct Pair {
 
 pub fn blank_pair() -> Pair {
     Pair { common: decode_file(BLANK_COMMON).expect("built-in save"), user: decode_file(BLANK_USER).expect("built-in save") }
+}
+
+/// Marks every tutorial done, as a new Sandbox starts.
+pub fn complete_tutorials(p: &mut Pair) {
+    for k in TUTORIALS {
+        p.common.root.set(k, Value::Bool(1));
+    }
 }
 
 /// Removes the upload queues, so nothing queued goes to the server after a restore or an import.
@@ -601,9 +625,12 @@ impl Saves {
         Ok(new_id)
     }
 
+    /// Every new Sandbox (blank, a copy or an import) starts with all the tutorials done.
     fn add_sandbox(&self, idx: &mut Index, name: &str, pair: &Pair, mod_from: Option<&Path>) -> Result<String> {
         let id = self.new_id(idx);
-        self.write_sandbox(&id, pair)?;
+        let mut pair = pair.clone();
+        complete_tutorials(&mut pair);
+        self.write_sandbox(&id, &pair)?;
         if let Some(from) = mod_from {
             copy_or_remove(from, &self.sandbox_mod(&id))?;
         }
@@ -963,6 +990,20 @@ mod tests {
         s.delete(&id).unwrap();
         assert!(!s.sandbox_common(&id).exists());
         assert!(matches!(s.rename("nope", "x"), Err(ObsidianError::SaveMissing(_))));
+    }
+
+    #[test]
+    fn a_new_sandbox_starts_with_every_tutorial_done() {
+        let w = world();
+        let s = w.saves();
+        let official = s.list().unwrap().saves[0].id.clone();
+        let done = |id: &str| {
+            let p = s.read_sandbox(id).unwrap();
+            TUTORIALS.iter().all(|k| p.common.root.get(k).and_then(Value::as_bool) == Some(true))
+        };
+        assert!(!TUTORIALS.iter().all(|k| blank_pair().common.root.get(k).and_then(Value::as_bool) == Some(true)), "the blank save has them open");
+        assert!(done(&s.create_sandbox("Blank").unwrap()));
+        assert!(done(&s.duplicate(&official, "Copy").unwrap()));
     }
 
     #[test]
