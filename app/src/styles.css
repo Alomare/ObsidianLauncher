@@ -495,7 +495,23 @@ button.link:hover { filter: brightness(1.2); }
 .dep-state.on { color: var(--goldtx); }
 .dep-state.missing { color: var(--warn); }
 .num-ctl { display: flex; align-items: center; gap: 0.5rem; }
-.num-ctl input[type="range"] { width: 7rem; accent-color: var(--gold); }
+.num-ctl input[type="range"] { width: 7rem; }
+/* Sliders: a flat square track filled gold up to the value (--pct, set by the control), like the
+   progress bars, and a square handle. The Commander war screens draw the same. */
+input[type="range"] { -webkit-appearance: none; appearance: none; height: 1.4rem; margin: 0; min-width: 0; background: none; cursor: pointer; --track: rgba(128, 128, 128, 0.28); }
+:root[data-theme="light"] input[type="range"] { --track: rgba(0, 0, 0, 0.14); }
+input[type="range"]::-webkit-slider-runnable-track { height: 0.3rem; background: linear-gradient(90deg, var(--gold) var(--pct, 0%), var(--track) var(--pct, 0%)); }
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 0.6rem; height: 1.2rem; margin-top: -0.45rem; border: 0; border-radius: 0;
+  background: var(--gold); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55), 0 2px 5px rgba(0, 0, 0, 0.35); transition: transform var(--fast), filter var(--fast);
+}
+:root[data-theme="light"] input[type="range"]::-webkit-slider-thumb { box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.2); }
+input[type="range"]:hover:not(:disabled)::-webkit-slider-thumb { filter: brightness(1.12); }
+input[type="range"]:active:not(:disabled)::-webkit-slider-thumb { transform: scaleY(1.15); }
+input[type="range"]:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+input[type="range"]:disabled { cursor: default; }
+input[type="range"]:disabled::-webkit-slider-thumb { background: var(--mu); }
+input[type="range"]:disabled::-webkit-slider-runnable-track { background: linear-gradient(90deg, var(--mu) var(--pct, 0%), var(--track) var(--pct, 0%)); }
 .num-ctl input[type="number"] { width: 4.2rem; height: 2rem; padding: 0 0.4rem; background: var(--row); border: 1px solid var(--ln); color: var(--tx); font-family: "Saira Variable", sans-serif; }
 .num-ctl input[type="number"]:focus { border-color: var(--gold); outline: 0; }
 .key-btn { min-width: 3.4rem; height: 2rem; padding: 0 0.6rem; background: var(--row); border: 1px solid var(--ln); border-bottom-width: 3px; color: var(--tx); font-family: "Saira Variable", sans-serif; font-weight: 660; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer; }

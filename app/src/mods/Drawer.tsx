@@ -237,6 +237,7 @@ function NumberControl({ o, label, onSet, onDraft }: { o: OptionRow; label: stri
     <div className="num-ctl">
       {o.min !== null && o.max !== null && (
         <input type="range" min={o.min} max={o.max} step={o.step ?? "any"} value={v} aria-label={label}
+          style={{ "--pct": `${o.max > o.min ? Math.min(100, Math.max(0, ((v - o.min) / (o.max - o.min)) * 100)).toFixed(2) : 0}%` } as React.CSSProperties}
           onChange={(e) => change(Number(e.target.value))} onPointerUp={() => commit(v)} onKeyUp={() => commit(v)} />
       )}
       <input type="number" value={v} min={o.min ?? undefined} max={o.max ?? undefined} step={o.step ?? "any"} aria-label={label}
