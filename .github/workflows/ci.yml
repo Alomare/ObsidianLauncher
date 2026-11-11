@@ -1,0 +1,99 @@
+# Tests on every push to dev, each part only when its files changed, so a break shows on the day it
+# lands and not at the release tag. The release workflow still runs every test on the tag.
+name: Tests
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - "core/**"
+      - "loader/**"
+      - "locales/**"
+      - "app/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.diff.outputs.rust }}
+      ui: ${{ steps.diff.outputs.ui }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: diff
+        shell: bash
+        run: |
+          before="${{ github.event.before }}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then before="origin/${{ github.base_ref }}"; fi
+          # A first push, a forced push or a run by hand: every part.
+          if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then
+            echo "rust=true" >> "$GITHUB_OUTPUT"; echo "ui=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          files="$(git diff --name-only "$before" HEAD)"
+          echo "$files"
+          rust=false; ui=false
+          echo "$files" | grep -qE '^(core/|loader/|locales/|app/src-tauri/|Cargo\.(toml|lock)$|\.github/workflows/ci\.yml$)' && rust=true
+          echo "$files" | grep -qE '^(app/(src/|package|vite|tsconfig|index)|locales/|\.github/workflows/ci\.yml$)' && ui=true
+          echo "rust=$rust" >> "$GITHUB_OUTPUT"; echo "ui=$ui" >> "$GITHUB_OUTPUT"
+
+  ui:
+    needs: changes
+    if: needs.changes.outputs.ui == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - working-directory: app
+        run: npm ci
+      - name: Types
+        working-directory: app
+        run: npx tsc --noEmit
+      - name: UI tests
+        working-directory: app
+        run: npm test
+
+  core:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      # Reads the cache that cache.yml keeps on main.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows
+          save-if: false
+      - name: The Obsidian Kit
+        run: python tools/starter_pack.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: The LuaJIT 2.0 compiler
+        shell: cmd
+        run: tools\build-luajit.cmd
+      - name: Loader tests
+        shell: cmd
+        run: tools\test-loader.cmd
+      - name: Core tests
+        run: cargo test -p obsidian-core
