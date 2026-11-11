@@ -101,6 +101,13 @@ pub fn steam_roots() -> Vec<PathBuf> {
         if let Ok(path) = key.and_then(|k| k.get_value::<String, _>("SteamPath")) {
             roots.push(PathBuf::from(path));
         }
+        // The machine-wide key, for a Windows account that has not started Steam yet.
+        for key in [r"SOFTWARE\WOW6432Node\Valve\Steam", r"SOFTWARE\Valve\Steam"] {
+            let key = winreg::RegKey::predef(winreg::enums::HKEY_LOCAL_MACHINE).open_subkey(key);
+            if let Ok(path) = key.and_then(|k| k.get_value::<String, _>("InstallPath")) {
+                roots.push(PathBuf::from(path));
+            }
+        }
         roots.push(PathBuf::from(r"C:\Program Files (x86)\Steam"));
     }
     #[cfg(not(windows))]
@@ -143,8 +150,16 @@ pub fn is_running() -> bool {
 /// Whether a process with this file name runs, ignoring case.
 pub fn is_running_named(name: &str) -> bool {
     use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
-    // A system that can't list processes counts as "not running", so deploys stay possible.
-    let Ok(mut s) = System::new() else { return false };
+    // One process list for the whole run: the app asks every 2 seconds, and a refresh of a kept
+    // list costs less than a new one each time.
+    static LIST: std::sync::Mutex<Option<System>> = std::sync::Mutex::new(None);
+    let mut list = LIST.lock().unwrap_or_else(|p| p.into_inner());
+    if list.is_none() {
+        // A system that can't list processes counts as "not running", so deploys stay possible.
+        let Ok(s) = System::new() else { return false };
+        *list = Some(s);
+    }
+    let Some(s) = list.as_mut() else { return false };
     s.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing());
     s.processes().values().any(|p| p.name().to_string_lossy().eq_ignore_ascii_case(name))
 }
