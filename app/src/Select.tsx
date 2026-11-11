@@ -11,7 +11,7 @@ const EDGE = 8;
 
 type Props<T extends string> = {
   value: T;
-  /** `view` draws the option in place of its label (a glyph, say); the label stays the name and shows beside it in the list. */
+  /** `view` draws the option in place of the label (a glyph, say); the label stays the name and shows beside it in the list. */
   options: { value: T; label: string; view?: ReactNode }[];
   onChange: (v: T) => void;
   /** Shown before the value inside the button, muted. */
