@@ -60,8 +60,9 @@ pub struct DeployOptions<'a> {
     pub loader_dir: Option<PathBuf>,
     /// Told what the deploy is doing, from the start to the end of every deploy.
     pub progress: Option<&'a (dyn Fn(&DeployProgress) + Sync)>,
-    /// Leaves every mod out, as if all were off: the loader alone goes in, when something needs it
-    /// (a selected Sandbox save, or a guardrail). The Saves tab's deploy.
+    /// Puts the loader in without touching the mods: the set the last deploy put in the game stays as
+    /// it was, whatever the profile says now, and a game with no mods gets the loader alone. The
+    /// loader goes in when something needs it (a selected Sandbox save, or a guardrail). The Saves tab's deploy.
     pub loader_only: bool,
 }
 
@@ -356,9 +357,10 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
     let mut profile = Profile::load(data_dir)?;
     profile.sync(&lib)?;
     if opts.loader_only {
-        // Only this deploy's copy: the profile on disk keeps the mods on, and the Mods tab shows them waiting.
+        // Only this deploy's copy: the profile on disk is left as it is, and the Mods tab shows any change waiting.
+        let kept: &[String] = previous.as_ref().filter(|p| !p.incomplete).map_or(&[], |p| &p.mods);
         for e in &mut profile.mods {
-            e.enabled = false;
+            e.enabled = kept.contains(&e.id);
         }
     }
     let loader_dir = match &opts.loader_dir {
@@ -903,23 +905,47 @@ mod tests {
         assert!(!loader_deployed(&w.game, &w.data));
     }
 
+    fn loader_only(w: &World) -> DeployOptions<'static> {
+        DeployOptions { known_builds: w.opts.known_builds, keep_backups: 10, loader_dir: None, progress: None, loader_only: true }
+    }
+
     #[test]
-    fn a_loader_only_deploy_leaves_the_mods_out_and_a_full_deploy_puts_them_back() {
+    fn a_loader_only_deploy_keeps_the_deployed_mods_and_adds_the_loader() {
+        let w = world();
+        // Mods deployed with no loader needed: the Official save case.
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert!(patch(&w, "00000000000000aa.patch_0").exists() && patch(&w, "00000000000000bb.patch_0").exists());
+        select_sandbox(&w);
+        let mut p = Profile::load(&w.data).unwrap();
+        p.set_enabled("mod-bb", false).unwrap();
+        p.save(&w.data).unwrap();
+        let r = loader_only(&w);
+        deploy(&w.game, &w.data, &r).unwrap();
+        assert!(loader_deployed(&w.game, &w.data));
+        assert!(patch(&w, "00000000000000aa.patch_0").exists() && patch(&w, "00000000000000bb.patch_0").exists(), "the deployed mods stay, even mod-bb that the profile has off now");
+        assert_eq!(load_state(&w.data).unwrap().unwrap().mods, vec!["mod-aa".to_string(), "mod-bb".to_string()]);
+        let p = Profile::load(&w.data).unwrap();
+        assert!(!p.mods.iter().find(|m| m.id == "mod-bb").unwrap().enabled, "the profile is left as it was");
+        let lib = Library::open(&w.data).unwrap();
+        assert_eq!(changes_waiting(&lib, &p, &w.data, Some(&w.game.contents())).unwrap(), ChangesWaiting::Waiting, "the Mods tab shows the change waiting");
+        // Done once, a second one changes nothing.
+        assert!(deploy(&w.game, &w.data, &r).unwrap().unchanged);
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert!(patch(&w, "00000000000000aa.patch_0").exists() && !patch(&w, "00000000000000bb.patch_0").exists() && loader_deployed(&w.game, &w.data));
+    }
+
+    #[test]
+    fn a_loader_only_deploy_in_a_game_with_no_mods_puts_the_loader_alone() {
         let w = world();
         select_sandbox(&w);
-        deploy(&w.game, &w.data, &w.opts).unwrap();
-        assert!(patch(&w, "00000000000000aa.patch_0").exists());
-        let only = DeployOptions { loader_only: true, ..DeployOptions { known_builds: w.opts.known_builds, keep_backups: 10, loader_dir: None, progress: None, loader_only: false } };
-        let r = deploy(&w.game, &w.data, &only).unwrap();
+        let r = deploy(&w.game, &w.data, &loader_only(&w)).unwrap();
         assert_eq!(r.patches, vec![patch(&w, "9cf71054ea26dddf.patch_0")]);
-        assert!(!patch(&w, "00000000000000aa.patch_0").exists() && !patch(&w, "00000000000000bb.patch_0").exists(), "the mods left the game");
+        assert!(!patch(&w, "00000000000000aa.patch_0").exists() && !patch(&w, "00000000000000bb.patch_0").exists());
         assert!(loader_deployed(&w.game, &w.data));
         let b = bundle::read_file(&patch(&w, "9cf71054ea26dddf.patch_0")).unwrap();
         assert!(!b.entries.iter().any(|e| e.name_hash == crate::hash::hash_name(&crate::loader::entry_name("mod-aa"))), "no mod script");
         let p = Profile::load(&w.data).unwrap();
         assert!(p.mods.iter().all(|m| m.enabled), "the profile keeps the mods on");
-        let lib = Library::open(&w.data).unwrap();
-        assert_eq!(changes_waiting(&lib, &p, &w.data, Some(&w.game.contents())).unwrap(), ChangesWaiting::Waiting, "the Mods tab shows the mods waiting");
         deploy(&w.game, &w.data, &w.opts).unwrap();
         assert!(patch(&w, "00000000000000aa.patch_0").exists() && loader_deployed(&w.game, &w.data));
         purge(&w.game, &w.data).unwrap();

@@ -636,8 +636,8 @@ pub async fn deploy(app: tauri::AppHandle, ctx: State<'_, Ctx>) -> CmdResult<Dep
     Ok(DeployDone { mods: if r.patches.is_empty() { 0 } else { snapshot.mods.iter().filter(|m| m.on).count() }, backup: r.backup.is_some(), unchanged: r.unchanged, settings: r.settings_changed, loader: snapshot.loader, snapshot })
 }
 
-/// The Saves tab's deploy: the loader alone, with every mod left out, so a Sandbox save works in a
-/// game with no mods. The Mods tab's deploy puts the mods back.
+/// The Saves tab's deploy: the loader goes in if it is not there, and the mods the game has stay as
+/// they are, so a Sandbox save works in a game with or without mods. The Mods tab's deploy changes the mods.
 #[tauri::command]
 pub async fn deploy_loader(app: tauri::AppHandle, ctx: State<'_, Ctx>) -> CmdResult<DeployDone> {
     use tauri::Emitter;

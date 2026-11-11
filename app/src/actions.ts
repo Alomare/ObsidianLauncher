@@ -28,12 +28,12 @@ export async function deploy(): Promise<boolean> {
   return true;
 }
 
-/** The Saves tab's deploy: the loader alone, which a Sandbox save needs, with the mods left out. */
+/** The Saves tab's deploy: puts the loader in when it is missing, which a Sandbox save needs, and leaves the deployed mods as they are. */
 export async function deployLoader(): Promise<boolean> {
   const r = await step(t("app.action.deploying"), () => call<DeployDone>("deploy_loader"));
   if (!r) return false;
   setSnapshot(r.snapshot);
-  notify("info", t("app.action.deployedLoader"));
+  notify("info", t(r.unchanged ? "app.action.loaderPresent" : "app.action.deployedLoader"));
   return true;
 }
 
