@@ -1057,7 +1057,27 @@ test("events_stop_when_the_session_stops_being_cleared", function()
 	lobby.members = { "me", "stranger" }
 	e:frames(31)
 	game.state.event_delegate:trigger("on_enemy_spawned", "bug", "name")
-	E.eq(count, 1, "the delegate isn't gated by the loader")
+	E.eq(count, 1, "a session listener waits for a cleared lobby")
+end)
+
+test("a_client_mod_hears_events_where_the_api_waits_for_a_cleared_lobby", function()
+	local lobby = { my_id = "me", members = { "me" }, data = {} }
+	local api, game, e = start({ lobby = lobby })
+	-- The API runs for session mods here; one listener comes from a client mod (Custom Crosshair, say).
+	e:core().current = { id = "test.client", mod = { id = "test.client", scope = "client" } }
+	local heard, waited = 0, 0
+	api.events.on("on_enemy_killed", function() heard = heard + 1 end)
+	e:core().current = e:core().mods_by_id["obsidian.api"]
+	api.events.on("on_enemy_killed", function() waited = waited + 1 end)
+	lobby.members = { "me", "stranger" }
+	e:frames(31)
+	E.eq(rawget(_G, "obsidian").session.cleared(), false)
+	-- A new mission in the lobby that isn't cleared: a new delegate to join.
+	game.state.event_delegate = G.delegate()
+	e:frames(2)
+	game.state.event_delegate:trigger("on_enemy_killed", "bug", "bullet", "player")
+	E.eq(heard, 1, "the client mod hears it")
+	E.eq(waited, 0, "the session listener waits")
 end)
 
 test("as_a_client_mod_it_refuses_what_changes_the_game", function()
