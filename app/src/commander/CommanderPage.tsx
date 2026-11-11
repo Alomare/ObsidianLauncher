@@ -25,13 +25,13 @@ type WipeReport = { removedSaves: number; keptSaves: string[]; firewall: { kind:
 const hasData = (f: Footprint | null) => !!f && (f.package != null || f.hosted > 0 || f.joined > 0 || f.saves.length > 0 || f.namesFile || f.firewallRules > 0 || f.bytes > 0);
 
 type WarHost = "local" | "lan";
-type WarRef = { id: string; name: string; host: WarHost; base?: string; save?: string; computer?: string };
+type WarRef = { id: string; name: string; host: WarHost; base?: string; save?: string; computer?: string; key?: string };
 type Installed = { version: string; protocol: number; server: string; ui: string };
 type ServerInfo = { port: number; token: string };
 export type CommanderView = { protocol: number; installed: Installed | null; wars: WarRef[]; playing: string | null; server: ServerInfo | null; names: [string, string][] };
 type Done = { commander: CommanderView; snapshot: Snapshot };
-type Found = { war: string; name: string; model: string; season: number; base: string; computer: string; players: number; version: string };
-type Pick = { id: string; name: string; host: WarHost; base?: string; computer?: string; model?: "evolved" };
+type Found = { war: string; name: string; model: string; season: number; base: string; computer: string; players: number; version: string; key?: string };
+type Pick = { id: string; name: string; host: WarHost; base?: string; computer?: string; model?: "evolved"; key?: string };
 
 /** What the frame shows: the server on this PC, or one LAN war. */
 type Source = { kind: "local" } | { kind: "lan"; war: WarRef };
@@ -101,7 +101,7 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
   useEffect(() => {
     if (!source) { setFrameUrl(null); return; }
     if (source.kind === "lan") {
-      setFrameUrl(`${source.war.base}/?war=${encodeURIComponent(source.war.id)}`);
+      setFrameUrl(`${source.war.base}/?war=${encodeURIComponent(source.war.id)}${source.war.key ? `&key=${encodeURIComponent(source.war.key)}` : ""}`);
       return;
     }
     if (!installed) { setFrameUrl(null); return; }
@@ -303,9 +303,9 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
       {ask === "wipe" && <WipeDialog running={running} onClose={() => setAsk(null)} onDone={wiped} />}
       {joining && <JoinDialog onClose={() => setJoining(false)} onJoin={(f) => {
         setJoining(false);
-        const war: WarRef = { id: f.war, name: f.name, host: "lan", base: f.base, computer: f.computer };
+        const war: WarRef = { id: f.war, name: f.name, host: "lan", base: f.base, computer: f.computer, key: f.key };
         const model = f.model === "evolved" ? "evolved" as const : undefined;
-        select({ id: f.war, name: f.name, host: "lan", base: f.base, computer: f.computer, model }, false).then(() => { load(); setSource({ kind: "lan", war }); });
+        select({ id: f.war, name: f.name, host: "lan", base: f.base, computer: f.computer, model, key: f.key }, false).then(() => { load(); setSource({ kind: "lan", war }); });
       }} />}
     </>
   );
@@ -493,17 +493,18 @@ function JoinDialog({ onClose, onJoin }: { onClose: () => void; onJoin: (f: Foun
   useEffect(() => { scan(); }, [scan]);
   // A war over the internet: the announcements do not reach this PC, so the player types the address.
   const [address, setAddress] = useState("");
+  const [invite, setInvite] = useState("");
   const [asking, setAsking] = useState(false);
   const ask = useCallback(async () => {
     if (!address.trim()) return;
     setAsking(true);
     try {
-      const wars = await call<Found[]>("commander_ask", { address });
+      const wars = await call<Found[]>("commander_ask", { address, key: invite });
       if (wars.length === 0) notify("error", t("app.commander.addressNone"));
       setFound((old) => [...wars, ...(old ?? []).filter((f) => !wars.some((w) => w.war === f.war && w.base === f.base))]);
     } catch (e) { notify("error", errorText(e)); }
     setAsking(false);
-  }, [address]);
+  }, [address, invite]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", key);
@@ -534,6 +535,8 @@ function JoinDialog({ onClose, onJoin }: { onClose: () => void; onJoin: (f: Foun
           <label htmlFor="cmd-join-address">{t("app.commander.joinAddress")}</label>
           <input id="cmd-join-address" type="text" value={address} maxLength={120} spellCheck={false} autoComplete="off"
             placeholder={t("app.commander.addressHint")} onChange={(e) => setAddress(e.target.value)} />
+          <input className="cmd-join-invite" type="text" value={invite} maxLength={32} spellCheck={false} autoComplete="off" aria-label={t("app.commander.inviteCode")}
+            placeholder={t("app.commander.inviteCode")} data-tip={t("app.commander.inviteHint")} onChange={(e) => setInvite(e.target.value)} />
           <button className="btn" type="submit" disabled={asking || !address.trim()}>{t("app.commander.addressFind")}</button>
         </form>
         <div className="modal-foot">

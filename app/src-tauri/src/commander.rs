@@ -177,12 +177,15 @@ pub struct WarPick {
     /// "evolved" for an Evolved war, which plays through the Evolved War Engine mod.
     #[serde(default)]
     pub model: Option<String>,
+    /// The invite code of a war joined by address.
+    #[serde(default)]
+    pub key: Option<String>,
 }
 
 impl WarPick {
     fn into_ref(self) -> WarRef {
         let model = self.model.filter(|m| m == "evolved");
-        WarRef { id: self.id, name: self.name, host: self.host, base: self.base, save: None, computer: self.computer, model }
+        WarRef { id: self.id, name: self.name, host: self.host, base: self.base, save: None, computer: self.computer, model, key: self.key.filter(|k| !k.is_empty()) }
     }
 }
 
@@ -294,11 +297,11 @@ pub async fn commander_scan(ms: u64) -> CmdResult<Vec<lan::Found>> {
     Ok(lan::scan(Duration::from_millis(ms.clamp(500, 10_000)))?)
 }
 
-/// The wars open at an address the player typed (`host` or `host:port`): the way into a war over
-/// the internet.
+/// The wars open at an address the player typed (`host` or `host:port`), with the invite code the
+/// host gave: the way into a war over the internet.
 #[tauri::command]
-pub async fn commander_ask(address: String) -> CmdResult<Vec<lan::Found>> {
-    Ok(lan::ask(&address)?)
+pub async fn commander_ask(address: String, key: String) -> CmdResult<Vec<lan::Found>> {
+    Ok(lan::ask(&address, &key)?)
 }
 
 /// The saves and the game-side folder, when the game and a Steam account are found.

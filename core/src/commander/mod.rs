@@ -65,6 +65,10 @@ pub struct WarRef {
     /// "evolved" for a war that plays through the Evolved War Engine mod.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// The invite code of a war joined from outside the host network. The relay gives it to the
+    /// war server with every request.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -129,12 +133,13 @@ impl State {
         self.wars.iter().find(|w| w.id == id)
     }
 
-    /// Adds a war or updates the one with that id, keeping the save.
+    /// Adds a war or updates the one with that id, keeping the save, and the invite code when the
+    /// new entry brings none (a war picked again from a list that never held the code).
     pub fn upsert(&mut self, war: WarRef) {
         match self.wars.iter_mut().find(|w| w.id == war.id) {
             Some(w) => {
-                let save = w.save.take();
-                *w = WarRef { save: war.save.clone().or(save), ..war };
+                let (save, key) = (w.save.take(), w.key.take());
+                *w = WarRef { save: war.save.clone().or(save), key: war.key.clone().or(key), ..war };
             }
             None => self.wars.push(war),
         }
@@ -152,7 +157,7 @@ impl State {
     /// The war being played, with where the requests go.
     pub fn route(&self) -> Option<relay::Route> {
         let war = self.war(self.playing.as_deref()?)?;
-        Some(relay::Route { token: self.token.clone()?, upstream: self.war_api(war)? })
+        Some(relay::Route { token: self.token.clone()?, upstream: self.war_api(war)?, key: war.key.clone() })
     }
 }
 
@@ -278,7 +283,9 @@ pub fn valid_pick(war: &WarRef) -> bool {
         (WarHost::Lan, Some(b)) => b.len() < 120 && b.strip_prefix("http://").is_some_and(|rest| !rest.is_empty() && !rest.contains(['/', '?', '#', '@', ' '])),
         (WarHost::Lan, None) => false,
     };
-    id_ok && base_ok
+    // An invite code is letters, digits and dashes, as the war server writes it.
+    let key_ok = war.key.as_deref().is_none_or(|k| !k.is_empty() && k.len() <= 32 && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'));
+    id_ok && base_ok && key_ok
 }
 
 /// Selects a war for the next launch: remembers it, gives it a Sandbox save on first use, and
@@ -373,7 +380,7 @@ pub fn war_choices(data: &Path) -> Vec<WarChoice> {
         for e in rd.flatten() {
             let Some(w) = std::fs::read_to_string(e.path().join("war.json")).ok().and_then(|t| serde_json::from_str::<WarFile>(&t).ok()) else { continue };
             let live = matches!(w.state.as_deref(), Some("running" | "paused"));
-            let pick = WarRef { id: w.id.clone(), name: String::new(), host: WarHost::Local, base: None, save: None, computer: None, model: None };
+            let pick = WarRef { id: w.id.clone(), name: String::new(), host: WarHost::Local, base: None, save: None, computer: None, model: None, key: None };
             if !valid_pick(&pick) || (!live && playing != Some(w.id.as_str())) {
                 continue;
             }
@@ -408,7 +415,7 @@ mod tests {
     use super::*;
 
     fn lan_war() -> WarRef {
-        WarRef { id: "k3x9q2".into(), name: "Night War".into(), host: WarHost::Lan, base: Some("http://192.168.0.7:17494/".into()), save: None, computer: Some("DESK".into()), model: None }
+        WarRef { id: "k3x9q2".into(), name: "Night War".into(), host: WarHost::Lan, base: Some("http://192.168.0.7:17494/".into()), save: None, computer: Some("DESK".into()), model: None, key: None }
     }
 
     #[test]
@@ -422,6 +429,24 @@ mod tests {
         assert_eq!(r.upstream, "http://192.168.0.7:17494/w/k3x9q2/1.0/");
         assert_eq!(r.token.len(), 32);
         assert_eq!(State::load(t.path()), s);
+    }
+
+    #[test]
+    fn the_invite_code_stays_with_the_war_and_goes_into_the_route() {
+        let t = tempfile::tempdir().unwrap();
+        let mut s = State::default();
+        s.upsert(WarRef { key: Some("K7M2P-9XQ4T".into()), ..lan_war() });
+        // Picked again from a list that holds no code: the code stays.
+        s.upsert(WarRef { name: "Renamed".into(), ..lan_war() });
+        assert_eq!(s.war("k3x9q2").unwrap().key.as_deref(), Some("K7M2P-9XQ4T"));
+        s.save(t.path()).unwrap();
+        let s = select(t.path(), Some("k3x9q2")).unwrap();
+        assert_eq!(s.route().unwrap().key.as_deref(), Some("K7M2P-9XQ4T"));
+        let plain = || WarRef { base: Some("http://192.168.0.7:17494".into()), ..lan_war() };
+        assert!(valid_pick(&WarRef { key: Some("K7M2P-9XQ4T".into()), ..plain() }));
+        for bad in ["", "a b", "x\r\ny: z", "k/../", &"A".repeat(33)] {
+            assert!(!valid_pick(&WarRef { key: Some(bad.to_string()), ..plain() }), "{bad:?}");
+        }
     }
 
     #[test]
@@ -487,7 +512,7 @@ mod tests {
 
     #[test]
     fn picks_are_checked_and_save_names_fit_saves() {
-        let w = |host, base: Option<&str>, id: &str| WarRef { id: id.into(), name: "War".into(), host, base: base.map(str::to_string), save: None, computer: None, model: None };
+        let w = |host, base: Option<&str>, id: &str| WarRef { id: id.into(), name: "War".into(), host, base: base.map(str::to_string), save: None, computer: None, model: None, key: None };
         assert!(valid_pick(&w(WarHost::Local, None, "k3x9q2")));
         assert!(valid_pick(&w(WarHost::Lan, Some("http://192.168.0.7:17494"), "k3x9q2")));
         assert!(!valid_pick(&w(WarHost::Lan, None, "k3x9q2")), "a LAN war needs an address");
@@ -529,7 +554,7 @@ mod tests {
         assert_eq!(c[1].model.as_deref(), Some("evolved"));
         assert_eq!(c[2].save.as_deref(), Some("sb9"));
         let mut s = State::load(data);
-        s.upsert(WarRef { id: "ccc".into(), name: "Done".into(), host: WarHost::Local, base: None, save: None, computer: None, model: None });
+        s.upsert(WarRef { id: "ccc".into(), name: "Done".into(), host: WarHost::Local, base: None, save: None, computer: None, model: None, key: None });
         s.playing = Some("ccc".into());
         s.save(data).unwrap();
         assert_eq!(ids(&war_choices(data)), ["ccc", "aaa", "bbb", "k3x9q2"], "the selected war stays even when won");

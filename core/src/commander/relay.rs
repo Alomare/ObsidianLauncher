@@ -19,6 +19,8 @@ use std::time::Duration;
 pub struct Route {
     pub token: String,
     pub upstream: String,
+    /// The invite code of a war joined from outside the host network, sent as `X-Commander-Key`.
+    pub key: Option<String>,
 }
 
 /// The game requests are small form posts; a war answer is a few KB.
@@ -116,6 +118,9 @@ fn handle(mut request: tiny_http::Request, route: Option<Route>, agent: &ureq::A
     if let Some(p) = &player {
         req = req.header("X-Commander-Player", p);
     }
+    if let Some(k) = &route.key {
+        req = req.header("X-Commander-Key", k);
+    }
     match req.send(form.as_bytes()) {
         Ok(mut res) => {
             let code = res.status().as_u16();
@@ -167,11 +172,17 @@ fn evolved(mut request: tiny_http::Request, route: &Route, what: &str, agent: &u
         if let Some(p) = &player {
             req = req.header("X-Commander-Player", p);
         }
+        if let Some(k) = &route.key {
+            req = req.header("X-Commander-Key", k);
+        }
         req.send(&body[..])
     } else {
         let mut req = agent.get(&url);
         if let Some(p) = &player {
             req = req.header("X-Commander-Player", p);
+        }
+        if let Some(k) = &route.key {
+            req = req.header("X-Commander-Key", k);
         }
         req.call()
     };
@@ -296,7 +307,7 @@ mod tests {
     fn carries_a_request_to_the_war_and_back() {
         let (upstream, seen) = fake_upstream(r#"{"time":1,"error_code":0}"#);
         let relay = Relay::start(0).unwrap();
-        relay.set_route(Some(Route { token: "tok123".into(), upstream }));
+        relay.set_route(Some(Route { token: "tok123".into(), upstream, key: Some("K7M2P-9XQ4T".into()) }));
         let agent = agent();
         let url = format!("http://127.0.0.1:{}/tok123/1.0/", relay.port);
         let mut res = agent
@@ -309,6 +320,7 @@ mod tests {
         let got = seen.join().unwrap();
         assert!(got.starts_with("POST /w/war1/1.0/ "), "{got}");
         assert!(got.to_ascii_lowercase().contains("x-commander-player: ab12"), "{got}");
+        assert!(got.to_ascii_lowercase().contains("x-commander-key: k7m2p-9xq4t"), "the invite code goes with the request: {got}");
         assert!(got.ends_with("action=upload_statistics&statistics=%5B%5D"), "{got}");
         assert!(!got.contains("%22T%22"), "the ticket never leaves");
     }
@@ -320,7 +332,7 @@ mod tests {
     fn relay_reaches_a_real_war() {
         let upstream = std::env::var("COMMANDER_E2E").expect("COMMANDER_E2E: a war API URL");
         let relay = Relay::start(0).unwrap();
-        relay.set_route(Some(Route { token: "e2e0".into(), upstream }));
+        relay.set_route(Some(Route { token: "e2e0".into(), upstream, key: None }));
         let agent = agent();
         let url = format!("http://127.0.0.1:{}/e2e0/1.0/", relay.port);
         let form = "application/x-www-form-urlencoded;charset=UTF-8";
@@ -355,7 +367,7 @@ mod tests {
     fn carries_the_evolved_state_and_reports() {
         let (upstream, seen) = fake_upstream(r#"{"owners":[0]}"#);
         let relay = Relay::start(0).unwrap();
-        relay.set_route(Some(Route { token: "tok9".into(), upstream }));
+        relay.set_route(Some(Route { token: "tok9".into(), upstream, key: None }));
         let agent = agent();
         let url = format!("http://127.0.0.1:{}/tok9/evolved/state", relay.port);
         let mut res = agent.get(&url).header("X-Commander-Player", "1100001abc").call().unwrap();
@@ -367,7 +379,7 @@ mod tests {
 
         // As the mod asks in the game: POST with a JSON body. The war server still gets a GET.
         let (upstream, seen) = fake_upstream(r#"{"owners":[1]}"#);
-        relay.set_route(Some(Route { token: "tok9".into(), upstream }));
+        relay.set_route(Some(Route { token: "tok9".into(), upstream, key: None }));
         let mut res = agent.post(&url).header("Content-Type", "application/json").send("{}").unwrap();
         assert_eq!(res.status().as_u16(), 200);
         assert_eq!(res.body_mut().read_to_string().unwrap(), r#"{"owners":[1]}"#);
@@ -375,7 +387,7 @@ mod tests {
         assert!(got.starts_with("GET /w/war1/evolved/state "), "{got}");
 
         let (upstream, seen) = fake_upstream(r#"{"credited":true}"#);
-        relay.set_route(Some(Route { token: "tok9".into(), upstream }));
+        relay.set_route(Some(Route { token: "tok9".into(), upstream, key: None }));
         let url = format!("http://127.0.0.1:{}/tok9/evolved/report", relay.port);
         let mut res = agent
             .post(&url)
@@ -399,7 +411,7 @@ mod tests {
         let agent = agent();
         let url = format!("http://127.0.0.1:{}/tok123/1.0/", relay.port);
         assert_eq!(agent.post(&url).send("action=x").unwrap().status().as_u16(), 503, "no war selected");
-        relay.set_route(Some(Route { token: "tok123".into(), upstream: "http://127.0.0.1:9/w/x/1.0/".into() }));
+        relay.set_route(Some(Route { token: "tok123".into(), upstream: "http://127.0.0.1:9/w/x/1.0/".into(), key: None }));
         let wrong = format!("http://127.0.0.1:{}/other/1.0/", relay.port);
         assert_eq!(agent.post(&wrong).send("action=x").unwrap().status().as_u16(), 404);
         assert_eq!(agent.post(&url).send("action=x").unwrap().status().as_u16(), 502, "a war server that's down");

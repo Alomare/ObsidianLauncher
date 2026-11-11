@@ -481,11 +481,11 @@ mod tests {
     }
 
     fn local_war() -> WarRef {
-        WarRef { id: "aaa".into(), name: "Home War".into(), host: WarHost::Local, base: None, save: None, computer: None, model: None }
+        WarRef { id: "aaa".into(), name: "Home War".into(), host: WarHost::Local, base: None, save: None, computer: None, model: None, key: None }
     }
 
     fn lan_war() -> WarRef {
-        WarRef { id: "k3x9q2".into(), name: "Night War".into(), host: WarHost::Lan, base: Some("http://192.168.0.7:17494".into()), save: None, computer: None, model: None }
+        WarRef { id: "k3x9q2".into(), name: "Night War".into(), host: WarHost::Lan, base: Some("http://192.168.0.7:17494".into()), save: None, computer: None, model: None, key: None }
     }
 
     /// A PC that installed Commander, hosts two wars, played a local and a LAN war (the LAN one

@@ -474,8 +474,8 @@ fn run_commander(action: CommanderAction, data: &std::path::Path, game: impl Fn(
         }
         CommanderAction::Play { id, name, lan } => {
             let war = match lan {
-                Some(base) => WarRef { id: id.clone(), name, host: WarHost::Lan, base: Some(base.trim_end_matches('/').to_string()), save: None, computer: None, model: None },
-                None => WarRef { id: id.clone(), name, host: WarHost::Local, base: None, save: None, computer: None, model: None },
+                Some(base) => WarRef { id: id.clone(), name, host: WarHost::Lan, base: Some(base.trim_end_matches('/').to_string()), save: None, computer: None, model: None, key: None },
+                None => WarRef { id: id.clone(), name, host: WarHost::Local, base: None, save: None, computer: None, model: None, key: None },
             };
             commander::play_war(data, &saves()?, war)?;
             let s = State::load(data);

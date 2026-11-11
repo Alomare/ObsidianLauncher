@@ -22,6 +22,9 @@ pub struct Found {
     pub computer: String,
     pub players: u32,
     pub version: String,
+    /// The invite code the war was found with, for a war asked for by address.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -62,6 +65,7 @@ pub fn read_packet(bytes: &[u8], from: SocketAddr) -> Option<Found> {
         computer: clip(&p.host, 40),
         players: p.players,
         version: clip(&p.version, 20),
+        key: None,
     })
 }
 
@@ -133,15 +137,27 @@ pub fn read_info(body: &[u8], base: &str) -> Vec<Found> {
         .into_iter()
         .filter(|w| !w.id.is_empty() && w.id.len() <= 32 && w.id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'))
         .take(64)
-        .map(|w| Found { war: w.id, name: clip(&w.name, 60), model: clip(&w.model, 16), season: w.season, base: base.to_string(), computer: clip(&computer, 40), players: w.players, version: clip(&info.version, 20) })
+        .map(|w| Found { war: w.id, name: clip(&w.name, 60), model: clip(&w.model, 16), season: w.season, base: base.to_string(), computer: clip(&computer, 40), players: w.players, version: clip(&info.version, 20), key: None })
         .collect()
 }
 
+/// An invite code as a player typed it: upper case, without spaces. None when nothing was typed or
+/// it holds anything but letters, digits and dashes.
+pub fn key_of(typed: &str) -> Option<String> {
+    let k: String = typed.trim().chars().filter(|c| !c.is_whitespace()).map(|c| c.to_ascii_uppercase()).collect();
+    (!k.is_empty() && k.len() <= 32 && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')).then_some(k)
+}
+
 /// Asks the war server at an address a player typed which wars it has open: the way into a war
-/// over the internet, where the announcements of `scan` do not reach.
-pub fn ask(typed: &str) -> std::io::Result<Vec<Found>> {
+/// over the internet, where the announcements of `scan` do not reach. From outside the host
+/// network a war answers only with the invite code, which then stays with each war found.
+pub fn ask(typed: &str, invite: &str) -> std::io::Result<Vec<Found>> {
     let bad = |why: String| std::io::Error::new(std::io::ErrorKind::InvalidInput, why);
     let base = base_of(typed).ok_or_else(|| bad(format!("not an address: {}", clip(typed, 60))))?;
+    let key = key_of(invite);
+    if key.is_none() && !invite.trim().is_empty() {
+        return Err(bad("not an invite code".into()));
+    }
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .http_status_as_error(false)
         .user_agent("Obsidian")
@@ -151,12 +167,20 @@ pub fn ask(typed: &str) -> std::io::Result<Vec<Found>> {
         .timeout_recv_body(Some(Duration::from_secs(8)))
         .build()
         .into();
-    let mut res = agent.get(format!("{base}/api/info")).call().map_err(|e| std::io::Error::other(format!("no war server answered at {base}: {e}")))?;
+    let mut req = agent.get(format!("{base}/api/info"));
+    if let Some(k) = &key {
+        req = req.header("X-Commander-Key", k);
+    }
+    let mut res = req.call().map_err(|e| std::io::Error::other(format!("no war server answered at {base}: {e}")))?;
     if res.status().as_u16() != 200 {
         return Err(std::io::Error::other(format!("no war open at {base} (the server answered {})", res.status().as_u16())));
     }
     let body = res.body_mut().with_config().limit(256 * 1024).read_to_vec().map_err(|e| std::io::Error::other(e.to_string()))?;
-    Ok(read_info(&body, &base))
+    let mut found = read_info(&body, &base);
+    for f in &mut found {
+        f.key = key.clone();
+    }
+    Ok(found)
 }
 
 #[cfg(test)]
@@ -172,7 +196,7 @@ mod tests {
             assert_eq!(base_of(no), None, "{no}");
         }
         // What `base_of` gives passes the check a selected war goes through.
-        let war = crate::commander::WarRef { id: "k3x9q2".into(), name: "W".into(), host: crate::commander::WarHost::Lan, base: base_of("203.0.113.7"), save: None, computer: None, model: None };
+        let war = crate::commander::WarRef { id: "k3x9q2".into(), name: "W".into(), host: crate::commander::WarHost::Lan, base: base_of("203.0.113.7"), save: None, computer: None, model: None, key: None };
         assert!(crate::commander::valid_pick(&war));
     }
 
@@ -199,12 +223,17 @@ mod tests {
             write!(s, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body).unwrap();
             String::from_utf8_lossy(&buf[..n]).into_owned()
         });
-        let found = ask(&format!("127.0.0.1:{port}")).unwrap();
+        let found = ask(&format!("127.0.0.1:{port}"), " k7m2p-9xq4t ").unwrap();
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].base, format!("http://127.0.0.1:{port}"));
-        assert!(h.join().unwrap().starts_with("GET /api/info "));
-        assert!(ask(&format!("127.0.0.1:{port}")).is_err(), "nothing listens there now");
-        assert_eq!(ask("not an address").unwrap_err().kind(), std::io::ErrorKind::InvalidInput);
+        assert_eq!(found[0].key.as_deref(), Some("K7M2P-9XQ4T"), "the code stays with the war found");
+        let asked = h.join().unwrap();
+        assert!(asked.starts_with("GET /api/info "));
+        assert!(asked.to_ascii_lowercase().contains("x-commander-key: k7m2p-9xq4t"), "{asked}");
+        assert!(ask(&format!("127.0.0.1:{port}"), "").is_err(), "nothing listens there now");
+        assert_eq!(ask("not an address", "").unwrap_err().kind(), std::io::ErrorKind::InvalidInput);
+        assert_eq!(ask("127.0.0.1:1", "a/b").unwrap_err().kind(), std::io::ErrorKind::InvalidInput);
+        assert_eq!(key_of(""), None);
     }
 
     fn from() -> SocketAddr {
