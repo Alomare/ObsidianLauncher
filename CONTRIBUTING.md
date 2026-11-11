@@ -16,6 +16,8 @@ You need Rust (stable, MSVC toolchain on Windows), the Visual Studio Build Tools
 4. Run the UI tests: `npm ci`, then `npm test`, in `app`
 5. Run the app: `tools\dev.cmd`
 
+`python tools/affected_tests.py` prints the checks that cover what changed since the last push (or since a ref: `python tools/affected_tests.py main`), and `--run` runs them. Pushes to `dev` run the tests of the parts that changed.
+
 On Linux you also need the [system packages Tauri lists](https://v2.tauri.app/start/prerequisites/#linux). Use `sh tools/build-luajit.sh` for step 1 and `target/luajit/luajit loader/tests/run.lua` for step 3.
 
 Some tests read your own game files and are skipped unless you point them at the game with `OBSIDIAN_GAME_DIR`. Game files are never committed.
