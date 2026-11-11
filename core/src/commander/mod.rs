@@ -62,6 +62,9 @@ pub struct WarRef {
     /// The computer that hosts a LAN war, as it announced itself.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub computer: Option<String>,
+    /// "evolved" for a war that plays through the Evolved War Engine mod.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -303,6 +306,81 @@ pub fn play_official(data: &Path, saves: &crate::saves::Saves) -> Result<()> {
     }
 }
 
+/// Back to the official war on a save of the player's choice, as the Play choice picks it.
+pub fn play_vanilla(data: &Path, saves: &crate::saves::Saves, save: &str) -> Result<()> {
+    select(data, None)?;
+    saves.activate(save)
+}
+
+/// A war the next launch can play, for the Play choice.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WarChoice {
+    pub id: String,
+    pub name: String,
+    pub host: WarHost,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub computer: Option<String>,
+    /// The war Sandbox save, once made.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub save: Option<String>,
+    /// "evolved" for an Evolved war.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// "running" or "paused" for a war hosted here. A LAN war has none: the host PC knows.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub state: Option<String>,
+}
+
+/// What a war file in the server folder says, of what the Play choice needs.
+#[derive(Deserialize)]
+struct WarFile {
+    id: String,
+    name: String,
+    #[serde(default)]
+    model: Option<String>,
+    #[serde(default)]
+    state: Option<String>,
+}
+
+/// The wars the next launch can play: the wars hosted here that run or are paused (with the package
+/// installed), then the LAN wars this PC joined. The war selected now is always there, whatever
+/// state it is in. The hosted wars come from the server folder, so the server needn't run.
+pub fn war_choices(data: &Path) -> Vec<WarChoice> {
+    let state = State::load(data);
+    let playing = state.playing.as_deref();
+    let mut hosted: Vec<WarChoice> = Vec::new();
+    if package::installed(data).is_some()
+        && let Ok(rd) = std::fs::read_dir(server::server_data(data).join("wars"))
+    {
+        for e in rd.flatten() {
+            let Some(w) = std::fs::read_to_string(e.path().join("war.json")).ok().and_then(|t| serde_json::from_str::<WarFile>(&t).ok()) else { continue };
+            let live = matches!(w.state.as_deref(), Some("running" | "paused"));
+            let pick = WarRef { id: w.id.clone(), name: String::new(), host: WarHost::Local, base: None, save: None, computer: None, model: None };
+            if !valid_pick(&pick) || (!live && playing != Some(w.id.as_str())) {
+                continue;
+            }
+            let save = state.war(&w.id).filter(|r| r.host == WarHost::Local).and_then(|r| r.save.clone());
+            let name: String = w.name.chars().take(60).collect();
+            hosted.push(WarChoice { id: w.id, name, host: WarHost::Local, base: None, computer: None, save, model: w.model, state: w.state });
+        }
+    }
+    hosted.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()).then(a.id.cmp(&b.id)));
+    let lan = state.wars.iter().filter(|w| w.host == WarHost::Lan).map(|w| WarChoice {
+        id: w.id.clone(),
+        name: w.name.clone(),
+        host: WarHost::Lan,
+        base: w.base.clone(),
+        computer: w.computer.clone(),
+        save: w.save.clone(),
+        model: w.model.clone(),
+        state: None,
+    });
+    hosted.into_iter().chain(lan).collect()
+}
+
 /// The names of the game regions in the player language, as the loader wrote them the last
 /// time the game started in war mode: `key<TAB>words` lines.
 pub fn region_names(game_side: &Path) -> Vec<(String, String)> {
@@ -315,7 +393,7 @@ mod tests {
     use super::*;
 
     fn lan_war() -> WarRef {
-        WarRef { id: "k3x9q2".into(), name: "Night War".into(), host: WarHost::Lan, base: Some("http://192.168.0.7:17494/".into()), save: None, computer: Some("DESK".into()) }
+        WarRef { id: "k3x9q2".into(), name: "Night War".into(), host: WarHost::Lan, base: Some("http://192.168.0.7:17494/".into()), save: None, computer: Some("DESK".into()), model: None }
     }
 
     #[test]
@@ -376,7 +454,7 @@ mod tests {
 
     #[test]
     fn picks_are_checked_and_save_names_fit_saves() {
-        let w = |host, base: Option<&str>, id: &str| WarRef { id: id.into(), name: "War".into(), host, base: base.map(str::to_string), save: None, computer: None };
+        let w = |host, base: Option<&str>, id: &str| WarRef { id: id.into(), name: "War".into(), host, base: base.map(str::to_string), save: None, computer: None, model: None };
         assert!(valid_pick(&w(WarHost::Local, None, "k3x9q2")));
         assert!(valid_pick(&w(WarHost::Lan, Some("http://192.168.0.7:17494"), "k3x9q2")));
         assert!(!valid_pick(&w(WarHost::Lan, None, "k3x9q2")), "a LAN war needs an address");
@@ -386,6 +464,42 @@ mod tests {
         assert_eq!(save_name("  Night War \n"), "Night War");
         assert_eq!(save_name(""), "Custom War");
         assert_eq!(save_name(&"x".repeat(80)).chars().count(), 40);
+    }
+
+    #[test]
+    fn war_choices_list_live_hosted_wars_then_joined_ones() {
+        let t = tempfile::tempdir().unwrap();
+        let data = t.path();
+        let wars = server::server_data(data).join("wars");
+        let put = |id: &str, body: &str| {
+            std::fs::create_dir_all(wars.join(id)).unwrap();
+            std::fs::write(wars.join(id).join("war.json"), body).unwrap();
+        };
+        put("bbb", r#"{"id":"bbb","name":"Second","model":"evolved","state":"paused","season":1}"#);
+        put("aaa", r#"{"id":"aaa","name":"first","model":"vanilla","state":"running"}"#);
+        put("ccc", r#"{"id":"ccc","name":"Done","state":"won"}"#);
+        put("bad", "not json");
+        let mut s = State::default();
+        s.upsert(WarRef { save: Some("sb9".into()), model: Some("evolved".into()), ..lan_war() });
+        s.save(data).unwrap();
+        assert!(war_choices(data).iter().all(|c| c.host == WarHost::Lan), "no package: no hosted wars");
+
+        s.package = Some(Installed { version: "0.3.0".into(), protocol: PROTOCOL, server: "server.exe".into(), ui: "ui".into() });
+        s.save(data).unwrap();
+        let pkg = package::package_dir(data);
+        std::fs::create_dir_all(pkg.join("ui")).unwrap();
+        std::fs::write(pkg.join("server.exe"), b"MZ").unwrap();
+        std::fs::write(pkg.join("ui/index.html"), b"<html>").unwrap();
+        let ids = |v: &[WarChoice]| v.iter().map(|c| c.id.clone()).collect::<Vec<_>>();
+        let c = war_choices(data);
+        assert_eq!(ids(&c), ["aaa", "bbb", "k3x9q2"], "a won war is left out, names sort without case");
+        assert_eq!(c[1].model.as_deref(), Some("evolved"));
+        assert_eq!(c[2].save.as_deref(), Some("sb9"));
+        let mut s = State::load(data);
+        s.upsert(WarRef { id: "ccc".into(), name: "Done".into(), host: WarHost::Local, base: None, save: None, computer: None, model: None });
+        s.playing = Some("ccc".into());
+        s.save(data).unwrap();
+        assert_eq!(ids(&war_choices(data)), ["ccc", "aaa", "bbb", "k3x9q2"], "the selected war stays even when won");
     }
 
     #[test]

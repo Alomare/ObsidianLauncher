@@ -189,6 +189,11 @@ impl GitHub {
         }
     }
 
+    /// The version of the newest release of `repo`, from the page first and the API when needed.
+    pub fn newest_version(&self, repo: &Repo) -> Result<Version> {
+        self.latest_version(repo, true)
+    }
+
     /// The tag that github.com's latest-release page sends a browser to (`/releases/tag/<tag>`).
     /// A repository without a release sends it to `/releases`, and a missing one answers 404. A
     /// moved repository sends it to the same page under the new name, which is followed for a few

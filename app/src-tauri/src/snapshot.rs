@@ -195,6 +195,9 @@ pub struct Snapshot {
     pub changes: ChangesWaiting,
     /// Whether a purge has anything to remove.
     pub deployed: bool,
+    /// Whether the last deploy put mods in the game, which Play then starts. The Evolved War Engine
+    /// mod a war switches on doesn't count: the war needs it.
+    pub modded: bool,
     pub game: GameState,
     /// The game files that differ from the build Obsidian knows, when it doesn't know this one.
     pub game_changes: Vec<GameChange>,
@@ -442,6 +445,10 @@ pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Re
         conflicts,
         changes: changes_waiting_for(&comp, &profile, &settings_digest(&obsidian_core::loader::settings_with(&profile, &manifests)?), data, game_install.as_ref().map(|g| g.contents()).as_deref()).unwrap_or(ChangesWaiting::Waiting),
         deployed: has_deployed(data),
+        modded: obsidian_core::deploy::load_state(data)
+            .ok()
+            .flatten()
+            .is_some_and(|s| !s.incomplete && s.mods.iter().any(|m| m != obsidian_core::commander::EVOLVED_MOD)),
         game,
         game_changes,
         game_dir: game_install.map(|g| tidy(&g.root)),

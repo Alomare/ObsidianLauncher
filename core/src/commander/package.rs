@@ -34,6 +34,25 @@ pub fn fetch(data: &Path, github: &crate::updates::GitHub) -> Result<Installed> 
     install(data, &zip)
 }
 
+/// The version of a newer released package than the one installed, if there is one.
+pub fn newer(data: &Path, github: &crate::updates::GitHub) -> Result<Option<String>> {
+    let Some(installed) = installed(data) else { return Ok(None) };
+    let repo = crate::updates::github_repo(SOURCE).expect("a GitHub address");
+    let latest = github.newest_version(&repo)?;
+    Ok(is_newer(&installed.version, &latest.to_string()).then(|| latest.to_string()))
+}
+
+/// Whether `latest` is past `installed`. An installed version that is not a version (a local build)
+/// counts as older.
+fn is_newer(installed: &str, latest: &str) -> bool {
+    let v = |s: &str| semver::Version::parse(s.trim().trim_start_matches(['v', 'V'])).ok();
+    match (v(installed), v(latest)) {
+        (Some(i), Some(l)) => l > i,
+        (None, Some(_)) => true,
+        _ => false,
+    }
+}
+
 pub fn package_dir(data: &Path) -> PathBuf {
     dir(data).join("package")
 }
@@ -169,6 +188,16 @@ pub fn installed(data: &Path) -> Option<Installed> {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    #[test]
+    fn a_newer_release_is_one_past_the_installed_version() {
+        assert!(is_newer("0.3.1", "0.3.2"));
+        assert!(is_newer("v0.3.1", "0.10.0"));
+        assert!(!is_newer("0.3.2", "0.3.2"));
+        assert!(!is_newer("0.4.0", "0.3.2"));
+        assert!(is_newer("local build", "0.3.2"));
+        assert!(!is_newer("0.3.2", "nightly"));
+    }
 
     fn zip_of(path: &Path, files: &[(&str, &[u8])]) {
         let f = std::fs::File::create(path).unwrap();

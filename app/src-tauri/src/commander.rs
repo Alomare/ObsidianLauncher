@@ -181,7 +181,8 @@ pub struct WarPick {
 
 impl WarPick {
     fn into_ref(self) -> WarRef {
-        WarRef { id: self.id, name: self.name, host: self.host, base: self.base, save: None, computer: self.computer }
+        let model = self.model.filter(|m| m == "evolved");
+        WarRef { id: self.id, name: self.name, host: self.host, base: self.base, save: None, computer: self.computer, model }
     }
 }
 
@@ -243,6 +244,36 @@ pub async fn commander_official(ctx: TauriState<'_, Ctx>) -> CmdResult<Commander
     commander::play_official(&ctx.data, &saves_of(&ctx)?)?;
     ensure_relay(&ctx, &mut runtime)?;
     done(&ctx, &mut runtime)
+}
+
+/// The official war on a save the player picked in the Play choice.
+#[tauri::command]
+pub async fn commander_vanilla(ctx: TauriState<'_, Ctx>, save: String) -> CmdResult<CommanderDone> {
+    let _turn = ctx.turn();
+    let mut runtime = rt(&ctx);
+    commander::play_vanilla(&ctx.data, &saves_of(&ctx)?, &save)?;
+    ensure_relay(&ctx, &mut runtime)?;
+    done(&ctx, &mut runtime)
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Choices {
+    pub playing: Option<String>,
+    pub wars: Vec<commander::WarChoice>,
+}
+
+/// The wars the Play button can start, and the one it starts now.
+#[tauri::command]
+pub async fn commander_choices(ctx: TauriState<'_, Ctx>) -> CmdResult<Choices> {
+    let playing = State::load(&ctx.data).playing;
+    Ok(Choices { playing, wars: commander::war_choices(&ctx.data) })
+}
+
+/// The version of a newer Commander package on GitHub, if there is one.
+#[tauri::command]
+pub async fn commander_package_check(ctx: TauriState<'_, Ctx>) -> CmdResult<Option<String>> {
+    Ok(package::newer(&ctx.data, &obsidian_core::updates::GitHub::default())?)
 }
 
 #[tauri::command]
