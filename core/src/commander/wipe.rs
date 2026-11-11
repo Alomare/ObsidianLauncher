@@ -38,7 +38,8 @@ pub struct Footprint {
     pub saves: Vec<SaveRef>,
     /// Whether the region names the loader wrote are in the game-side folder.
     pub names_file: bool,
-    /// Inbound firewall rules for the server.
+    /// Inbound firewall rules for the server and for Obsidian, which Windows adds when the server
+    /// opens a war to the network and when Obsidian looks for wars on it.
     pub firewall_rules: u32,
     /// The size of `<data>/commander`.
     pub bytes: u64,
@@ -81,8 +82,10 @@ trait Machine {
     /// The output of `netsh advfirewall firewall show rule name=all verbose`, as netsh wrote it.
     /// None when it can't be read.
     fn firewall_rules(&self) -> Option<Vec<u8>>;
-    /// Deletes the firewall rules for `program`, as admin.
-    fn delete_firewall_rules(&self, program: &Path) -> Elevated;
+    /// Deletes the firewall rules for each of `programs`, as admin, with one prompt.
+    fn delete_firewall_rules(&self, programs: &[PathBuf]) -> Elevated;
+    /// The program file of this Obsidian, as the firewall names it.
+    fn own_exe(&self) -> Option<PathBuf>;
     /// Whether a process with this file name runs.
     fn running(&self, exe: &str) -> bool;
 }
@@ -119,8 +122,8 @@ impl Machine for Live {
     }
 
     #[cfg(windows)]
-    fn delete_firewall_rules(&self, program: &Path) -> Elevated {
-        let script: Vec<u8> = elevated_delete_script(program).encode_utf16().flat_map(u16::to_le_bytes).collect();
+    fn delete_firewall_rules(&self, programs: &[PathBuf]) -> Elevated {
+        let script: Vec<u8> = elevated_delete_script(programs).encode_utf16().flat_map(u16::to_le_bytes).collect();
         let out = hidden(&system_tool(r"WindowsPowerShell\v1.0\powershell.exe")).args(["-NoProfile", "-NonInteractive", "-EncodedCommand", &base64(&script)]).output();
         match out {
             Err(e) => Elevated::Failed(e.to_string()),
@@ -136,8 +139,12 @@ impl Machine for Live {
     }
 
     #[cfg(not(windows))]
-    fn delete_firewall_rules(&self, _program: &Path) -> Elevated {
+    fn delete_firewall_rules(&self, _programs: &[PathBuf]) -> Elevated {
         Elevated::Failed("firewall rules are only removed on Windows".into())
+    }
+
+    fn own_exe(&self) -> Option<PathBuf> {
+        std::env::current_exe().ok()
     }
 
     fn running(&self, exe: &str) -> bool {
@@ -145,33 +152,56 @@ impl Machine for Live {
     }
 }
 
-/// PowerShell that runs netsh as admin to delete the rules for `program`. It exits with the netsh
-/// code, or 1223 when the admin prompt is declined.
+/// A PowerShell single-quoted string: it ends at any kind of single quote; doubled, each stays.
 #[cfg_attr(not(windows), allow(dead_code))]
-fn elevated_delete_script(program: &Path) -> String {
-    let args = format!("advfirewall firewall delete rule name=all program=\"{}\"", program.display());
-    // A single-quoted PowerShell string ends at any kind of single quote; doubled, each stays.
-    let single = |s: &str| {
-        let mut quoted = String::with_capacity(s.len());
-        for c in s.chars() {
-            if matches!(c, '\'' | '\u{2018}' | '\u{2019}' | '\u{201a}' | '\u{201b}') {
-                quoted.push(c);
-            }
+fn ps_quoted(s: &str) -> String {
+    let mut quoted = String::with_capacity(s.len() + 2);
+    quoted.push('\'');
+    for c in s.chars() {
+        if matches!(c, '\'' | '\u{2018}' | '\u{2019}' | '\u{201a}' | '\u{201b}') {
             quoted.push(c);
         }
-        quoted
-    };
-    let quoted = single(&args);
-    let netsh = single(&system_tool("netsh.exe").display().to_string());
+        quoted.push(c);
+    }
+    quoted.push('\'');
+    quoted
+}
+
+/// What runs as admin: netsh once for each program, by full path. It exits 0 when netsh deleted
+/// rules for any of them. The paths are PowerShell strings inside the script, never part of a
+/// command line.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn admin_delete_script(programs: &[PathBuf]) -> String {
+    let list: Vec<String> = programs.iter().map(|p| ps_quoted(&p.display().to_string())).collect();
+    format!(
+        "$code = 1\n\
+         foreach ($p in @({})) {{\n\
+         & {} advfirewall firewall delete rule name=all \"program=$p\" | Out-Null\n\
+         if ($LASTEXITCODE -eq 0) {{ $code = 0 }}\n\
+         }}\n\
+         exit $code\n",
+        list.join(", "),
+        ps_quoted(&system_tool("netsh.exe").display().to_string())
+    )
+}
+
+/// PowerShell that starts `admin_delete_script` as admin, which is when Windows asks. The inner
+/// script travels as `-EncodedCommand`, so no path meets a command line parser. It exits with the
+/// inner code, or 1223 when the admin prompt is declined.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn elevated_delete_script(programs: &[PathBuf]) -> String {
+    let inner: Vec<u8> = admin_delete_script(programs).encode_utf16().flat_map(u16::to_le_bytes).collect();
+    let shell = ps_quoted(&system_tool(r"WindowsPowerShell\v1.0\powershell.exe").display().to_string());
     format!(
         "$i = New-Object System.Diagnostics.ProcessStartInfo\n\
-         $i.FileName = '{netsh}'\n\
-         $i.Arguments = '{quoted}'\n\
+         $i.FileName = {shell}\n\
+         $i.Arguments = '-NoProfile -NonInteractive -EncodedCommand {}'\n\
          $i.Verb = 'runas'\n\
          $i.UseShellExecute = $true\n\
          $i.WindowStyle = 'Hidden'\n\
          try {{ $p = [System.Diagnostics.Process]::Start($i); $p.WaitForExit(); exit $p.ExitCode }}\n\
-         catch {{ $e = $_.Exception; while ($e.InnerException) {{ $e = $e.InnerException }}; if ($e.NativeErrorCode -eq {DECLINED}) {{ exit {DECLINED} }}; [Console]::Error.WriteLine($e.Message); exit 2 }}\n"
+         catch {{ $e = $_.Exception; while ($e.InnerException) {{ $e = $e.InnerException }}; if ($e.NativeErrorCode -eq {DECLINED}) {{ exit {DECLINED} }}; [Console]::Error.WriteLine($e.Message); exit 2 }}\n",
+        base64(&inner)
     )
 }
 
@@ -227,6 +257,20 @@ fn server_exe(data: &Path, state: &State) -> PathBuf {
     let name = state.package.as_ref().map_or(DEFAULT_SERVER, |p| p.server.as_str());
     let exe = package::package_dir(data).join(name);
     std::path::absolute(&exe).unwrap_or(exe)
+}
+
+/// The programs whose firewall rules are Commander's: the server, and this Obsidian, which Windows
+/// asks about the first time it listens for wars on the network.
+fn firewall_programs(m: &dyn Machine, data: &Path, state: &State) -> Vec<PathBuf> {
+    let mut all = vec![server_exe(data, state)];
+    if let Some(own) = m.own_exe().filter(|own| !all.contains(own)) {
+        all.push(own);
+    }
+    all
+}
+
+fn count_all(text: &[u8], programs: &[PathBuf]) -> u32 {
+    programs.iter().map(|p| count_rules(text, p)).sum()
 }
 
 /// The war saves, once each.
@@ -294,7 +338,7 @@ fn footprint_on(m: &dyn Machine, data: &Path, saves: Option<&Saves>, game_side: 
         joined: state.wars.iter().filter(|w| w.host == WarHost::Lan).count() as u32,
         saves: saves.and_then(|s| existing_saves(s, &war_saves(&state)).ok()).unwrap_or_default(),
         names_file: game_side.is_some_and(|g| g.join(NAMES_FILE).is_file()),
-        firewall_rules: m.firewall_rules().map_or(0, |t| count_rules(&t, &server_exe(data, &state))),
+        firewall_rules: m.firewall_rules().map_or(0, |t| count_all(&t, &firewall_programs(m, data, &state))),
         bytes: size_of(&dir(data)),
     }
 }
@@ -348,7 +392,7 @@ fn wipe_on(m: &dyn Machine, data: &Path, saves: Option<&Saves>, game_side: Optio
         }
     }
     if firewall {
-        report.firewall = remove_rules(m, &exe);
+        report.firewall = remove_rules(m, &firewall_programs(m, data, &state));
     }
     remove_tree(&dir(data))?;
     if let Some(g) = game_side {
@@ -360,13 +404,15 @@ fn wipe_on(m: &dyn Machine, data: &Path, saves: Option<&Saves>, game_side: Optio
     Ok(report)
 }
 
-fn remove_rules(m: &dyn Machine, exe: &Path) -> FirewallOutcome {
-    let count = || m.firewall_rules().map(|t| count_rules(&t, exe));
+fn remove_rules(m: &dyn Machine, programs: &[PathBuf]) -> FirewallOutcome {
+    let count = || m.firewall_rules().map(|t| count_all(&t, programs));
     let Some(before) = count() else { return FirewallOutcome::Failed { message: "the firewall rules couldn't be read".into() } };
     if before == 0 {
         return FirewallOutcome::None;
     }
-    let ran = m.delete_firewall_rules(exe);
+    // Only the programs that have rules, so netsh has something to delete for each.
+    let with_rules: Vec<PathBuf> = m.firewall_rules().map_or_else(|| programs.to_vec(), |t| programs.iter().filter(|p| count_rules(&t, p) > 0).cloned().collect());
+    let ran = m.delete_firewall_rules(&with_rules);
     if ran == Elevated::Declined {
         return FirewallOutcome::Declined;
     }
@@ -396,11 +442,12 @@ mod tests {
         server_runs: bool,
         deletes: RefCell<Vec<PathBuf>>,
         asked: Cell<u32>,
+        own: Option<PathBuf>,
     }
 
     impl Fake {
         fn new(rules: Option<String>, delete: Elevated) -> Fake {
-            Fake { rules: RefCell::new(rules.map(String::into_bytes)), delete, server_runs: false, deletes: RefCell::new(Vec::new()), asked: Cell::new(0) }
+            Fake { rules: RefCell::new(rules.map(String::into_bytes)), delete, server_runs: false, deletes: RefCell::new(Vec::new()), asked: Cell::new(0), own: None }
         }
     }
 
@@ -409,8 +456,11 @@ mod tests {
             self.asked.set(self.asked.get() + 1);
             self.rules.borrow().clone()
         }
-        fn delete_firewall_rules(&self, program: &Path) -> Elevated {
-            self.deletes.borrow_mut().push(program.to_path_buf());
+        fn own_exe(&self) -> Option<PathBuf> {
+            self.own.clone()
+        }
+        fn delete_firewall_rules(&self, programs: &[PathBuf]) -> Elevated {
+            self.deletes.borrow_mut().extend(programs.iter().cloned());
             if self.delete == Elevated::Done {
                 *self.rules.borrow_mut() = Some(b"\r\nNo rules match the specified criteria.\r\n".to_vec());
             }
@@ -589,13 +639,41 @@ mod tests {
     }
 
     #[test]
-    fn the_admin_script_quotes_the_path_and_encodes_for_powershell() {
+    fn the_admin_script_quotes_each_path_and_travels_encoded() {
         assert_eq!([base64(b""), base64(b"M"), base64(b"Ma"), base64(b"Man"), base64(b"Many")], ["", "TQ==", "TWE=", "TWFu", "TWFueQ=="]);
-        let s = elevated_delete_script(Path::new(r"C:\Users\O'Neil\x\commander-server.exe"));
-        assert!(s.contains(r#"$i.Arguments = 'advfirewall firewall delete rule name=all program="C:\Users\O''Neil\x\commander-server.exe"'"#), "{s}");
-        assert!(s.contains("$i.Verb = 'runas'") && s.contains("exit 1223"));
+        let programs = [PathBuf::from(r"C:\Users\O'Neil\x\commander-server.exe"), PathBuf::from(r"C:\Program Files\Tom & Jerry\Obsidian.exe")];
+        let inner = admin_delete_script(&programs);
+        assert!(inner.contains(r"@('C:\Users\O''Neil\x\commander-server.exe', 'C:\Program Files\Tom & Jerry\Obsidian.exe')"), "{inner}");
         let tool = system_tool("netsh.exe");
         assert!(tool.is_absolute() && tool.ends_with(r"System32\netsh.exe"), "{tool:?}");
-        assert!(s.contains(&format!("$i.FileName = '{}'", tool.display())), "netsh by full path: {s}");
+        assert!(inner.contains(&format!("& '{}' advfirewall firewall delete rule name=all \"program=$p\"", tool.display())), "netsh by full path: {inner}");
+        let s = elevated_delete_script(&programs);
+        assert!(s.contains("$i.Verb = 'runas'") && s.contains("exit 1223"));
+        assert!(s.contains(r"WindowsPowerShell\v1.0\powershell.exe'"), "PowerShell by full path: {s}");
+        let args = s.lines().find(|l| l.starts_with("$i.Arguments")).unwrap();
+        let encoded = args.rsplit(' ').next().unwrap().trim_end_matches('\'');
+        assert!(encoded.len() > 100 && encoded.chars().all(|c| c.is_ascii_alphanumeric() || "+/=".contains(c)), "no path in the command line: {args}");
+    }
+
+    #[test]
+    fn the_rules_of_this_obsidian_go_with_the_ones_of_the_server() {
+        let w = world();
+        let side = played(&w);
+        let server = server_exe(&w.data, &State::load(&w.data));
+        let own = PathBuf::from(r"C:\Program Files\Obsidian Launcher\Obsidian.exe");
+        let rule = |prog: &str| format!("\r\nRule Name: x\r\nProgram:    {prog}\r\n");
+        let rules = rule(&server.display().to_string()) + &rule(r"c:\program files\obsidian launcher\obsidian.exe") + &rule(r"C:\other\obsidian.exe");
+        let fake = Fake { own: Some(own.clone()), ..Fake::new(Some(rules.clone()), Elevated::Done) };
+        assert_eq!(footprint_on(&fake, &w.data, None, None).firewall_rules, 2, "the server and this Obsidian, not another copy");
+        let r = wipe_on(&fake, &w.data, Some(&w.saves()), Some(&side), false, true).unwrap();
+        assert_eq!(r.firewall, FirewallOutcome::Removed { count: 2 });
+        assert_eq!(*fake.deletes.borrow(), vec![server, own.clone()]);
+
+        // Only Obsidian has rules: netsh is asked about that one alone.
+        let w = world();
+        played(&w);
+        let fake = Fake { own: Some(own.clone()), ..Fake::new(Some(rule(r"C:\Program Files\Obsidian Launcher\Obsidian.exe")), Elevated::Done) };
+        assert_eq!(wipe_on(&fake, &w.data, None, None, false, true).unwrap().firewall, FirewallOutcome::Removed { count: 1 });
+        assert_eq!(*fake.deletes.borrow(), vec![own]);
     }
 }
