@@ -1,15 +1,17 @@
-// The Wiki tab: how Obsidian works, the multiplayer guardrails and how to make mods. The list of guides
-// on the left (with a search), the page in the middle, the headings of the page on the right. Ctrl+F finds words on
-// the open page. Pages are Markdown files in src/wiki (see wiki.ts).
+// The Wiki tab, in two subtabs: Launcher (how Obsidian works, playing online, making mods) and Commander
+// (custom Galactic Wars). The list of guides on the left (subtabs, a search, the FAQ and Troubleshooting pinned
+// on top), the page in the middle, the headings of the page on the right. Ctrl+F finds words on the open page.
+// Pages are Markdown files in src/wiki (see wiki.ts).
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type RefObject } from "react";
 import { ChevronIcon, SearchIcon } from "./Icons";
 import { language, t } from "./i18n";
 import { Markdown } from "./Markdown";
 import { go, landed, useNav } from "./nav";
-import { wikiPages } from "./wiki";
+import { WIKI_BOOKS, wikiPages, type WikiBook } from "./wiki";
 
 const WIDTH_KEY = "obsidian.wikiListWidth";
-const FAQ_ID = "faq";
+/** The page last open in each subtab, so switching back returns to it (this run of the app). */
+const lastIn: Partial<Record<WikiBook, string>> = {};
 
 function readWidth(): number | null {
   try {
@@ -23,12 +25,13 @@ function readWidth(): number | null {
 export function WikiPage() {
   const { wiki: id, anchor } = useNav();
   const lang = language();
-  const { pages: all, groups: allGroups } = wikiPages(lang);
-  // The FAQ has an entry above the groups and isn't one of the Previous/Next steps.
-  const steps = all.filter((p) => p.id !== FAQ_ID);
-  const faq = all.find((p) => p.id === FAQ_ID);
-  const page = all.find((p) => p.id === id) ?? steps[0];
+  const { pages: every, books } = wikiPages(lang);
+  const page = every.find((p) => p.id === id) ?? books.launcher.steps[0];
+  const book = page?.book ?? "launcher";
+  // The pinned pages have entries above the groups and aren't Previous/Next steps.
+  const { pages: all, steps, pinned, groups: allGroups } = books[book];
   const index = steps.indexOf(page);
+  useEffect(() => { if (page) lastIn[page.book] = page.id; }, [page]);
   const [query, setQuery] = useState("");
   const [width, setWidth] = useState(readWidth);
   const [at, setAt] = useState("");
@@ -40,10 +43,15 @@ export function WikiPage() {
   const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const hits = (p: (typeof all)[number]) => words.every((w) => `${p.title} ${p.group} ${p.summary} ${p.text}`.toLowerCase().includes(w));
   const groups = useMemo(
-    () => allGroups.map((g) => ({ ...g, pages: g.pages.filter((p) => p.id !== FAQ_ID && hits(p)) })).filter((g) => g.pages.length),
-    [query, lang], // eslint-disable-line react-hooks/exhaustive-deps
+    () => allGroups.map((g) => ({ ...g, pages: g.pages.filter(hits) })).filter((g) => g.pages.length),
+    [query, lang, book], // eslint-disable-line react-hooks/exhaustive-deps
   );
-  const faqFound = !!faq && hits(faq);
+  const pinsFound = pinned.filter(hits);
+  const switchBook = (b: WikiBook) => {
+    if (b === book) return;
+    const back = lastIn[b];
+    go("wiki", back && books[b].pages.some((p) => p.id === back) ? back : books[b].steps[0]?.id);
+  };
 
   // Ctrl+F opens the find bar, with the words selected on the page if there are some.
   useEffect(() => {
@@ -119,23 +127,30 @@ export function WikiPage() {
   return (
     <section className="wiki" aria-label={t("app.nav.wiki")} style={width ? { ["--wiki-w" as string]: `${width}px` } : undefined}>
       <nav className="wiki-nav" aria-label={t("app.wiki.guides")}>
+        <div className="subtabs wiki-books" role="tablist">
+          {WIKI_BOOKS.map((b) => (
+            <button key={b} role="tab" aria-selected={book === b} className={book === b ? "cap cur" : "cap"} data-tip={t(`app.wiki.${b}Tip`)} onClick={() => switchBook(b)}>
+              {t(`app.wiki.${b}`)}
+            </button>
+          ))}
+        </div>
         <div className="search wiki-search">
           <SearchIcon />
           <input type="search" placeholder={t("app.wiki.search")} aria-label={t("app.wiki.search")} value={query} onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Escape") { if (query) setQuery(""); else e.currentTarget.blur(); }
               else if (e.key === "Enter" && groups.length) open(groups[0].pages[0].id);
-              else if (e.key === "Enter" && faqFound) open(FAQ_ID);
+              else if (e.key === "Enter" && pinsFound.length) open(pinsFound[0].id);
             }} />
         </div>
         <div className="wiki-list">
-          {faq && faqFound && (
-            <button className={faq.id === page.id ? "wiki-faq active" : "wiki-faq"} aria-current={faq.id === page.id ? "page" : undefined}
-              onClick={() => open(faq.id)} data-tip={faq.summary}>
-              <span className="wiki-faq-mark" aria-hidden="true">?</span>
-              <b>{faq.title}</b>
+          {pinsFound.map((p) => (
+            <button key={p.id} className={p.id === page.id ? `wiki-faq ${p.pin} active` : `wiki-faq ${p.pin}`} aria-current={p.id === page.id ? "page" : undefined}
+              onClick={() => open(p.id)} data-tip={p.summary}>
+              <span className="wiki-faq-mark" aria-hidden="true">{p.pin === "faq" ? "?" : "!"}</span>
+              <b>{p.title}</b>
             </button>
-          )}
+          ))}
           {groups.map((g) => (
             <div key={g.name} className="wiki-group">
               <h2 className="cap">{g.name}</h2>
@@ -145,7 +160,7 @@ export function WikiPage() {
               ))}
             </div>
           ))}
-          {!groups.length && !faqFound && <p className="empty">{t("app.wiki.noMatch", query)}</p>}
+          {!groups.length && !pinsFound.length && <p className="empty">{t("app.wiki.noMatch", query)}</p>}
         </div>
       </nav>
       <div className="split" role="separator" aria-orientation="vertical" aria-label={t("app.wiki.resize")} onPointerDown={resize}

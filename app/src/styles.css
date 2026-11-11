@@ -955,12 +955,15 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .wiki { height: 100%; display: grid; grid-template-columns: var(--wiki-w, 16rem) 0.6rem minmax(0, 1fr); background: linear-gradient(160deg, var(--p1), var(--p2)); }
 .wiki > .split { cursor: col-resize; }
 .wiki-nav { display: flex; flex-direction: column; min-height: 0; min-width: 0; border-right: 1px solid var(--ln); }
+.wiki-books { margin: 0.45rem 0.6rem 0; }
+.wiki-books button { flex: 1 1 0; }
 .wiki-search { width: auto; margin: 0.5rem 0.6rem 0.3rem; }
 .wiki-list { flex: 1; overflow: auto; padding: 0.2rem 0 1.4rem; }
 .wiki-faq { display: flex; align-items: center; gap: 0.6rem; width: 100%; padding: 0.35rem 0.8rem; background: var(--row); border: 0; border-left: 3px solid transparent; text-align: left; cursor: pointer; color: var(--tx); }
 .wiki-faq:hover { background: color-mix(in srgb, var(--tx) 9%, transparent); }
 .wiki-faq.active { background: color-mix(in srgb, var(--gold) 12%, transparent); border-left-color: var(--gold); }
 .wiki-faq-mark { flex: none; display: grid; place-items: center; width: 1.6rem; height: 1.386rem; background: var(--gold); color: #1b1b1b; font-weight: 800; clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); }
+.wiki-faq + .wiki-faq { margin-top: 2px; }
 .wiki-group { padding-top: 0.45rem; }
 .wiki-group h2 { margin: 0; padding: 0.15rem 0.8rem 0.2rem; font-size: var(--fs-xs); color: var(--goldtx); }
 .wiki-link { display: block; width: 100%; padding: 0.2rem 0.8rem 0.2rem 1.1rem; background: none; border: 0; border-left: 3px solid transparent; text-align: left; font-size: var(--fs-md); color: var(--mu); cursor: pointer; }

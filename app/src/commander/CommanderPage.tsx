@@ -451,7 +451,7 @@ function Intro({ onInstall, onInstallFile, onJoin, leftovers, onWipe }: { onInst
       </div>
       <div className="cmd-cards">
         <div className="cmd-card"><h3>{t("app.commander.cardVanilla")}</h3><p>{t("app.commander.cardVanillaText")}</p></div>
-        <div className="cmd-card later"><h3>{t("app.commander.cardEvolved")}</h3><p>{t("app.commander.cardEvolvedText")}</p></div>
+        {/* Evolved wars are on hold (the user, 2026-11-11): the card comes back with them. */}
         <div className="cmd-card"><h3>{t("app.commander.cardLan")}</h3><p>{t("app.commander.cardLanText")}</p></div>
         <div className="cmd-card"><h3>{t("app.commander.cardSafe")}</h3><p>{t("app.commander.cardSafeText")}</p></div>
       </div>
