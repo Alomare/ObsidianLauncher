@@ -139,6 +139,28 @@ pub async fn commander_fetch(ctx: TauriState<'_, Ctx>) -> CmdResult<CommanderVie
     Ok(view(&ctx, &mut runtime))
 }
 
+/// The firewall state for the COMMANDER tab.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FirewallView {
+    /// Linux, where Obsidian offers to open the LAN ports; Windows asks the player by itself.
+    pub linux: bool,
+    #[serde(flatten)]
+    pub status: commander::firewall::Status,
+}
+
+/// The Linux firewall and the LAN ports. Reading it runs `firewall-cmd`, so it stays off the window's thread.
+#[tauri::command]
+pub async fn commander_firewall(ctx: TauriState<'_, Ctx>) -> CmdResult<FirewallView> {
+    Ok(FirewallView { linux: cfg!(not(windows)), status: commander::firewall::status(&ctx.data) })
+}
+
+/// Opens the LAN ports in the Linux firewall, after the system password prompt.
+#[tauri::command]
+pub async fn commander_firewall_open(ctx: TauriState<'_, Ctx>) -> CmdResult<commander::firewall::Outcome> {
+    Ok(commander::firewall::open(&ctx.data)?)
+}
+
 /// The Steam launch option that runs the game through this Obsidian, so wars play with the window
 /// closed. An AppImage names the AppImage file, not the copy it runs from.
 #[tauri::command]

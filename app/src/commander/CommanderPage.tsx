@@ -16,7 +16,8 @@ import { CheckIcon, CloseIcon, ImportIcon, TrashIcon, UpdateIcon } from "../Icon
 import { notify } from "../notices";
 import type { Snapshot } from "../types";
 import { reloadChoices, useChoices } from "./choices";
-import { PackageIcon, LaunchIcon, ThisPcIcon } from "./icons";
+import { FirewallDialog, useFirewall } from "./firewall";
+import { LaunchIcon, PackageIcon, ThisPcIcon, WallIcon } from "./icons";
 import "./commander.css";
 
 /** What Commander keeps on this PC, for Remove All Commander Data (`commander_footprint`). */
@@ -61,6 +62,8 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
   const [menu, setMenu] = useState<{ x: number; y: number; opener: HTMLElement } | null>(null);
   const [ask, setAsk] = useState<null | "remove" | "wipe">(null);
   const [launchLine, setLaunchLine] = useState<string | null>(null);
+  const { fw, refresh: refreshFirewall, blocked } = useFirewall();
+  const [askFirewall, setAskFirewall] = useState(false);
   const [footprint, setFootprint] = useState<Footprint | null>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const running = snap.game === "running";
@@ -185,7 +188,7 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
   useEffect(() => {
     const on = (e: MessageEvent) => {
       if (!frame.current || e.source !== frame.current.contentWindow || e.origin !== frameOrigin) return;
-      const m = e.data as { type?: unknown; war?: unknown; name?: unknown; model?: unknown; page?: unknown };
+      const m = e.data as { type?: unknown; war?: unknown; name?: unknown; model?: unknown; page?: unknown; open?: unknown };
       if (!m || typeof m.type !== "string") return;
       if (m.type === "commander:ready") { hello(); return; }
       if (m.type === "commander:view") {
@@ -195,6 +198,8 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
         return;
       }
       if (m.type === "commander:official") { official(); return; }
+      // A war opened to LAN: a Linux firewall that shuts the ports gets the offer to open them.
+      if (m.type === "commander:lan") { if (m.open === true && blocked) setAskFirewall(true); return; }
       // A new Evolved war: the host gets the Evolved War Engine mod now, as players who join do on selecting.
       if (m.type === "commander:created") { if (m.model === "evolved" && source?.kind === "local") evolvedEngine(); return; }
       if (m.type !== "commander:play" && m.type !== "commander:select") return;
@@ -209,7 +214,7 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
     };
     window.addEventListener("message", on);
     return () => window.removeEventListener("message", on);
-  }, [frameOrigin, hello, official, select, source, evolvedEngine]);
+  }, [frameOrigin, hello, official, select, source, evolvedEngine, blocked]);
 
 
   const installed_ = (v: CommanderView) => {
@@ -263,8 +268,9 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
     loadFootprint();
     reloadChoices();
     notify("info", r.report.keptSaves.length ? t("app.commander.wipedKept", r.report.keptSaves.length) : t("app.commander.wiped"));
-    const fw = r.report.firewall.kind;
-    if (fw === "declined" || fw === "failed") notify("error", t("app.commander.firewallKept"));
+    const outcome = r.report.firewall.kind;
+    if (outcome === "declined" || outcome === "failed") notify("error", t(fw?.linux ? "app.commander.firewallKeptLinux" : "app.commander.firewallKept"));
+    void refreshFirewall();
   };
 
   const forget = async (war: WarRef) => {
@@ -307,6 +313,7 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
           ] : []),
           { label: t("app.commander.installFile"), icon: <ImportIcon />, run: installFile },
           ...(installed ? [{ label: t("app.commander.launchOption"), icon: <LaunchIcon />, run: showLaunchLine }] : []),
+          ...(blocked ? [{ label: t("app.commander.firewallAllow"), icon: <WallIcon />, run: () => setAskFirewall(true) }] : []),
           "sep",
           ...(installed ? [{ label: t("app.commander.uninstall"), icon: <TrashIcon />, run: () => setAsk("remove") }] : []),
           { label: t("app.commander.wipe"), icon: <TrashIcon />, danger: true, disabled: running, hint: running ? t("app.commander.gameRunning") : undefined, run: () => setAsk("wipe") },
@@ -321,8 +328,9 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
           <code className="cmd-launch-line">{launchLine}</code>
         </Confirm>
       )}
-      {ask === "wipe" && <WipeDialog running={running} onClose={() => setAsk(null)} onDone={wiped} />}
-      {joining && <JoinDialog onClose={() => setJoining(false)} onJoin={(f) => {
+      {askFirewall && fw?.backend && <FirewallDialog backend={fw.backend} onClose={() => setAskFirewall(false)} onDone={() => void refreshFirewall()} />}
+      {ask === "wipe" && <WipeDialog linux={!!fw?.linux} running={running} onClose={() => setAsk(null)} onDone={wiped} />}
+      {joining && <JoinDialog blocked={blocked} onAllow={() => setAskFirewall(true)} onClose={() => setJoining(false)} onJoin={(f) => {
         setJoining(false);
         const war: WarRef = { id: f.war, name: f.name, host: "lan", base: f.base, computer: f.computer, key: f.key };
         const model = f.model === "evolved" ? "evolved" as const : undefined;
@@ -392,7 +400,7 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
 
 /** Remove All Commander Data: lists what Commander keeps here, with the war saves and the firewall
  *  rules as choices, since those are player progress and need Windows permission. */
-function WipeDialog({ running, onClose, onDone }: { running: boolean; onClose: () => void; onDone: (r: { commander: CommanderView; snapshot: Snapshot; report: WipeReport }) => void }) {
+function WipeDialog({ linux, running, onClose, onDone }: { linux: boolean; running: boolean; onClose: () => void; onDone: (r: { commander: CommanderView; snapshot: Snapshot; report: WipeReport }) => void }) {
   const [fp, setFp] = useState<Footprint | null>(null);
   const [saves, setSaves] = useState(true);
   const [firewall, setFirewall] = useState(true);
@@ -432,7 +440,7 @@ function WipeDialog({ running, onClose, onDone }: { running: boolean; onClose: (
             </button>
           )}
           {fp.firewallRules > 0 && (
-            <button role="checkbox" aria-checked={firewall} className="check-line" onClick={() => setFirewall(!firewall)} data-tip={t("app.commander.wipeFirewallHint")}>
+            <button role="checkbox" aria-checked={firewall} className="check-line" onClick={() => setFirewall(!firewall)} data-tip={t(linux ? "app.commander.wipeFirewallHintLinux" : "app.commander.wipeFirewallHint")}>
               <span className={firewall ? "ck on" : "ck"} aria-hidden="true">{firewall && <CheckIcon />}</span>
               {t("app.commander.wipeFirewall", fp.firewallRules)}
             </button>
@@ -503,7 +511,7 @@ function GalaxyArt() {
   );
 }
 
-function JoinDialog({ onClose, onJoin }: { onClose: () => void; onJoin: (f: Found) => void }) {
+function JoinDialog({ blocked, onAllow, onClose, onJoin }: { blocked: boolean; onAllow: () => void; onClose: () => void; onJoin: (f: Found) => void }) {
   const [found, setFound] = useState<Found[] | null>(null);
   const [scanning, setScanning] = useState(false);
   const scan = useCallback(async () => {
@@ -541,7 +549,12 @@ function JoinDialog({ onClose, onJoin }: { onClose: () => void; onJoin: (f: Foun
         <p className="lead">{t("app.commander.joinLead")}</p>
         <div className="cmd-found">
           {scanning && <div className="cmd-found-empty">{t("app.commander.scanning")}</div>}
-          {!scanning && found?.length === 0 && <div className="cmd-found-empty">{t("app.commander.noneFound")}</div>}
+          {!scanning && found?.length === 0 && (
+            <div className="cmd-found-empty">
+              {t("app.commander.noneFound")}
+              {blocked && <> {t("app.commander.firewallJoinHint")} <button className="link" onClick={onAllow}>{t("app.commander.firewallAllow")}</button></>}
+            </div>
+          )}
           {!scanning && found?.map((f) => (
             <div key={`${f.war}@${f.base}`} className="cmd-found-row">
               <div className="cmd-found-text">

@@ -14,6 +14,7 @@
 //! and the loader refuses war mode without one.
 
 pub mod engine;
+pub mod firewall;
 pub mod lan;
 pub mod package;
 pub mod relay;

@@ -37,3 +37,11 @@ export const LaunchIcon = () => (
     <path d="M7 9l3 3-3 3M12.5 15h4.5" />
   </svg>
 );
+
+/** A brick wall: the firewall and the LAN ports. */
+export const WallIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="square" aria-hidden="true">
+    <rect x="3" y="5" width="18" height="14" />
+    <path d="M3 9.7h18M3 14.3h18M9 5v4.7M15 5v4.7M6 9.7v4.6M12 9.7v4.6M18 9.7v4.6M9 14.3V19M15 14.3V19" />
+  </svg>
+);

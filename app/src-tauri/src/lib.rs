@@ -141,6 +141,8 @@ pub fn run() {
             commander::commander_footprint,
             commander::commander_wipe,
             commander::commander_launch_option,
+            commander::commander_firewall,
+            commander::commander_firewall_open,
         ])
         .run(tauri::generate_context!())
         .expect("Obsidian failed to start");

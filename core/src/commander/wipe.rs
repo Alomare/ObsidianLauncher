@@ -88,6 +88,14 @@ trait Machine {
     fn own_exe(&self) -> Option<PathBuf>;
     /// Whether a process with this file name runs.
     fn running(&self, exe: &str) -> bool;
+    /// The LAN port entries Obsidian opened in a Linux firewall, by the record in `data`.
+    fn opened_ports(&self, _data: &Path) -> u32 {
+        0
+    }
+    /// Closes them, with the password prompt.
+    fn close_ports(&self, _data: &Path) -> Elevated {
+        Elevated::Done
+    }
 }
 
 struct Live;
@@ -145,6 +153,20 @@ impl Machine for Live {
 
     fn own_exe(&self) -> Option<PathBuf> {
         std::env::current_exe().ok()
+    }
+
+    #[cfg(not(windows))]
+    fn opened_ports(&self, data: &Path) -> u32 {
+        super::firewall::recorded_entries(data)
+    }
+
+    #[cfg(not(windows))]
+    fn close_ports(&self, data: &Path) -> Elevated {
+        match super::firewall::close(data) {
+            super::firewall::Outcome::Done => Elevated::Done,
+            super::firewall::Outcome::Declined => Elevated::Declined,
+            super::firewall::Outcome::Failed { message } => Elevated::Failed(message),
+        }
     }
 
     fn running(&self, exe: &str) -> bool {
@@ -338,7 +360,7 @@ fn footprint_on(m: &dyn Machine, data: &Path, saves: Option<&Saves>, game_side: 
         joined: state.wars.iter().filter(|w| w.host == WarHost::Lan).count() as u32,
         saves: saves.and_then(|s| existing_saves(s, &war_saves(&state)).ok()).unwrap_or_default(),
         names_file: game_side.is_some_and(|g| g.join(NAMES_FILE).is_file()),
-        firewall_rules: m.firewall_rules().map_or(0, |t| count_all(&t, &firewall_programs(m, data, &state))),
+        firewall_rules: m.firewall_rules().map_or(0, |t| count_all(&t, &firewall_programs(m, data, &state))) + m.opened_ports(data),
         bytes: size_of(&dir(data)),
     }
 }
@@ -392,7 +414,9 @@ fn wipe_on(m: &dyn Machine, data: &Path, saves: Option<&Saves>, game_side: Optio
         }
     }
     if firewall {
-        report.firewall = remove_rules(m, &firewall_programs(m, data, &state));
+        let rules = remove_rules(m, &firewall_programs(m, data, &state));
+        let ports = m.opened_ports(data);
+        report.firewall = if ports == 0 { rules } else { with_ports(rules, ports, m.close_ports(data)) };
     }
     remove_tree(&dir(data))?;
     if let Some(g) = game_side {
@@ -402,6 +426,19 @@ fn wipe_on(m: &dyn Machine, data: &Path, saves: Option<&Saves>, game_side: Optio
         }
     }
     Ok(report)
+}
+
+/// The outcome of the Windows rules joined with closing `ports` LAN port entries in a Linux firewall.
+fn with_ports(rules: FirewallOutcome, ports: u32, closed: Elevated) -> FirewallOutcome {
+    match closed {
+        Elevated::Declined => FirewallOutcome::Declined,
+        Elevated::Failed(message) => FirewallOutcome::Failed { message },
+        Elevated::Done => match rules {
+            FirewallOutcome::NotAsked | FirewallOutcome::None => FirewallOutcome::Removed { count: ports },
+            FirewallOutcome::Removed { count } => FirewallOutcome::Removed { count: count + ports },
+            other => other,
+        },
+    }
 }
 
 fn remove_rules(m: &dyn Machine, programs: &[PathBuf]) -> FirewallOutcome {
@@ -434,6 +471,14 @@ mod tests {
     use crate::commander::{Installed, WarRef, forget, play_war};
     use crate::saves::test_support::{ACCOUNT, World, world};
     use crate::testutil::put;
+
+    #[test]
+    fn linux_ports_join_the_firewall_outcome() {
+        assert_eq!(with_ports(FirewallOutcome::None, 2, Elevated::Done), FirewallOutcome::Removed { count: 2 });
+        assert_eq!(with_ports(FirewallOutcome::Removed { count: 1 }, 2, Elevated::Done), FirewallOutcome::Removed { count: 3 });
+        assert_eq!(with_ports(FirewallOutcome::None, 2, Elevated::Declined), FirewallOutcome::Declined);
+        assert_eq!(with_ports(FirewallOutcome::None, 2, Elevated::Failed("x".into())), FirewallOutcome::Failed { message: "x".into() });
+    }
 
     /// netsh as a fake: the rule text, what deleting them does, and whether the server runs.
     struct Fake {
