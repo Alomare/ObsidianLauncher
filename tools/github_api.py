@@ -54,4 +54,5 @@ def download(rel, names, out):
 
 def publish(repo, rel):
     return call("PATCH", f"/repos/{repo}/releases/{rel['id']}",
-                {"tag_name": rel["tag_name"], "draft": False, "make_latest": "true"})
+                # A prerelease never becomes latest: the updater reads through the latest link.
+                {"tag_name": rel["tag_name"], "draft": False, "make_latest": "false" if rel["prerelease"] else "true"})
