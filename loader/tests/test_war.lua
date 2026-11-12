@@ -39,6 +39,14 @@ local function load_campaign_manager(e)
 	local cm = { sent = {}, feedbacks = 0 }
 	function cm:set_environment() self.url = OFFICIAL end
 	function cm:feedback() self.feedbacks = self.feedbacks + 1 end
+	-- As the game: 60 s after an answer, 10 s after a network error, 600 s after a server error.
+	function cm:update_status_callback(job, code)
+		if code == 200 then
+			self.status, self.update_timer = "online", 60
+		else
+			self.status, self.update_timer = "offline", code < 0 and 10 or 600
+		end
+	end
 	for _, m in ipairs(UPLOADS) do
 		cm[m] = function(self) self.sent[#self.sent + 1] = m end
 	end
@@ -123,6 +131,25 @@ test("a_war_puts_the_url_back_when_something_changes_it", function()
 	e:frames(31)
 	E.eq(cm.url, RELAY)
 	E.has(e:log(), "the war URL was changed and is set back")
+end)
+
+test("a_war_asks_for_its_status_sooner_and_keeps_the_retry_times", function()
+	local e = boot(SANDBOX .. WAR)
+	local cm = load_campaign_manager(e)
+	cm:set_environment()
+	cm:update_status_callback({}, 200)
+	E.eq(cm.update_timer, 5, "a Game Master change shows within seconds")
+	cm:update_status_callback({}, -1)
+	E.eq(cm.update_timer, 10)
+	cm:update_status_callback({}, 503)
+	E.eq(cm.update_timer, 600)
+end)
+
+test("without_a_war_the_status_waits_as_the_game_does", function()
+	local e = boot(SANDBOX)
+	local cm = load_campaign_manager(e)
+	cm:update_status_callback({}, 200)
+	E.eq(cm.update_timer, 60)
 end)
 
 test("a_sandbox_without_a_war_still_blocks_uploads", function()

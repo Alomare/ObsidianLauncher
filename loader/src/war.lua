@@ -9,6 +9,9 @@ local log = require("obsidian/loader/log")
 
 local M = { active = false, confirmed = false, line = nil, names_written = false }
 
+-- Seconds between war status requests after an answer (the game waits 60).
+M.POLL = 5
+
 -- The relay is always on loopback, with the launch token in the path.
 local URL_PATTERN = "^http://127%.0%.0%.1:%d+/[0-9a-f]+/1%.0/$"
 
@@ -134,6 +137,18 @@ function M.setup(core, hooks, game_side)
 			self.url = w.url
 			M.confirmed = true
 			log.line("war: game war requests go to the relay")
+			return ...
+		end
+		return done(original(self, ...))
+	end)
+	-- The game asks for the war status 60 s after each answer, so a Game Master change took up to a
+	-- minute to show. The relay is on this PC: the war asks again sooner. A failure keeps the game's
+	-- own retry times.
+	hooks.loader_hook("CampaignManager", "update_status_callback", function(original, self, ...)
+		local function done(...)
+			if self.status == "online" and B.type(self.update_timer) == "number" and self.update_timer > M.POLL then
+				self.update_timer = M.POLL
+			end
 			return ...
 		end
 		return done(original(self, ...))
