@@ -90,16 +90,15 @@ button.bare:hover { color: var(--tx); }
 @container nav (max-width: 48rem) {
   .nav-warn { font-size: 0; }
   .nav .btn.play { min-width: 0; padding: 0 1.1rem; }
-  .nav .btn.play span { display: none; }
+  .nav .btn.play .play-text { display: none; }
   .nav .btn.icon { width: 2.7rem; }
   .nav-end { gap: 0.4rem; }
   .actions { gap: 0.3rem; }
 }
-/* Guardrails: a shield that fills, with how many of the account's guardrails are on */
+/* Guardrails: a shield that fills while any of the account's guardrails is on */
 .btn.guard { gap: 0.2rem; background: linear-gradient(180deg, #dfe2e5, #9ea4aa); color: #1b1d20; border: 0; }
 .btn.guard svg { width: 26px; height: 26px; stroke-width: 1.9; }
 .btn.guard:hover:not(:disabled) { background: linear-gradient(180deg, #f0f2f4, #b3b9bf); }
-.guard-count { min-width: 0.95rem; height: 0.95rem; display: inline-grid; place-items: center; font-style: normal; font-family: inherit; letter-spacing: 0; font-size: var(--fs-xs); font-weight: 700; color: #eceef0; background: #26282c; border-radius: 0.5rem; }
 .modal.guardrails { width: min(38rem, 94vw); }
 .modal.guardrails .head h2 { margin: 0; font-size: var(--fs-lg); display: flex; align-items: center; gap: 0.5rem; }
 .modal.guardrails .head .close { margin-left: auto; }

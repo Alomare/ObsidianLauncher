@@ -2,7 +2,7 @@
 // Wiki and Settings tabs as icons at the far end. Deploy and Purge are on the Mods tab.
 // When a deploy, a purge or Play starts, one glow in the action's color crosses from Play toward the tabs, and fades out before them.
 import { type ComponentType, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { playingWar, playLabel, playLabelText, reloadChoices, useChoices } from "./commander/choices";
+import { playingWar, playLabel, reloadChoices, useChoices } from "./commander/choices";
 import { CommanderIcon, MenuIcon } from "./commander/icons";
 import { PlayChoice } from "./commander/PlayChoice";
 import { BuildDialog } from "./BuildDialog";
@@ -48,13 +48,14 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
   const war = playingWar(choices);
   const label = playLabel(war?.name ?? null, !!snap?.modded);
   const split = (choices?.wars.length ?? 0) > 0;
+  // Yellow with no mods deployed, green with mods: the color says it, the tooltip says it in words.
+  const tone = snap?.modded ? " modded" : "";
   const playButton = (
-    <button className="btn play" onClick={onPlay} disabled={locked} aria-label={playLabelText(label)} data-tip-title={playLabelText(label)} data-tip={why ?? t("app.action.playHint")}>
+    <button className={`btn play${tone}`} onClick={onPlay} disabled={locked} aria-label={label.text} data-tip-title={label.text} data-tip={why ?? t("app.action.playHint")}>
       <PlayIcon />
       <span className="play-text">
-        <span>{label.before}</span>
+        <span className="play-word">{label.play}</span>
         {label.war && <span className="play-war">{label.war}</span>}
-        {label.after && <span>{label.after}</span>}
       </span>
     </button>
   );
@@ -100,13 +101,12 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
             <button className={guards ? "btn icon guard on" : "btn icon guard"} onClick={() => setGuarding(true)} aria-haspopup="dialog" aria-label={t("app.nav.guardrails")}
               data-tip-title={t("app.guardrails.button", snap.profile)} data-tip={guardrailsSummary(snap)}>
               <ShieldIcon filled={guards > 0} />
-              {guards > 0 && <i className="guard-count" aria-hidden="true">{guards}</i>}
             </button>
           )}
           {split ? (
             <div className="play-split">
               {playButton}
-              <button className="btn play play-more" onClick={() => setChoosing(true)} disabled={!snap || missing} aria-haspopup="dialog" aria-expanded={choosing}
+              <button className={`btn play play-more${tone}`} onClick={() => setChoosing(true)} disabled={!snap || missing} aria-haspopup="dialog" aria-expanded={choosing}
                 aria-label={t("app.play.choose")} data-tip={t("app.play.choose")}>
                 <MenuIcon />
               </button>

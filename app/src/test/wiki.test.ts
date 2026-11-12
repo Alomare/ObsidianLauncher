@@ -25,7 +25,7 @@ describe("wiki", () => {
     }
   });
 
-  it("keeps Evolved wars out of the Commander pages while they are on hold", () => {
+  it("keeps the archived Evolved wars out of the Commander pages", () => {
     for (const p of wikiPages("en").books.commander.pages) expect(p.text, p.id).not.toMatch(/evolved/i);
   });
 

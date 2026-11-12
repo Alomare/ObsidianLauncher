@@ -116,6 +116,9 @@ enum CommanderAction {
         name: String,
         #[arg(long)]
         lan: Option<String>,
+        /// The Sandbox save to play it on (the war's own save when left out)
+        #[arg(long)]
+        save: Option<String>,
     },
     /// Play the official war on the next launch
     Official,
@@ -478,14 +481,14 @@ fn run_commander(action: CommanderAction, data: &std::path::Path, game: impl Fn(
                 std::thread::sleep(std::time::Duration::from_millis(500));
             }
         }
-        CommanderAction::Play { id, name, lan } => {
+        CommanderAction::Play { id, name, lan, save } => {
             let war = match lan {
-                Some(base) => WarRef { id: id.clone(), name, host: WarHost::Lan, base: Some(base.trim_end_matches('/').to_string()), save: None, computer: None, model: None, key: None },
-                None => WarRef { id: id.clone(), name, host: WarHost::Local, base: None, save: None, computer: None, model: None, key: None },
+                Some(base) => commander::with_host_flags(WarRef { id: id.clone(), name, host: WarHost::Lan, base: Some(base.trim_end_matches('/').to_string()), ..Default::default() }),
+                None => WarRef { id: id.clone(), name, host: WarHost::Local, ..Default::default() },
             };
-            commander::play_war(data, &saves()?, war)?;
+            let on = commander::play_war(data, &saves()?, war, save.as_deref())?;
             let s = State::load(data);
-            println!("The next launch plays war {id} on Sandbox save {}.", s.war(&id).and_then(|w| w.save.clone()).unwrap_or_default());
+            println!("The next launch plays war {id} on Sandbox save {on}.");
             if s.war(&id).is_some_and(|w| w.host == WarHost::Local) {
                 println!("Keep `obsidian commander serve` (or the app) running while playing.");
             }

@@ -195,7 +195,7 @@ pub struct Snapshot {
     pub changes: ChangesWaiting,
     /// Whether a purge has anything to remove.
     pub deployed: bool,
-    /// Whether the last deploy put mods in the game, which Play then starts. The Evolved War Engine
+    /// Whether the last deploy put mods in the game, which Play then starts. The Enhanced War Client
     /// mod a war switches on doesn't count: the war needs it.
     pub modded: bool,
     pub game: GameState,
@@ -448,7 +448,7 @@ pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Re
         modded: obsidian_core::deploy::load_state(data)
             .ok()
             .flatten()
-            .is_some_and(|s| !s.incomplete && s.mods.iter().any(|m| m != obsidian_core::commander::EVOLVED_MOD)),
+            .is_some_and(|s| !s.incomplete && s.mods.iter().any(|m| m != obsidian_core::commander::ENHANCED_MOD)),
         game,
         game_changes,
         game_dir: game_install.map(|g| tidy(&g.root)),

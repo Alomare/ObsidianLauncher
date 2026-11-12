@@ -1015,7 +1015,7 @@ mod tests {
         s.activate(&id).unwrap();
         let settings = || std::fs::read_to_string(crate::settings::game_side_dir(&w.game.saves_dir).join(crate::settings::FILE)).unwrap();
         assert!(settings().contains(&format!("sandbox\t{id}\n")));
-        assert!(settings().contains("block_achievements\t1\n"), "forced while a Sandbox is selected");
+        assert!(settings().contains("block_achievements\t0\n"), "the player's own choice: the loader blocks a Sandbox by itself");
         assert_eq!(active_sandbox(&w.data).as_deref(), Some(id.as_str()));
         assert_eq!(s.list().unwrap().active.as_deref(), Some(id.as_str()));
         assert!(matches!(s.delete(&id), Err(ObsidianError::SaveInUse)));

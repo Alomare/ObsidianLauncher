@@ -526,11 +526,11 @@ mod tests {
     }
 
     fn local_war() -> WarRef {
-        WarRef { id: "aaa".into(), name: "Home War".into(), host: WarHost::Local, base: None, save: None, computer: None, model: None, key: None }
+        WarRef { id: "aaa".into(), name: "Home War".into(), host: WarHost::Local, base: None, save: None, computer: None, model: None, key: None, ..Default::default() }
     }
 
     fn lan_war() -> WarRef {
-        WarRef { id: "k3x9q2".into(), name: "Night War".into(), host: WarHost::Lan, base: Some("http://192.168.0.7:17494".into()), save: None, computer: None, model: None, key: None }
+        WarRef { id: "k3x9q2".into(), name: "Night War".into(), host: WarHost::Lan, base: Some("http://192.168.0.7:17494".into()), save: None, computer: None, model: None, key: None, ..Default::default() }
     }
 
     /// A PC that installed Commander, hosts two wars, played a local and a LAN war (the LAN one
@@ -549,8 +549,8 @@ mod tests {
         put(&wars, "broken/feed.jsonl", b"");
         let state = State { package: Some(Installed { version: "0.3.0".into(), protocol: 1, server: DEFAULT_SERVER.into(), ui: "ui".into() }), ..Default::default() };
         state.save(data).unwrap();
-        play_war(data, &s, local_war()).unwrap();
-        play_war(data, &s, lan_war()).unwrap();
+        play_war(data, &s, local_war(), None).unwrap();
+        play_war(data, &s, lan_war(), None).unwrap();
         let side = crate::settings::game_side_dir(&w.game.saves_dir);
         put(&side, NAMES_FILE, b"region_bugs_01\tPolaris\n");
         side

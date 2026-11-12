@@ -31,7 +31,7 @@ local capabilities = {
 	after_startup = true, log = true, hook = true, wrap = true, on_require = true, on_session = true, session = true,
 	settings = true, keybind = true, text = true, on_frame = true, module = true, import = true, menu = true, toast = true, notify = true, storage = true, caller = true,
 	ui = true, scope = true, guardrails = true, info = true, expansion = true, save_data = true,
-	language = true, game_text = true, parts = true,
+	language = true, game_text = true, parts = true, war = true,
 }
 local api = {
 	version = API_VERSION,
@@ -50,6 +50,7 @@ local api = {
 	storage = storage.api(),
 	save_data = save_data.api(),
 	guardrails = guardrails.api(M),
+	war = war.api(M),
 	capabilities = B.setmetatable({}, {
 		__index = capabilities,
 		__newindex = function() B.error("obsidian.capabilities is read-only", 2) end,

@@ -93,6 +93,12 @@ function M.load(core, path)
 			else
 				log.line("settings: the war line is not valid or has no Sandbox, the official war stays")
 			end
+		elseif x[1] == "war_achievements" and #x == 2 and (x[2] == "0" or x[2] == "1") then
+			-- The custom war allows achievements; it counts only with a war line (guardrails.lua).
+			core.war_achievements = x[2] == "1"
+		elseif x[1] == "war_model" and #x == 2 and B.match(x[2], "^[a-z]+$") and #x[2] <= 16 then
+			-- The war model ("enhanced"), for obsidian.war(); it counts only with a war line (war.lua).
+			core.war_model = x[2]
 		elseif x[1] == "option" and #x == 5 then
 			local opt = mods[x[2]] and find(mods[x[2]].options, x[3])
 			local v = nil

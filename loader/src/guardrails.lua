@@ -61,11 +61,18 @@ function M.tick()
 	end
 end
 
+-- Whether this launch plays a custom war that allows achievements: a war line in war mode, with the
+-- war_achievements line. war.setup has dropped a war line it refused by then.
+function M.war_allows(core)
+	return core.war ~= nil and core.war_achievements == true and core.sandbox ~= nil
+end
+
 function M.setup(core, hooks)
 	M.core = core
 	M.held, M.kept, M.told = {}, nil, false
-	-- A Sandbox save never earns achievements. Unlike the guardrail, that needs no notice.
-	local no_achievements = core.block_achievements or core.sandboxed()
+	-- A Sandbox save never earns achievements, unless the custom war played on it allows them. Unlike
+	-- the guardrail, that needs no notice, and the player's own guardrail applies either way.
+	local no_achievements = core.block_achievements or (core.sandboxed() and not M.war_allows(core))
 	if core.freeze_progress then
 		for _, key in B.ipairs(PROGRESS) do M.held[key] = true end
 	elseif no_achievements then

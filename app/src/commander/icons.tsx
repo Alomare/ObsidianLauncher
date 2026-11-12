@@ -1,9 +1,8 @@
 // The Commander icons. The tab icon: three fronts around Super Earth, the shape of the in-game war map.
 export const CommanderIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <circle cx="12" cy="12" r="2.6" />
-    <path d="M5.2 8.1A8 8 0 0 1 10.6 4.1M13.4 4.1a8 8 0 0 1 5.4 4M19.6 10.6a8 8 0 0 1-2.4 7.1M14.6 19.6a8 8 0 0 1-5.2 0M6.8 17.7a8 8 0 0 1-2.4-7.1" />
-    <path d="M7.9 9.6a4.8 4.8 0 0 1 2.6-2.3M13.5 7.3a4.8 4.8 0 0 1 2.6 2.3M16.6 13.1a4.8 4.8 0 0 1-2.1 3.1M9.5 16.2a4.8 4.8 0 0 1-2.1-3.1" />
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="3.2" />
+    <path d="M3.84 7.32A9.6 9.6 0 0 1 10.32 2.52M13.68 2.52A9.6 9.6 0 0 1 20.16 7.32M21.12 10.32A9.6 9.6 0 0 1 18.24 18.84M15.12 21.12A9.6 9.6 0 0 1 8.88 21.12M5.76 18.84A9.6 9.6 0 0 1 2.88 10.32" />
   </svg>
 );
 

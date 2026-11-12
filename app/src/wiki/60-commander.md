@@ -17,7 +17,7 @@ Players who join a war from another PC need Obsidian and nothing else. The Comma
 
 ## Kept apart from the official war
 
-Each custom war plays on a separate Sandbox save, made the first time the war is selected, and in a separate matchmaking pool, so lobbies only pair players of the same war. Mission results go to the war server and nowhere else. The official Galactic War and the Official save never see a custom war, and for the same reason missions played with session mods count in a custom war ([The Galactic War](wiki:galactic-war) explains why they don't count in the official one).
+Each custom war plays on a Sandbox save and in a separate matchmaking pool, so lobbies only pair players of the same war. The Play choice picks the save: any Sandbox, or a new one made for the war the first time it is selected with none picked. A host can keep a war to the Sandbox made for it. Steam achievements stay blocked on a Sandbox unless the host allows them for the war, and the achievements guardrail of the player still applies. Mission results go to the war server and nowhere else. The official Galactic War and the Official save never see a custom war, and for the same reason missions played with session mods count in a custom war ([The Galactic War](wiki:galactic-war) explains why they don't count in the official one).
 
 ## The package
 

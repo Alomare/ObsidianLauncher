@@ -1,7 +1,11 @@
-/* ===== Commander: the row under the war list and the package button ===== */
+/* ===== Commander: the row at the top of the war list and the package button ===== */
 
-/* The row sits at the foot of the screen, under the war list only. */
-.commander.shell > .cmd-bar { border-bottom: 0; border-top: 1px solid var(--ln); }
+/* The row sits at the top of the screen, over the war list only, with a line under it (styles.css). */
+
+/* Import and New War, right of Join: the same height as Join, an icon and a word. */
+.cmd-bar .btn.cmd-tool { height: 2.1rem; padding: 0 0.95rem; gap: 0.45rem; font-size: 0.86rem; min-width: 0; }
+.cmd-bar .btn.cmd-tool svg { width: 1rem; height: 1rem; flex: none; }
+.cmd-bar .btn.cmd-join + .btn.cmd-tool { margin-left: 0.4rem; }
 
 /* A newer package on GitHub: the button turns gold with a diamond, as the Settings tab does for an update. */
 .cmd-pkg.btn.icon { position: relative; }

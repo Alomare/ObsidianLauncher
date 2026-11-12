@@ -75,6 +75,10 @@ These do nothing. The save belongs to the player, so Obsidian holds back none of
 
 What the player chose in **Guardrails** for this launch, as `{ consent, block_achievements, freeze_progress }`, where `consent` is false while the player blocks other players' session mods in a public lobby. A mod can read them, for example to tell the player their account is frozen. Only the player can change them, and the loader enforces them under every mod ([Guardrails](wiki:guardrails)).
 
+### obsidian.war()
+
+The custom war from [Commander](wiki:commander) this launch plays, as `{ id, model }`, where `model` is `"vanilla"` or `"enhanced"`; `nil` on the official war. The companion mod of an Enhanced war reads it to know when to act. Check `obsidian.capabilities.war` first: an older loader has no such call.
+
 ### obsidian.on_session(fn, opts)
 
 Calls `fn(on)` whenever the loader switches this mod on or off, so the mod can undo what other players would see. A mod marked `every_player` also hears when a player who doesn't run it comes or goes. An expansion hears `true` when the content starts and `false` when it ends, in every game in the lobby, and so does a library that only expansions require. With `opts.part`, `fn` hears only the switch of that [part](#parts): a client part never switches off.

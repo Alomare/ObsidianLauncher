@@ -1,11 +1,16 @@
 /* ===== Play: the split button and the Play choice dialog ===== */
 
-/* The label: the war name gives way first, cut short with an ellipsis. */
-.play-text { display: inline-flex; align-items: baseline; min-width: 0; max-width: 26rem; white-space: nowrap; }
-.play-war { display: inline-block; min-width: 0; max-width: 13rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
-/* The spaces around the war name sit at the edges of these parts, which a flex row would drop. */
-.play-text > span:not(.play-war) { flex: none; white-space: pre; }
+/* The label: PLAY bold and big, then the war name of a custom war, thinner and smaller after a gap. The
+   war name gives way first, cut short with an ellipsis. */
+.play-text { display: inline-flex; align-items: baseline; gap: 0.6rem; min-width: 0; max-width: 26rem; white-space: nowrap; }
+.play-word { flex: none; font-weight: 770; text-transform: uppercase; letter-spacing: 0.06em; }
+.play-war { display: inline-block; min-width: 0; max-width: 13rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom;
+  font-size: 0.8em; font-weight: 500; letter-spacing: 0.02em; }
 .nav .btn.play { max-width: 34rem; }
+
+/* Mods deployed: green. No mods: the yellow of every Play button. */
+.nav .btn.play.modded { background: linear-gradient(180deg, #3fcf9c, #239a70); color: #0d1f18; }
+.nav .btn.play.modded:hover:not(:disabled) { background: linear-gradient(180deg, #55dcac, #2bab7e); }
 
 /* One angled container, two segments: Play and the narrow list button, split by a thin line. */
 .play-split { display: flex; align-items: stretch; gap: 3px; height: 2.5rem; min-width: 0; clip-path: polygon(0.42rem 0, calc(100% - 0.42rem) 0, 100% 50%, calc(100% - 0.42rem) 100%, 0.42rem 100%, 0 50%); }
@@ -15,6 +20,7 @@
 .actions .play-split .btn.play-more { min-width: 0; width: 3.3rem; padding: 0 0.42rem 0 0; }
 .actions .play-split .btn.play-more svg { width: 1.15rem; height: 1.15rem; }
 .actions .play-split .btn.play-more[aria-expanded="true"] { background: linear-gradient(180deg, #ffd466, #f0b429); }
+.actions .play-split .btn.play-more.modded[aria-expanded="true"] { background: linear-gradient(180deg, #55dcac, #2bab7e); }
 @container nav (max-width: 48rem) {
   .play-split .play-text { display: none; }
   .actions .play-split .btn.play-more { width: 2.9rem; }
@@ -30,7 +36,6 @@
   box-shadow: inset 0 0 0 var(--gold); transition: background var(--fast), box-shadow var(--fast); }
 .pc-row:hover { background: var(--row); }
 .pc-row.on { background: color-mix(in srgb, var(--gold) 12%, var(--p1)); box-shadow: inset 3px 0 0 var(--gold); }
-.pc-row.fixed { cursor: default; }
 .pc-row:focus-visible { outline-offset: -2px; }
 .pc-mark { flex: none; display: grid; place-items: center; width: 1.05rem; height: 1.05rem; border: 1px solid var(--ln); color: var(--on); }
 .pc-row.on .pc-mark { background: var(--gold); border-color: var(--gold); }

@@ -78,6 +78,28 @@ test("a_war_points_the_game_at_the_relay_and_lets_its_results_through", function
 	E.has(e:log(), "galactic war reporting: to the custom war through the relay")
 end)
 
+test("obsidian_war_names_the_war_and_its_model_and_nothing_else", function()
+	local e = boot(SANDBOX .. WAR .. "war_model\tenhanced\n")
+	local w = e:core().api.war()
+	E.eq(w.id, "k3x9q2")
+	E.eq(w.model, "enhanced")
+	E.eq(w.url, nil, "the relay address stays with the loader")
+	E.eq(e:core().api.capabilities.war, true)
+end)
+
+test("obsidian_war_says_vanilla_without_a_model_line", function()
+	local e = boot(SANDBOX .. WAR)
+	E.eq(e:core().api.war().model, "vanilla")
+end)
+
+test("obsidian_war_is_nil_on_the_official_war", function()
+	local e = boot(WAR .. "war_model\tenhanced\n")
+	E.eq(e:core().api.war(), nil, "a war line without a Sandbox is refused")
+	local e2 = boot(SANDBOX .. "war_model\tEnhanced!\n")
+	E.eq(e2:core().api.war(), nil)
+	E.eq(e2:core().war_model, nil, "a model that isn't a plain word is dropped")
+end)
+
 test("a_war_keeps_its_own_pool", function()
 	boot(SANDBOX .. WAR)
 	E.has(rawget(_G, "BUILD_REVISION_INFORMATION"), "3bd83d77c8ae" .. POOL, "the war's tag after the game hash")

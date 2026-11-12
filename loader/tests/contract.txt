@@ -27,6 +27,7 @@ obsidian.capabilities.storage boolean
 obsidian.capabilities.text boolean
 obsidian.capabilities.toast boolean
 obsidian.capabilities.ui boolean
+obsidian.capabilities.war boolean
 obsidian.capabilities.wrap boolean
 obsidian.expansion table
 obsidian.expansion.running function
@@ -62,6 +63,7 @@ obsidian.text function
 obsidian.toast function
 obsidian.ui table
 obsidian.version number
+obsidian.war function
 obsidian.wrap function
 log: Obsidian Loader, API 1, jit available
 log: settings: no file, defaults used

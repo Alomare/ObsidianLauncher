@@ -87,6 +87,56 @@ test("achievements_off_keeps_trophies_and_their_progress_but_not_the_rest", func
 	E.eq(keys_shown(e):find("progress_frozen"), nil)
 end)
 
+local SANDBOX = "sandbox\tabcd1234\n"
+local WAR = "war\tk3x9q2\thttp://127.0.0.1:40123/0f1e2d3c4b5a69788796a5b4c3d2e1f0/1.0/\ta1b2c3d4e5f6\n"
+
+test("a_sandbox_blocks_achievements_without_turning_the_guardrail_on", function()
+	local e, _, trophies = engine("block_achievements\t0\n" .. SANDBOX)
+	rawget(_G, "UserManager"):unlock_trophy("first")
+	E.eq(#trophies, 0, "a Sandbox never earns one")
+	E.eq(rawget(_G, "obsidian").guardrails().block_achievements, false, "the player's own choice")
+	E.eq(keys_shown(e):find("achievements_blocked"), nil, "no notice for the Sandbox block")
+end)
+
+test("a_custom_war_that_allows_achievements_lifts_the_sandbox_block", function()
+	local e, save, trophies = engine("block_achievements\t0\n" .. SANDBOX .. WAR .. "war_achievements\t1\n")
+	rawget(_G, "UserManager"):unlock_trophy("first")
+	E.eq(trophies[1], "first")
+	rawget(_G, "SaveManager"):user_set("trophy_unlock_progress", { kills = 9 }, "user")
+	E.eq(save.user.trophy_unlock_progress.kills, 9)
+	E.eq(e:core().war_achievements, true)
+end)
+
+test("the_player_guardrail_still_blocks_in_a_war_that_allows_achievements", function()
+	local e, _, trophies = engine("block_achievements\t1\n" .. SANDBOX .. WAR .. "war_achievements\t1\n")
+	rawget(_G, "UserManager"):unlock_trophy("first")
+	E.eq(#trophies, 0)
+	E.eq(keys_shown(e):find("achievements_blocked") ~= nil, true)
+end)
+
+-- One boot per test: each runs in a process of its own.
+local function trophies_with(text)
+	local _, _, trophies = engine(text)
+	rawget(_G, "UserManager"):unlock_trophy("first")
+	return #trophies
+end
+
+test("war_achievements_without_a_war_line_counts_for_nothing", function()
+	E.eq(trophies_with(SANDBOX .. "war_achievements\t1\n"), 0)
+end)
+
+test("a_war_that_does_not_allow_achievements_keeps_the_sandbox_block", function()
+	E.eq(trophies_with(SANDBOX .. WAR .. "war_achievements\t0\n"), 0)
+end)
+
+test("a_war_line_from_an_older_obsidian_keeps_the_sandbox_block", function()
+	E.eq(trophies_with(SANDBOX .. WAR), 0)
+end)
+
+test("a_war_line_without_a_sandbox_changes_nothing", function()
+	E.eq(trophies_with("war_achievements\t1\n" .. WAR), 1, "the official war on the Official save, as usual")
+end)
+
 test("what_a_mod_reads_of_the_guardrails_cant_change_them", function()
 	local e = engine("consent\t1\nfreeze_progress\t1\n")
 	local g = rawget(_G, "obsidian").guardrails()

@@ -136,6 +136,8 @@ pub enum ObsidianError {
     CommanderMissing,
     #[error("no war {0} on this PC")]
     WarUnknown(String),
+    #[error("this war can't be played on that save: {0}")]
+    WarSave(String),
     #[error("the Commander server didn't start: {0}")]
     CommanderServer(String),
     #[error("the Commander server is still running, so stop it first")]

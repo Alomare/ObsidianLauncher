@@ -10,7 +10,7 @@ pin: faq
 
 ### Does a custom war change the official war or the Official save?
 
-No. A custom war plays on a separate Sandbox save, in a separate matchmaking pool, and the mission results only reach the war server ([What Commander is](wiki:commander#kept-apart-from-the-official-war)).
+No. A custom war plays on a Sandbox save, in a separate matchmaking pool, and the mission results only reach the war server ([What Commander is](wiki:commander#kept-apart-from-the-official-war)).
 
 ### Do mods work in a custom war?
 

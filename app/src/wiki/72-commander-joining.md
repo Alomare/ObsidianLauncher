@@ -17,6 +17,6 @@ Joining selects the war for the next **Play**, and the war gets a tab in the row
 
 ## Playing a joined war
 
-A joined war plays like a hosted one ([Playing a war](wiki:commander-playing)): a separate Sandbox save on this PC, a separate matchmaking pool, and Obsidian open while playing. The host PC has to be on with Obsidian open, or the game shows the war as offline.
+A joined war plays like a hosted one ([Playing a war](wiki:commander-playing)): a Sandbox save on this PC, a separate matchmaking pool, and Obsidian open while playing. The host PC has to be on with Obsidian open, or the game shows the war as offline.
 
 When the host makes a **New Code**, the old code stops working and the war shows as offline. Join again with the new code: the war keeps the same save.

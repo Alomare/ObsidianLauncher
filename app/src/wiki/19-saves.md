@@ -41,7 +41,7 @@ Sandbox saves can't move the official war. While a Sandbox is active:
 - Achievements are blocked.
 - Sandbox players only see and join other Sandbox lobbies, and the multiplayer terminal says **Sandbox Public** above the lobby list. Friends are included: a player on a Sandbox and a friend on an Official save can't join each other, and the refused invite says so.
 
-Official saves can join anything, as always ([Playing online](wiki:multiplayer)). A custom war from Commander plays on a separate Sandbox made for that war, in a separate pool.
+Official saves can join anything, as always ([Playing online](wiki:multiplayer)). A custom war from Commander plays on a Sandbox save, in a separate pool: any Sandbox, or the one made for the war when none is picked or the host keeps the war to it.
 
 ## The save editor {#the-save-editor}
 
