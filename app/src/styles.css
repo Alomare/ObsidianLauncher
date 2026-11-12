@@ -192,6 +192,8 @@ button.nav-warn:hover { filter: brightness(1.2); text-decoration: underline; tex
 
 /* Notices */
 .notices { position: fixed; right: 0.9rem; bottom: 2.4rem; display: flex; flex-direction: column; gap: 0.5rem; z-index: 50; max-width: 28rem; }
+/* WebKitGTK paints the shadow of an empty fixed box as a black square at the top left corner. */
+.notices:empty { filter: none; }
 .notice { display: flex; align-items: center; gap: 0.7rem; padding: 0.5rem 0.75rem; background: linear-gradient(160deg, var(--n1), var(--n2)); border-left: 3px solid var(--gold); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3); font-size: var(--fs-md); animation: rise var(--pop) ease-out; }
 .notice.error { border-left-color: var(--warn); }
 .notice span { flex: 1; }
