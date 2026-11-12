@@ -52,6 +52,6 @@ Obsidian 是 HELLDIVERS（2015）的模组管理器。你把模组放进模组�
 
 | 内容 | 位置 |
 |---|---|
-| 模组库、配置、应用设置 | `%LOCALAPPDATA%\ObsidianModManager`，便携版则在程序旁的 `data\` |
-| 游戏读取的选项和按键、日志 | `%APPDATA%\Arrowhead\Helldivers\ObsidianModManager` |
+| 模组库、配置、应用设置 | `%LOCALAPPDATA%\ObsidianLauncher`，便携版则在程序旁的 `data\` |
+| 游戏读取的选项和按键、日志 | `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher` |
 | 存档备份 | 应用数据文件夹中的 `backups` 文件夹 |

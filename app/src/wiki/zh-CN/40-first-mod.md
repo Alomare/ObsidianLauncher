@@ -58,7 +58,7 @@ end)
 1. 把文件夹拖到[模组](app:mods)标签页的模组列表上。
 2. 启用模组并点击 **部署**。
 3. 启动游戏，然后关闭。
-4. 打开 `%APPDATA%\Arrowhead\Helldivers\ObsidianModManager\logs`。`yournamehello-helldiver.log` 中有你写的两行，`loader.log` 显示模组正在启动。模组日志以模组 id 命名，只保留字母、数字、`_` 和 `-`。
+4. 打开 `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher\logs`。`yournamehello-helldiver.log` 中有你写的两行，`loader.log` 显示模组正在启动。模组日志以模组 id 命名，只保留字母、数字、`_` 和 `-`。
 
 要修改模组，编辑文件后重新导入文件夹即可：相同 id 的模组会替换旧副本。分享新版本时请提高 `version`。
 

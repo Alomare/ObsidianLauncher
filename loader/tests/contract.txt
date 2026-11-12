@@ -4,11 +4,13 @@ obsidian.capabilities table
 obsidian.capabilities.after_startup boolean
 obsidian.capabilities.caller boolean
 obsidian.capabilities.expansion boolean
+obsidian.capabilities.game_text boolean
 obsidian.capabilities.guardrails boolean
 obsidian.capabilities.hook boolean
 obsidian.capabilities.import boolean
 obsidian.capabilities.info boolean
 obsidian.capabilities.keybind boolean
+obsidian.capabilities.language boolean
 obsidian.capabilities.log boolean
 obsidian.capabilities.menu boolean
 obsidian.capabilities.module boolean
@@ -16,6 +18,8 @@ obsidian.capabilities.notify boolean
 obsidian.capabilities.on_frame boolean
 obsidian.capabilities.on_require boolean
 obsidian.capabilities.on_session boolean
+obsidian.capabilities.parts boolean
+obsidian.capabilities.save_data boolean
 obsidian.capabilities.scope boolean
 obsidian.capabilities.session boolean
 obsidian.capabilities.settings boolean
@@ -28,11 +32,13 @@ obsidian.expansion table
 obsidian.expansion.running function
 obsidian.expansion.start function
 obsidian.expansion.stop function
+obsidian.game_text function
 obsidian.guardrails function
 obsidian.hook function
 obsidian.import function
 obsidian.info function
 obsidian.keybind function
+obsidian.language function
 obsidian.log function
 obsidian.menu table
 obsidian.module function
@@ -40,6 +46,7 @@ obsidian.notify function
 obsidian.on_frame function
 obsidian.on_require function
 obsidian.on_session function
+obsidian.save_data table
 obsidian.scope function
 obsidian.session table
 obsidian.session.cleared function

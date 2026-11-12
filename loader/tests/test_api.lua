@@ -97,6 +97,47 @@ test("a_session_that_stops_being_cleared_takes_every_change_away_and_gives_it_ba
 	E.eq(game.rifle.weapon_info.power, 500, "edit back")
 end)
 
+test("in_a_lobby_that_isnt_cleared_settings_and_shots_keep_going_and_shared_work_waits", function()
+	local lobby = { my_id = "me", members = { "me" }, data = {} }
+	local api, game, e = start({ lobby = lobby })
+	api.effects.set("infinite_ammo", true)
+	e:frames(31)
+	lobby.members = { "me", "stranger" }
+	e:frames(31)
+	E.eq(game.components.firearm.infinite_ammo, false, "effects pause")
+
+	-- The pause menu's Mod Settings keeps saving another mod's change.
+	local core = e:core()
+	local own = core.current
+	core.current = { id = "dev.hud", mod = { options = {} } }
+	local page = api.mod_settings.page("Better HUD")
+	page:number("scale", { label = "Scale", min = 0.5, max = 2, step = 0.5, default = 1 })
+	E.eq(page:set("scale", 1.5), true)
+	core.current = own
+	e:frames(1)
+	E.eq(rawget(_G, "obsidian").storage.get("mod_settings/dev.hud/scale"), 1.5, "saved from the frame")
+
+	-- A shot finishes and gives the screen back.
+	local capture, finished = api.capture, false
+	capture.pending = { opts = {}, frames = 2, done = function() finished = true end, run = function(fn, ...) return pcall(fn, ...) end }
+	capture.hold_screen(true, {})
+	e:frames(3)
+	E.eq(finished, true, "the shot finished")
+	E.eq(capture.busy(), false)
+	E.eq(capture.hidden, false, "the screen came back")
+
+	-- Work that can change the shared game waits for a cleared session, effects included.
+	local ran = false
+	api.game.after(1, function() ran = true end)
+	e:frames(31)
+	E.eq(ran, false)
+	E.eq(game.components.firearm.infinite_ammo, false)
+	lobby.members = { "me" }
+	e:frames(33)
+	E.eq(ran, true)
+	E.eq(game.components.firearm.infinite_ammo, true)
+end)
+
 test("an_edit_reaches_upgraded_weapons_and_undoes_exactly", function()
 	local api, game = start()
 	local base, upgraded = game.rifle.weapon_info, game.rifle_upgraded.weapon_info
@@ -111,6 +152,22 @@ test("an_edit_reaches_upgraded_weapons_and_undoes_exactly", function()
 	E.eq(base.power, 75)
 	E.eq(upgraded.power, 75)
 	E.eq(api.edits.count(), 0)
+end)
+
+test("an_edit_leaves_a_mods_variant_past_the_game_levels_alone", function()
+	local api, game = start()
+	-- The rifle's one bitmask upgrade gives the game masks 1 and 2; 8 is a mod's own.
+	local own = { weapon_info = { power = 9, firerate = 99, magazine_capacity = 3, attributes = { custom = true } } }
+	local variants = rawget(_G, "LuaSettingsManager").unit_path_to_modified_settings["equipment/rifle"]
+	variants[8] = own
+	E.eq(api.edits.set_unit("equipment/rifle", "weapon_info.power", 200), true)
+	E.eq(game.rifle_upgraded.weapon_info.power, 200, "the game's own clone follows")
+	E.eq(own.weapon_info.power, 9, "the mod's stays")
+	E.eq(own.weapon_info.attributes.custom, true)
+	E.eq(own.melee_info, nil, "nothing of the base merged in")
+	api.edits.revert_all()
+	E.eq(own.weapon_info.power, 9)
+	variants[8] = nil
 end)
 
 test("an_edit_is_recorded_with_the_mod_that_made_it", function()
@@ -1000,7 +1057,27 @@ test("events_stop_when_the_session_stops_being_cleared", function()
 	lobby.members = { "me", "stranger" }
 	e:frames(31)
 	game.state.event_delegate:trigger("on_enemy_spawned", "bug", "name")
-	E.eq(count, 1, "the delegate isn't gated by the loader")
+	E.eq(count, 1, "a session listener waits for a cleared lobby")
+end)
+
+test("a_client_mod_hears_events_where_the_api_waits_for_a_cleared_lobby", function()
+	local lobby = { my_id = "me", members = { "me" }, data = {} }
+	local api, game, e = start({ lobby = lobby })
+	-- The API runs for session mods here; one listener comes from a client mod (Custom Crosshair, say).
+	e:core().current = { id = "test.client", mod = { id = "test.client", scope = "client" } }
+	local heard, waited = 0, 0
+	api.events.on("on_enemy_killed", function() heard = heard + 1 end)
+	e:core().current = e:core().mods_by_id["obsidian.api"]
+	api.events.on("on_enemy_killed", function() waited = waited + 1 end)
+	lobby.members = { "me", "stranger" }
+	e:frames(31)
+	E.eq(rawget(_G, "obsidian").session.cleared(), false)
+	-- A new mission in the lobby that isn't cleared: a new delegate to join.
+	game.state.event_delegate = G.delegate()
+	e:frames(2)
+	game.state.event_delegate:trigger("on_enemy_killed", "bug", "bullet", "player")
+	E.eq(heard, 1, "the client mod hears it")
+	E.eq(waited, 0, "the session listener waits")
 end)
 
 test("as_a_client_mod_it_refuses_what_changes_the_game", function()
@@ -2415,6 +2492,118 @@ test("a_shot_lands_on_the_nearest_hit_and_can_pass_through_helldivers", function
 	rawget(_G, "PhysicsWorld").immediate_raycast = function() return {} end
 	E.eq(select(2, api.world.shoot({ x = 0, y = 0 }, { x = 5, y = 0 })), "no_target")
 	E.eq(select(2, api.world.shoot({ x = 0, y = 0 }, { x = 5, y = 0 }, { range = 500 })), "out_of_range")
+end)
+
+-- A spawner that answers a missile with the homing and explosive components, this machine's, as the game's does.
+local function launching(game)
+	local lsm = rawget(_G, "LuaSettingsManager")
+	local get = lsm.get_settings_by_unit_path
+	lsm.get_settings_by_unit_path = function(self, p)
+		if p == "gameobjects/gameobject_airsupport_missile" then return { homing_info = { start_velocity = 15, start_velocity_random_amount = 0 } } end
+		return get(self, p)
+	end
+	rawget(_G, "Quaternion").look = function(dir, up) return { look = dir, up = up } end
+	local fired = {}
+	game.state.entity_spawner.spawn_entity = function(_, path, pos, rotation, _, setup)
+		local missile = { alive = true, owned = true, master = { homing = {}, explosive = {} }, slave = {}, pos = pos }
+		fired[#fired + 1] = { path = path, pos = pos, rotation = rotation, setup = setup, unit = missile }
+		return missile
+	end
+	return fired
+end
+
+local function commands_on(game, unit)
+	local out = {}
+	for _, c in ipairs(game.commands) do
+		if c.unit == unit then out[#out + 1] = c end
+	end
+	return out
+end
+
+test("a_projectile_flies_as_the_games_own_missile_with_the_thrower_as_owner", function()
+	local api, game = start()
+	local fired = launching(game)
+	local friend = { alive = true, master = {}, slave = {} }
+	local unit = api.world.projectile("air_support_missile", { x = 1, y = 2, z = 30 }, { direction = { x = 0, y = 0, z = -2 }, speed = 20, owner = friend })
+	E.eq(unit, fired[1].unit, "answers the missile")
+	E.eq(fired[1].path, "gameobjects/gameobject_airsupport_missile")
+	E.eq(fired[1].pos.z, 30, "a real vector at the start")
+	E.eq(fired[1].setup.owner_unit, friend, "the kills count for the owner given")
+	E.eq(fired[1].rotation.look.z, 1, "faces against the flight, as the launchers do")
+	E.eq(fired[1].rotation.up.y, 1, "straight down has the world's forward for up")
+	local sent = commands_on(game, unit)
+	E.eq(#sent, 2, "two commands, both ones the components know")
+	E.eq(sent[1].component .. " " .. sent[1].command, "homing set_velocity")
+	E.eq(sent[1].data.z, -20, "the direction, made a unit long, times the speed")
+	E.eq(sent[1].data.x, 0)
+	E.eq(sent[2].component .. " " .. sent[2].command, "explosive arm")
+	-- Left out: straight down at the missile's own launch speed, as this player's.
+	unit = api.world.projectile("air_support_missile", { x = 0, y = 0, z = 25 })
+	E.eq(fired[2].setup.owner_unit, game.me, "this player's by default")
+	E.eq(commands_on(game, unit)[1].data.z, -15, "the settings' start speed")
+	-- false, or a unit that's gone, is nobody's.
+	api.world.projectile("air_support_missile", { x = 0, y = 0, z = 25 }, { owner = false })
+	E.eq(fired[3].setup.owner_unit, nil, "nobody's")
+	api.world.projectile("air_support_missile", { x = 0, y = 0, z = 25 }, { owner = { alive = false } })
+	E.eq(fired[4].setup.owner_unit, nil, "a dead thrower's is nobody's")
+	-- A sideways direction keeps the usual up.
+	api.world.projectile("launcher_missile", { x = 0, y = 0, z = 1 }, { direction = { x = 1, y = 0, z = 0 } })
+	E.eq(fired[5].path, "gameobjects/gameobject_homing_missile_01")
+	E.eq(fired[5].rotation.up.z, 1)
+	E.eq(type(api.world.PROJECTILES), "table", "the list is there for mods to read")
+end)
+
+test("a_projectile_can_be_handed_a_target_only_if_the_target_is_alive", function()
+	local api, game = start()
+	launching(game)
+	local enemy = { alive = true, master = { health = {} }, slave = { health = { is_dead = false } } }
+	local unit = api.world.projectile("air_support_missile", { x = 0, y = 0, z = 25 }, { target = enemy })
+	local sent = commands_on(game, unit)
+	E.eq(#sent, 3, "velocity, target, arm")
+	E.eq(sent[2].component .. " " .. sent[2].command, "homing set_target_unit")
+	E.eq(sent[2].data, enemy)
+	-- Gone, dead, or without health: the missile looks for one itself.
+	for _, bad in ipairs({ { alive = false, master = {}, slave = {} }, { alive = true, master = { health = {} }, slave = { health = { is_dead = true } } }, { alive = true, master = {}, slave = {} } }) do
+		unit = api.world.projectile("air_support_missile", { x = 0, y = 0, z = 25 }, { target = bad })
+		E.eq(#commands_on(game, unit), 2, "no target command")
+	end
+end)
+
+test("a_projectile_refuses_what_could_stop_the_game", function()
+	local api, game = start()
+	local fired = launching(game)
+	E.eq(select(2, api.world.projectile("gameobjects/gameobject_airsupport_missile", { x = 0, y = 0, z = 0 })), "bad_value", "names, not any path")
+	E.eq(select(2, api.world.projectile("nuke", { x = 0, y = 0, z = 0 })), "bad_value")
+	E.eq(select(2, api.world.projectile(5, { x = 0, y = 0, z = 0 })), "bad_type")
+	E.eq(select(2, api.world.projectile("air_support_missile", nil)), "bad_type")
+	E.eq(select(2, api.world.projectile("air_support_missile", { x = 0, y = 0 }, { direction = { x = 0, y = 0, z = 0 } })), "bad_value", "no direction")
+	E.eq(select(2, api.world.projectile("air_support_missile", { x = 0, y = 0 }, { direction = { x = 0 / 0, y = 0, z = 1 } })), "bad_type")
+	E.eq(select(2, api.world.projectile("air_support_missile", { x = 0, y = 0 }, { speed = 0 })), "out_of_range")
+	E.eq(select(2, api.world.projectile("air_support_missile", { x = 0, y = 0 }, { speed = 500 })), "out_of_range")
+	E.eq(#fired, 0, "nothing spawned")
+	-- A spawn that gives nothing back sends no command.
+	game.state.entity_spawner.spawn_entity = function() return nil end
+	E.eq(select(2, api.world.projectile("air_support_missile", { x = 0, y = 0, z = 0 })), "not_available")
+	-- A unit without the components gets no command for them.
+	local bare = { alive = true, owned = true, master = {}, slave = {} }
+	game.state.entity_spawner.spawn_entity = function() return bare end
+	E.eq(api.world.projectile("air_support_missile", { x = 0, y = 0, z = 0 }), bare)
+	E.eq(#commands_on(game, bare), 0)
+	game.state.entity_spawner = nil
+	E.eq(select(2, api.world.projectile("air_support_missile", { x = 0, y = 0, z = 0 })), "not_in_mission")
+end)
+
+test("a_projectile_needs_a_session_mod_and_a_cleared_lobby", function()
+	local client = start({ scope = "client" })
+	local ok, why = client.world.projectile("air_support_missile", { x = 0, y = 0, z = 25 })
+	E.eq(ok, false)
+	E.eq(why, "needs_session")
+	local api, game, e = start({ lobby = { my_id = "me", members = { "me", "stranger" }, data = {} } })
+	local fired = launching(game)
+	e:frames(31)
+	ok, why = api.world.projectile("air_support_missile", { x = 0, y = 0, z = 25 })
+	E.eq(why, "not_cleared")
+	E.eq(#fired, 0)
 end)
 
 test("a_hit_from_a_mod_goes_as_a_weapons_does", function()
@@ -4349,13 +4538,13 @@ test("an_unlock_from_a_mod_is_kept_by_the_library_and_never_in_the_save", functi
 	core.current = { id = "dev.remix", mod = { options = {} } }
 	E.eq(api.stratagems.unlock("test_manual"), true)
 	core.current = own
-	local storage = rawget(_G, "obsidian").storage
-	E.eq(storage.get("stratagem_unlocks"), nil, "not yet: the running mod's storage isn't the library's")
+	local store = rawget(_G, "obsidian").save_data
+	E.eq(store.get("stratagem_unlocks"), nil, "not yet: the running mod's save data isn't the library's")
 	e:frames(1)
-	E.eq(storage.get("stratagem_unlocks"), "test_manual", "kept from the library's frame")
+	E.eq(store.get("stratagem_unlocks"), "test_manual", "kept from the library's frame")
 	for _, name in ipairs(game.save.user.item_unlocks) do E.eq(name ~= "test_manual", true, "the save is left alone") end
 	E.eq(api.stratagems.lock("test_manual"), true)
-	E.eq(storage.get("stratagem_unlocks"), "", "the library's own call is kept at once")
+	E.eq(store.get("stratagem_unlocks"), "", "the library's own call is kept at once")
 	E.eq(api.catalog.unlocked("test_manual"), false)
 end)
 
@@ -5985,6 +6174,1845 @@ test("operate_tells_the_interactor_the_terminal_when_the_game_offers_nothing", f
 	E.eq(c and c.data.interactable_unit, term, "then the interactor is told")
 	E.eq(c.data.interactable_component, "objective_interact_object")
 	E.eq(c.data.interactable_actor, "panel")
+end)
+
+-- Hiding the game's stratagems.
+local function hide_world(e)
+	local s = rawget(_G, "LoadoutSettings")
+	s.default_loadout.stratagems = { "stratagem_reinforce", "stratagem_resupply", "stratagem_mortar" }
+	s.default_loadouts = { { stratagems = { "stratagem_reinforce", "stratagem_resupply" } }, { stratagems = { "stratagem_mortar" } } }
+	local function item(name) return { name = name } end
+	local function group(...)
+		local items = {}
+		for i, name in ipairs({ ... }) do items[i] = item(name) end
+		return { name = "g", items = items }
+	end
+	rawset(_G, "MenuScreenArmoryUnlocks", { on_enter = function(self)
+		self.available_items = { stratagems = { groups = { group("stratagem_resupply", "stratagem_mortar"), group("stratagem_resupply"), group("stratagem_jumppack") } } }
+	end })
+	local seen
+	rawset(_G, "MenuScreenLoadout", { setup_loadout = function(self, slot)
+		seen = rawget(_G, "SaveManager"):user_get("loadouts")
+		self.parent.players[slot].available_items = { stratagems = { groups = {
+			{ name = "stratagem_resupply", item_index = 1, items = { item("stratagem_resupply") } },
+			{ name = "stratagem_mortar", item_index = 1, items = { item("stratagem_mortar") } },
+			{ name = "stratagem_jumppack", item_index = 1, items = { item("stratagem_jumppack") } } } } }
+	end })
+	rawset(_G, "InventoryComponent", { set_loadout = function(self, unit, state) state.stratagems = { { id = 1 }, { id = 5 }, { id = 6 } } end })
+	hooked(e)
+	return function() return seen end
+end
+
+test("a_hidden_stratagem_leaves_the_arsenal_and_the_loadout_screen_and_comes_back", function()
+	local api, game, e = start()
+	wire_world(game)
+	hide_world(e)
+	E.eq(api.stratagems.is_hidden("stratagem_resupply"), false)
+	E.eq(api.stratagems.hide("stratagem_resupply"), true)
+	E.eq(api.stratagems.is_hidden("stratagem_resupply"), true)
+	local arsenal = {}
+	rawget(_G, "MenuScreenArmoryUnlocks").on_enter(arsenal, {})
+	local g = arsenal.available_items.stratagems.groups
+	E.eq(#g, 2, "a group left empty goes")
+	E.eq(joined(g[1].items), "stratagem_mortar")
+	E.eq(joined(g[2].items), "stratagem_jumppack")
+	local screen = { parent = { players = { {}, {} } } }
+	rawget(_G, "MenuScreenLoadout").setup_loadout(screen, 2)
+	local groups = screen.parent.players[2].available_items.stratagems.groups
+	E.eq(#groups, 2)
+	E.eq(groups[1].name, "stratagem_mortar")
+	local inv = {}
+	rawget(_G, "InventoryComponent").set_loadout({}, "unit", inv)
+	E.eq(#inv.stratagems, 2, "not in the mission inventory")
+	E.eq(inv.stratagems[1].id, 5)
+	E.eq(api.stratagems.unhide("stratagem_resupply"), true)
+	E.eq(api.stratagems.is_hidden("stratagem_resupply"), false)
+	rawget(_G, "MenuScreenArmoryUnlocks").on_enter(arsenal, {})
+	E.eq(#arsenal.available_items.stratagems.groups, 3)
+end)
+
+test("a_hidden_stratagem_is_replaced_in_the_default_loadouts_and_unhide_puts_it_back", function()
+	local api, game, e = start()
+	wire_world(game)
+	hide_world(e)
+	local s = rawget(_G, "LoadoutSettings")
+	E.eq(api.stratagems.hide("stratagem_resupply", { replace = "stratagem_jumppack" }), true)
+	E.eq(table.concat(s.default_loadout.stratagems, ","), "stratagem_reinforce,stratagem_jumppack,stratagem_mortar")
+	E.eq(table.concat(s.default_loadouts[1].stratagems, ","), "stratagem_reinforce,stratagem_jumppack")
+	E.eq(table.concat(s.default_loadouts[2].stratagems, ","), "stratagem_mortar", "a loadout without it is left alone")
+	api.stratagems.unhide("stratagem_resupply")
+	E.eq(table.concat(s.default_loadout.stratagems, ","), "stratagem_reinforce,stratagem_resupply,stratagem_mortar")
+	E.eq(table.concat(s.default_loadouts[1].stratagems, ","), "stratagem_reinforce,stratagem_resupply")
+	-- No replacement given: another one the loadout doesn't hold.
+	E.eq(api.stratagems.hide("stratagem_resupply"), true)
+	local list = s.default_loadout.stratagems
+	E.eq(#list, 3)
+	E.eq(list[1], "stratagem_reinforce")
+	E.eq(list[3], "stratagem_mortar")
+	E.eq(list[2] ~= "stratagem_resupply" and list[2] ~= "stratagem_reinforce" and list[2] ~= "stratagem_mortar", true, "a new one: " .. tostring(list[2]))
+	api.stratagems.unhide("stratagem_resupply")
+	E.eq(list[2], "stratagem_resupply")
+end)
+
+test("a_saved_loadout_that_holds_a_hidden_stratagem_swaps_that_entry_only", function()
+	local api, game, e = start()
+	wire_world(game)
+	local seen = hide_world(e)
+	game.save.user.loadouts = { { perk = "p", stratagems = { "stratagem_reinforce", "stratagem_resupply", "stratagem_mortar" } } }
+	game.save.user.loadout = { stratagems = { "stratagem_resupply" } }
+	E.eq(api.stratagems.hide("stratagem_resupply", { replace = "stratagem_jumppack" }), true)
+	rawget(_G, "MenuScreenLoadout").setup_loadout({ parent = { players = { { pad_number = 1 } } } }, 1)
+	E.eq(table.concat(seen()[1].stratagems, ","), "stratagem_reinforce,stratagem_jumppack,stratagem_mortar", "before the screen checks it")
+	E.eq(seen()[1].perk, "p", "the rest is kept")
+	local out = rawget(_G, "Boot").ensure_loadout(1, { stratagems = { "stratagem_resupply", "stratagem_mortar" } })
+	E.eq(out.stratagems[1], "stratagem_jumppack")
+end)
+
+test("hiding_is_checked_and_a_client_mod_cant", function()
+	local api, game, e = start()
+	wire_world(game)
+	hide_world(e)
+	E.eq(select(2, api.stratagems.hide("stratagem_nothing")), "not_available")
+	E.eq(select(2, api.stratagems.hide("stratagem_resupply", { replace = "stratagem_nothing" })), "not_available")
+	E.eq(select(2, api.stratagems.hide("stratagem_reinforce")), "static")
+	E.eq(select(2, api.stratagems.hide(5)), "bad_type")
+	local client = start({ scope = "client" })
+	E.eq(select(2, client.stratagems.hide("stratagem_resupply")), "needs_session")
+	E.eq(select(2, client.stratagems.unhide("stratagem_resupply")), "needs_session")
+end)
+
+test("a_session_that_stops_being_cleared_gives_hidden_stratagems_back_and_takes_them_again", function()
+	local lobby = { my_id = "me", members = { "me" }, data = {} }
+	local api, game, e = start({ lobby = lobby })
+	wire_world(game)
+	hide_world(e)
+	local s = rawget(_G, "LoadoutSettings")
+	api.stratagems.hide("stratagem_resupply", { replace = "stratagem_jumppack" })
+	e:frames(31)
+	lobby.members = { "me", "stranger" }
+	e:frames(31)
+	E.eq(s.default_loadout.stratagems[2], "stratagem_resupply", "default back")
+	local arsenal = {}
+	rawget(_G, "MenuScreenArmoryUnlocks").on_enter(arsenal, {})
+	E.eq(#arsenal.available_items.stratagems.groups, 3, "listed again")
+	E.eq(select(2, api.stratagems.hide("stratagem_mortar")), "not_cleared")
+	lobby.members = { "me" }
+	e:frames(31)
+	e:frames(2)
+	E.eq(s.default_loadout.stratagems[2], "stratagem_jumppack")
+end)
+
+-- Carried stratagems, shared cooldowns and codes two stratagems have.
+local function carry_world(game, e)
+	wire_world(game)
+	local s = rawget(_G, "LoadoutSettings")
+	s.stratagems[1].combo = { "down", "down", "up", "right" }
+	s.get_upgraded_stratagem = function(id, n)
+		local base = s.stratagems[id]
+		if not n or n == 0 then return base end
+		local out = {}
+		for k, v in pairs(base) do out[k] = v end
+		for i = 1, n do
+			for k, v in pairs(base.upgrades[i] or {}) do out[k] = v end
+		end
+		out.level = n
+		return out
+	end
+	-- As the game's: the slots a loadout names, then the commands that copy entries to other machines
+	-- and start a cooldown.
+	rawset(_G, "InventoryComponent", {
+		set_loadout = function(self, unit, ctx, from)
+			ctx.state.stratagems = { { id = 4, cooldown_timer = 0 }, { id = 1, cooldown_timer = 0 }, { id = 5, cooldown_timer = 0 } }
+			ctx.state.item_upgrades = { stratagem_resupply = 2 }
+		end,
+		command_slave = function(self, unit, ctx, name, data)
+			if name ~= "stratagem_cooldown" then return end
+			local list = ctx.state.stratagems
+			list[data.index] = list[data.index] or {}
+			local entry = list[data.index]
+			entry.id, entry.cooldown_timer, entry.upgrade_value = data.stratagem_id, data.cooldown_timer, data.upgrade_value
+			entry.loadout_info = s.get_upgraded_stratagem(data.stratagem_id, data.upgrade_value)
+		end,
+		command_master = function(self, unit, ctx, name, data)
+			if name == "stratagems" then
+				for i, from in ipairs(data) do
+					ctx.state.stratagems[i] = ctx.state.stratagems[i] or {}
+					for k, v in pairs(from) do ctx.state.stratagems[i][k] = v end
+				end
+				return
+			end
+			if name ~= "throw_stratagem" then return end
+			for _, entry in ipairs(ctx.state.stratagems) do
+				if entry.id == data then entry.cooldown_timer = s.stratagems[data].cooldown_time end
+			end
+		end,
+	})
+	rawset(_G, "ProvinggroundsConditions", { remove_blacklisted_strats = function(list) return list end })
+	hooked(e)
+	return s
+end
+
+local SQUAD = { name = "test_squad", base = "stratagem_resupply", title = "Squad Supply", type = "special", unlock = "manual" }
+
+test("a_carried_stratagem_goes_right_after_the_always_present_ones_at_the_level_of_its_base", function()
+	local api, game, e = start()
+	carry_world(game, e)
+	local made = api.stratagems.define(SQUAD)
+	E.eq(api.stratagems.is_carried("test_squad"), false)
+	E.eq(api.stratagems.carry("test_squad", { upgrade = "base" }), true)
+	E.eq(api.stratagems.is_carried("test_squad"), true)
+	local IC = rawget(_G, "InventoryComponent")
+	local ctx = { state = {} }
+	IC.set_loadout({}, "unit", ctx, { pad_number = 0 })
+	local list = ctx.state.stratagems
+	E.eq(#list, 4, "one more")
+	E.eq(list[1].id, 4, "Reinforce, always present")
+	E.eq(list[2].id, made.id, "beside it, so the HUD lists them together")
+	E.eq(list[3].id, 1, "then the loadout's slots")
+	E.eq(list[4].id, 5)
+	E.eq(list[2].cooldown_timer, 0)
+	E.eq(list[2].upgrade_value, 2, "the Mk3 the player bought of the base")
+	E.eq(list[2].loadout_info.level, 2)
+	E.eq(ctx.state.item_upgrades.test_squad, 2, "where the call-in reads it")
+	-- The tutorial's and the game's fixed loadouts get nothing.
+	local fixed = { state = {} }
+	IC.set_loadout({}, "unit", fixed, nil, { stratagems = {} })
+	E.eq(#fixed.state.stratagems, 3)
+	-- A level of its own, within the stratagem's.
+	api.stratagems.carry("test_squad", { upgrade = 9 })
+	IC.set_loadout({}, "unit", ctx, { pad_number = 0 })
+	E.eq(ctx.state.stratagems[2].upgrade_value, 3)
+	api.stratagems.carry("test_squad")
+	IC.set_loadout({}, "unit", ctx, { pad_number = 0 })
+	E.eq(ctx.state.stratagems[2].upgrade_value, 0, "the player's own purchase: none")
+	E.eq(api.stratagems.uncarry("test_squad"), true)
+	IC.set_loadout({}, "unit", ctx, { pad_number = 0 })
+	E.eq(#ctx.state.stratagems, 3)
+	E.eq(api.stratagems.uncarry("test_squad"), true, "twice is fine")
+end)
+
+test("a_carried_stratagem_the_loadout_holds_isnt_added_twice_and_a_hidden_one_goes_first", function()
+	local api, game, e = start()
+	carry_world(game, e)
+	local made = api.stratagems.define(SQUAD)
+	E.eq(api.stratagems.carry("stratagem_mortar"), true, "one of the game's")
+	E.eq(api.stratagems.hide("stratagem_resupply"), true)
+	E.eq(api.stratagems.carry("test_squad", { upgrade = "base" }), true)
+	local ctx = { state = {} }
+	rawget(_G, "InventoryComponent").set_loadout({}, "unit", ctx, { pad_number = 0 })
+	local list = ctx.state.stratagems
+	E.eq(#list, 3, "Resupply out, the mortar once, the carried one in")
+	E.eq(list[1].id, 4)
+	E.eq(list[2].id, made.id)
+	E.eq(list[3].id, 5)
+end)
+
+test("a_respawn_copying_an_old_list_without_the_carried_entry_keeps_every_entry_in_place", function()
+	local api, game, e = start()
+	carry_world(game, e)
+	local made = api.stratagems.define(SQUAD)
+	api.stratagems.carry("test_squad")
+	local IC = rawget(_G, "InventoryComponent")
+	local ctx = { state = {} }
+	IC.set_loadout({}, "unit", ctx, { pad_number = 0 })
+	-- The player spawned before it was carried: the old list hasn't got it.
+	local old = { { id = 4, cooldown_timer = 0 }, { id = 1, cooldown_timer = 50 }, { id = 5, cooldown_timer = 20 } }
+	IC.command_master({}, "unit", ctx, "stratagems", old)
+	local list = ctx.state.stratagems
+	E.eq(#list, 4)
+	E.eq(list[2].id, made.id, "kept")
+	E.eq(list[3].id, 1) E.eq(list[3].cooldown_timer, 50, "each old time on the right entry")
+	E.eq(list[4].id, 5) E.eq(list[4].cooldown_timer, 20)
+	E.eq(#old, 3, "the dead player's list is left alone")
+	-- An old list with it is copied as it is.
+	IC.set_loadout({}, "unit", ctx, { pad_number = 0 })
+	IC.command_master({}, "unit", ctx, "stratagems", { { id = 4, cooldown_timer = 0 }, { id = made.id, cooldown_timer = 30 }, { id = 1, cooldown_timer = 0 }, { id = 5, cooldown_timer = 0 } })
+	E.eq(ctx.state.stratagems[2].cooldown_timer, 30)
+	E.eq(#ctx.state.stratagems, 4)
+end)
+
+test("carrying_is_checked_and_a_client_mod_cant", function()
+	local api, game, e = start()
+	carry_world(game, e)
+	E.eq(select(2, api.stratagems.carry("stratagem_nothing")), "not_available")
+	E.eq(select(2, api.stratagems.carry("stratagem_reinforce")), "static")
+	E.eq(select(2, api.stratagems.carry("stratagem_mortar", { upgrade = "mk2" })), "bad_type")
+	E.eq(select(2, api.stratagems.carry(5)), "bad_type")
+	E.eq(select(2, api.stratagems.share_cooldown("stratagem_nothing")), "not_available")
+	local client = start({ scope = "client" })
+	E.eq(select(2, client.stratagems.carry("stratagem_resupply")), "needs_session")
+	E.eq(select(2, client.stratagems.share_cooldown("stratagem_resupply")), "needs_session")
+end)
+
+test("a_stratagem_still_pending_can_be_carried", function()
+	local api, game, e = start()
+	wire_world(game)
+	local ready = no_list_yet()
+	E.eq(api.stratagems.define(SQUAD).pending, true)
+	E.eq(api.stratagems.carry("test_squad", { upgrade = "base" }), true, "nothing to check it against yet")
+	E.eq(api.stratagems.share_cooldown("test_squad"), true)
+	ready()
+	e:frames(1)
+	E.eq(api.stratagems.is_carried("test_squad"), true)
+end)
+
+test("a_carried_custom_stratagem_leaves_the_menus_and_saved_loadouts", function()
+	local api, game, e = start()
+	rawset(_G, "MenuScreenArmoryUnlocks", { on_enter = function(self)
+		self.available_items = { stratagems = { groups = { { name = "g", items = { { name = "stratagem_resupply" }, { name = "test_squad" } } } } } }
+	end })
+	local seen
+	rawset(_G, "MenuScreenLoadout", { setup_loadout = function(self, slot)
+		seen = rawget(_G, "SaveManager"):user_get("loadouts")
+	end })
+	carry_world(game, e)
+	api.stratagems.define(SQUAD)
+	game.save.user.loadouts = { { stratagems = { "stratagem_reinforce", "test_squad", "stratagem_mortar" } } }
+	local arsenal = {}
+	rawget(_G, "MenuScreenArmoryUnlocks").on_enter(arsenal, {})
+	E.eq(#arsenal.available_items.stratagems.groups[1].items, 2, "listed while not carried")
+	E.eq(api.stratagems.carry("test_squad"), true)
+	rawget(_G, "MenuScreenArmoryUnlocks").on_enter(arsenal, {})
+	local items = arsenal.available_items.stratagems.groups[1].items
+	E.eq(#items, 1)
+	E.eq(items[1].name, "stratagem_resupply")
+	rawget(_G, "MenuScreenLoadout").setup_loadout({ parent = { players = { { pad_number = 1 } } } }, 1)
+	local saved = seen[1].stratagems
+	E.eq(saved[1], "stratagem_reinforce")
+	E.eq(saved[2] ~= "test_squad", true, "another one in that slot: " .. tostring(saved[2]))
+	E.eq(saved[3], "stratagem_mortar")
+end)
+
+test("another_players_carried_entry_shows_as_the_custom_stratagem", function()
+	local api, game, e = start()
+	carry_world(game, e)
+	local made = api.stratagems.define(SQUAD)
+	api.stratagems.carry("test_squad", { upgrade = "base" })
+	local IC = rawget(_G, "InventoryComponent")
+	local slave = { state = { stratagems = {} } }
+	local function rpc(index, id, time)
+		IC.command_slave({}, "remote", slave, "stratagem_cooldown", { index = index, stratagem_id = id, upgrade_value = 0, cooldown_timer = time or 0 })
+	end
+	local list = slave.state.stratagems
+	-- Reinforce, the carried one (which arrives as the base), a mortar, then the standard Resupply in a slot.
+	rpc(1, 4) rpc(2, 1)
+	E.eq(list[2].id, made.id, "known as soon as it comes")
+	E.eq(list[2].loadout_info.name, "test_squad", "the custom icon and words")
+	rpc(3, 5) rpc(4, 1)
+	E.eq(list[4].id, 1, "the slot's Resupply")
+	E.eq(list[4].loadout_info.name, "stratagem_resupply")
+	E.eq(list[2].id, made.id)
+	rpc(4, 1, 30)
+	E.eq(list[4].id, 1, "a later message keeps them apart")
+	rpc(2, 1, 30)
+	E.eq(list[2].id, made.id)
+	api.stratagems.uncarry("test_squad")
+	rpc(2, 1, 20)
+	E.eq(list[2].id, 1, "the base again once nothing is carried")
+end)
+
+test("the_proving_grounds_draw_no_hidden_carried_or_locked_stratagem", function()
+	local api, game, e = start()
+	carry_world(game, e)
+	api.stratagems.define(SQUAD)
+	api.stratagems.define({ name = "test_locked", base = "stratagem_mortar", title = "Locked", unlock = "manual" })
+	api.stratagems.define({ name = "test_open", base = "stratagem_mortar", title = "Open", unlock = "free" })
+	api.stratagems.hide("stratagem_resupply")
+	api.stratagems.carry("test_squad")
+	local pool = rawget(_G, "ProvinggroundsConditions").remove_blacklisted_strats({ "stratagem_resupply", "test_squad", "test_locked", "test_open", "stratagem_mortar" })
+	E.eq(table.concat(pool, ","), "test_open,stratagem_mortar")
+end)
+
+test("a_code_two_stratagems_have_calls_the_one_the_player_holds", function()
+	local api, game, e = start()
+	carry_world(game, e)
+	local made = api.stratagems.define(SQUAD)
+	E.eq(made ~= nil, true, "the base's code is no reason to refuse one")
+	local queue = { "down", "down", "up", "right" }
+	game.masters.character = { [game.me] = { state = { stratagems_queue = queue } } }
+	local inv = game.me.master.inventory
+	local function first() return 1 end
+	inv.stratagems = { { id = 4, cooldown_timer = 0 }, { id = made.id, cooldown_timer = 0 } }
+	E.eq(api.stratagems.find(first, queue), made.id, "the game's first is Resupply, which the player hasn't got")
+	inv.stratagems = { { id = 1, cooldown_timer = 0 }, { id = made.id, cooldown_timer = 0 } }
+	E.eq(api.stratagems.find(first, queue), 1, "both held and ready: the game's answer")
+	inv.stratagems = { { id = 1, cooldown_timer = 50 }, { id = made.id, cooldown_timer = 0 } }
+	E.eq(api.stratagems.find(first, queue), made.id, "the one that's ready")
+	E.eq(api.stratagems.find(first, { "down", "down", "up", "right" }), 1, "another player's queue: the game's answer")
+	inv.stratagems = { { id = 1, cooldown_timer = 0 } }
+	E.eq(api.stratagems.find(function() return 5 end, { "up" }), 5, "a code only one has")
+end)
+
+-- A unit of this machine with one entry, as the inventory's master state.
+local function local_player(game, id, time)
+	local u = { alive = true, owned = true, master = { inventory = { stratagems = { { id = id, cooldown_timer = time or 0 } } } }, slave = {} }
+	game.masters.inventory = game.masters.inventory or {}
+	game.masters.inventory[u] = { state = u.master.inventory }
+	return u
+end
+
+local function commands_for(game, u, command)
+	local out = {}
+	for _, c in ipairs(game.commands) do
+		if c.unit == u and c.component == "inventory" and c.command == command then out[#out + 1] = c end
+	end
+	return out
+end
+
+test("a_throw_here_sets_the_squad_cooldown_on_every_player_of_this_machine", function()
+	local api, game, e = start()
+	carry_world(game, e)
+	local made = api.stratagems.define(SQUAD)
+	E.eq(api.stratagems.share_cooldown("test_squad"), true)
+	E.eq(api.stratagems.is_shared("test_squad"), true)
+	local p1, p2 = local_player(game, made.id), local_player(game, made.id)
+	local other = local_player(game, 5)
+	e:frames(1)
+	game.commands = {}
+	rawget(_G, "InventoryComponent").command_master({}, p1, game.masters.inventory[p1], "throw_stratagem", made.id)
+	E.eq(p1.master.inventory.stratagems[1].cooldown_timer, 120)
+	e:frames(1)
+	local set = commands_for(game, p2, "set_stratagem_info")
+	E.eq(#set, 1, "the other player here")
+	E.eq(set[1].data.id, made.id)
+	E.eq(set[1].data.cooldown_timer, 120)
+	E.eq(#commands_for(game, p2, "broadcast_stratagem_cooldown"), 1, "and the other machines hear it")
+	E.eq(#commands_for(game, p1, "set_stratagem_info"), 0, "the thrower has it already")
+	E.eq(#commands_for(game, other, "set_stratagem_info"), 0, "a player without it")
+	no_tampering(game)
+	api.stratagems.unshare_cooldown("test_squad")
+	E.eq(api.stratagems.is_shared("test_squad"), false)
+	game.commands = {}
+	rawget(_G, "InventoryComponent").command_master({}, p2, game.masters.inventory[p2], "throw_stratagem", made.id)
+	e:frames(1)
+	E.eq(#commands_for(game, p1, "set_stratagem_info"), 0, "each player's own again")
+end)
+
+test("a_throw_on_another_machine_reaches_this_machines_players_once", function()
+	local api, game, e = start()
+	carry_world(game, e)
+	local made = api.stratagems.define(SQUAD)
+	api.stratagems.share_cooldown("test_squad")
+	local me = local_player(game, made.id)
+	-- This player has been here a while, so only a throw changes the time.
+	e:frames(400)
+	local remote = { alive = true, owned = false, master = {}, slave = { inventory = { stratagems = { { id = made.id, cooldown_timer = 0 } } } } }
+	game.slaves.inventory = { [remote] = { state = remote.slave.inventory } }
+	local theirs = remote.slave.inventory.stratagems[1]
+	e:frames(2)
+	theirs.cooldown_timer = 118
+	e:frames(2)
+	E.eq(#commands_for(game, me, "set_stratagem_info"), 0, "a new entry may be a respawn copying old times in")
+	theirs.cooldown_timer = 0
+	e:frames(260)
+	theirs.cooldown_timer = 119.5
+	e:frames(2)
+	local set = commands_for(game, me, "set_stratagem_info")
+	E.eq(#set, 1)
+	E.eq(set[1].data.cooldown_timer, 119.5)
+	E.eq(#commands_for(game, me, "broadcast_stratagem_cooldown"), 1)
+	-- The game runs it: this player's entry is long now, and another machine's catch-up sends nothing back.
+	me.master.inventory.stratagems[1].cooldown_timer = 119
+	local friend = { alive = true, owned = false, master = {}, slave = { inventory = { stratagems = { { id = made.id, cooldown_timer = 0 } } } } }
+	game.slaves.inventory[friend] = { state = friend.slave.inventory }
+	e:frames(260)
+	game.commands = {}
+	friend.slave.inventory.stratagems[1].cooldown_timer = 118.5
+	e:frames(2)
+	E.eq(#commands_for(game, me, "set_stratagem_info"), 0, "no echo")
+	-- A cooldown running down is no throw.
+	theirs.cooldown_timer = 60
+	e:frames(2)
+	E.eq(#commands_for(game, me, "set_stratagem_info"), 0)
+end)
+
+test("a_lobby_that_isnt_cleared_carries_and_shares_nothing", function()
+	local lobby = { my_id = "me", members = { "me" }, data = {} }
+	local api, game, e = start({ lobby = lobby })
+	carry_world(game, e)
+	local made = api.stratagems.define(SQUAD)
+	api.stratagems.carry("test_squad")
+	api.stratagems.share_cooldown("test_squad")
+	local p1, p2 = local_player(game, made.id), local_player(game, made.id)
+	e:frames(31)
+	lobby.members = { "me", "stranger" }
+	e:frames(31)
+	local ctx = { state = {} }
+	rawget(_G, "InventoryComponent").set_loadout({}, "unit", ctx, { pad_number = 0 })
+	E.eq(#ctx.state.stratagems, 3)
+	game.commands = {}
+	rawget(_G, "InventoryComponent").command_master({}, p1, game.masters.inventory[p1], "throw_stratagem", made.id)
+	e:frames(2)
+	E.eq(#commands_for(game, p2, "set_stratagem_info"), 0)
+	E.eq(select(2, api.stratagems.carry("stratagem_mortar")), "not_cleared")
+end)
+
+test("the_loadout_screen_offers_no_hidden_or_carried_stratagem_in_the_lists_it_reads", function()
+	local api, game, e = start()
+	-- As the game's: each player's lists go in option_menus[slot], not on the player's record.
+	rawset(_G, "MenuScreenLoadout", { setup_loadout = function(self, slot)
+		self.option_menus[slot] = { available_items = { stratagems = { groups = {
+			{ name = "stratagem_resupply", item_index = 1, items = { { name = "stratagem_resupply" } } },
+			{ name = "test_squad", item_index = 1, items = { { name = "test_squad" } } },
+			{ name = "stratagem_mortar", item_index = 1, items = { { name = "stratagem_mortar" } } } } } } }
+	end })
+	carry_world(game, e)
+	api.stratagems.define(SQUAD)
+	api.stratagems.hide("stratagem_resupply")
+	api.stratagems.carry("test_squad")
+	local screen = { option_menus = {}, parent = { players = { { pad_number = 0 }, { pad_number = 1 } } } }
+	rawget(_G, "MenuScreenLoadout").setup_loadout(screen, 2)
+	local groups = screen.option_menus[2].available_items.stratagems.groups
+	E.eq(#groups, 1)
+	E.eq(groups[1].name, "stratagem_mortar")
+	E.eq(screen.parent.players[2].available_items, nil, "the player's record is left alone")
+end)
+
+test("a_player_joining_during_a_mission_takes_the_squads_remaining_cooldown", function()
+	local api, game, e = start()
+	carry_world(game, e)
+	local made = api.stratagems.define(SQUAD)
+	api.stratagems.share_cooldown("test_squad")
+	local p1 = local_player(game, made.id, 0)
+	e:frames(400)
+	-- p1 threw a while ago and is half done.
+	p1.master.inventory.stratagems[1].cooldown_timer = 60
+	e:frames(2)
+	game.commands = {}
+	-- A second player on this machine joins with it ready.
+	local p2 = local_player(game, made.id, 0)
+	e:frames(1)
+	local set = commands_for(game, p2, "set_stratagem_info")
+	E.eq(#set, 1, "at once")
+	E.eq(set[1].data.cooldown_timer, 60)
+	E.eq(#commands_for(game, p2, "broadcast_stratagem_cooldown"), 1)
+	E.eq(#commands_for(game, p1, "set_stratagem_info"), 0)
+	e:frames(1)
+	E.eq(#commands_for(game, p2, "set_stratagem_info"), 1, "once, while the game takes the command")
+	-- After a while a new entry's time is the owner's: only a throw changes it.
+	p2.master.inventory.stratagems[1].cooldown_timer = 0
+	e:frames(400)
+	E.eq(#commands_for(game, p2, "set_stratagem_info"), 1)
+	no_tampering(game)
+end)
+
+test("a_player_joining_another_machine_takes_the_time_this_machines_players_show_there", function()
+	local api, game, e = start()
+	carry_world(game, e)
+	local made = api.stratagems.define(SQUAD)
+	api.stratagems.share_cooldown("test_squad")
+	-- This machine has just joined: the player here is new, and so are the others as it sees them.
+	local me = local_player(game, made.id, 0)
+	local remote = { alive = true, owned = false, master = {}, slave = { inventory = { stratagems = { { id = made.id, cooldown_timer = 95 } } } } }
+	game.slaves.inventory = { [remote] = { state = remote.slave.inventory } }
+	e:frames(1)
+	local set = commands_for(game, me, "set_stratagem_info")
+	E.eq(#set, 1, "no wait for a throw")
+	E.eq(set[1].data.cooldown_timer, 95)
+end)
+
+test("a_new_entry_already_as_long_as_the_squads_is_left_alone", function()
+	local api, game, e = start()
+	carry_world(game, e)
+	local made = api.stratagems.define(SQUAD)
+	api.stratagems.share_cooldown("test_squad")
+	local remote = { alive = true, owned = false, master = {}, slave = { inventory = { stratagems = { { id = made.id, cooldown_timer = 95 } } } } }
+	game.slaves.inventory = { [remote] = { state = remote.slave.inventory } }
+	local me = local_player(game, made.id, 94)
+	e:frames(3)
+	E.eq(#commands_for(game, me, "set_stratagem_info"), 0)
+	local fresh = local_player(game, made.id, 0)
+	remote.slave.inventory.stratagems[1].cooldown_timer = 0
+	e:frames(1)
+	E.eq(commands_for(game, fresh, "set_stratagem_info")[1].data.cooldown_timer, 94, "the longest known: this machine's own player")
+end)
+
+-- Guests and the parts a squad of them needs (Obsidian API 1.41.0).
+-- What a player who runs Obsidian and agrees to mods shares, so the session stays cleared.
+local CONSENT = "1;aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;1"
+local function body_health(u, hp)
+	local h = { hitpoints = hp or 100, max_hitpoints = 100, constitution = -100, is_dead = false, is_downed = false }
+	u.master.health, u.slave.health = h, h
+	return h
+end
+
+test("a_client_makes_bare_bots_and_free_pads_counts_what_is_left", function()
+	local api, game, e = start({ host = false })
+	bot_world(game, e)
+	E.eq(select(2, api.bots.add()), "host_only", "a player bot still joins through the host")
+	E.eq(api.bots.free_pads(), 3, "pads 2 to 4: 0 is the keyboard and 1 a controller")
+	local a = api.bots.add({ bare = true, name = "A" })
+	E.eq(a.kind, "bare")
+	E.eq(api.bots.free_pads(), 2)
+	local g = api.bots.add({ guest = true, require_pad = true })
+	E.eq(g.kind, "bare", "a guest is a bare bot")
+	E.eq(g:guest(), true)
+	E.eq(a:guest(), false)
+	E.eq(api.bots.add({ bare = true, require_pad = true }).kind, "bare")
+	E.eq(api.bots.free_pads(), 0)
+	E.eq(select(2, api.bots.add({ bare = true, require_pad = true })), "no_pad")
+	E.eq(#api.bots.all(), 3, "nothing added for the refusal")
+	E.eq(select(2, api.bots.add({ bare = true, on_death = 5 })), "bad_type")
+	api.bots.remove_all()
+	local ui = game.ui
+	ui.state = "menu"
+	E.eq(api.bots.free_pads(), 0, "off a mission")
+end)
+
+test("a_bot_wears_a_look_takes_a_health_and_its_corpse_is_told_once_and_decays", function()
+	local api, game, e = start()
+	local st = bot_world(game, e)
+	local decays = {}
+	st.decay_manager = { decay = function(_, u, delay, duration) decays[#decays + 1] = { unit = u, delay = delay, duration = duration } end }
+	rawset(_G, "CustomizationSettings", { helmet = { {}, {}, {}, {} }, body = { {}, {}, {}, {} }, cape = { {}, {} }, gender = { {}, {} } })
+	E.eq(select(2, api.bots.add({ bare = true, look = { helmet = 9 } })), "bad_value", "past the list")
+	E.eq(select(2, api.bots.add({ bare = true, look = { body = 1.5 } })), "bad_value")
+	local told = 0
+	local bot = api.bots.add({ bare = true, name = "SEAF 1", look = { helmet = 4, body = 4, cape = 2, gender = 1, color = { x = 1, y = 2, z = 3, w = 4 } },
+		on_death = function(b) told = told + 1 E.eq(b.name, "SEAF 1") end })
+	local u = game.bare
+	local h = body_health(u)
+	local dress = G.command(game, "customization", "set_customization")
+	E.eq(dress.unit, u)
+	E.eq(dress.data.helmet, 4) E.eq(dress.data.body, 4) E.eq(dress.data.cape, 2) E.eq(dress.data.gender, 1)
+	local colors = commands_of(game, "set_silhouette_color")
+	E.eq(colors[#colors].data.z, 3, "the outline asked for, after the game's own")
+	E.eq(bot:set_look({ cape = 1 }), true)
+	local again = commands_of(game, "set_customization")
+	E.eq(again[#again].data.cape, 1)
+	E.eq(again[#again].data.helmet, nil, "a field left out stays")
+	E.eq(select(2, bot:set_look({ gender = 3 })), "bad_value")
+	E.eq(bot:set_health(0.4), true)
+	local hp = commands_of(game, "set_hitpoints")
+	E.eq(hp[#hp].data, 40)
+	E.eq(select(2, bot:set_health(0)), "out_of_range")
+	E.eq(select(2, bot:set_health(1.5)), "out_of_range")
+	E.eq(bot:alive(), true) E.eq(bot:dead(), false)
+	game.step(1)
+	E.eq(told, 0)
+	h.is_dead = true
+	E.eq(bot:alive(), false, "a corpse isn't alive")
+	E.eq(bot:dead(), true)
+	E.eq(select(2, bot:set_health(0.5)), "no_avatar", "a corpse")
+	game.step(3)
+	E.eq(told, 1, "once")
+	local before = #commands_of(game, "set_hitpoints")
+	E.eq(bot:remove({ decay = 5 }), true)
+	E.eq(#decays, 1) E.eq(decays[1].unit, u) E.eq(decays[1].delay, 5)
+	E.eq(#commands_of(game, "set_hitpoints"), before, "a corpse needs no kill")
+	E.eq(#api.bots.all(), 0)
+	-- A living bot goes the way the game drops a player: decay, then killed.
+	local live = api.bots.add({ bare = true })
+	local lu = game.bare
+	body_health(lu)
+	game.step(1)
+	live:remove({ decay = 2 })
+	E.eq(decays[2].unit, lu)
+	local kill = commands_of(game, "set_hitpoints")
+	E.eq(kill[#kill].unit, lu)
+	E.eq(kill[#kill].data <= -100, true)
+	E.eq(lu.master.input.input_data.is_active, false, "the input at rest")
+	-- Without decay, the body goes at once as before.
+	local plain = api.bots.add({ bare = true })
+	plain:remove()
+	E.eq(#decays, 2)
+	no_tampering(game)
+end)
+
+test("guests_are_shared_drawn_on_other_machines_and_left_out_of_the_lost_mission_check", function()
+	local api, game, e = start()
+	local st = bot_world(game, e)
+	local bots = api.bots
+	local text = bots.encode_guests(12345, { { id = 7, name = "SEAF 1" }, { id = 8, name = "x;y|z" } })
+	E.eq(text, "1|12345|7:SEAF 1;8:xyz")
+	local back = bots.decode_guests(text, 12345)
+	E.eq(#back, 2) E.eq(back[1].id, 7) E.eq(back[1].name, "SEAF 1")
+	E.eq(#bots.decode_guests(text, 999), 0, "another mission")
+	E.eq(#bots.decode_guests("junk", 12345), 0)
+	E.eq(#bots.decode_guests(nil, 12345), 0)
+	-- Ids as the game gives them, the same on every machine.
+	local remote = { alive = true, owned = false, pos = { x = 2, y = 1, z = 0 }, master = {}, slave = {} }
+	body_health(remote)
+	local ids = {}
+	st.entity_storage = {
+		go_id = function(_, u) return ids[u] end,
+		unit = function(_, id) for u, i in pairs(ids) do if i == id then return u end end end,
+	}
+	ids[remote] = 9
+	local lobby = rawget(_G, "NetworkGlobal").lobby
+	local written, theirs = {}, { ["mod:obsidian.api:guests"] = "1|12345|9:Remote" }
+	lobby.members = function() return { "me", "friend" } end
+	lobby.set_member_data = function(_, k, v) written[k] = v end
+	-- The friend runs Obsidian and agrees to mods, so the session stays cleared.
+	theirs.obsidian = CONSENT
+	lobby.member_data = function(_, peer, k) if peer == "friend" then return theirs[k] end end
+	local g = bots.add({ guest = true, name = "SEAF 1" })
+	ids[game.bare] = 7
+	body_health(game.bare)
+	e:frames(1)
+	E.eq(written["mod:obsidian.api:guests"], "1|12345|7:SEAF 1")
+	local list = bots.guests()
+	E.eq(#list, 2)
+	E.eq(list[1].mine, true) E.eq(list[1].unit, game.bare)
+	E.eq(list[2].mine, false) E.eq(list[2].unit, remote) E.eq(list[2].name, "Remote") E.eq(list[2].peer, "friend")
+	-- Names over both, the other machine's from the lobby.
+	local texts = {}
+	local gui = { screen_resolution = { width = 1920, height = 1080 }, ui_scale = 1 }
+	function gui:set_current_font() end
+	function gui:set_ignore_position_scale() end
+	function gui:text(t) texts[#texts + 1] = t end
+	local hud = { hd_gui = gui, plugins_enabled = true, gui_metrics_cacher = { get_text_extents = function() return 60, 20 end } }
+	rawget(_G, "CameraManager").get_viewport = function() return { world_to_viewport = function(_, p) return { x = p.x * 10, y = 7, z = p.y * 10 } end } end
+	rawget(_G, "Hud").update(hud, 0.016)
+	table.sort(texts)
+	E.eq(table.concat(texts, ","), "Remote,SEAF 1")
+	-- The host's check: guests left out of the characters it reads in its first step.
+	local human = game.me
+	local seen = nil
+	e.opts.modules["x"] = true
+	rawset(_G, "StateGame", { update_host = function(self)
+		seen = {}
+		for u in pairs(self.entity_manager:get_slave_entities("character")) do seen[#seen + 1] = u end
+		return "done"
+	end })
+	rawget(_G, "require")("x")
+	local manager = {}
+	function manager:get_slave_entities(name)
+		if name == "character" then return { [human] = {}, [game.bare] = {}, [remote] = {} } end
+		return {}
+	end
+	local host = { entity_manager = setmetatable({}, { __index = manager }), update_host_current_step = 0 }
+	E.eq(rawget(_G, "StateGame").update_host(host, 0.016), "done")
+	E.eq(#seen, 1, "only the player")
+	E.eq(seen[1], human)
+	E.eq(rawget(host.entity_manager, "get_slave_entities"), nil, "the manager as it was")
+	host.update_host_current_step = 1
+	rawget(_G, "StateGame").update_host(host, 0.016)
+	E.eq(#seen, 3, "the other steps read it all")
+	-- Leaving: the shared value empties.
+	g:remove()
+	theirs["mod:obsidian.api:guests"] = "1|111|9:Remote"
+	e:frames(70)
+	E.eq(written["mod:obsidian.api:guests"], "")
+	E.eq(#bots.guests(), 0, "a value from another mission is ignored")
+	bots.remove_all()
+end)
+
+test("a_guest_never_works_an_objective_and_boards_only_after_a_player", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	for _ = 1, 3 do api.bots.add() end
+	local g = api.bots.add({ guest = true })
+	local u = game.bare
+	local thing = { alive = true, master = {}, slave = {} }
+	u.master.interactor = { interactable_unit = thing, interactable_component = "objective_interact_object" }
+	E.eq(api.bots.allow_interact(u), false)
+	for _, comp in ipairs({ "hellbomb", "extract_beacon", "hidden_sweep_object", "npc_escort", "objective_carry_object" }) do
+		u.master.interactor.interactable_component = comp
+		E.eq(api.bots.allow_interact(u), false, comp)
+	end
+	u.master.interactor.interactable_component = "research_sample_pickup"
+	E.eq(api.bots.allow_interact(u), true)
+	u.master.interactor.interactable_component = "interactable_character"
+	E.eq(api.bots.allow_interact(u), true, "a help up")
+	-- A bot that isn't a guest keeps every use.
+	local plain = api.bots.all()[1]
+	local pu = game.land(2)
+	pu.master.interactor = { interactable_unit = thing, interactable_component = "objective_interact_object" }
+	E.eq(api.bots.allow_interact(pu), true)
+	E.eq(plain:guest(), false)
+	E.eq(api.bots.player_aboard(), false)
+	E.eq(select(2, g:board()), "not_ready")
+	game.record.player_go.has_extracted = true
+	E.eq(api.bots.player_aboard(), true)
+	E.eq(select(2, g:board()), "no_shuttle", "past the guest rule")
+	api.bots.remove_all()
+end)
+
+test("follow_takes_a_function_and_humans_are_the_players_without_this_machines_bots", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local pb = api.bots.add()
+	local pu = game.land(2, { x = 30, y = 1, z = 0 })
+	body_health(pu)
+	local humans = api.bots.humans()
+	E.eq(#humans, 1, "the player, not the player bot")
+	E.eq(humans[1], game.me)
+	game.me.slave.health.is_dead = true
+	E.eq(#api.bots.humans(), 0, "a dead one isn't listed")
+	game.me.slave.health.is_dead = false
+	local bot = api.bots.add({ bare = true })
+	local u = game.bare
+	u.pos = { x = 1, y = 1, z = 0 }
+	local leader = { alive = true, pos = { x = 20, y = 1, z = 0 }, master = {}, slave = {} }
+	local asked = 0
+	local pick = leader
+	bot:follow(function(b) asked = asked + 1 E.eq(b, bot) return pick end, 6)
+	game.step(1)
+	E.eq(u.master.input.input_data.move.x, 1, "walks to what the function answers")
+	E.eq(asked, 1)
+	game.step(5)
+	E.eq(asked, 1, "asked again only every half second")
+	pick = nil
+	game.step(40)
+	E.eq(asked > 1, true)
+	E.eq(u.master.input.input_data.move.x, 0, "stands still with no one to follow")
+	bot:follow(function() error("broken") end)
+	game.step(2)
+	E.eq(u.master.input.input_data.move.x, 0, "a failing function follows no one")
+	api.bots.remove_all()
+	E.eq(pb.removed, true)
+end)
+
+test("auto_pickup_takes_the_nearest_thing_wanted_and_bots_help_up_other_machines_bots", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local a = api.bots.add({ bare = true })
+	local ua = game.bare
+	body_health(ua)
+	ua.pos = { x = 0, y = 0, z = 0 }
+	local b = api.bots.add({ bare = true })
+	local ub = game.bare
+	body_health(ub)
+	ub.pos = { x = 0, y = 1, z = 0 }
+	local function thing(x) return { alive = true, owned = false, pos = { x = x, y = 0, z = 0 }, master = {}, slave = {} } end
+	local near, far, ammo = thing(3), thing(6), thing(2)
+	game.slaves.research_sample_pickup = { [near] = { state = { enabled = true } }, [far] = { state = { enabled = true } } }
+	game.slaves.ammo_pickup = { [ammo] = { state = { enabled = true } } }
+	local wanted = {}
+	E.eq(a:auto_pickup({ want = function(item) wanted[#wanted + 1] = item.kind return item.kind ~= "ammo_pickup" end }), a)
+	b:auto_pickup({ kinds = { "research_sample_pickup", "objective_carry_object" } })
+	game.step(1)
+	E.eq(a:using(), near, "the nearest one it wants")
+	E.eq(b:using(), far, "never the one another bot is on the way to")
+	E.eq(wanted[1], "ammo_pickup", "want is asked, nearest first")
+	a:auto_pickup(false)
+	a:cancel_use()
+	game.step(80)
+	E.eq(a:using(), false, "off")
+	b:cancel_use()
+	api.bots.remove_all()
+	-- A bare bot of another machine, downed: a bot that helps up goes to it.
+	local helper = api.bots.add({ bare = true })
+	body_health(game.bare)
+	local theirs = { alive = true, owned = false, pos = { x = 4, y = 1, z = 0 }, master = {}, slave = {} }
+	body_health(theirs).is_downed = true
+	game.slaves.character = { [theirs] = { state = {} } }
+	helper:auto_revive(15)
+	game.step(30)
+	local kind, unit = helper:helping()
+	E.eq(kind, "revive")
+	E.eq(unit, theirs)
+	api.bots.remove_all()
+end)
+
+test("attacking_reads_a_close_attack_on_every_machine_and_a_bot_steps_out_of_it", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	e.opts.modules["x"] = true
+	rawset(_G, "EntityStateMachine", { animation_event = function() end })
+	rawset(_G, "EnemyComponent", { rpc_animation_event = function() end })
+	rawget(_G, "require")("x")
+	local bug = game.enemies[1]
+	bug.settings = { melee_info = { delay = 0.4, duration = 0.5, radius = 1, center_distance = 1 }, enemy_info = { attack_range = 1.5, jump_range_max = 9, jump_charge_time = 0.6, jump_duration = 0.4 } }
+	E.eq(api.enemies.attacking(bug), nil, "nothing started")
+	rawget(_G, "EntityStateMachine").animation_event(bug, "attack")
+	local atk = api.enemies.attacking(bug)
+	E.eq(atk.kind, "melee")
+	E.eq(atk.time, 0.4)
+	E.eq(atk.reach, 2.5, "the attack range and a metre past it")
+	E.eq(atk.from.x, 3)
+	E.eq(atk.target, nil, "unknown here")
+	e:frames(60)
+	E.eq(api.enemies.attacking(bug), nil, "over")
+	-- Another machine's enemy: the event comes by rpc.
+	rawget(_G, "EnemyComponent").rpc_animation_event({}, "peer", bug, "jump_charge")
+	local leap = api.enemies.attacking(bug)
+	E.eq(leap.kind, "lunge") E.eq(leap.reach, 9) E.eq(math.abs(leap.time - 1) < 1e-9, true)
+	rawget(_G, "EnemyComponent").rpc_animation_event({}, "peer", bug, "charge")
+	E.eq(api.enemies.attacking(bug).kind, "charge")
+	rawget(_G, "EntityStateMachine").animation_event(bug, "charge_abort")
+	E.eq(api.enemies.attacking(bug), nil, "called off")
+	-- The owner knows the target and the clock of the blow.
+	local pad = rawget(_G, "ControllerSettings").pad
+	pad[#pad + 1] = { func = "pressed", output_name = "dodge_pressed" }
+	local bot = api.bots.add({ bare = true })
+	local u = game.bare
+	body_health(u)
+	u.pos = { x = 1.5, y = 0, z = 0 }
+	bug.master.melee = { melee_delay_timer = 0.3, target_unit = u }
+	atk = api.enemies.attacking(bug)
+	E.eq(atk.target, u) E.eq(atk.time, 0.3)
+	bot:avoid_shots(true)
+	game.step(2)
+	E.eq(bot:avoiding(), false, "close attacks only when asked")
+	bot:avoid_shots(true, { melee = true })
+	local dove = 0
+	for _ = 1, 3 do
+		game.step(1)
+		if u.master.input.input_data.dodge_pressed == true then dove = dove + 1 end
+	end
+	E.eq(bot:avoiding(), true)
+	E.eq(u.master.input.input_data.move.x, -1, "straight back, away from the bite")
+	E.eq(dove, 2, "one dive with the blow due, a press held two frames")
+	bug.master.melee.target_unit = game.me
+	game.step(8)
+	E.eq(bot:avoiding(), false, "aimed at someone else")
+	bug.master.melee = nil
+	api.bots.remove_all()
+end)
+
+test("the_lobby_tells_who_left_and_keeps_what_they_shared", function()
+	local api, game, e = start()
+	E.eq(#api.lobby.departed({ "a", "b", "c" }, { "a", "c" }), 1)
+	E.eq(api.lobby.departed({ "a", "b" }, { "b", "a", "d" })[1], nil)
+	local lobby = rawget(_G, "NetworkGlobal").lobby
+	local here = { "me", "friend" }
+	local data = { friend = "hello" }
+	lobby.members = function() return here end
+	lobby.member_data = function(_, peer, key)
+		if key == "obsidian" and peer == "friend" then return CONSENT end
+		if key == "mod:obsidian.api:seaf" then return data[peer] end
+	end
+	local left = {}
+	E.eq(api.lobby.on_leave(function(peer) left[#left + 1] = peer end), true)
+	E.eq(select(2, api.lobby.on_leave(5)), "bad_type")
+	E.eq(api.lobby.last_shared("seaf", "friend"), nil, "nothing read yet")
+	E.eq(api.lobby.shared("seaf").friend, "hello")
+	E.eq(api.lobby.last_shared("seaf", "friend"), "hello")
+	e:frames(70)
+	data.friend = "changed"
+	e:frames(70)
+	E.eq(api.lobby.last_shared("seaf", "friend"), "changed", "read again each second")
+	here = { "me" }
+	data.friend = nil
+	e:frames(70)
+	E.eq(#left, 1)
+	E.eq(left[1], "friend")
+	E.eq(api.lobby.last_shared("seaf", "friend"), "changed", "kept after the peer left")
+	E.eq(api.lobby.shared("seaf").friend, nil)
+	e:frames(140)
+	E.eq(#left, 1, "told once")
+	-- A new mission forgets the values.
+	game.ui.state_object = {}
+	E.eq(api.lobby.last_shared("seaf", "friend"), nil)
+end)
+
+-- Weapons, range and placement (Obsidian API 1.41.1).
+test("a_bare_bot_takes_the_games_default_loadout_when_asked", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	api.bots.add({ bare = true, loadout = "default" })
+	local l = commands_of(game, "loadout")
+	E.eq(l[#l].data.pad_number, nil, "no pad: the game reads no save and gives its default loadout")
+	E.eq(l[#l].data.loadout_prefix, "loadout_")
+	api.bots.add({ bare = true })
+	l = commands_of(game, "loadout")
+	E.eq(l[#l].data.pad_number, 0, "the main player's by default")
+	E.eq(select(2, api.bots.add({ bare = true, loadout = "mine" })), "bad_type")
+	api.bots.remove_all()
+end)
+
+-- A bot on a record with a rifle (30 metres), a pistol (no range in its settings: 20) and a machine gun
+-- (30), the pistol in hand, as a set_weapon leaves the last weapon given.
+local function armed_bot(api, game, e)
+	bot_world(game, e)
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 25, y = 0, z = 0 })
+	local function weapon() return { alive = true, master = {}, slave = {} } end
+	local rifle, pistol, mg = weapon(), weapon(), weapon()
+	game.masters.firearm = {
+		[rifle] = { state = { range = 30, weapon_info = { power = 75, range = 30, attributes = {} } } },
+		[pistol] = { state = { range = 20, weapon_info = { power = 60, attributes = {} } } },
+		[mg] = { state = { range = 30, weapon_info = { power = 300, range = 30, attributes = {} } } },
+	}
+	local inv = u.master.inventory
+	inv.primary_weapon, inv.sidearm_weapon, inv.support_weapon, inv.current_weapon = rifle, pistol, mg, pistol
+	local ammo = { [rifle] = { rounds = 30, num_mags = 4 }, [pistol] = { rounds = 12, num_mags = 2 }, [mg] = { rounds = 100, num_mags = 1 } }
+	rawget(_G, "EntityAux").state_master_interface = function(w) return ammo[w] end
+	return bot, u, { rifle = rifle, pistol = pistol, mg = mg, ammo = ammo, inv = inv }
+end
+
+test("fight_keeps_to_the_range_of_the_weapon_in_hand_and_lets_the_aim_go", function()
+	local api, game, e = start()
+	local bot, u, w = armed_bot(api, game, e)
+	E.eq(bot:weapon_range(), 20, "the pistol, with the default of the game")
+	E.eq(bot:weapon_range("primary"), 30)
+	E.eq(select(2, bot:weapon_range("melee")), "bad_slot")
+	game.masters.launcher = { [w.mg] = { state = {} } }
+	game.masters.firearm[w.mg] = nil
+	E.eq(select(2, bot:weapon_range("support")), "no_limit", "a launcher")
+	game.masters.launcher = nil
+	game.masters.firearm[w.mg] = { state = { range = 30, weapon_info = { power = 300, attributes = {} } } }
+	-- The bug at x = 3 is 22 metres off: past the pistol.
+	bot:fight(25)
+	game.step(15)
+	local t = u.master.input.input_data
+	E.eq(t.fire_button, 0, "out of the pistol's reach")
+	E.eq(t.aim.x, 0, "and not aimed at")
+	w.inv.current_weapon = w.rifle
+	game.step(15)
+	E.eq(u.master.input.input_data.fire_button, 1, "the rifle reaches")
+	E.eq(u.master.input.input_data.aim.x < 0, true, "aimed at the bug")
+	-- The bug runs off past the range: dropped, and the aim let go.
+	game.enemies[1].pos = { x = -40, y = 0, z = 0 }
+	game.step(20)
+	t = u.master.input.input_data
+	E.eq(t.fire_button, 0)
+	E.eq(t.aim.x, 0, "no aim held after the target is gone")
+	-- Back in range, then dead: dropped at once.
+	game.enemies[1].pos = { x = 3, y = 0, z = 0 }
+	game.step(20)
+	E.eq(u.master.input.input_data.aim.x < 0, true)
+	game.enemies[1].slave.health.is_dead = true
+	game.step(20)
+	E.eq(u.master.input.input_data.aim.x, 0, "a dead one is let go")
+	E.eq(u.master.input.input_data.fire_button, 0)
+	game.enemies[1].slave.health.is_dead = false
+	-- Behind a wall: faced a moment, then let go.
+	local wall = { alive = true, master = {}, slave = {} }
+	rawset(_G, "Actor", { unit = function(a) return a end })
+	rawget(_G, "Vector3").length = function(v) return math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) end
+	rawget(_G, "PhysicsWorld").immediate_raycast = function() return { { nil, 1, nil, wall } } end
+	game.step(20)
+	E.eq(u.master.input.input_data.fire_button, 0, "no shot into the wall")
+	game.step(80)
+	E.eq(u.master.input.input_data.aim.x, 0, "out of sight for a while: let go")
+	bot:fight(false)
+end)
+
+test("fight_with_the_best_weapon_takes_the_primary_the_support_where_it_hurts_more_and_the_sidearm_last", function()
+	local api, game, e = start()
+	local bot, u, w = armed_bot(api, game, e)
+	local bug = game.enemies[1]
+	bug.slave.health.armor_min, bug.slave.health.armor_max = 20, 40
+	bug.master.health = bug.slave.health
+	-- The machine gun hurts the bug far more than the rifle: it comes out.
+	bot:fight(25, { weapon = "best" })
+	game.step(40)
+	local wields = commands_of(game, "wield")
+	E.eq(wields[#wields].data.weapon, "support_weapon")
+	-- With an empty machine gun, the rifle.
+	w.ammo[w.mg] = { rounds = 0, num_mags = 0 }
+	game.step(80)
+	wields = commands_of(game, "wield")
+	E.eq(wields[#wields].data.weapon, "primary_weapon")
+	-- The rifle empty too, with no magazine left: the pistol.
+	w.ammo[w.rifle] = { rounds = 0, num_mags = 0 }
+	w.inv.current_weapon = w.rifle
+	u.pos = { x = 10, y = 0, z = 0 }
+	game.step(80)
+	wields = commands_of(game, "wield")
+	E.eq(wields[#wields].data.weapon, "sidearm_weapon")
+	bot:fight(false)
+end)
+
+test("a_custom_stratagem_sits_with_its_own_type_or_where_after_says", function()
+	local api, game, e = start()
+	wire_world(game)
+	local ls = rawget(_G, "LoadoutSettings")
+	local types = { stratagem_resupply = "supply", stratagem_machinegun = "supply", stratagem_mortar = "defensive", stratagem_reinforce = "special" }
+	for _, s in ipairs(ls.stratagems) do s.stratagem_type = types[s.name] or "offensive" end
+	local before = {}
+	for i, s in ipairs(ls.stratagems) do before[i] = s.name end
+	E.eq(select(2, api.stratagems.define({ name = "test_bad", base = "stratagem_mortar", title = "B", after = 5 })), "bad_type")
+	local blue = api.stratagems.define({ name = "test_blue", base = "stratagem_mortar", title = "Blue", type = "supply" })
+	local placed = api.stratagems.define({ name = "test_after", base = "stratagem_mortar", title = "After", type = "supply", after = "stratagem_resupply" })
+	local green = api.stratagems.define({ name = "test_green", base = "stratagem_mortar", title = "Green" })
+	for i, name in ipairs(before) do E.eq(ls.stratagems[i].name, name, "the game's ids stay") end
+	E.eq(blue.id, #before + 1, "a new id after them")
+	E.eq(ls.stratagems[blue.id].stratagem_type, "supply")
+	local function groups(...)
+		local out = {}
+		for i, name in ipairs({ ... }) do out[i] = { name = name, item_index = 1, items = { { name = name } } } end
+		return out
+	end
+	rawset(_G, "MenuScreenLoadout", { setup_loadout = function(self, slot)
+		self.parent.players[slot].available_items = { stratagems = { groups = groups("stratagem_resupply", "stratagem_machinegun", "stratagem_mortar",
+			"stratagem_airstrike", "test_blue", "test_after", "test_green") } }
+	end })
+	rawset(_G, "MenuScreenArmoryUnlocks", { on_enter = function(self)
+		self.available_items = { stratagems = { groups = {
+			{ name = "supply", items = { { name = "stratagem_resupply" }, { name = "stratagem_machinegun" }, { name = "test_blue" }, { name = "test_after" } } },
+			{ name = "defensive", items = { { name = "stratagem_mortar" }, { name = "stratagem_turret" }, { name = "test_green" } } },
+		} } }
+	end })
+	hooked(e)
+	local loadout = { parent = { players = { {}, {} } } }
+	rawget(_G, "MenuScreenLoadout").setup_loadout(loadout, 2)
+	E.eq(joined(loadout.parent.players[2].available_items.stratagems.groups),
+		"stratagem_resupply,test_after,stratagem_machinegun,test_blue,stratagem_mortar,test_green,stratagem_airstrike",
+		"after the last supply stratagem of the game, after the one named, and beside a base of its own type")
+	local arsenal = {}
+	rawget(_G, "MenuScreenArmoryUnlocks").on_enter(arsenal, {})
+	local g = arsenal.available_items.stratagems.groups
+	E.eq(joined(g[1].items), "stratagem_resupply,test_after,stratagem_machinegun,test_blue")
+	E.eq(joined(g[2].items), "stratagem_mortar,test_green,stratagem_turret")
+	E.eq(green.id, #before + 3)
+end)
+
+-- Pathing, the fight rules and the tentacles (1.45.0).
+
+test("brain_saves_support_weapons_for_what_deserves_them", function()
+	local api = start()
+	local b = api.brain
+	local function slots(heavy, blast)
+		return { primary_weapon = { ready = true, reach = 30, hurt = 75 },
+			support_weapon = { ready = true, reach = 30, hurt = 300, heavy = heavy, blast = blast, min_range = blast and blast + 1.5 or nil },
+			sidearm_weapon = { ready = true, reach = 20, hurt = 40 } }
+	end
+	E.eq(b.pick_weapon(slots(), { d = 10, group = 1 }), "primary_weapon", "a lone small enemy: the rifle, though the support hurts more")
+	E.eq(b.pick_weapon(slots(), { d = 10, group = 1, armored = true }), "support_weapon", "armored")
+	E.eq(b.pick_weapon(slots(), { d = 10, group = 3 }), "support_weapon", "a group, for a sustained weapon")
+	E.eq(b.pick_weapon(slots(true), { d = 10, group = 3 }), "primary_weapon", "a heavy weapon is not spent on a small group")
+	E.eq(b.pick_weapon(slots(true), { d = 10, group = 1 }), "primary_weapon", "nor on one small enemy")
+	E.eq(b.pick_weapon(slots(true), { d = 10, group = 1, large = true }), "support_weapon", "a large enemy deserves it")
+	E.eq(b.pick_weapon(slots(true), { d = 10, group = 5 }), "support_weapon", "a big group too")
+	E.eq(b.pick_weapon(slots(true, 3), { d = 10, group = 1, large = true, friend_near = true }), "primary_weapon", "not with a friend in the blast")
+	E.eq(b.pick_weapon(slots(true, 3), { d = 3, group = 1, large = true }), "primary_weapon", "not this close with a blast")
+	local empty = slots()
+	empty.primary_weapon.ready = false
+	E.eq(b.pick_weapon(empty, { d = 25, group = 1 }), "support_weapon", "the rifle empty: a sustained support weapon carries on")
+	local empty_heavy = slots(true)
+	empty_heavy.primary_weapon.ready = false
+	E.eq(b.pick_weapon(empty_heavy, { d = 25, group = 1 }), "sidearm_weapon", "not a heavy one: the sidearm doesn't reach but is what is left")
+	E.eq(b.pick_weapon(slots(), { d = 45, group = 1 }), "primary_weapon", "nothing reaches: the primary to wait with")
+end)
+
+test("brain_commits_to_a_target_aims_by_spread_and_clears_friends", function()
+	local api = start()
+	local b = api.brain
+	E.eq(b.keeps(nil), false)
+	E.eq(b.keeps({ d = 10 }, 30, 0, { d = 9 }), true, "not for one a little nearer")
+	E.eq(b.keeps({ d = 10 }, 30, 2, nil), false, "gone unseen")
+	E.eq(b.keeps({ d = 35 }, 30, 0, nil), false, "out of reach")
+	E.eq(b.keeps({ d = 18 }, 30, 0, { d = 4 }), false, "something on top of the bot")
+	E.eq(b.keeps({ d = 18 }, 30, 0, { d = 16, large = true }), true, "a large one a bit nearer isn't enough to switch")
+	E.eq(b.keeps({ d = 18 }, 30, 0, { d = 6, large = true, attacking = true }), false, "much the better target")
+	E.eq(b.aim_window(100, 0), b.MIN_WINDOW, "a straight weapon needs the barrel on a far target")
+	E.eq(b.aim_window(5, 40) <= b.MAX_WINDOW, true)
+	E.eq(b.aim_window(10, 10) > b.aim_window(10, 0), true, "spread widens the window")
+	local me, there = { x = 0, y = 0 }, { x = 10, y = 0 }
+	E.eq(b.line_clear(me, there, { { x = 5, y = 3 } }, 1.2), true)
+	E.eq(b.line_clear(me, there, { { x = 5, y = 0.5 } }, 1.2), false, "in the line")
+	E.eq(b.line_clear(me, there, { { x = -3, y = 0 } }, 1.2), true, "behind the shooter")
+	E.eq(b.blast_clear(me, there, 3, { { x = 20, y = 0 } }, 1), true)
+	E.eq(b.blast_clear(me, there, 3, { { x = 12, y = 1 } }, 1), false, "a friend in the blast")
+	E.eq(b.blast_clear(me, { x = 3, y = 0 }, 3, {}, 1), false, "the shooter in the blast")
+	E.eq(b.blast_clear(me, there, nil, { { x = 10, y = 0 } }), true, "no blast")
+	local px, py = b.separate({ x = 0, y = 0 }, { { x = 1, y = 0 } }, 2.5)
+	E.eq(px < 0, true, "pushed away") E.eq(py, 0)
+end)
+
+test("brain_moves_with_hysteresis_and_varied_spots", function()
+	local api = start()
+	local b = api.brain
+	local going, speed = b.arrive(2, false)
+	E.eq(going, false, "standing, close: stays")
+	going, speed = b.arrive(5, false)
+	E.eq(going, true) E.eq(speed, 1)
+	going = b.arrive(2, true)
+	E.eq(going, true, "walking goes on to the spot")
+	going = b.arrive(1, true)
+	E.eq(going, false, "there")
+	E.eq(b.sprints(20, false, 5, false), true, "far behind")
+	E.eq(b.sprints(10, true, 5, false), true, "keeps on until close")
+	E.eq(b.sprints(7, true, 5, false), false, "caught up")
+	E.eq(b.sprints(10, false, 5, false), false, "not started this close")
+	E.eq(b.sprints(20, true, 0.2, false), false, "no breath left")
+	E.eq(b.sprints(20, false, 5, true), false, "standing to fight")
+	E.eq(b.sprints(30, false, 5, true), true, "too far even so")
+	local a, c = b.slot(1, 6), b.slot(2, 6)
+	E.eq(a.side ~= c.side or a.back ~= c.back, true, "two bots, two spots")
+	local s = {}
+	local fwd = b.fight_step(s, 2, 30, 0.1, 0.5)
+	E.eq(fwd, -1, "too close: back off")
+	fwd = b.fight_step(s, 40, 30, 0.1, 0.5)
+	E.eq(fwd, 1, "into reach")
+	E.eq(select(2, b.fight_step(s, 10, 30, 0.1, 0.5, true)), 0, "a weapon fired from a stand: stands")
+	-- A strafe, then a pause.
+	local moved, stood = false, false
+	for _ = 1, 60 do
+		local _, side = b.fight_step(s, 10, 30, 0.1, 0.3)
+		if side ~= 0 then moved = true else stood = true end
+	end
+	E.eq(moved, true) E.eq(stood, true)
+end)
+
+test("brain_grenades_keep_friends_out_of_the_blast_and_smoke_covers", function()
+	local api = start()
+	local b = api.brain
+	local function facts(over)
+		local f = { count = 2, cooldown = 0, shooter = { x = 0, y = 0 }, point = { x = 10, y = 0 }, d = 10, group = 3, blast = 3.5, friends = {} }
+		for k, v in pairs(over or {}) do f[k] = v end
+		return f
+	end
+	local spot = b.grenade("frag", facts())
+	E.eq(spot.x, 10)
+	E.eq(b.grenade("frag", facts({ count = 0 })), nil, "none left")
+	E.eq(b.grenade("frag", facts({ cooldown = 3 })), nil, "waiting")
+	E.eq(b.grenade("frag", facts({ d = 5, point = { x = 5, y = 0 } })), nil, "too close")
+	E.eq(b.grenade("frag", facts({ group = 1 })), nil, "not on a lone small enemy")
+	E.eq(b.grenade("frag", facts({ group = 1, big = true })) ~= nil, true, "a big one is worth it")
+	E.eq(b.grenade("frag", facts({ friends = { { x = 11, y = 1 } } })), nil, "a friend at the target")
+	E.eq(b.grenade("frag", facts({ friends = { { x = 5, y = 0 } } })), nil, "a friend where a short throw lands")
+	E.eq(b.grenade("smoke", facts()), nil, "no smoke before shots come in")
+	local cover = b.grenade("smoke", facts({ under_fire = true, enemies = 3 }))
+	E.eq(cover.x, 6, "between the bot and them")
+end)
+
+test("nav_grid_search_goes_around_what_is_blocked", function()
+	local api = start()
+	local function wall(x, y) return x == 5 and y > -4 and y < 4 end
+	local path = api.nav.search_grid(0, 0, 10, 0, wall)
+	E.eq(path[#path].x, 10)
+	local around = false
+	for _, c in ipairs(path) do
+		E.eq(wall(c.x, c.y), false)
+		if math.abs(c.y) >= 4 then around = true end
+	end
+	E.eq(around, true)
+	E.eq(api.nav.search_grid(0, 0, 10, 0, function(x) return x == 5 end, 500), nil, "no way through a wall with no end, within the limit")
+end)
+
+local function ground_rays(pit, wall)
+	local actor = { alive = true }
+	rawset(_G, "Actor", { unit = function() return actor end })
+	rawget(_G, "Unit").has_data = function() return true end
+	local v3 = rawget(_G, "Vector3")
+	rawget(_G, "PhysicsWorld").immediate_raycast = function(_, from, dir, range)
+		if dir.z < -0.5 then
+			if pit(from.x, from.y) then return false end
+			return true, v3(from.x, from.y, 0), 3, v3(0, 0, 1), actor
+		end
+		for t = 0, range, 0.25 do
+			if wall and wall(from.x + dir.x * t, from.y + dir.y * t) then return true, v3(from.x, from.y, 0), t, v3(0, 0, 1), actor end
+		end
+		return false
+	end
+end
+
+test("nav_walkable_path_and_a_step_guard_keep_off_a_pit_and_walls", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local function pit(x, y) return x >= 4 and x <= 7 and y > -6 and y < 6 end
+	ground_rays(pit)
+	E.eq((api.nav.walkable({ x = 0, y = 0, z = 0 })), true)
+	E.eq(select(2, api.nav.walkable({ x = 5, y = 0, z = 0 })), "pit", "no ground: lava or a drop")
+	E.eq(select(2, api.nav.walk_clear({ x = 0, y = 0, z = 0 }, { x = 10, y = 0, z = 0 })), "pit")
+	E.eq((api.nav.walk_clear({ x = 0, y = 8, z = 0 }, { x = 10, y = 8, z = 0 })), true)
+	local path, status = api.nav.path({ x = 0, y = 0, z = 0 }, { x = 12, y = 0, z = 0 })
+	E.eq(status, "full")
+	local around = false
+	for _, q in ipairs(path) do
+		E.eq(pit(q.x, q.y), false, "the route stays off the pit")
+		if math.abs(q.y) >= 6 then around = true end
+	end
+	E.eq(around, true, "round the end of it")
+	-- A wall is rounded too.
+	ground_rays(function() return false end, function(x, y) return x >= 4.4 and x <= 4.6 and math.abs(y) < 5 end)
+	local routed = api.nav.path({ x = 0, y = 0.5, z = 0 }, { x = 8, y = 0.5, z = 0 })
+	E.eq(type(routed), "table")
+	-- Too far for one search, and nothing to cast with.
+	E.eq(select(2, api.nav.path({ x = 0, y = 0 }, { x = 200, y = 0 })), "far")
+end)
+
+test("a_navigating_bot_walks_around_a_pit_and_never_onto_it", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add({ bare = true })
+	local u = game.bare
+	body_health(u)
+	u.pos = { x = 2, y = 0, z = 0 }
+	local function pit(x, y) return x >= 4 and x <= 7 and y > -6 and y < 6 end
+	ground_rays(pit)
+	E.eq(bot:navigating(), false)
+	E.eq(bot:navigate(true), bot)
+	E.eq(bot:navigating(), true)
+	-- Headed straight at the pit from next to it: turned aside.
+	u.pos = { x = 3, y = 0, z = 0 }
+	bot:move({ x = 1, y = 0 })
+	game.step(3)
+	local mv = u.master.input.input_data.move
+	E.eq(mv.x < 0.99, true, "not straight on")
+	E.eq(math.abs(mv.y) > 0.1, true, "aside")
+	-- A go_to finds the way around.
+	u.pos = { x = 0, y = 0, z = 0 }
+	bot:hold()
+	bot:go_to({ x = 12, y = 0 })
+	local turned = false
+	for _ = 1, 90 do
+		game.step(1)
+		local q = u.master.input.input_data.move
+		if math.abs(q.y) > 0.3 then turned = true end
+		E.eq(pit(u.pos.x, u.pos.y), false)
+	end
+	E.eq(turned, true, "the search found the way round")
+	bot:navigate(false)
+	E.eq(bot:navigating(), false)
+end)
+
+test("bare_bots_are_out_of_the_camera_by_default_and_movement_smooths_and_spaces_them", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add({ bare = true })
+	local u = game.bare
+	body_health(u)
+	u.master.camera_target = { active = true }
+	u.master.mover = { keep_inside_screen = true }
+	game.step(1)
+	local camera = commands_of(game, "deactivate")
+	E.eq(#camera > 0, true, "off the camera target")
+	E.eq(#commands_of(game, "keep_inside_screen") > 0, true, "off the leash")
+	E.eq(bot:in_camera(), false)
+	-- Moving smoothly: the stick doesn't jump to the new way in one frame.
+	E.eq(bot:movement({ seed = 3 }), bot)
+	bot:move({ x = 1, y = 0 })
+	game.step(1)
+	local first = u.master.input.input_data.move.x
+	E.eq(first > 0 and first < 1, true, "eased, not snapped")
+	game.step(60)
+	E.eq(u.master.input.input_data.move.x > 0.9, true, "and gets there")
+	E.eq(bot:movement(false), bot)
+end)
+
+test("tentacles_count_as_hazards_and_a_bot_gets_out_of_their_reach", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local pad = rawget(_G, "ControllerSettings").pad
+	pad[#pad + 1] = { func = "pressed", output_name = "dodge_pressed" }
+	local tent = { alive = true, owned = true, pos = { x = 0, y = 0, z = 0 }, master = {}, slave = {} }
+	game.slaves.melee_turret = { [tent] = { state = { health_state = { is_dead = false } } } }
+	local found = api.enemies.tentacles({ x = 1, y = 0 }, 30)
+	E.eq(#found, 1) E.eq(found[1].unit, tent) E.eq(found[1].reach, 5)
+	local h = api.bots.hazards({ x = 1, y = 0 }, 30)
+	E.eq(h[1].kind, "tentacle") E.eq(h[1].radius, 5)
+	local bot = api.bots.add({ bare = true })
+	local u = game.bare
+	body_health(u)
+	u.pos = { x = 3, y = 0, z = 0 }
+	bot:avoid_shots(true, { melee = true })
+	local dove = 0
+	for _ = 1, 8 do
+		game.step(1)
+		if u.master.input.input_data.dodge_pressed == true then dove = dove + 1 end
+	end
+	E.eq(bot:avoiding(), true)
+	E.eq(u.master.input.input_data.move.x, 1, "straight away from it")
+	E.eq(dove, 2, "one dive, held two frames")
+	-- A dead one no longer counts.
+	game.slaves.melee_turret[tent].state.health_state.is_dead = true
+	E.eq(#api.enemies.tentacles({ x = 1, y = 0 }, 30), 0)
+end)
+
+test("fight_threat_saves_the_support_weapon_and_holds_a_blast_that_would_catch_a_friend", function()
+	local api, game, e = start()
+	local bot, u, w = armed_bot(api, game, e)
+	w.inv.current_weapon = w.rifle
+	local ls = rawget(_G, "LoadoutSettings")
+	ls.get_upgraded_settings = function(unit)
+		if unit == w.mg then return { explosive_info = { blast_power = 200, blast_radius = 3 } } end
+		return {}
+	end
+	-- One small bug at 22 metres: the rifle stays out and fires.
+	local bug = game.enemies[1]
+	bug.slave.health.armor_min, bug.slave.health.armor_max = 0, 0
+	bug.master.health = bug.slave.health
+	bug.pos = { x = 12, y = 0, z = 0 }
+	bot:fight(25, { weapon = "threat" })
+	local fired = false
+	for _ = 1, 40 do
+		game.step(1)
+		if u.master.input.input_data.fire_button == 1 then fired = true end
+	end
+	E.eq(fired, true, "fires with the rifle")
+	local wields = commands_of(game, "wield")
+	E.eq(wields[#wields] and wields[#wields].data.weapon or "primary_weapon", "primary_weapon")
+	-- An armored one, away from the player standing by, the support weapon out...
+	bug.pos = { x = 12, y = 0, z = 0 }
+	bug.slave.health.armor_min, bug.slave.health.armor_max = 60, 80
+	game.step(1)
+	bot:fight(25, { weapon = "threat" })
+	game.step(40)
+	wields = commands_of(game, "wield")
+	E.eq(wields[#wields].data.weapon, "support_weapon", "this one deserves it")
+	-- ...with the bot aimed: a friend beside the bug holds the blast weapon's fire.
+	w.inv.current_weapon = w.mg
+	bot:fight(25, { weapon = "threat" })
+	game.step(30)
+	E.eq(u.master.input.input_data.fire_button, 1, "fires it while the blast is clear")
+	local friend = { alive = true, owned = true, pos = { x = 13, y = 1, z = 0 }, master = {}, slave = { health = {} } }
+	game.slaves.character = { [friend] = { state = {} } }
+	game.step(5)
+	E.eq(u.master.input.input_data.fire_button, 0, "a friend in the blast: no shot")
+	bot:fight(false)
+end)
+
+test("auto_grenades_throws_at_a_big_enemy_and_holds_with_a_friend_in_the_blast", function()
+	local api, game, e = start()
+	local bot, u, w = armed_bot(api, game, e)
+	w.inv.current_weapon, w.inv.num_grenades = w.rifle, 2
+	local bug = game.enemies[1]
+	bug.pos = { x = 15, y = 0, z = 0 }
+	bug.slave.health.hitpoints = 2000
+	bug.master.health = bug.slave.health
+	local friend = { alive = true, owned = true, pos = { x = 16, y = 1, z = 0 }, master = {}, slave = { health = {} } }
+	game.slaves.character = { [friend] = { state = {} } }
+	bot:fight(25, { weapon = "threat" })
+	E.eq(bot:auto_grenades(true), bot)
+	game.step(60)
+	E.eq(bot:throwing(), false, "a friend beside the target: no grenade")
+	game.slaves.character = {}
+	local thrown = false
+	for _ = 1, 60 do
+		game.step(1)
+		if bot:throwing() then thrown = true end
+	end
+	E.eq(thrown, true, "the blast clear: one goes")
+	E.eq(u.master.input.input_data.fire_button, 0, "holding fire while it throws")
+	bot:auto_grenades(false)
+	bot:fight(false)
+end)
+
+test("brain_engages_threats_only_and_bursts", function()
+	local api = start()
+	local b = api.brain
+	E.eq(b.engages({ d = 10 }), true)
+	E.eq(b.engages({ d = 24 }), false, "a far enemy that hasn't noticed anyone")
+	E.eq(b.engages({ d = 24, aware = true }), true, "already after the squad")
+	E.eq(b.engages({ d = 24, large = true }), true, "a large one is worth it further out")
+	local s = {}
+	local on, off = 0, 0
+	for _ = 1, 100 do
+		if b.burst(s, 0.05) then on = on + 1 else off = off + 1 end
+	end
+	E.eq(on > 30 and off > 30, true, "on and off in turn")
+end)
+
+test("nav_keeps_a_body_off_the_rim_stands_with_no_route_and_flags_a_detour", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local function pit(x, y) return x >= 4 and x <= 7 and y > -6 and y < 6 end
+	ground_rays(pit)
+	local path = api.nav.path({ x = 0, y = 0, z = 0 }, { x = 12, y = 0, z = 0 })
+	for _, q in ipairs(path) do
+		local rim = pit(q.x + 1, q.y) or pit(q.x - 1, q.y) or pit(q.x, q.y + 1) or pit(q.x, q.y - 1)
+		E.eq(rim, false, "a body-width off the rim, with room to keep it")
+	end
+	-- A straight walk that shaves the rim is refused.
+	E.eq((api.nav.walk_clear({ x = 0, y = 6.5, z = 0 }, { x = 12, y = 6.5, z = 0 })), false)
+	E.eq((api.nav.walk_clear({ x = 0, y = 8, z = 0 }, { x = 12, y = 8, z = 0 })), true)
+	-- A goal a long way round flags the detour; a route state finds it within some frames.
+	local s = api.nav.new_route()
+	for _ = 1, 40 do
+		api.nav.frame(0.016)
+		api.nav.route(s, { x = 3, y = 0, z = 0 }, 8, 0, 0.016)
+	end
+	E.eq(api.nav.detouring(s), true)
+	-- An island with no way off: no route across, and the guard won't take the step.
+	ground_rays(function(x, y) return math.abs(x) > 3 or math.abs(y) > 3 end)
+	local s2 = api.nav.new_route()
+	local gx = api.nav.route(s2, { x = 0, y = 0, z = 0 }, 20, 0, 0.016)
+	E.eq(gx == nil or gx <= 3.5, true, "stands, or stays on the ground it has")
+	E.eq(api.nav.safe_heading({ x = 2.8, y = 0, z = 0 }, 1, 0, 2) == 1, false, "no straight step east at the very rim")
+end)
+
+test("the_step_guard_is_last_and_a_fall_goes_back_to_solid_ground", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add({ bare = true })
+	local u = game.bare
+	body_health(u)
+	u.master.mover = { velocity = { x = 7, y = 0, z = 0 } }
+	local function pit(x, y) return x >= 4 and y > -30 and y < 30 end
+	ground_rays(pit)
+	rawget(_G, "Unit").mover = function() return {} end
+	rawget(_G, "Unit").mover_fits_at = function() return true end
+	bot:navigate(true):movement({ seed = 2 })
+	-- At sprint speed the guard looks further: 3 metres short of the rim is too close heading straight at it.
+	u.pos = { x = 1.2, y = 0, z = 0 }
+	bot:move({ x = 1, y = 0 })
+	game.step(2)
+	local mv = u.master.input.input_data.move
+	E.eq(mv.x < 0.5, true, "turned or stopped, not eased on toward the rim")
+	-- Knocked over the rim: back to the last solid spot.
+	bot:hold()
+	u.pos = { x = 0, y = 0, z = 0 }
+	game.step(30)
+	u.pos = { x = 5, y = 0, z = -0.9 }
+	game.step(1)
+	u.pos = { x = 5, y = 0, z = -1 }
+	game.step(1)
+	local sent = commands_of(game, "position_teleport")
+	E.eq(#sent, 1, "one rescue")
+	E.eq(sent[1].data.x, 0)
+	bot:navigate(false)
+end)
+
+test("a_bare_bot_out_of_view_gets_the_games_arrow_and_no_card", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	rawset(_G, "Vector2", function(x, y) return { x = x, y = y } end)
+	local bot = api.bots.add({ bare = true, name = "Lost" })
+	local u = game.bare
+	body_health(u)
+	local arrows, texts = {}, {}
+	local gui = { screen_resolution = { width = 1920, height = 1080 }, ui_scale = 1 }
+	function gui:set_current_font() end
+	function gui:set_ignore_position_scale() end
+	function gui:set_ignore_size_scale() end
+	function gui:text(text) texts[#texts + 1] = text end
+	function gui:rotated_image(name, pos) arrows[#arrows + 1] = { name = name, pos = pos } end
+	local hud = { hd_gui = gui, plugins_enabled = true, gui_metrics_cacher = { get_text_extents = function() return 60, 20 end } }
+	rawget(_G, "CameraManager").get_viewport = function() return { world_to_viewport = function(_, p) return { x = p.x * 10, y = 7, z = p.y * 10 } end } end
+	u.pos = { x = -50, y = 1, z = 0 }
+	rawget(_G, "Hud").update(hud, 0.016)
+	E.eq(#arrows, 1)
+	E.eq(arrows[1].name, "icon_outofscreen_player_01")
+	E.eq(arrows[1].pos.x >= 96, true, "held inside the screen's edge, as the game holds it")
+	E.eq(texts[1], "Lost")
+	-- In view: the name, no arrow.
+	u.pos = { x = 4, y = 4, z = 0 }
+	arrows, texts = {}, {}
+	rawget(_G, "Hud").update(hud, 0.016)
+	E.eq(#arrows, 0) E.eq(texts[1], "Lost")
+end)
+
+test("add_ammo_goes_through_the_games_set_ammo", function()
+	local api, game, e = start()
+	local bot, u, w = armed_bot(api, game, e)
+	local sent = {}
+	local aux = rawget(_G, "EntityAux")
+	aux.has_interface = function() return true end
+	aux.queue_command_master_interface = function(weapon, iface, cmd, data) sent[#sent + 1] = { weapon = weapon, iface = iface, cmd = cmd, data = data } end
+	E.eq(bot:add_ammo("primary", 2), true)
+	E.eq(sent[1].weapon, w.rifle) E.eq(sent[1].iface, "weapon") E.eq(sent[1].cmd, "set_ammo")
+	E.eq(sent[1].data.num_mags, 6, "added to the four it had") E.eq(sent[1].data.num_rounds, nil)
+	E.eq(bot:add_ammo("support", nil, 1), true)
+	E.eq(sent[2].data.num_rounds, 101)
+	E.eq(select(2, bot:add_ammo("nope", 1)), "bad_slot")
+end)
+
+test("a_threat_fight_holds_fire_on_far_quiet_enemies_and_bursts_the_rifle", function()
+	local api, game, e = start()
+	local bot, u, w = armed_bot(api, game, e)
+	w.inv.current_weapon = w.rifle
+	rawget(_G, "EntityAux").state_master_interface = function(unit) return w.ammo[unit] end
+	local bug = game.enemies[1]
+	bot:fight(25, { weapon = "threat" })
+	-- 22 metres off and not after anyone: left alone.
+	game.step(40)
+	E.eq(u.master.input.input_data.fire_button, 0, "no shot at a far quiet enemy")
+	bug.pos = { x = 12, y = 0, z = 0 }
+	local on, off = 0, 0
+	for _ = 1, 150 do
+		game.step(1)
+		if u.master.input.input_data.fire_button == 1 then on = on + 1 else off = off + 1 end
+	end
+	E.eq(on > 20 and off > 20, true, "short bursts")
+	-- The target falls: the trigger comes off at once.
+	game.enemies[1].slave.health.is_dead = true
+	game.step(1)
+	E.eq(u.master.input.input_data.fire_button, 0, "stops with the target")
+	bot:fight(false)
+end)
+
+-- API 1.48.0: the first shot with the aim up, delivering beside a collection point, pickups, aiming on the move, nil results.
+
+test("a_bot_holds_the_aim_up_before_firing_a_heavy_weapon", function()
+	local api, game, e = start()
+	local bot, u, w = armed_bot(api, game, e)
+	local S = char_states({ "CharacterStateIdle", "CharacterStateAim", "CharacterStateAimFire" })
+	local cs = u.master.character
+	cs.current_state = S.CharacterStateAim
+	w.inv.current_weapon = w.mg
+	w.ammo[w.mg].move_speed_aim = 0
+	w.ammo[w.mg].attach_node = 7
+	u.pos = { x = 10, y = 0, z = 0 }
+	local barrel_down = true
+	local real_forward = rawget(_G, "Quaternion").forward
+	rawget(_G, "Unit").world_rotation = function(_, node) return node == 7 and "barrel" or "flat" end
+	rawget(_G, "Quaternion").forward = function(rot)
+		if rot == "flat" then return { x = -1, y = 0, z = 0 } end
+		if rot == "barrel" then return { x = -1, y = 0, z = barrel_down and -0.9 or 0 } end
+		return real_forward(rot)
+	end
+	bot:fight(25)
+	game.step(25)
+	E.eq(u.master.input.input_data.fire_button, 0, "the weapon is still coming up")
+	game.step(25)
+	E.eq(u.master.input.input_data.fire_button, 0, "held long enough, but the barrel is still down")
+	barrel_down = false
+	game.step(5)
+	E.eq(u.master.input.input_data.fire_button, 1, "fires once level")
+	-- The rifle comes out: the hold starts over, and a lighter weapon waits less.
+	w.inv.current_weapon = w.rifle
+	game.step(2)
+	E.eq(u.master.input.input_data.fire_button, 0, "a new weapon is brought up first")
+	game.step(25)
+	E.eq(u.master.input.input_data.fire_button, 1)
+end)
+
+test("a_bot_that_is_never_seen_aiming_still_shoots_in_the_end", function()
+	local api, game, e = start()
+	local bot, u = armed_bot(api, game, e)
+	local S = char_states({ "CharacterStateIdle", "CharacterStateAim" })
+	u.master.character.current_state = S.CharacterStateIdle
+	u.pos = { x = 10, y = 0, z = 0 }
+	bot:fight(25)
+	game.step(20)
+	E.eq(u.master.input.input_data.fire_button, 0)
+	game.step(120)
+	E.eq(u.master.input.input_data.fire_button, 1, "after the limit")
+end)
+
+local function carrying_bot(api, game, e, to_x)
+	bot_world(game, e)
+	local S = char_states({ "CharacterStateIdle", "CharacterStateCarry" })
+	rawget(_G, "Unit").node = function() return 2 end
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 1, y = 1, z = 0 })
+	local cs = u.master.character
+	u.master.interactor = {}
+	local drive = { alive = true, owned = true, pos = { x = 2, y = 1, z = 0 }, master = {}, slave = { objective_carry_object = {} } }
+	local cst = { mission_state = "pending" }
+	game.masters.objective_carry_object = { [drive] = { state = cst } }
+	game.slaves.objective_carry_object = { [drive] = { state = cst } }
+	local spot = { alive = true, owned = true, pos = { x = to_x, y = 1, z = 0 }, master = {}, slave = {} }
+	game.slaves.droppoint = { [spot] = { state = {}, settings = { droppoint_info = { droppoint_joints = { "j1" } } } } }
+	cs.current_state, cs.current_carry_unit = S.CharacterStateCarry, drive
+	cst.carrier = u
+	return bot, u, cst, drive
+end
+
+test("a_bot_stuck_in_front_of_a_collection_point_puts_the_thing_down_where_the_game_counts_it", function()
+	local api, game, e = start()
+	local bot, u, cst, drive = carrying_bot(api, game, e, 21)
+	local done
+	E.eq(bot:deliver(drive, function(ok, why) done = { ok, why } end), true)
+	game.step(2)
+	u.pos = { x = 17, y = 1, z = 0 }
+	game.commands = {}
+	game.step(90)
+	E.eq(G.command(game, "character", "drop_carry"), nil, "too far for the game, and still has to walk")
+	E.eq(u.master.input.input_data.move.x, 1, "keeps going")
+	-- Stood in front of the structure, within what the game counts: the walk can't get closer.
+	u.pos = { x = 18.5, y = 1, z = 0 }
+	cst.near_drop_off = true
+	game.commands = {}
+	game.step(60)
+	E.eq(G.command(game, "character", "drop_carry").unit, u, "put down where it stands")
+	E.eq(done, nil, "waits for the game to count it")
+	cst.mission_state = "complete"
+	game.step(2)
+	E.eq(done[2], "delivered")
+end)
+
+local function ground_world(game, lobby_is_host)
+	local gun = { alive = true, owned = true, pos = { x = 5, y = 0, z = 0 }, master = {}, slave = {} }
+	game.slaves.weapon_pickup = { [gun] = { state = { enabled = true }, settings = { pickup_info = { weapon_path = "equipment/wep_rpg_01" } } } }
+	game.masters.weapon_pickup = { [gun] = { state = { hide_time = 0 } } }
+	local gone = {}
+	game.state.entity_spawner.despawn_entity = function(_, u) gone[#gone + 1] = u end
+	game.state.entity_storage = { go_id = function() return 77 end, unit = function(_, id) return id == 77 and gun or nil end }
+	game.state.mission_seed = 1234
+	if lobby_is_host ~= nil then
+		rawget(_G, "NetworkGlobal").lobby.is_host = function() return lobby_is_host end
+	end
+	return gun, gone
+end
+
+test("a_pickup_is_listed_and_goes_for_every_machine_when_its_owner_removes_it", function()
+	local api, game = start()
+	local gun, gone = ground_world(game)
+	local list = api.world.pickups({ x = 0, y = 0 }, 30)
+	E.eq(#list, 1)
+	E.eq(list[1].unit, gun)
+	E.eq(list[1].kind, "weapon_pickup")
+	E.eq(list[1].owned, true)
+	E.eq(list[1].opening, false)
+	E.eq(list[1].weapon, "equipment/wep_rpg_01")
+	E.eq(list[1].position.x, 5)
+	E.eq(#api.world.pickups({ x = 100, y = 0 }, 5), 0, "out of the radius")
+	E.eq(#api.world.pickups(nil, nil, { "ammo_pickup" }), 0, "only the kinds asked for")
+	game.masters.weapon_pickup[gun].state.hide_time = 2
+	E.eq(api.world.pickups()[1].opening, true, "still in the crate")
+	E.eq(api.world.remove_pickup(gun), true)
+	E.eq(gone[1], gun, "the game's destruction, so the object goes on every machine")
+	E.eq(select(2, api.world.remove_pickup({ alive = false })), "gone")
+	E.eq(select(2, api.world.remove_pickup({ alive = true })), "not_a_pickup")
+end)
+
+test("a_client_can_only_remove_what_it_owns_and_the_host_asks_the_owner", function()
+	local host_lobby = { my_id = "me", members = { "me", "p2" }, data = {}, extra = {} }
+	local api, game = start({ lobby = host_lobby })
+	local gun, gone = ground_world(game, true)
+	gun.owned = false
+	E.eq(select(2, api.world.remove_pickup(gun)), "asked", "the host asks the owner")
+	E.eq(#gone, 0, "never destroys what another machine holds")
+	E.eq(host_lobby.published["obsidian.api:remove_pickup"], "1234;1@77")
+end)
+
+test("a_client_removes_what_the_host_asks_for_and_only_what_it_owns", function()
+	local client_lobby = { my_id = "me", members = { "me", "friend" }, data = {}, extra = { friend = {} } }
+	local capi, cgame, ce = start({ lobby = client_lobby, host = false })
+	local world = ce.loaded["obsidian/mods/obsidian.api/lib/world"]
+	local function looks(n) for _ = 1, n do world.tick() end end
+	local cgun, cgone = ground_world(cgame, false)
+	cgun.owned = false
+	E.eq(select(2, capi.world.remove_pickup(cgun)), "not_owner", "another client's: refused")
+	cgun.owned = true
+	-- A request from before this machine started looking is not acted on, a new one is.
+	client_lobby.extra.friend["obsidian.api:remove_pickup"] = "1234;1@77"
+	looks(30)
+	E.eq(#cgone, 0, "an old request")
+	client_lobby.extra.friend["obsidian.api:remove_pickup"] = "1234;1@77|2@77"
+	looks(30)
+	E.eq(cgone[1], cgun, "the owner removes what the host asked for")
+end)
+
+test("the_aiming_and_reloading_speed_effects_write_the_weapon_and_give_it_back", function()
+	local api, game, e = start()
+	local weapon = { alive = true, master = {}, slave = {} }
+	local ws = { move_speed_aim = 0, move_speed_reload = 0.5 }
+	game.me.master.inventory.current_weapon = weapon
+	rawget(_G, "EntityAux").state_interface = function() return ws end
+	E.eq(api.effects.set("aim_move_speed", 1.5), true)
+	e:frames(2)
+	E.eq(ws.move_speed_aim, 1.5, "a rooted weapon walks")
+	ws.move_speed_aim = 0
+	e:frames(1)
+	E.eq(ws.move_speed_aim, 1.5, "kept up: a reload of the settings writes it back")
+	api.effects.set("reload_move_speed", 1)
+	e:frames(1)
+	E.eq(ws.move_speed_reload, 1)
+	api.effects.set("aim_move_speed", false)
+	api.effects.set("reload_move_speed", false)
+	E.eq(ws.move_speed_aim, 0, "the weapon's own back")
+	E.eq(ws.move_speed_reload, 0.5)
+end)
+
+test("hooks_keep_every_result_a_game_function_gives_nil_ones_too", function()
+	local api, game, e = start()
+	local answers = { {}, nil, nil }
+	rawset(_G, "ProvinggroundsConditions", { remove_blacklisted_strats = function() return answers[1], answers[2], answers[3] end })
+	rawset(_G, "Hud", rawget(_G, "Hud") or {})
+	rawget(_G, "Hud").draw_map = function() return nil end
+	hooked(e)
+	local pc = rawget(_G, "ProvinggroundsConditions")
+	E.eq(select("#", pc.remove_blacklisted_strats({})), 3, "two trailing nils still answered")
+	local a, b, c = pc.remove_blacklisted_strats({})
+	E.eq(type(a), "table")
+	E.eq(b, nil)
+	E.eq(c, nil)
+	E.eq(select("#", rawget(_G, "Hud").draw_map({}, 0, 0, {}, {})), 1, "a single nil result is still a result")
+end)
+
+test("without_save_data_the_unlocks_stay_in_the_loaders_storage_and_a_sandbox_is_not_needed", function()
+	local opts = { locked = LOCKED.locked, loaded = { ["obsidian/loader/save_data"] = { api = function() return nil end, setup = function() end } } }
+	local api, game, e = start(opts)
+	rawget(_G, "LoadoutSettings").default_loadout.primary_weapon = "weapon_other"
+	game.save.user.player_xp = game.save.user.player_xp + 1
+	wire_world(game)
+	hooked(e)
+	E.eq(rawget(_G, "obsidian").save_data, nil, "a loader from before save_data")
+	api.stratagems.define({ name = "test_manual", base = "stratagem_machinegun", title = "Manual", unlock = "manual" })
+	E.eq(api.stratagems.unlock("test_manual"), true)
+	e:frames(1)
+	E.eq(rawget(_G, "obsidian").storage.get("stratagem_unlocks"), "test_manual")
+	E.eq(api.catalog.unlocked("test_manual"), true)
+end)
+
+-- The Third Person Camera mod: a level camera at (0, 0, 20) looking along +y, with a projection that
+-- mirrors a point behind it, as a real one does.
+local function level_camera()
+	local V = rawget(_G, "Vector3")
+	return { get_camera = function() return "camera" end,
+		screen_to_world = function() return V(0, 10, 20) end,
+		world_to_viewport = function(_, p)
+			local d = p.y ~= 0 and p.y or 0.001
+			return { x = 960 + p.x / d * 500, y = d, z = 540 + (p.z - 20) / d * 500 }
+		end }
+end
+
+test("a_bot_behind_a_level_camera_gets_the_arrow_on_its_side_and_no_mirrored_name", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	rawset(_G, "Vector2", function(x, y) return { x = x, y = y } end)
+	api.bots.add({ bare = true, name = "Back" })
+	local u = game.bare
+	body_health(u)
+	local arrows, texts = {}, {}
+	local gui = { screen_resolution = { width = 1920, height = 1080 }, ui_scale = 1 }
+	function gui:set_current_font() end
+	function gui:set_ignore_position_scale() end
+	function gui:set_ignore_size_scale() end
+	function gui:text(text, pos) texts[#texts + 1] = { text = text, pos = pos } end
+	function gui:rotated_image(name, pos) arrows[#arrows + 1] = { name = name, pos = pos } end
+	local hud = { hd_gui = gui, plugins_enabled = true, gui_metrics_cacher = { get_text_extents = function() return 60, 20 end } }
+	local view = level_camera()
+	rawget(_G, "CameraManager").get_viewport = function() return view end
+	u.pos = { x = 2, y = 10, z = 20 }
+	rawget(_G, "Hud").update(hud, 0.016)
+	E.eq(#arrows, 0, "in front: the name only")
+	E.eq(texts[1].pos.x, 1060 - 30 + 6)
+	-- Two metres right and ten behind: the projection puts it left of the middle, on the screen.
+	u.pos = { x = 2, y = -10, z = 20 }
+	arrows, texts = {}, {}
+	rawget(_G, "Hud").update(hud, 0.016)
+	E.eq(#arrows, 1, "behind: the arrow, not a name over the mirrored spot")
+	E.eq(arrows[1].pos.x > 960, true, "on the right, where the bot is")
+end)
+
+test("the_third_person_cameras_pad_input_passes_over_the_bots", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add({ name = "Dummy" })
+	local u = game.land(2)
+	local cm = rawget(_G, "CameraManager")
+	local human, seen, extra = { pos = { x = 0, y = 0, z = 0 } }, {}, {}
+	function cm:mod_split_extra() return false end
+	function cm:mod_split_input(unit) seen[#seen + 1] = { "split", unit } end
+	function cm:mod_note_local(unit) seen[#seen + 1] = { "note", unit } end
+	function cm:mod_buttons(unit) seen[#seen + 1] = { "buttons", unit } end
+	local own = cm.mod_split_extra
+	rawget(_G, "InputComponent").update_masters = function()
+		for _, unit in ipairs({ u, human }) do
+			cm:mod_buttons(unit)
+			cm:mod_note_local(unit)
+			extra[#extra + 1] = cm:mod_split_extra(unit)
+		end
+	end
+	e.opts.modules["lua/components/input_component"] = true
+	rawget(_G, "require")("lua/components/input_component")
+	bot:move({ x = 1, y = 0 })
+	game.step(1)
+	E.eq(extra[1], true, "the bot skips the mod's part for a pad player")
+	E.eq(extra[2], false, "the human doesn't")
+	E.eq(#seen, 2)
+	E.eq(seen[1][2], human) E.eq(seen[2][2], human)
+	E.eq(cm.mod_split_extra, own, "put back after the input")
+	E.eq(u.master.input.input_data.move.x, 1, "the bot keeps the stick it was given")
+end)
+
+test("the_cursor_in_third_person_is_the_crosshair_past_the_player", function()
+	local api, game = start()
+	local V = rawget(_G, "Vector3")
+	local st = game.state
+	local asked, from = nil, nil
+	st.viewport.screen_to_world = function(_, x, y) asked = { x, y } return V(0, 1, 20) end
+	rawget(_G, "PhysicsWorld").immediate_raycast = function(_, f) from = f return true, V(0, 30, 0) end
+	rawget(_G, "Application").resolution = function() return 1920, 1080 end
+	game.me.pos = { x = 0.5, y = 5, z = 18 }
+	local cm = rawget(_G, "CameraManager")
+	cm.mod_cfg = {}
+	E.eq(api.world.cursor().y, 30)
+	E.eq(asked[1], 960) E.eq(asked[2], 540, "the middle of the screen, where the crosshair is")
+	E.eq(from.y, 5.6, "the ray starts past the player's own body")
+	cm.mod_cfg = nil
+	api.world.cursor()
+	E.eq(from.y, 0, "top-down: from the camera, through the mouse")
+	E.eq(asked[1] == 960 and asked[2] == 540, false)
 end)
 
 return T

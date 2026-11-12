@@ -10,7 +10,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke, convertFileSrc: (p: string) => 
 vi.mock("@tauri-apps/api/event", () => ({ listen: () => Promise.resolve(() => {}) }));
 vi.mock("@tauri-apps/api/webview", () => ({ getCurrentWebview: () => ({ onDragDropEvent: () => Promise.resolve(() => {}) }) }));
 vi.mock("@tauri-apps/plugin-updater", () => ({ check: () => Promise.resolve(null) }));
-vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
+vi.mock("../opener", () => ({ openUrl: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 const { default: App } = await import("../App");
 const { setSnapshot } = await import("../api");
@@ -22,13 +22,13 @@ const { go } = await import("../nav");
 
 const mod = (id: string, on: boolean): ModRow => ({
   id, name: { en: id }, description: {}, authors: [], version: "1.0.0", scope: "client", on, options: [], keybinds: [], files: [],
-  import: null, source: null, updatable: false, image: null, customImage: false, folder: null, requires: [],
+  import: null, source: null, updatable: false, image: null, folder: null, requires: [], parts: [], optionGroups: [], optionPreviews: [],
 });
 /** `deployed` is what the app tracks of the last deploy; `on` is the switch of the one mod in the list. */
 const snap = ({ deployed, on }: { deployed: boolean; on: boolean }): Snapshot => ({
   mods: [mod("a.one", on)], folders: [], profile: "Default", profiles: ["Default"],
   profileRows: [{ name: "Default", on: on ? 1 : 0, blockPublic: false, guarded: false, image: null, color: null }],
-  blockPublic: false, blockAchievements: false, freezeProgress: false, conflicts: [], changes: on === deployed ? "UpToDate" : "Waiting", deployed,
+  blockPublic: false, blockAchievements: false, freezeProgress: false, hideClientMods: false, loader: false, sandbox: null, conflicts: [], changes: on === deployed ? "UpToDate" : "Waiting", deployed, modded: deployed,
   game: "supported", gameChanges: [], gameDir: "C:\\Game", crashCulprit: null, broken: [], damagedProfiles: [], uncleanEnd: null, portable: false, version: "1.3.1",
 });
 const settings = (askVanillaPlay: boolean): AppSettings => ({ ...DEFAULTS, language: "en", updates: "manual", askVanillaPlay });
@@ -89,7 +89,7 @@ describe("Play with nothing deployed", () => {
   it("asks first, with the question, Yes and No, and plays only on Yes", async () => {
     await open(snap({ deployed: false, on: true }), settings(true));
     await press(playButton());
-    expect(prompt()?.querySelector("p")?.textContent).toBe("You have not deployed any mods, so your game is vanilla. Play anyway?");
+    expect(prompt()?.querySelector("p")?.textContent).toBe("No mods are deployed, so the game is vanilla. Play anyway?");
     expect([...document.querySelectorAll(".modal-foot .btn")].map((b) => b.textContent)).toEqual(["No", "Yes"]);
     expect(dontAsk()?.textContent).toBe("Don't ask again");
     expect(dontAsk()?.getAttribute("aria-checked")).toBe("false");

@@ -16,6 +16,8 @@ local function unescape(s)
 	return (B.gsub(s, "\\.", UNESCAPES))
 end
 
+M.escape, M.unescape = escape, unescape
+
 local function path(id)
 	return M.dir .. "/" .. log.file_name(id) .. ".store"
 end

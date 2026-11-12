@@ -4,7 +4,7 @@ group: Making mods
 summary: Settings players change in the app, and keys they can rebind, read from Lua.
 ---
 
-Options show in the panel on the right when a player selects your mod. Obsidian checks every value against what you declared, so the mod never receives a value outside the range you set. Values belong to the profile, so two profiles can run the same mod with different settings.
+Options show in the panel on the right when a player selects the mod. Obsidian checks every value against the declaration, so the mod never receives a value outside the declared range. Values belong to the profile, so two profiles can run the same mod with different settings.
 
 ## Declaring options
 
@@ -35,6 +35,58 @@ Each option has an `id` (lowercase letters, digits and `_`), a `type`, a `defaul
 ### Personal options in session mods
 
 The option values of a session mod or an expansion count when Obsidian compares two players' mods, because a balance slider changes the shared game. Mark an option `"scope": "client"` when the value only changes what this player sees, such as a color or a camera distance. Players can then pick different values and still match ([Playing online](wiki:multiplayer)).
+
+### Options of a part
+
+In a mod with [parts](wiki:manifest#parts), `"part": "<part id>"` puts an option in that part. An option of a client part counts as `"scope": "client"`, and an option of a part that is off doesn't count at all. An option without a part follows the strictest part that is on. The toggle a part names in `option` switches that part, so changing the toggle needs a deploy.
+
+## Option groups
+
+`option_groups` sorts the options under headings that fold. Each option names the heading with `group`:
+
+```json
+"option_groups": [
+  { "id": "idle", "label": { "en": "Idle crosshair" }, "description": { "en": "While not aiming." } },
+  { "id": "aim", "label": { "en": "Aiming" }, "collapsed": true }
+],
+"options": [
+  { "id": "idle_shape", "type": "choice", "default": "cross", "choices": ["cross", "dot"], "group": "idle",
+    "label": { "en": "Shape" } }
+]
+```
+
+Options without a group come first, then each group in the order declared. `collapsed` starts a group folded. The app remembers which groups the player opened, for each mod. `visible_when` works inside groups as anywhere else. A `group` that names no group is refused on import. Older Obsidian ignores both fields and lists the options as before.
+
+## Option previews
+
+`option_previews` shows a picture of the values, drawn from an SVG file in the mod folder and redrawn as the player changes them:
+
+```json
+"option_previews": [
+  { "id": "idle_preview", "group": "idle", "template": "preview/idle.svg", "width": 240, "height": 140,
+    "label": { "en": "Preview" } }
+]
+```
+
+The preview shows at the top of the group it names, or at the top of the Options tab. The file is SVG, at most 64 KB, and is checked on import. Inside it:
+
+- `{{expr}}` in an attribute value or in text becomes the value of the expression.
+- `data-if="expr"` on any element removes the element while the expression is false.
+
+An expression uses numbers, `'text'`, option ids (a number, `true` or `false`, a choice id or a `#rrggbb` color), `+ - * / %`, `== != < > <= >=`, `&& || !`, `a ? b : c`, parentheses and `min`, `max`, `abs`, `round`, `floor`, `ceil` and `clamp(x, lo, hi)`. `+` joins text. An expression with a mistake gives nothing, and an element whose `data-if` has one is removed.
+
+```xml
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="140">
+  <rect width="240" height="140" fill="#1b1d1f"/>
+  <g data-if="idle_shape == 'cross'" stroke="{{idle_color}}" stroke-width="{{idle_thickness}}">
+    <line x1="{{120 - idle_size}}" y1="70" x2="{{120 + idle_size}}" y2="70"/>
+    <line x1="120" y1="{{70 - idle_size}}" x2="120" y2="{{70 + idle_size}}"/>
+  </g>
+  <circle data-if="idle_shape == 'dot'" cx="120" cy="70" r="{{idle_size / 2}}" fill="{{idle_color}}"/>
+</svg>
+```
+
+The picture shows as an image: scripts, `foreignObject`, `on...` attributes and links outside the file are taken out.
 
 ## Reading options in Lua
 
@@ -81,7 +133,7 @@ The function runs once each time the key goes down. Players rebind keys in the a
 
 ### Controller input
 
-The Keys tab has a column for the mouse and keyboard and one for a controller. When an action also has a controller input, declare that input as a `choice` option and name the option in the keybind's `pad`:
+The Keys tab has a column for the mouse and keyboard and one for a controller. When an action also has a controller input, declare that input as a `choice` option and name the option in the `pad` of the keybind:
 
 ```json
 "options": [ { "id": "pad_toggle", "type": "choice", "default": "thumbs",
@@ -89,4 +141,4 @@ The Keys tab has a column for the mouse and keyboard and one for a controller. W
 "keybinds": [ { "id": "toggle", "default": "f8", "pad": "pad_toggle", "label": { "en": "Turn the compass on or off" } } ]
 ```
 
-The app then shows the option in the keybind's row, under the controller column, and leaves it out of the Options tab. The mod reads the option like any other and watches the pad itself. A keybind with no `pad` shows a dash in that column. Obsidian versions without the controller column ignore `pad` and list the option under Options.
+The app then shows the option in the row of the keybind, under the controller column, and leaves it out of the Options tab. The mod reads the option like any other and watches the pad itself. A keybind with no `pad` shows a dash in that column. Obsidian versions without the controller column ignore `pad` and list the option under Options.

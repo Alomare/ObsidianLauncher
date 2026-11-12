@@ -94,7 +94,7 @@ end)
 
 test("log_marks_mod_loading_before_start", function()
 	local e = E.new({ deploy = E.deploy({ mods = { E.mod("a.b") } }) })
-	e.opts.mods = { ["obsidian/mods/a.b/main"] = "SEEN = io.open(os.getenv('APPDATA') .. '/Arrowhead/Helldivers/ObsidianModManager/logs/loader.log'):read('*a')" }
+	e.opts.mods = { ["obsidian/mods/a.b/main"] = "SEEN = io.open(os.getenv('APPDATA') .. '/Arrowhead/Helldivers/ObsidianLauncher/logs/loader.log'):read('*a')" }
 	e:boot()
 	local seen = rawget(_G, "SEEN")
 	E.has(seen, "loading a.b", "log during start")
@@ -185,6 +185,77 @@ test("a_mod_is_refused_when_a_required_mod_failed", function()
 	E.eq(rawget(_G, "STARTED"), nil, "user ran")
 	E.has(e:log(), "refused user: needs base")
 	E.eq(rawget(_G, "obsidian").import("base"), nil, "a failed mod exports nothing")
+end)
+
+local function one_mod(source, opts)
+	local mods = { E.mod("a.b", opts) }
+	local e = E.new({ deploy = E.deploy({ mods = mods }), mods = { ["obsidian/mods/a.b/main"] = source } })
+	return e
+end
+
+test("language_follows_the_games_code_for_every_language", function()
+	local e = one_mod("LANG = obsidian.language()")
+	rawset(_G, "LocalizationManager", { current_language = "ru" })
+	e:boot()
+	E.eq(rawget(_G, "LANG"), "ru")
+	local lm = rawget(_G, "LocalizationManager")
+	local cases = { [""] = "en", en = "en", fr = "fr", las = "es", bp = "pt-BR", de = "de", pl = "pl", chs = "zh-CN", ch = "zh-TW", se = "sv", xx = "en" }
+	for code, want in pairs(cases) do
+		lm.current_language = code
+		E.eq(rawget(_G, "obsidian").language(), want, code)
+	end
+end)
+
+test("language_reads_boot_before_the_game_sets_up_localization", function()
+	local e = one_mod("LANG = obsidian.language()")
+	rawset(_G, "LocalizationManager", {})
+	rawset(_G, "Boot", { language = "de" })
+	e:boot()
+	E.eq(rawget(_G, "LANG"), "de")
+end)
+
+test("a_mods_name_and_text_come_in_a_language_beyond_the_first_four", function()
+	local e = one_mod("NAME = obsidian.info().name; TEXT = obsidian.text('hello')",
+		{ name = { en = "Rank Cap", ru = "Potolok" }, texts = { en = { hello = "hi" }, ru = { hello = "privet" } } })
+	rawset(_G, "LocalizationManager", { current_language = "ru" })
+	e:boot()
+	E.eq(rawget(_G, "NAME"), "Potolok")
+	E.eq(rawget(_G, "TEXT"), "privet")
+end)
+
+test("game_text_shows_a_mods_words_for_a_key_in_the_games_language", function()
+	local e = one_mod([[
+		OK = obsidian.game_text("rank_title_60", { en = "Warden", ru = "Strazh" })
+		BAD = obsidian.game_text("rank_title_61", 7)
+		PLAIN = obsidian.game_text("mod_only", "Words")
+	]])
+	rawset(_G, "LocalizationManager", { current_language = "en", string = function(_, key) return "vanilla " .. key end })
+	e:boot()
+	E.eq(rawget(_G, "OK"), true)
+	E.eq(rawget(_G, "BAD"), false)
+	local lm = rawget(_G, "LocalizationManager")
+	E.eq(lm:string("rank_title_60"), "Warden")
+	E.eq(lm:string("mod_only"), "Words")
+	E.eq(lm:string("title_rank_01"), "vanilla title_rank_01", "other keys stay the game's")
+	lm.current_language = "ru"
+	E.eq(lm:string("rank_title_60"), "Strazh")
+	lm.current_language = "de"
+	E.eq(lm:string("rank_title_60"), "Warden", "English when the language has none")
+	E.eq(rawget(_G, "obsidian").game_text("rank_title_60", nil), true)
+	E.eq(lm:string("rank_title_60"), "vanilla rank_title_60", "nil takes the words away")
+end)
+
+test("settings_get_names_a_mod_for_code_outside_it", function()
+	local e = one_mod("OWN = obsidian.settings.get('camera')",
+		{ options = { { id = "camera", type = "choice", choices = { "free", "shared" }, default = "free" } } })
+	rawset(_G, "Boot", {})
+	e:boot()
+	E.eq(rawget(_G, "OWN"), "free")
+	local get = rawget(_G, "obsidian").settings.get
+	E.eq(get("camera"), nil, "no mod is running here")
+	E.eq(get("camera", "a.b"), "free", "a game script the mod replaced names the mod")
+	E.eq(get("camera", "nobody"), nil)
+	E.eq(get("missing", "a.b"), nil)
 end)
 
 return T

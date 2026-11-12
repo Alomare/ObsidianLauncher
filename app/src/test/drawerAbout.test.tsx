@@ -5,7 +5,7 @@ import type { ModRow } from "../types";
 
 const openUrl = vi.fn(() => Promise.resolve());
 vi.mock("../api", () => ({ run: vi.fn() }));
-vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: (...a: unknown[]) => openUrl(...(a as [])) }));
+vi.mock("../opener", () => ({ openUrl: (...a: unknown[]) => openUrl(...(a as [])) }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
 const { Drawer } = await import("../mods/Drawer");
 
@@ -22,15 +22,14 @@ const SOURCE = "https://github.com/someone/a-mod-with-a-rather-long-repository-n
 const mod = (source: string | null) =>
   ({
     id: "someone.long-mod", name: { en: "Long Mod" }, description: { en: "" }, authors: ["Someone"], version: "1.0.0", scope: "client", on: true,
-    options: [], keybinds: [], files: [], import: null, source, updatable: false, image: null, customImage: false, folder: null, requires: [],
+    options: [], keybinds: [], files: [], import: null, source, updatable: false, image: null, folder: null, requires: [], parts: [], optionGroups: [], optionPreviews: [],
   }) as ModRow;
 
-function show(m: ModRow, updates: Record<string, string> = {}, onUpdate: (id: string) => void = () => {}) {
+function show(m: ModRow) {
   const box = document.createElement("div");
   document.body.append(box);
   root = createRoot(box);
-  act(() => root!.render(<Drawer view={{ kind: "mod", id: m.id }} mods={[m]} conflicts={[]} order={[m.id]} names={new Map([[m.id, "Long Mod"]])} onOpen={() => {}} onClose={() => {}}
-    updates={updates} onUpdate={onUpdate} />));
+  act(() => root!.render(<Drawer view={{ kind: "mod", id: m.id }} mods={[m]} conflicts={[]} order={[m.id]} names={new Map([[m.id, "Long Mod"]])} onOpen={() => {}} onClose={() => {}} />));
   return box;
 }
 
@@ -55,17 +54,9 @@ describe("the About tab", () => {
   });
 });
 
-describe("the panel's update offer", () => {
-  it("offers a newer version found, as the row does, and asks through the same question", () => {
-    const onUpdate = vi.fn();
-    const offer = show(mod(SOURCE), { "someone.long-mod": "1.2.0" }, onUpdate).querySelector<HTMLButtonElement>(".dh .dh-update");
-    expect(offer?.textContent).toBe("Update to 1.2.0");
-    act(() => offer!.click());
-    expect(onUpdate).toHaveBeenCalledWith("someone.long-mod");
-  });
-
-  it("offers nothing without a newer version", () => {
-    expect(show(mod(SOURCE), { "someone.long-mod": "1.0.0" }).querySelector(".dh-update")).toBeNull();
+describe("the panel's header", () => {
+  it("has no update button: the row and the Mods head offer the update", () => {
     expect(show(mod(SOURCE)).querySelector(".dh-update")).toBeNull();
+    expect(show(mod(SOURCE)).querySelector(".dh .ver-up")).toBeNull();
   });
 });

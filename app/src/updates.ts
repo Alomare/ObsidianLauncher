@@ -1,6 +1,7 @@
 // Obsidian's own updates through the updater plugin: it reads latest.json from the newest GitHub
 // release, compares versions, downloads the installer, checks the signature and runs it (the app
-// closes while it installs and opens again on the new version). Portable copies never install:
+// closes while it installs and opens again on the new version). On Linux the AppImage or the package
+// is replaced while the app runs, so the app starts again after. Portable copies never install:
 // they show the new version with a link to the releases page.
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { useSyncExternalStore } from "react";
@@ -54,6 +55,8 @@ export async function installUpdate() {
       else if (ev.event === "Progress") set({ got: state.got + ev.data.chunkLength });
       else set({ phase: "installing" });
     });
+    // Reached on Linux only: the Windows installer has closed the app by now.
+    await call("restart_app");
   } catch (e) {
     set({ phase: "found", error: e instanceof Error ? e.message : String(e) });
   }

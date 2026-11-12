@@ -10,6 +10,10 @@ const Icon = ({ children, ...p }: SVGProps<SVGSVGElement> & { children: ReactNod
 
 /** A wrench. */
 export const ModsIcon = () => <Icon><path d="M14.6 6.4a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.4-3.4a5.6 5.6 0 0 1-7.6 7.3l-7 7a2.1 2.1 0 0 1-3-3l7-7a5.6 5.6 0 0 1 7.3-7.6z" /></Icon>;
+/** A floppy disk: the Saves tab. */
+export const SaveIcon = () => <Icon><path d="M4.5 3.5h12l3 3v14h-15z" /><path d="M8 3.5v5h8v-5M7.5 20.5v-6.5h9v6.5" /></Icon>;
+export const EyeIcon = () => <Icon><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="2.8" /></Icon>;
+export const EyeOffIcon = () => <Icon><path d="M9.8 5.8A8.9 8.9 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16.6 16.6 0 0 1-2.6 3.5M6.2 7.4A16 16 0 0 0 2.5 12S6 18.5 12 18.5a8.8 8.8 0 0 0 4.4-1.2" /><path d="M9.9 10a2.8 2.8 0 0 0 3.9 4" /><path d="M3.5 3.5l17 17" /></Icon>;
 export const HomeIcon = () => <Icon><path d="M3.5 11L12 3.5l8.5 7.5" /><path d="M5.5 9.5v11h5v-6h3v6h5v-11" /></Icon>;
 const FOLDER = "M3 6.5a1.5 1.5 0 0 1 1.5-1.5h4.8l2 2.2h8.2A1.5 1.5 0 0 1 21 8.7v9.8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z";
 export const FolderIcon = () => <Icon><path d={FOLDER} /></Icon>;
@@ -49,9 +53,13 @@ export const CogIcon = () => (
 /** An eraser: Purge wipes what Obsidian wrote, back to vanilla. */
 export const PurgeIcon = () => <Icon width="22.7" height="22.7" strokeWidth="2"><path d="M9 20.5L2.8 14.3a1 1 0 0 1 0-1.4l9.5-9.5a1 1 0 0 1 1.4 0l6.8 6.8a1 1 0 0 1 0 1.4L11.6 20.5z" /><path d="M7.5 8.6l8.4 8.4M9 20.5h12" /></Icon>;
 /** A box with an arrow leaving it: the mods go out into the game. Drawn like Purge. */
-export const DeployIcon = () => <Icon width="24" height="24" strokeWidth="1.9"><path d="M9.5 9l6.5 3.5v7L9.5 23 3 19.5v-7z" /><path d="M3 12.5l6.5 3.5 6.5-3.5M9.5 16v7" /><path d="M13.5 9.5L21 2M15.5 2H21v5.5" /></Icon>;
+// Wider than the other icons (3:2), so the arrow can run out to the right; `.icon-wide` keeps the shape.
+export const DeployIcon = () => <Icon viewBox="0 0 36 24" width="36" height="24" strokeWidth="1.9" className="icon-wide"><path d="M8 4l7 4v8l-7 4-7-4V8z" /><path d="M1 8l7 4 7-4M8 12v8" /><path d="M18.5 12h16M32 9.25l2.75 2.75L32 14.75" /></Icon>;
 export const PlayIcon = () => <Icon fill="currentColor" stroke="none"><path d="M7 4.5v15l13-7.5z" /></Icon>;
-export const WarnIcon = () => <Icon><path d="M12 3l10 18H2zM12 10v5M12 17.5v.5" /></Icon>;
+/** A triangle with a mark; `filled` makes it solid, with the mark cut out in the color of the panels. */
+export const WarnIcon = ({ filled }: { filled?: boolean }) => (
+  <Icon><path d="M12 3l10 18H2z" fill={filled ? "currentColor" : undefined} /><path d="M12 10v5M12 17.5v.5" stroke={filled ? "var(--s2)" : undefined} /></Icon>
+);
 export const SearchIcon = () => <Icon><circle cx="11" cy="11" r="7" /><path d="M20 20l-4-4" /></Icon>;
 export const UpArrowIcon = () => <Icon strokeWidth="3"><path d="M12 20V5M6 11l6-6 6 6" /></Icon>;
 export const ArrowIcon = () => <Icon><path d="M4 12h15M13 6l6 6-6 6" /></Icon>;

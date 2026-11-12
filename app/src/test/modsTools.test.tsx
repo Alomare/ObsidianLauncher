@@ -6,7 +6,7 @@ import type { ModRow, ProfileRow, Snapshot } from "../types";
 
 const invoke = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/api/core", () => ({ invoke, convertFileSrc: (p: string) => p }));
-vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
+vi.mock("../opener", () => ({ openUrl: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 vi.mock("@tauri-apps/api/webview", () => ({ getCurrentWebview: vi.fn() }));
 const { ModsPage } = await import("../mods/ModsPage");
@@ -16,12 +16,12 @@ const { ModsPage } = await import("../mods/ModsPage");
 /** A mod; one whose id starts with "gh." names a GitHub repository and can be checked for updates. */
 const mod = (id: string): ModRow => ({
   id, name: { en: id }, description: {}, authors: [], version: "1.0.0", scope: "client", on: true, options: [], keybinds: [], files: [],
-  import: null, source: null, updatable: id.startsWith("gh."), image: null, customImage: false, folder: null, requires: [],
+  import: null, source: null, updatable: id.startsWith("gh."), image: null, folder: null, requires: [], parts: [], optionGroups: [], optionPreviews: [],
 });
 const row = (name: string, extra: Partial<ProfileRow> = {}): ProfileRow => ({ name, on: 0, blockPublic: false, guarded: false, image: null, color: null, ...extra });
 const snap = (ids: string[], profileRows: ProfileRow[] = [row("Default")]): Snapshot => ({
   mods: ids.map(mod), folders: [], profile: "Default", profiles: profileRows.map((p) => p.name), profileRows,
-  blockPublic: false, blockAchievements: false, freezeProgress: false, conflicts: [], changes: "UpToDate", deployed: true, game: "supported",
+  blockPublic: false, blockAchievements: false, freezeProgress: false, hideClientMods: false, loader: false, sandbox: null, conflicts: [], changes: "UpToDate", deployed: true, modded: true, game: "supported",
   gameChanges: [], gameDir: "C:\\Game", crashCulprit: null, broken: [], damagedProfiles: [], uncleanEnd: null, portable: false, version: "1.3.1",
 });
 
@@ -37,7 +37,7 @@ function show(s: Snapshot) {
   const host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
-  act(() => root!.render(<ModsPage snap={s} />));
+  act(() => root!.render(<ModsPage snap={s} busy={false} onPurge={() => {}} onDeploy={() => {}} />));
   return [...host.querySelectorAll<HTMLButtonElement>(".mods .head > button")];
 }
 
@@ -51,6 +51,7 @@ describe("the head of the Mods page", () => {
   });
 
   it("with one profile, shows the chip and the name with no arrow, and opens the profiles dialog", () => {
+    invoke.mockResolvedValue({ account: "1", active: null, saves: [] });
     const profile = show(snap(["a.one", "b.two"]))[0];
     expect(profile.classList.contains("profile-btn")).toBe(true);
     expect(profile.querySelector(".profile-chip")).not.toBeNull();
@@ -171,10 +172,25 @@ describe("the head of the Mods page", () => {
   });
 });
 
+describe("the conflicts panel", () => {
+  const withConflict = (): Snapshot => ({ ...snap(["a.one", "b.two"]), conflicts: [{ resource: "x", mods: ["a.one", "b.two"], winner: "b.two" }] });
+  const panel = () => document.querySelector(".drawer.conflicts");
+
+  it("closes on the X, stays closed, and comes back from a conflict icon", () => {
+    show(withConflict());
+    expect(panel()).not.toBeNull();
+    act(() => panel()!.querySelector<HTMLButtonElement>(".dh button.bare")!.click());
+    expect(panel()).toBeNull();
+    expect(document.querySelector(".split")).toBeNull();
+    act(() => document.querySelector<HTMLButtonElement>(".cf-ico")!.click());
+    expect(panel()).not.toBeNull();
+  });
+});
+
 describe("the list and the bar for checked mods", () => {
   const tick = (id: string) => act(() => document.querySelector<HTMLButtonElement>(`[data-key="${id}"] .ck`)!.click());
   const bar = () => document.querySelector<HTMLElement>(".batch[role=toolbar]");
-  const checkButton = () => [...bar()!.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === t("app.mods.checkUpdates"))!;
+  const checkButton = () => [...bar()!.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.getAttribute("aria-label") === t("app.mods.checkUpdates"))!;
 
   it("has no column of update checks: not in the header, the rows or a folder", () => {
     show(snap(["gh.one", "b.two"]));

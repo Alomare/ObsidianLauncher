@@ -1,6 +1,6 @@
 // Settings > Updates: this version, whether a newer one is out, and what every version changed.
 // When to install is a setting in System, which the line under the card links to. While a new version installs, UpdateProgress stands in front of every page.
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "./opener";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import logo from "./assets/logo.png";
 import { CheckIcon, ChevronIcon, ExternalIcon, UpdateIcon, WarnIcon } from "./Icons";

@@ -10,6 +10,7 @@ import { pick, t } from "./i18n";
 import { listenForDrops, type DropState } from "./mods/dropImport";
 import { checkModUpdates } from "./mods/modUpdates";
 import { HomePage } from "./HomePage";
+import { CommanderPage } from "./commander/CommanderPage";
 import { ModsPage } from "./mods/ModsPage";
 import { NavBar, type Wave } from "./NavBar";
 import { go as setTab, useNav } from "./nav";
@@ -17,6 +18,7 @@ import { WikiPage } from "./WikiPage";
 import { SettingsPage, type SettingsTab } from "./SettingsPage";
 import { Notices } from "./NoticeList";
 import { asksBeforePlay, PlayPrompt } from "./PlayPrompt";
+import { SavesPage } from "./saves/SavesPage";
 import { loadSettings, updateSettings, useAppSettings } from "./settings";
 import { StatusBar } from "./StatusBar";
 import { Tooltip } from "./Tooltip";
@@ -35,12 +37,22 @@ export default function App() {
   const [askPlay, setAskPlay] = useState(false);
   // The same function on every render: the dialog puts the focus back on Yes when it gets a new one.
   const cancelPlay = useCallback(() => setAskPlay(false), []);
+  const [askDeploy, setAskDeploy] = useState(false);
+  const cancelDeploy = useCallback(() => setAskDeploy(false), []);
+  // The Saves tab reads the save files, so it waits for the first visit, and then stays mounted to keep edits under way.
+  const [savesOpened, setSavesOpened] = useState(false);
+  useEffect(() => { if (tab === "saves") setSavesOpened(true); }, [tab]);
+  // Commander's war screens stay loaded once opened, so a war view keeps its place between tabs.
+  const [commanderOpened, setCommanderOpened] = useState(false);
+  // Each click on the Commander tab while it is open takes Commander back to the war list.
+  const [commanderHome, setCommanderHome] = useState(0);
+  useEffect(() => { if (tab === "commander") setCommanderOpened(true); }, [tab]);
   const [wave, setWave] = useState<Wave | null>(null);
   const update = useUpdates();
   const startWave = (tone: Wave["tone"]) => {
     if (document.documentElement.dataset.motion !== "off") setWave((w) => ({ tone, n: (w?.n ?? 0) + 1 }));
   };
-  const startPlay = () => { startWave("yellow"); play(); };
+  const startPlay = () => { startWave("yellow"); play().then((r) => r === "needsDeploy" && setAskDeploy(true)); };
   const ready = !!snap && !!settings;
   // The color of the active profile tints the Profile button and the switches that are on; --pc-on is
   // the ink that reads on it, as a custom color can be dark or light.
@@ -83,13 +95,14 @@ export default function App() {
   if (!settings) return null;
   return (
     <div className="app">
-      <NavBar tab={tab} onTab={(to) => { if (to === "settings" && update.phase === "found") setSettingsTab("updates"); setTab(to); }} snap={snap} busy={busy} updateFound={update.phase === "found"} wave={wave} onWaveEnd={() => setWave(null)} onPurge={() => { startWave(snap?.deployed ? "red" : "grey"); purge(); }}
-        onDeploy={() => { startWave(snap?.changes === "Waiting" ? "green" : "grey"); deploy(); }}
+      <NavBar tab={tab} onTab={(to) => { if (to === "settings" && update.phase === "found") setSettingsTab("updates"); if (to === "commander" && tab === "commander") setCommanderHome((n) => n + 1); setTab(to); }} snap={snap} busy={busy} updateFound={update.phase === "found"} wave={wave} onWaveEnd={() => setWave(null)}
         onPlay={() => (snap && asksBeforePlay(snap, settings) ? setAskPlay(true) : startPlay())} />
-      <main className={tab === "home" || tab === "wiki" ? "page bleed" : "page"}>
+      <main className={tab === "home" || tab === "wiki" || tab === "commander" ? "page bleed" : "page"}>
         {tab === "home" && <div className="view" key="home"><HomePage /></div>}
         {/* Mods stays mounted while hidden: a long list then costs nothing to come back to. */}
-        {snap && <div className="view" hidden={tab !== "mods"}><ModsPage snap={snap} /></div>}
+        {snap && <div className="view" hidden={tab !== "mods"}><ModsPage snap={snap} busy={busy} onPurge={() => { startWave(snap.deployed ? "red" : "grey"); purge(); }} onDeploy={() => { startWave(snap.changes === "Waiting" ? "green" : "grey"); deploy(); }} /></div>}
+        {snap && (tab === "saves" || savesOpened) && <div className="view" hidden={tab !== "saves"}><SavesPage snap={snap} visible={tab === "saves"} /></div>}
+        {snap && (tab === "commander" || commanderOpened) && <div className="view" hidden={tab !== "commander"}><CommanderPage snap={snap} visible={tab === "commander"} onPlay={startPlay} home={commanderHome} /></div>}
         {tab === "wiki" && <div className="view" key="wiki"><WikiPage /></div>}
         {snap && tab === "settings" && <div className="view" key="settings"><SettingsPage snap={snap} tab={settingsTab} onTab={setSettingsTab} /></div>}
       </main>
@@ -112,6 +125,10 @@ export default function App() {
           if (dontAsk) updateSettings({ askVanillaPlay: false });
           startPlay();
         }} />
+      )}
+      {askDeploy && (
+        <Confirm title={t("app.saves.playDeployTitle")} text={t("app.saves.playDeployText")} confirm={t("app.saves.playDeployConfirm")} tone="go" onCancel={cancelDeploy}
+          onConfirm={() => { setAskDeploy(false); startWave("green"); deploy().then((ok) => ok && startPlay()); }} />
       )}
       <UpdateProgress />
       <DeployProgress />

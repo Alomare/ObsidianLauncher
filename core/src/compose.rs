@@ -11,7 +11,7 @@ use crate::library::{Library, Profile};
 use crate::lua::{check_bytecode, wrap_resource};
 use crate::luajit::compile;
 use crate::hash::hash_name;
-use crate::manifest::{Manifest, Payload, load_manifest};
+use crate::manifest::{Manifest, Payload, Scope, load_manifest};
 use crate::options::{effective_values, when_matches};
 use crate::{ObsidianError, Result};
 
@@ -241,6 +241,8 @@ pub struct ComposedMod {
     pub dir: PathBuf,
     pub values: BTreeMap<String, Value>,
     pub resources: usize,
+    /// Of those, the files of client parts, which a lobby that isn't cleared can keep.
+    pub client_resources: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -251,12 +253,22 @@ pub struct Composition {
     /// A plan's sound bank clips with no bank to go in, by mod. A deploy says why, and until then
     /// there's always one waiting.
     pub unplaced: Vec<String>,
+    /// A Sandbox save is selected, so the loader has to be in the game.
+    pub sandbox: bool,
 }
 
 /// Everything the game would get, with the data, for a deploy. `contents` is the game's folder of
 /// bundles, which a mod's sound bank clips need.
 pub fn compose_for(lib: &Library, profile: &Profile, contents: Option<&Path>) -> Result<Composition> {
-    compose_with(lib, profile, true, contents, None)
+    compose_with(lib, profile, true, contents, None, None)
+}
+
+/// Told each enabled mod as a compose reaches it: the place in the list, how many, the mod.
+pub type OnMod<'a> = &'a dyn Fn(usize, usize, &Manifest);
+
+/// `compose_for`, saying which mod it is reading.
+pub fn compose_reporting(lib: &Library, profile: &Profile, contents: Option<&Path>, on_mod: OnMod<'_>) -> Result<Composition> {
+    compose_with(lib, profile, true, contents, None, Some(on_mod))
 }
 
 /// `compose_for` with no game.
@@ -269,13 +281,13 @@ pub fn compose(lib: &Library, profile: &Profile) -> Result<Composition> {
 /// large library. Sound bank clips are left out when the game or the bank can't be found: the deploy
 /// is what says so.
 pub fn plan_for(lib: &Library, profile: &Profile, contents: Option<&Path>) -> Result<Composition> {
-    compose_with(lib, profile, false, contents, None)
+    compose_with(lib, profile, false, contents, None, None)
 }
 
 /// `plan_for` with the library's manifests already read, by id, so they aren't read again: the
 /// window's snapshot has them, and it runs after every click.
 pub fn plan_with(lib: &Library, profile: &Profile, contents: Option<&Path>, manifests: &BTreeMap<String, Manifest>) -> Result<Composition> {
-    compose_with(lib, profile, false, contents, Some(manifests))
+    compose_with(lib, profile, false, contents, Some(manifests), None)
 }
 
 /// `plan_for` with no game.
@@ -700,7 +712,7 @@ fn merge_table(table: &str, versions: &[Planned], with_data: bool) -> Result<Vec
     Ok(out)
 }
 
-fn compose_with(lib: &Library, profile: &Profile, with_data: bool, contents: Option<&Path>, known: Option<&BTreeMap<String, Manifest>>) -> Result<Composition> {
+fn compose_with(lib: &Library, profile: &Profile, with_data: bool, contents: Option<&Path>, known: Option<&BTreeMap<String, Manifest>>, on_mod: Option<OnMod<'_>>) -> Result<Composition> {
     let mut slots: BTreeMap<(String, u64, u64), Slot> = BTreeMap::new();
     // Every mod's version of a table that merges, in load order, with one entry for the same bytes.
     let mut table_versions: BTreeMap<(String, u64), (&str, Vec<Planned>)> = BTreeMap::new();
@@ -711,7 +723,8 @@ fn compose_with(lib: &Library, profile: &Profile, with_data: bool, contents: Opt
     if !with_data || contents.is_some() {
         load_digests(lib.data_dir());
     }
-    for entry in profile.mods.iter().filter(|m| m.enabled) {
+    let total = profile.mods.iter().filter(|m| m.enabled).count();
+    for (index, entry) in profile.mods.iter().filter(|m| m.enabled).enumerate() {
         let dir = lib.mod_dir(&entry.id);
         if !dir.join(crate::manifest::FILE).is_file() {
             return Err(ObsidianError::ModMissing(entry.id.clone()));
@@ -724,11 +737,16 @@ fn compose_with(lib: &Library, profile: &Profile, with_data: bool, contents: Opt
                 Err(_) => continue,
             },
         };
+        if let Some(tell) = on_mod {
+            tell(index, total, &m);
+        }
         let values = effective_values(&m.option_specs()?, profile.options.get(&m.id));
         if m.resources.iter().any(|r| (r.type_hash, r.name_hash) == reserved) {
             return Err(ObsidianError::ReservedResource { mod_id: m.id.clone(), name: crate::loader::ENTRY.into() });
         }
-        let chosen: Vec<_> = m.resources.iter().filter(|r| when_matches(&r.when, &values)).collect();
+        // A file of a part that is off stays out, as the part's code does.
+        let chosen: Vec<_> = m.resources.iter().filter(|r| when_matches(&r.when, &values) && m.tag_scope(r.part.as_deref(), &values).is_some()).collect();
+        let client_resources = if m.parts.is_empty() { 0 } else { chosen.iter().filter(|r| m.tag_scope(r.part.as_deref(), &values) == Some(Scope::Client)).count() };
         let stamps = if with_data { Default::default() } else { file_stamps(&dir) };
         for r in &chosen {
             if let Payload::Clips(list) = &r.payload {
@@ -881,7 +899,7 @@ fn compose_with(lib: &Library, profile: &Profile, with_data: bool, contents: Opt
             slots.insert(key, (planned, earlier));
         }
         let resources = chosen.len();
-        mods.push(ComposedMod { manifest: m, dir, values, resources });
+        mods.push(ComposedMod { manifest: m, dir, values, resources, client_resources });
     }
     if with_data {
         for c in &mods {
@@ -891,7 +909,7 @@ fn compose_with(lib: &Library, profile: &Profile, with_data: bool, contents: Opt
             }
         }
     }
-    let mut out = Composition { mods, unplaced, ..Default::default() };
+    let mut out = Composition { mods, unplaced, sandbox: crate::saves::active_sandbox(lib.data_dir()).is_some(), ..Default::default() };
     // The game's master, which takes the clips of every recipe with Obsidian's bank beside it (overlay.rs).
     let master = if slots.values().any(|(p, _)| p.recipe.is_some()) { contents.and_then(game_master) } else { None };
     let mut overlaid = Vec::new();

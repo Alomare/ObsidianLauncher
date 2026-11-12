@@ -1345,11 +1345,24 @@ local function protected_tick()
 	if not ok then log.limited("ui frame", "ui: " .. B.tostring(err)) end
 end
 
+-- Puts a boot-bundle material in the fonts gui, before the gui is made. Once the gui exists the list
+-- can't grow, so a late ask is refused unless the material is already in the list.
+local function list_material(file)
+	for _, listed in B.ipairs(GUIS.fonts.materials) do
+		if listed == file then return true end
+	end
+	if M.guis.fonts then return false end
+	B.insert(GUIS.fonts.materials, file)
+	return true
+end
+
 -- Only what the deploy put in the boot bundle: a font or material that isn't loaded is assumed fatal.
+-- A font's material goes in the fonts gui now; any other waits for a mod to ask for it (M.art), as a
+-- mod can ship hundreds of materials and most are never drawn by this gui.
 local function load_fonts(deploy)
 	for _, file in B.ipairs(deploy.font_files or {}) do
-		B.insert(GUIS.fonts.materials, file)
 		M.font_files[file] = true
+		if B.match(file, "/fonts$") then list_material(file) end
 	end
 	for _, path in B.ipairs(deploy.font_paths or {}) do M.font_paths[path] = true end
 	for name, font in B.pairs(FONTS) do
@@ -1374,7 +1387,7 @@ end
 -- resource name. false when the deploy doesn't have it: a name the gui doesn't list is assumed fatal.
 function M.art(id, opts)
 	opts = opts or {}
-	if B.type(id) ~= "string" or not M.font_files[opts.path] then
+	if B.type(id) ~= "string" or not M.font_files[opts.path] or not list_material(opts.path) then
 		log.limited("ui art " .. B.tostring(id), "ui: can't add art " .. B.tostring(id))
 		return false
 	end
@@ -1382,8 +1395,69 @@ function M.art(id, opts)
 	return true
 end
 
+-- Materials to add to the guis the game makes: the material a gui has to list, then what goes with it.
+local companions = {}
+local wrapped_guis = false
+
+-- A gui's arguments with the companions after each material that has any, each once; nil with nothing to add.
+local function with_companions(n, args)
+	local have, found = {}, false
+	for i = 1, n - 1 do
+		if args[i] == "material" and B.type(args[i + 1]) == "string" then
+			have[args[i + 1]] = true
+			if companions[args[i + 1]] then found = true end
+		end
+	end
+	if not found then return nil end
+	local out, k = {}, 0
+	for i = 1, n do
+		k = k + 1
+		out[k] = args[i]
+		local list = args[i - 1] == "material" and companions[args[i]]
+		for _, m in B.ipairs(list or {}) do
+			if not have[m] then
+				have[m] = true
+				out[k + 1], out[k + 2] = "material", m
+				k = k + 2
+			end
+		end
+	end
+	return out, k
+end
+
+local function wrap_guis()
+	if wrapped_guis then return end
+	wrapped_guis = true
+	for _, make in B.ipairs({ "create_screen_gui", "create_world_gui" }) do
+		M.hooks.loader_hook("World", make, function(original, world, ...)
+			local out, n = with_companions(B.select("#", ...), { ... })
+			if out then return original(world, B.unpack(out, 1, n)) end
+			return original(world, ...)
+		end)
+	end
+end
+
+-- Every gui the game makes that lists the material `with` (hud/hud when left out) lists `path` too,
+-- so a sub-material of `path` can be named where the game's own are. `path` has to be a material of
+-- the boot bundle, for the reason above. false when the deploy doesn't have it.
+function M.list_with(path, with)
+	with = with or "hud/hud"
+	if B.type(path) ~= "string" or B.type(with) ~= "string" or not M.font_files[path] then
+		log.limited("ui list " .. B.tostring(path), "ui: can't list material " .. B.tostring(path))
+		return false
+	end
+	local list = companions[with] or {}
+	companions[with] = list
+	for _, m in B.ipairs(list) do
+		if m == path then return true end
+	end
+	B.insert(list, path)
+	wrap_guis()
+	return true
+end
+
 function M.setup(core, hooks, session)
-	M.core, M.session = core, session
+	M.core, M.session, M.hooks = core, session, hooks
 	load_fonts(core.deploy)
 	hooks.on_frame(protected_tick)
 end
@@ -1410,6 +1484,7 @@ function M.api()
 		glyphs = M.glyph_names,
 		font = M.font,
 		art = M.art,
+		list_with = M.list_with,
 		solo = M.solo,
 		soloed = M.soloed,
 	}

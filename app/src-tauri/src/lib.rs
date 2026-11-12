@@ -1,6 +1,7 @@
 //! The Obsidian desktop app: a Tauri shell over obsidian-core.
 
 mod app_settings;
+mod commander;
 mod commands;
 pub mod perf_library;
 mod snapshot;
@@ -27,9 +28,17 @@ fn watch_game(app: tauri::AppHandle) {
 }
 
 pub fn run() {
+    // WebKitGTK's DMA-BUF renderer leaves a blank window with NVIDIA's driver. Elsewhere it stays on:
+    // the older path draws slowly and leaves trails while the window moves (AMD on KDE Wayland). A
+    // value already set wins.
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() && std::path::Path::new("/sys/module/nvidia").exists() {
+        // SAFETY: nothing else runs yet; no other thread reads the environment.
+        unsafe { std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1") };
+    }
     // OBSIDIAN_DATA_DIR points the app at another data folder, for the performance suite.
     let data = obsidian_core::paths::data_dir(std::env::var_os("OBSIDIAN_DATA_DIR").map(std::path::PathBuf::from).as_deref());
-    let ctx = commands::Ctx { data, gate: Mutex::new(Default::default()), work: Mutex::new(()) };
+    let ctx = commands::Ctx { data, gate: Mutex::new(Default::default()), work: Mutex::new(()), commander: Mutex::new(Default::default()) };
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             // A second launch brings the open window forward instead.
@@ -54,6 +63,9 @@ pub fn run() {
             let data = app.state::<commands::Ctx>().data.clone();
             app.asset_protocol_scope().allow_directory(&data, true)?;
             watch_game(app.handle().clone());
+            // A war selected last time gets its relay and server back, off the window's thread.
+            let handle = app.handle().clone();
+            std::thread::spawn(move || commander::resume(&handle.state::<commands::Ctx>()));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -68,11 +80,13 @@ pub fn run() {
             commands::import_paths,
             commands::check_mod_updates,
             commands::release_notes,
+            commands::restart_app,
             commands::release_list,
             commands::mod_releases,
             commands::remove_other_patches,
             commands::update_mod,
             commands::deploy,
+            commands::deploy_loader,
             commands::purge,
             commands::play,
             commands::set_option,
@@ -97,6 +111,39 @@ pub fn run() {
             commands::set_game_dir,
             commands::check_game,
             commands::open_folder,
+            commands::open_link,
+            commands::saves_list,
+            commands::saves_activate,
+            commands::saves_create_official,
+            commands::saves_snapshot,
+            commands::saves_create_sandbox,
+            commands::saves_duplicate,
+            commands::saves_rename,
+            commands::saves_delete,
+            commands::saves_export,
+            commands::saves_import,
+            commands::saves_editor_state,
+            commands::saves_apply_edits,
+            commands::set_hide_client_mods,
+            commander::commander_state,
+            commander::commander_install,
+            commander::commander_fetch,
+            commander::commander_uninstall,
+            commander::commander_server_start,
+            commander::commander_server_stop,
+            commander::commander_select,
+            commander::commander_evolved_engine,
+            commander::commander_official,
+            commander::commander_vanilla,
+            commander::commander_choices,
+            commander::commander_package_check,
+            commander::commander_forget,
+            commander::commander_scan,
+            commander::commander_ask,
+            commander::commander_footprint,
+            commander::commander_wipe,
+            commander::commander_firewall,
+            commander::commander_firewall_open,
         ])
         .run(tauri::generate_context!())
         .expect("Obsidian failed to start");

@@ -11,7 +11,7 @@ local B = {
 	abs = math.abs, floor = math.floor, min = math.min, max = math.max,
 	insert = table.insert, remove = table.remove, concat = table.concat, sort = table.sort,
 	open = io.open, getenv = os.getenv, date = os.date, clock = os.clock, time = os.time, rename = os.rename, delete = os.remove,
-	traceback = debug and debug.traceback,
+	traceback = debug and debug.traceback, getupvalue = debug and debug.getupvalue,
 	G = _G,
 }
 

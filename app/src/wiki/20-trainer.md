@@ -8,7 +8,7 @@ Obsidian Trainer is an in-game menu for the character, weapons, stratagems, enem
 
 ## Turning it on
 
-Switch on **Obsidian Trainer** in the Mods list and deploy. Obsidian API, the mod it's built on, turns on with it. In the game, **F6** opens the menu, and the Trainer's pages are in the **Obsidian Trainer** folder on the left. The window and the key belong to Obsidian API, so other mods' pages show there too, each mod in a separate folder, and the Keys tab of Obsidian API changes the key.
+Switch on **Obsidian Trainer** in the Mods list and deploy. Obsidian API, the mod the Trainer is built on, turns on with it. In the game, **F6** opens the menu, and the Trainer pages are in the **Obsidian Trainer** folder on the left. The window and the key come from Obsidian API, so pages of other mods show there too, each mod in a separate folder, and the Keys tab of Obsidian API changes the key.
 
 | Key | What it does |
 |---|---|
@@ -19,9 +19,7 @@ Switch on **Obsidian Trainer** in the Mods list and deploy. Obsidian API, the mo
 | R | Reset the selected value |
 | Esc, or Q | Go back, and close |
 
-The bottom of the menu shows these keys as keycaps. A row being typed into shows the text in place, and a stratagem code row takes the arrow keys or W A S D, with Backspace to take one back.
-
-The menu also works with the mouse, with the normal system cursor.
+The bottom of the menu shows these keys as keycaps. A row being typed into shows the text in place, and a stratagem code row takes the arrow keys or W A S D, with Backspace to take one back. The menu also works with the mouse, with the normal system cursor:
 
 | Mouse | What it does |
 |---|---|
@@ -37,13 +35,13 @@ The menu also works with the mouse, with the normal system cursor.
 
 The window opens where it was last left, at the same size. On the list, Enter or a click opens and closes a folder, and each folder stays as it was left.
 
-The menu blocks the character while it's open, and it closes by itself when the game changes screens, such as at the start of a mission. A gamepad can move around the menu, but F6 opens it.
+The menu blocks the character while open and closes by itself when the game changes screens, such as at the start of a mission. A gamepad can move around the menu, but only F6 opens it.
 
-## What's in it
+## What is in it
 
 - **Player:** god mode, infinite sprint, speed, teleporting, respawning, and owned helmets, armor and capes.
 - **Weapons:** infinite ammo, instant reload, refills, the fire rate, damage, magazine, reload, spread and armor piercing of each weapon the player holds, and any weapon, backpack or perk from the base game or an owned DLC, with the chosen upgrades.
-- **Stratagems:** no cooldowns, unlimited uses, instant call-ins, ignoring no-stratagem zones, any stratagem from the base game or an owned DLC dropped at the cursor, and real flares, Reinforce included. **New stratagem** builds a stratagem from one of the game's: a name, code, icon, cooldown, uses and call-in time, and what happens when it lands. Other players see the stratagem it started from, and it comes back at the next launch.
+- **Stratagems:** no cooldowns, unlimited uses, instant call-ins, ignoring no-stratagem zones, any stratagem from the base game or an owned DLC dropped at the cursor, and real flares, Reinforce included. **New stratagem** builds a stratagem from one in the game: a name, code, icon, cooldown, uses and call-in time, and what happens when it lands. Other players see the stratagem it started from, and it comes back at the next launch.
 - **Vehicles:** speed, turning, armor, no damage and endless exosuit rockets for the vehicle being driven, plus repairs and refills.
 - **Bots:** Helldivers played by this machine, with a HUD slot or as bare bodies past four players. Orders for every bot or each one: follow the player, hold, walk to the cursor, come to the player, fight, face the cursor, shoot, throw, reload, enter a stratagem code the way a player does and throw the flare at the cursor, and call stratagems, plus weapons, backpacks, perks and stratagems to give them. Host only, in a mission.
 - **Spawn:** ammunition, supply crates and pickups on the spot, and flares at the cursor.
@@ -54,9 +52,9 @@ The menu blocks the character while it's open, and it closes by itself when the 
 - **Console:** the developer commands.
 - **Changes:** everything switched on or edited, with a way to undo it all at once.
 
-Every option has a description at the bottom of the menu while it's selected. Spawning stops once the map holds 64 enemies, corpses included, because far more can crash the game. Actions only the host can do say so when chosen.
+Every option has a description at the bottom of the menu while selected. Spawning stops once the map holds 64 enemies, corpses included, because far more can crash the game. Actions only the host can do say so when chosen.
 
-## What it won't do
+## What it doesn't do
 
 - **No progression edits.** No page of the Trainer writes the save. What a mission with it on earns counts, as in any other. [Guardrails](wiki:guardrails) can keep a launch from counting.
 - **No DLC the player doesn't own.** Lists show all of the base game, whatever has been unlocked by playing, plus owned DLC. Items last for that mission only, so nothing is added to the save.
@@ -67,12 +65,10 @@ Every option has a description at the bottom of the menu while it's selected. Sp
 
 ## Playing with others
 
-The Trainer is a session mod, so in a public lobby everyone has to run the same mods or allow session mods ([Playing online](wiki:multiplayer)). When someone joins who doesn't, every change is undone and the Trainer's pages close until that player leaves. Then the changes come back. In a friends-only or private lobby it always runs.
+The Trainer is a session mod, so in a public lobby everyone has to run the same mods or allow session mods ([Playing online](wiki:multiplayer)). When someone joins who doesn't, every change is undone and the Trainer pages close until that player leaves, and then the changes come back. In a friends-only or private lobby the Trainer always runs. Numbers from the Editor and the two damage rows run on the game of each player, so they work best when everyone uses the same ones.
 
-Numbers from the Editor and the two damage rows run on each player's game, so they work best when everyone uses the same ones.
-
-Two things need a lobby with one player: giving laser sight, because other players' games would run it with no setup, and the console's `spawn_enemy`, because it loads a package on one game only.
+Two things need a lobby with one player: giving laser sight, because the games of other players would run it with no setup, and `spawn_enemy` in the console, because it loads a package on one game only.
 
 ## Keeping changes
 
-Changes last until the game closes. In **Changes**, **Keep edits for later launches** saves the Editor edits, and they come back at each launch while the mod's **Keep saved edits** option is on.
+Changes last until the game closes. In **Changes**, **Keep edits for later launches** saves the Editor edits, and they come back at each launch while the **Keep saved edits** option of the mod is on.

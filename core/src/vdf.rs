@@ -12,8 +12,8 @@ pub fn library_paths(vdf_text: &str) -> Vec<PathBuf> {
         .collect()
 }
 
-/// Quoted strings, unescaped; braces are skipped, which is all `library_paths` needs.
-fn tokens(text: &str) -> Vec<String> {
+/// Quoted strings, unescaped; braces are skipped, which is all these files need.
+pub(crate) fn tokens(text: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut chars = text.chars();
     while let Some(c) = chars.next() {

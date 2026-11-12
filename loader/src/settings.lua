@@ -3,6 +3,7 @@
 -- options in the deploy table, so a hand-edited file can't hand a mod a bad value.
 local B = require("obsidian/loader/builtins")
 local log = require("obsidian/loader/log")
+local war = require("obsidian/loader/war")
 
 local M = { values = {}, keys = {}, binds = {} }
 
@@ -47,12 +48,13 @@ local function find(list, id)
 	return nil
 end
 
--- Reads the file and fills core.consent_on, the guardrails and the option values. A missing file
--- leaves the defaults: no consent, no guardrails and every option at the default.
+-- Reads the file and fills core.consent_on, the guardrails, the Sandbox choice and the option values.
+-- A missing file leaves the defaults: no consent, no guardrails, the Official save and every option at
+-- the default.
 function M.load(core, path)
 	M.core = core
 	local mods = {}
-	for _, mod in B.ipairs(core.deploy.mods or {}) do mods[B.tostring(mod.id)] = mod end
+	for _, mod in B.ipairs(core.deploy and core.deploy.mods or {}) do mods[B.tostring(mod.id)] = mod end
 	local f = path and B.open(path, "rb")
 	if not f then
 		log.line("settings: no file, defaults used")
@@ -72,6 +74,25 @@ function M.load(core, path)
 			core.consent_on = x[2] == "1"
 		elseif (x[1] == "block_achievements" or x[1] == "freeze_progress") and #x == 2 and (x[2] == "0" or x[2] == "1") then
 			core[x[1]] = x[2] == "1"
+		elseif x[1] == "hide_client_mods" and #x == 2 and (x[2] == "0" or x[2] == "1") then
+			core.hide_client_mods = x[2] == "1"
+		elseif x[1] == "sandbox" then
+			-- A Sandbox line the loader can't use is still a Sandbox: the launch must never open the
+			-- Official save while the player believes it is a Sandbox.
+			if #x == 2 and B.match(x[2], "^[0-9a-f]+$") and #x[2] == 8 then
+				core.sandbox = x[2]
+			else
+				core.sandbox_bad = true
+				log.line("settings: the sandbox line is not valid, saving stays off for this launch")
+			end
+		elseif x[1] == "war" then
+			-- Only with a Sandbox line before it, which the core always writes first.
+			local w = war.parse(x)
+			if w and core.sandbox then
+				core.war = w
+			else
+				log.line("settings: the war line is not valid or has no Sandbox, the official war stays")
+			end
 		elseif x[1] == "option" and #x == 5 then
 			local opt = mods[x[2]] and find(mods[x[2]].options, x[3])
 			local v = nil
@@ -97,8 +118,12 @@ function M.load(core, path)
 end
 
 -- The value of one option of the calling mod: the checked value from the file, else the default.
-function M.get(id)
-	local state = M.core and M.core.current
+-- mod_id: read that mod's option instead, for code that runs outside the mod, such as a game script
+-- the mod replaces.
+function M.get(id, mod_id)
+	local core = M.core
+	local state = core and core.current
+	if mod_id ~= nil then state = core and core.mods_by_id[B.tostring(mod_id)] or nil end
 	if not state then return nil end
 	local opt = find(state.mod.options, id)
 	if not opt then return nil end
@@ -108,7 +133,8 @@ function M.get(id)
 end
 
 -- Calls fn once each time the key bound to `id` goes down: the key from the app, else the default.
--- opts.always: the session gate leaves it alone, as with obsidian.wrap.
+-- opts.always: the session gate leaves it alone, as with obsidian.wrap. opts.part: the key belongs to
+-- that part of the mod, and does nothing while the part is off.
 function M.keybind(id, fn, opts)
 	local state = M.core and M.core.current
 	if not state or B.type(fn) ~= "function" then return end
@@ -118,8 +144,10 @@ function M.keybind(id, fn, opts)
 		log.line("keybind " .. state.id .. "." .. B.tostring(id) .. ": not declared")
 		return
 	end
+	local scope, part = M.core.session.part_scope(state, opts)
+	if scope == "off" then return end
 	local always = B.type(opts) == "table" and opts.always == true
-	B.insert(M.binds, { state = state, id = B.tostring(id), key = key, fn = fn, down = false, always = always })
+	B.insert(M.binds, { state = state, part = part, id = B.tostring(id), key = key, fn = fn, down = false, always = always })
 end
 
 -- From the frame hook. Keyboard.pressed may stay true while a key is held, so a bind fires on the
@@ -139,7 +167,7 @@ function M.tick()
 			local ok, down = B.pcall(kb.pressed, b.index)
 			down = ok and down and true or false
 			if down and not b.down then
-				local gated = b.state.mod.scope ~= "client" and not b.always
+				local gated = not b.always and session and session.gated(b.state, b.part)
 				if not b.state.off and not (gated and session and not session.allows(b.state)) then
 					M.core.call(b.state, "keybind " .. b.id, b.fn)
 				end

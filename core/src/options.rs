@@ -23,6 +23,10 @@ pub struct OptionSpec {
     /// `"scope": "client"`: personal, so the value stays out of the mod-set hash.
     pub client: bool,
     pub visible_when: BTreeMap<String, Value>,
+    /// The part of the mod the option belongs to (`parts`). Manifest::validate checks that the part exists.
+    pub part: Option<String>,
+    /// The heading the Options tab lists the option under (`option_groups`). Checked the same way.
+    pub group: Option<String>,
 }
 
 impl OptionKind {
@@ -87,12 +91,20 @@ pub fn parse_options(raw: &[Value]) -> Result<Vec<OptionSpec>> {
             Some(_) => return Err(bad(i, "visible_when must be an object")),
             None => BTreeMap::new(),
         };
+        let tag = |key: &str| -> Result<Option<String>> {
+            match o.get(key) {
+                None | Some(Value::Null) => Ok(None),
+                Some(v) => v.as_str().filter(|s| is_key_name(s)).map(|s| Some(s.to_string())).ok_or_else(|| bad(i, format!("{key} must be an id: lowercase letters, digits and _"))),
+            }
+        };
         let mut spec = OptionSpec {
             id: id.to_string(),
             kind,
             default: Value::Null,
             client: o.get("scope").and_then(Value::as_str) == Some("client"),
             visible_when,
+            part: tag("part")?,
+            group: tag("group")?,
         };
         let default = o.get("default").ok_or_else(|| bad(i, "needs a default"))?;
         spec.default = validate(&spec, default).map_err(|_| bad(i, format!("default {default} is not valid for a {}", spec.kind.name())))?;

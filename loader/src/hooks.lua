@@ -3,7 +3,7 @@
 local B = require("obsidian/loader/builtins")
 local log = require("obsidian/loader/log")
 
-local M = { pending = {}, requires = {}, fired = {}, frame_fns = {}, frame_installed = false }
+local M = { pending = {}, chains = {}, chain_of = {}, requires = {}, fired = {}, seen = {}, values = {}, frame_fns = {}, frame_installed = false }
 
 function M.setup(core, session)
 	M.core, M.session = core, session
@@ -13,15 +13,12 @@ local function pack(...)
 	return { n = B.select("#", ...), ... }
 end
 
-local function install(h)
-	local target = h.target
-	if B.type(target) == "string" then target = B.rawget(B.G, target) end
-	if B.type(target) ~= "table" then return false end
-	local original = target[h.method]
-	if B.type(original) ~= "function" then return false end
+-- Puts the hook around target[method] and returns the new function.
+local function wrap(h, target, original)
 	local core, session, state, fn, site = M.core, M.session, h.state, h.fn, "hook " .. B.tostring(h.method)
-	-- A missing or unknown scope counts as session. The loader's own hooks are never gated.
-	local gated = not h.loader and not h.always and not (state and state.mod.scope == "client")
+	-- A missing or unknown scope counts as session, a hybrid mod's untagged hooks too. A client part's
+	-- hooks run in any lobby. The loader's own hooks are never gated.
+	local gated = not h.loader and not h.always and session.gated(state, h.part)
 	-- A hook that fails falls back to the game's function, unless it already ran it: that would
 	-- spawn, spend or save twice. One closure per hook, as a new one per call stops the JIT here.
 	local ran, results = false, nil
@@ -45,13 +42,91 @@ local function install(h)
 		end
 		return original(...)
 	end
+	return target[h.method]
+end
+
+local function describe(h)
 	local where = B.type(h.target) == "string" and h.target or "table"
-	log.line("hook installed: " .. where .. "." .. B.tostring(h.method) .. (state and (" by " .. state.id) or ""))
+	return where .. "." .. B.tostring(h.method) .. (h.state and (" by " .. h.state.id) or "") .. (h.part and (" part " .. h.part.id) or "")
+end
+
+local function install(h)
+	local target = h.target
+	if B.type(target) == "string" then target = B.rawget(B.G, target) end
+	if B.type(target) ~= "table" then return false end
+	local original = target[h.method]
+	if B.type(original) ~= "function" then return false end
+	local top = wrap(h, target, original)
+	-- Every hook on one method, in order, and the outermost wrapper, so they can all go back in
+	-- if a mod declares the method again (see recheck).
+	local by_method = M.chain_of[target]
+	if not by_method then
+		by_method = {}
+		M.chain_of[target] = by_method
+	end
+	local chain = by_method[h.method]
+	if not chain then
+		chain = { target = target, method = h.method, hooks = {} }
+		by_method[h.method] = chain
+		B.insert(M.chains, chain)
+	end
+	B.insert(chain.hooks, h)
+	chain.top = top
+	log.line("hook installed: " .. describe(h))
 	return true
 end
 
-function M.hook(target, method, fn)
-	local h = { state = M.core.current, target = target, method = method, fn = fn }
+-- True when f calls the wrapper: holds it as an upvalue, inside a function it holds, or in a table it holds.
+local function reaches(f, wrapper, depth, seen)
+	if seen[f] then return false end
+	seen[f] = true
+	for i = 1, 255 do
+		local name, v = B.getupvalue(f, i)
+		if name == nil then return false end
+		if v == wrapper then return true end
+		local kind = B.type(v)
+		if kind == "function" and depth > 0 and reaches(v, wrapper, depth - 1, seen) then return true end
+		if kind == "table" and not seen[v] then
+			seen[v] = true
+			for _, x in B.pairs(v) do
+				if x == wrapper then return true end
+				if depth > 0 and B.type(x) == "function" and reaches(x, wrapper, depth - 1, seen) then return true end
+			end
+		end
+	end
+	return false
+end
+
+-- A mod that loads a separate copy of a game class declares the methods again on the same table, which
+-- throws away every hook on them (the Third Person Camera mod does this from the wrapper it puts around require).
+-- After each require, a method that changed and no longer calls the hooks gets them all back, in order.
+-- A mod that wrapped the hooked method keeps the hooks inside, so that one is left alone.
+local function recheck()
+	if not B.getupvalue then return end
+	for _, chain in B.ipairs(M.chains) do
+		local now = chain.target[chain.method]
+		if now ~= chain.top and B.type(now) == "function" then
+			if not reaches(now, chain.top, 3, {}) then
+				for _, h in B.ipairs(chain.hooks) do
+					now = wrap(h, chain.target, now)
+					log.line("hook installed again: " .. describe(h))
+				end
+			end
+			chain.top = now
+		end
+	end
+end
+
+-- opts.part: the hook belongs to that part of the mod, and runs with the part's scope. A part that is
+-- off gets no hook at all.
+function M.hook(target, method, fn, opts)
+	local state = M.core.current
+	local scope, part = M.session.part_scope(state, opts)
+	if scope == "off" then
+		log.line("hook left out: " .. (B.type(target) == "string" and target or "table") .. "." .. B.tostring(method) .. " by " .. state.id .. ", part " .. part.id .. " is off")
+		return
+	end
+	local h = { state = state, part = part, target = target, method = method, fn = fn }
 	if not install(h) then B.insert(M.pending, h) end
 end
 
@@ -73,7 +148,17 @@ function M.on_require(name, fn)
 		list = {}
 		M.requires[name] = list
 	end
-	B.insert(list, { state = M.core.current, fn = fn })
+	local cb = { state = M.core.current, fn = fn }
+	B.insert(list, cb)
+	-- Too late for the load: called now, with what the load gave.
+	local value, loaded = M.values[name], M.seen[name]
+	if not loaded then
+		local package = B.rawget(B.G, "package")
+		if B.type(package) == "table" and B.type(package.loaded) == "table" and package.loaded[name] ~= nil then
+			value, loaded = package.loaded[name], true
+		end
+	end
+	if loaded then M.core.call(cb.state, "on_require " .. B.tostring(name), cb.fn, value) end
 end
 
 local function resolve_pending()
@@ -119,11 +204,13 @@ function M.wrap_require()
 	local original = B.require
 	B.rawset(B.G, "require", function(name, ...)
 		local r = pack(original(name, ...))
+		M.seen[name], M.values[name] = true, r[1]
 		local list = M.requires[name]
 		if list and not M.fired[name] then
 			M.fired[name] = true
 			for _, cb in B.ipairs(list) do M.core.call(cb.state, "on_require " .. B.tostring(name), cb.fn, r[1]) end
 		end
+		recheck()
 		resolve_pending()
 		install_frame()
 		return B.unpack(r, 1, r.n)

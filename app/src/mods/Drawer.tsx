@@ -1,25 +1,27 @@
 // The drawer beside the mod table (spec 4.2): one mod's About, Options, Keys, Files and Dependencies,
-// or the conflicts. With nothing selected it shows the conflicts; with no conflicts either, the Mods page
-// leaves it out (the user, 2026-11-04).
+// or the conflicts. With nothing selected it shows the conflicts, unless the X closed them; with no
+// conflicts either, the Mods page leaves it out (the user, 2026-11-04).
 import { useEffect, useMemo, useState } from "react";
 import { run } from "../api";
 import { openColorPicker } from "../ColorPicker";
 import { Confirm } from "../Confirm";
-import { ArrowIcon, ChevronIcon, CloseIcon, ExternalIcon, FileIcon, GamepadIcon, InfoIcon, KeyboardIcon, KeyboardMouseIcon, LinkIcon, ResetIcon, SlidersIcon, TrashIcon, UpArrowIcon } from "../Icons";
+import { ArrowIcon, ChevronIcon, CloseIcon, ExternalIcon, FileIcon, GamepadIcon, InfoIcon, KeyboardIcon, KeyboardMouseIcon, LinkIcon, ResetIcon, SlidersIcon, TrashIcon } from "../Icons";
 import { language, pick, t } from "../i18n";
 import { Markdown, parse } from "../Markdown";
 import { Select } from "../Select";
 import { changelog, type ChangelogEntry } from "../updates";
 import { loadMore, useModReleases } from "./modReleases";
-import { offered } from "./modUpdates";
 import { Thumb } from "../Thumb";
-import type { ConflictRow, KeyRow, ModRow, OptionRow } from "../types";
+import type { ConflictRow, KeyRow, ModRow, OptionGroup, OptionPreview, OptionRow } from "../types";
+import { previewSrc } from "./preview";
 import { overrides, type Override } from "./conflicts";
 import { dependencies, type Dep } from "./deps";
 import { keyName } from "./keyCapture";
+import { PadGlyphs } from "./PadGlyphs";
+import { padButtons } from "./padButtons";
 import type { DrawerView } from "./ModsPage";
 import { clampNumber } from "./optionValue";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "../opener";
 
 type Props = {
   view: DrawerView;
@@ -30,15 +32,14 @@ type Props = {
   names: Map<string, string>;
   onOpen: (id: string) => void;
   onClose: () => void;
-  /** New versions found by the last check, by mod id: the panel offers them too. */
-  updates: Record<string, string>;
-  onUpdate: (id: string) => void;
+  /** The X closed the conflicts: they stay away until a conflict icon asks for them. */
+  conflictsClosed?: boolean;
 };
 
-export function Drawer({ view, mods, conflicts, order, names, onOpen, onClose, updates, onUpdate }: Props) {
+export function Drawer({ view, mods, conflicts, order, names, onOpen, onClose, conflictsClosed }: Props) {
   const mod = view?.kind === "mod" ? mods.find((m) => m.id === view.id) : undefined;
-  if (mod) return <ModDrawer key={mod.id} mod={mod} mods={mods} conflicts={conflicts} names={names} onOpen={onOpen} onClose={onClose} update={offered(updates, mod)} onUpdate={() => onUpdate(mod.id)} />;
-  if (view?.kind === "conflicts" || conflicts.length) return <ConflictsView conflicts={conflicts} order={order} names={names} focus={view?.kind === "conflicts" ? view.focus : undefined} onClose={view ? onClose : undefined} />;
+  if (mod) return <ModDrawer key={mod.id} mod={mod} mods={mods} conflicts={conflicts} names={names} onOpen={onOpen} onClose={onClose} />;
+  if (view?.kind === "conflicts" || (conflicts.length && !conflictsClosed)) return <ConflictsView conflicts={conflicts} order={order} names={names} focus={view?.kind === "conflicts" ? view.focus : undefined} onClose={onClose} />;
   return null;
 }
 
@@ -46,7 +47,7 @@ type Tab = "about" | "options" | "keys" | "files" | "deps";
 
 const TAB_ICONS: Record<Tab, () => React.JSX.Element> = { about: InfoIcon, options: SlidersIcon, keys: KeyboardIcon, files: FileIcon, deps: LinkIcon };
 
-function ModDrawer({ mod, mods, conflicts, names, onOpen, onClose, update, onUpdate }: { mod: ModRow; mods: ModRow[]; conflicts: ConflictRow[]; names: Map<string, string>; onOpen: (id: string) => void; onClose: () => void; update: string | null; onUpdate: () => void }) {
+function ModDrawer({ mod, mods, conflicts, names, onOpen, onClose }: { mod: ModRow; mods: ModRow[]; conflicts: ConflictRow[]; names: Map<string, string>; onOpen: (id: string) => void; onClose: () => void }) {
   const [tab, setTab] = useState<Tab>("about");
   const [ask, setAsk] = useState(false);
   const name = pick(mod.name, mod.id);
@@ -55,17 +56,12 @@ function ModDrawer({ mod, mods, conflicts, names, onOpen, onClose, update, onUpd
   return (
     <aside className={`drawer ${mod.scope}`} aria-label={name}>
       <div className="dh">
-        <Thumb image={mod.image} name={name} size="lg" pick={{ owner: "mod", key: mod.id, custom: mod.customImage }} />
+        <Thumb image={mod.image} name={name} size="lg" zoom />
         <div className="dh-text">
           <h2>{name}</h2>
           <div className="meta">
             {[mod.authors.join(", "), mod.version ?? t("app.mods.imported"), t(`app.scope.${mod.scope}`)].filter(Boolean).join(" · ")}
           </div>
-          {update && (
-            <button className="ver-up dh-update" onClick={onUpdate} data-tip={t("app.mods.updateHint")}>
-              <span>{t("app.mods.updateTo", update)}</span><UpArrowIcon />
-            </button>
-          )}
         </div>
         <div className="dh-end">
           <button className="bare" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /></button>
@@ -106,37 +102,105 @@ function ownOptions(mod: ModRow): OptionRow[] {
   return mod.options.filter((o) => !pads.has(o.id));
 }
 
+/** Which option groups the player folded or opened, by mod and group: kept across mods and restarts. */
+const GROUPS_KEY = "obsidian.optionGroups";
+function savedFolds(): Record<string, Record<string, boolean>> {
+  try {
+    const v = JSON.parse(localStorage.getItem(GROUPS_KEY) ?? "{}");
+    return v && typeof v === "object" ? v : {};
+  } catch { return {}; }
+}
+
+/** The Options tab: previews with no group and the options with none first, then each option group
+ *  under a heading that folds. A number being dragged shows in the previews before it is saved. */
 function OptionsTab({ mod }: { mod: ModRow }) {
   const own = ownOptions(mod);
+  const [draft, setDraft] = useState<Record<string, unknown>>({});
+  // A saved value replaces the one being dragged; a refresh that changes nothing keeps the drag.
+  const saved = JSON.stringify(mod.options.map((o) => o.value));
+  useEffect(() => setDraft({}), [saved]);
+  const [folds, setFolds] = useState<Record<string, boolean>>(() => savedFolds()[mod.id] ?? {});
   if (!own.length) return <p className="muted pad">{t("app.drawer.noOptions")}</p>;
+  const values: Record<string, unknown> = { ...Object.fromEntries(mod.options.map((o) => [o.id, o.value])), ...draft };
+  const known = new Set(mod.optionGroups.map((g) => g.id));
+  const groupOf = (g: string | null) => (g && known.has(g) ? g : null);
+  const folded = (g: OptionGroup) => folds[g.id] ?? g.collapsed;
+  const fold = (g: OptionGroup) => setFolds((f) => {
+    const next = { ...f, [g.id]: !(f[g.id] ?? g.collapsed) };
+    try { localStorage.setItem(GROUPS_KEY, JSON.stringify({ ...savedFolds(), [mod.id]: next })); } catch { /* kept for this session only */ }
+    return next;
+  });
+  const draftOf = (id: string) => (v: unknown) => setDraft((d) => ({ ...d, [id]: v }));
+  const previews = (g: string | null) => mod.optionPreviews.filter((p) => groupOf(p.group) === g).map((p) => <Preview key={p.id} p={p} values={values} />);
+  const table = (list: OptionRow[]) => list.length > 0 && (
+    <ul className="opts opt-table">{list.map((o) => <OptionLine key={o.id} mod={mod} o={o} onDraft={draftOf(o.id)} />)}</ul>
+  );
+  const shown = own.filter((o) => o.visible);
   return (
-    <ul className="opts">
-      {own.filter((o) => o.visible).map((o) => (
-        <li key={o.id} className="opt">
-          <div className="opt-text">
-            <div className="l">{pick(o.label, o.id)}</div>
-            {pick(o.description) && <div className="d">{pick(o.description)}</div>}
-            {o.deploy && <div className="d note">{t("app.drawer.afterDeploy")}</div>}
-          </div>
-          <div className="opt-ctl">
-            <OptionControl mod={mod} o={o} />
-            <button className="bare" disabled={same(o.value, o.default)} onClick={() => run("set_option", { id: mod.id, option: o.id, value: null })}
-              aria-label={t("app.drawer.reset")} data-tip={t("app.drawer.reset")}><ResetIcon /></button>
-          </div>
-        </li>
-      ))}
-    </ul>
+    <div className="opt-tab">
+      {previews(null)}
+      {table(shown.filter((o) => groupOf(o.group) === null))}
+      {mod.optionGroups.map((g) => {
+        const list = shown.filter((o) => o.group === g.id);
+        const pics = previews(g.id);
+        if (!list.length && !pics.length) return null;
+        const closed = folded(g);
+        const about = pick(g.description);
+        return (
+          <section key={g.id} className={closed ? "opt-group" : "opt-group open"}>
+            <button className="opt-group-head" aria-expanded={!closed} onClick={() => fold(g)} data-tip={about || undefined}>
+              <ChevronIcon /><span>{pick(g.label, g.id)}</span>
+            </button>
+            {!closed && <div className="opt-group-body">{pics}{table(list)}</div>}
+          </section>
+        );
+      })}
+    </div>
   );
 }
 
-function OptionControl({ mod, o }: { mod: ModRow; o: OptionRow }) {
+function OptionLine({ mod, o, onDraft }: { mod: ModRow; o: OptionRow; onDraft: (v: unknown) => void }) {
+  const about = pick(o.description);
+  return (
+    <li className="opt">
+      <div className="opt-text">
+        {/* The description shows in the tooltip of the name box, on hover or keyboard focus, with the
+            note about Deploy under it; a yellow asterisk after the name says there is one. */}
+        <div className="l opt-name" tabIndex={about || o.deploy ? 0 : undefined} data-tip={about || undefined} data-tip-note={o.deploy ? t("app.drawer.afterDeploy") : undefined}>
+          {pick(o.label, o.id)}{o.deploy && <span className="opt-star" aria-hidden="true">*</span>}
+        </div>
+      </div>
+      <div className="opt-cell"><OptionControl mod={mod} o={o} onDraft={onDraft} /></div>
+      <div className="opt-cell">
+        <button className="bare" disabled={same(o.value, o.default)} onClick={() => run("set_option", { id: mod.id, option: o.id, value: null })}
+          aria-label={t("app.drawer.reset")} data-tip={t("app.drawer.reset")}><ResetIcon /></button>
+      </div>
+    </li>
+  );
+}
+
+/** An option preview: the mod's SVG template with the values being edited, as an image. */
+function Preview({ p, values }: { p: OptionPreview; values: Record<string, unknown> }) {
+  const key = JSON.stringify(values);
+  const src = useMemo(() => previewSrc(p.svg, values), [p.svg, key]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!src) return null;
+  const label = pick(p.label);
+  return (
+    <figure className="opt-preview">
+      {label && <figcaption>{label}</figcaption>}
+      <img src={src} width={p.width} height={p.height} alt={label || t("app.drawer.preview")} draggable={false} />
+    </figure>
+  );
+}
+
+function OptionControl({ mod, o, onDraft }: { mod: ModRow; o: OptionRow; onDraft?: (v: unknown) => void }) {
   const set = (value: unknown) => run("set_option", { id: mod.id, option: o.id, value });
   const label = pick(o.label, o.id);
   if (o.kind === "toggle") {
     return <button role="switch" aria-checked={o.value === true} aria-label={label} className={o.value === true ? "sw on" : "sw"} onClick={() => set(o.value !== true)} />;
   }
   if (o.kind === "choice") {
-    return <Select value={String(o.value)} options={o.choices.map((c, i) => ({ value: c, label: pick(o.choiceLabels[i], c) }))} label={label} onChange={set} />;
+    return <Select value={String(o.value)} options={o.choices.map((c, i) => ({ value: c, label: pick(o.choiceLabels[i], c) }))} label={label} onChange={set} fill />;
   }
   if (o.kind === "color") {
     return (
@@ -146,14 +210,19 @@ function OptionControl({ mod, o }: { mod: ModRow; o: OptionRow }) {
       </button>
     );
   }
-  if (o.kind === "number") return <NumberControl o={o} label={label} onSet={set} />;
+  if (o.kind === "number") return <NumberControl o={o} label={label} onSet={set} onDraft={onDraft} />;
   if (o.kind === "key") return <KeyButton value={String(o.value)} label={label} onSet={set} />;
   return <span className="muted">{String(o.value)}</span>;
 }
 
-function NumberControl({ o, label, onSet }: { o: OptionRow; label: string; onSet: (v: number) => void }) {
+/** A slider and a box. onDraft hears every value on the way, for the previews; onSet only the one kept. */
+function NumberControl({ o, label, onSet, onDraft }: { o: OptionRow; label: string; onSet: (v: number) => void; onDraft?: (v: number) => void }) {
   const [v, setV] = useState(Number(o.value));
   useEffect(() => setV(Number(o.value)), [o.value]);
+  const change = (n: number) => {
+    setV(n);
+    if (Number.isFinite(n)) onDraft?.(clampNumber(n, o));
+  };
   const commit = (n: number) => {
     const c = clampNumber(n, o);
     setV(c);
@@ -163,10 +232,11 @@ function NumberControl({ o, label, onSet }: { o: OptionRow; label: string; onSet
     <div className="num-ctl">
       {o.min !== null && o.max !== null && (
         <input type="range" min={o.min} max={o.max} step={o.step ?? "any"} value={v} aria-label={label}
-          onChange={(e) => setV(Number(e.target.value))} onPointerUp={() => commit(v)} onKeyUp={() => commit(v)} />
+          style={{ "--pct": `${o.max > o.min ? Math.min(100, Math.max(0, ((v - o.min) / (o.max - o.min)) * 100)).toFixed(2) : 0}%` } as React.CSSProperties}
+          onChange={(e) => change(Number(e.target.value))} onPointerUp={() => commit(v)} onKeyUp={() => commit(v)} />
       )}
       <input type="number" value={v} min={o.min ?? undefined} max={o.max ?? undefined} step={o.step ?? "any"} aria-label={label}
-        onChange={(e) => setV(Number(e.target.value))} onBlur={() => commit(v)} onKeyDown={(e) => e.key === "Enter" && commit(v)} />
+        onChange={(e) => change(Number(e.target.value))} onBlur={() => commit(v)} onKeyDown={(e) => e.key === "Enter" && commit(v)} />
     </div>
   );
 }
@@ -189,7 +259,7 @@ function KeyButton({ value, label, onSet, clash }: { value: string; label: strin
           if (k !== value) onSet(k);
         }
       }}>
-      {waiting ? t("app.drawer.pressKey") : value}
+      <span className="key-text">{waiting ? t("app.drawer.pressKey") : value}</span>
     </button>
   );
 }
@@ -215,8 +285,9 @@ function KeysTab({ mod, names }: { mod: ModRow; names: Map<string, string> }) {
           return (
             <li key={k.id} className="opt">
               <div className="opt-text">
-                <div className="l">{label}</div>
-                {shown?.deploy && <div className="d note">{t("app.drawer.afterDeploy")}</div>}
+                <div className="l" tabIndex={shown?.deploy ? 0 : undefined} data-tip-note={shown?.deploy ? t("app.drawer.afterDeploy") : undefined}>
+                  {label}{shown?.deploy && <span className="opt-star" aria-hidden="true">*</span>}
+                </div>
                 {k.clash.length > 0 && <div className="d warn">{t("app.drawer.keyClash", [pick(mod.name, mod.id), ...k.clash.map((id) => names.get(id) ?? id)].join(", "))}</div>}
               </div>
               <div className="opt-ctl key-col">
@@ -238,7 +309,12 @@ function KeysTab({ mod, names }: { mod: ModRow; names: Map<string, string> }) {
 /** The controller input of a keybind: its choice option, narrowed to the column, the whole choice in a tooltip. */
 function PadControl({ mod, o }: { mod: ModRow; o: OptionRow }) {
   const label = pick(o.label, o.id);
-  const options = o.choices.map((c, i) => ({ value: c, label: pick(o.choiceLabels[i], c) }));
+  // A choice that names controller buttons is drawn as them; the full name is in the tooltip and the list.
+  const options = o.choices.map((c, i) => {
+    const name = pick(o.choiceLabels[i], c);
+    const buttons = padButtons(name, c);
+    return { value: c, label: name, view: buttons ? <PadGlyphs buttons={buttons} /> : undefined };
+  });
   const current = options.find((c) => c.value === String(o.value))?.label;
   return (
     <>
@@ -299,6 +375,7 @@ function AboutTab({ mod }: { mod: ModRow }) {
   return (
     <div className="about-mod pad">
       {pick(mod.description) && <p>{pick(mod.description)}</p>}
+      {mod.parts.length > 0 && <PartList mod={mod} />}
       <dl className="facts">
         {mod.authors.length > 0 && <><dt>{t("app.drawer.authors")}</dt><dd>{mod.authors.join(", ")}</dd></>}
         <dt>{t("app.drawer.id")}</dt><dd className="mono">{mod.id}</dd>
@@ -307,6 +384,30 @@ function AboutTab({ mod }: { mod: ModRow }) {
       </dl>
       {mod.updatable && <ModChangelog mod={mod} />}
     </div>
+  );
+}
+
+/** One line per part of the mod: the scope diamond, the name, the description, and Off while the
+ *  option that switches the part is off. */
+function PartList({ mod }: { mod: ModRow }) {
+  return (
+    <section className="parts" aria-label={t("app.drawer.parts")}>
+      <h3 className="cap">{t("app.drawer.parts")}</h3>
+      <ul>
+        {mod.parts.map((p) => (
+          <li key={p.id} className={p.on ? "part" : "part off"}>
+            <span className={`scope ${p.scope}`} role="img" aria-label={t(`app.scope.${p.scope}`)} data-tip={t(`app.scope.${p.scope}`)}><i /></span>
+            <div className="part-text">
+              <div className="part-name">
+                {pick(p.name, p.id)}
+                {!p.on && <span className="part-off" data-tip={t("app.drawer.partOffHint")}>{t("app.drawer.partOff")}</span>}
+              </div>
+              {pick(p.description) && <div className="part-about">{pick(p.description)}</div>}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -400,7 +501,7 @@ function OverrideEntry({ o, at, names, focus }: { o: Override; at: (id: string) 
   );
 }
 
-function ConflictsView({ conflicts, order, names, focus, onClose }: { conflicts: ConflictRow[]; order: string[]; names: Map<string, string>; focus?: string; onClose?: () => void }) {
+function ConflictsView({ conflicts, order, names, focus, onClose }: { conflicts: ConflictRow[]; order: string[]; names: Map<string, string>; focus?: string; onClose: () => void }) {
   const at = (id: string) => order.indexOf(id) + 1;
   const involves = (o: Override) => o.winner === focus || o.loser === focus;
   // Those of the mod the panel was opened for come first.
@@ -412,7 +513,7 @@ function ConflictsView({ conflicts, order, names, focus, onClose }: { conflicts:
           <h2 className="cap">{t("app.drawer.conflicts")}</h2>
           <div className="meta">{t("app.drawer.conflictsMeta")}</div>
         </div>
-        {onClose && <button className="bare" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /></button>}
+        <button className="bare" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /></button>
       </div>
       <div className="dbody">
         {list.length === 0 && <p className="muted pad">{t("app.drawer.noConflicts")}</p>}

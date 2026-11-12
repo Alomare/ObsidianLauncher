@@ -7,9 +7,11 @@ Talks to GitHub through tools/github_api.py, with the token git pushes with. It 
 signature and the portable ZIP of the release (a draft works) into a temporary folder, or into DIR with
 --keep, and checks:
 
-- the four files are there: the installer, its .sig, latest.json and the portable ZIP;
+- the files are there: the installer, the AppImage and the .deb, each with a .sig, latest.json and the
+  portable ZIP;
 - latest.json has the tag's version, the notes of docs/releases/<version>.md, and for each platform the
-  installer's own URL and the signature from the .sig file;
+  URL and the signature of the file for that platform (windows-*: the installer, linux-*-deb: the .deb,
+  other linux-*: the AppImage);
 - the release text is the same notes;
 - the version files at the tag all say the version;
 - the portable ZIP holds the exe, portable.txt, the loader, the locales, LuaJIT and the Obsidian Kit, and
@@ -29,7 +31,7 @@ from pathlib import Path
 import github_api
 
 ROOT = Path(__file__).resolve().parent.parent
-REPO = "Alomare/ObsidianModManager"
+REPO = "Alomare/ObsidianLauncher"
 KIT = {"obsidian.api": "Alomare/ObsidianAPI", "obsidian.trainer": "Alomare/ObsidianTrainer", "obsidian.qol": "Alomare/ObsidianPatches"}
 VERSION_FILES = {
     "app/package.json": r'"version":\s*"([^"]+)"',
@@ -65,10 +67,12 @@ def main():
     release = {"isDraft": rel["draft"], "isPrerelease": rel["prerelease"], "body": rel.get("body") or "",
                "assets": rel["assets"], "createdAt": rel["created_at"]}
     print(f"{tag}: {'draft' if release['isDraft'] else 'published'}{', prerelease' if release['isPrerelease'] else ''}")
-    setup = f"Obsidian.Mod.Manager_{version}_x64-setup.exe"
-    portable = f"ObsidianModManager-{version}-portable.zip"
+    setup = f"Obsidian.Launcher_{version}_x64-setup.exe"
+    appimage = f"Obsidian.Launcher_{version}_amd64.AppImage"
+    deb = f"Obsidian.Launcher_{version}_amd64.deb"
+    portable = f"ObsidianLauncher-{version}-portable.zip"
     names = {a["name"] for a in release["assets"]}
-    for name in (setup, setup + ".sig", "latest.json", portable):
+    for name in (setup, setup + ".sig", appimage, appimage + ".sig", deb, deb + ".sig", "latest.json", portable):
         check(name in names, f"the release has {name}")
     if failures:
         raise SystemExit(1)
@@ -93,22 +97,24 @@ def main():
     else:
         tmp = tempfile.TemporaryDirectory()
         out = Path(tmp.name)
-    github_api.download(rel, {"latest.json", setup + ".sig", portable}, out)
+    github_api.download(rel, {"latest.json", setup + ".sig", appimage + ".sig", deb + ".sig", portable}, out)
 
     latest = json.loads((out / "latest.json").read_text(encoding="utf-8"))
-    signature = (out / (setup + ".sig")).read_text(encoding="utf-8").strip()
     check(latest.get("version") == version, f"latest.json says {version}", str(latest.get("version")))
     check((latest.get("notes") or "").strip() == notes, "latest.json carries the notes")
-    url = f"https://github.com/{REPO}/releases/download/{tag}/{setup}"
     platforms = latest.get("platforms") or {}
-    check("windows-x86_64" in platforms, "latest.json has windows-x86_64")
+    for need in ("windows-x86_64", "linux-x86_64", "linux-x86_64-appimage", "linux-x86_64-deb"):
+        check(need in platforms, f"latest.json has {need}")
     for name, p in platforms.items():
-        check(p.get("url") == url, f"latest.json {name} points at the installer", str(p.get("url")))
-        check((p.get("signature") or "").strip() == signature, f"latest.json {name} has the installer's signature")
+        file = setup if name.startswith("windows-") else deb if name.endswith("-deb") else appimage
+        url = f"https://github.com/{REPO}/releases/download/{tag}/{file}"
+        signature = (out / (file + ".sig")).read_text(encoding="utf-8").strip()
+        check(p.get("url") == url, f"latest.json {name} points at {file}", str(p.get("url")))
+        check((p.get("signature") or "").strip() == signature, f"latest.json {name} has the signature of {file}")
 
     with zipfile.ZipFile(out / portable) as z:
         files = set(z.namelist())
-        top = "ObsidianModManager/"
+        top = "ObsidianLauncher/"
         for need in ("Obsidian.exe", "portable.txt", "loader/src/boot.lua", "locales/en.json"):
             check(top + need in files, f"the portable ZIP has {need}")
         check(any(f.startswith(top + "luajit/") for f in files), "the portable ZIP has LuaJIT")

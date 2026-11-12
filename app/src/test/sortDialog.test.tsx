@@ -38,7 +38,7 @@ describe("sort dialog", () => {
   it("lists the whole order and marks the moved mods with the reason", () => {
     const m = show(moved, { off: ["c"] });
     expect(m.querySelector("h2")!.textContent).toBe("Sort Mods");
-    expect(m.querySelector(".lead")!.textContent).toBe("2 mods move. The rest keep their order.");
+    expect(m.querySelector(".lead")).toBeNull();
     const rows = [...m.querySelectorAll("tbody tr")];
     expect(rows.map((r) => r.querySelector(".nm")!.textContent)).toEqual(["Bravo", "Charlie", "Alpha", "Zulu"]);
     expect(rows.map((r) => r.classList.contains("moved"))).toEqual([false, false, true, true]);
@@ -68,7 +68,7 @@ describe("sort dialog", () => {
 
   it("says so when nothing moves, with one Close", () => {
     const m = show({ order: ["a", "b"], moves: [], conflicts: [], notes: [] });
-    expect(m.querySelector(".lead")!.textContent).toBe("The order already follows every mod's request.");
+    expect(m.querySelector(".lead")!.textContent).toBe("The load order is already optimal.");
     expect(m.querySelector("table")).toBeNull();
     expect(buttons(m)).toEqual(["Close"]);
   });
@@ -80,9 +80,9 @@ describe("sort dialog", () => {
       conflicts: [{ kind: "both_last", mods: ["a", "b"], rules: [{ mod: "a", kind: "last" }, { mod: "b", kind: "last" }] }],
       notes: [{ mod: "c", missing: "gone.mod" }],
     });
-    expect(m.querySelector(".lead")!.textContent).toBe("No mod moves. The requests below can't all hold.");
+    expect(m.querySelector(".lead")!.textContent).toBe("No mods to move. The requests below conflict.");
     expect(m.textContent).toContain("Not moved");
-    expect(m.textContent).toContain("Alpha and Bravo both ask to load last. Order them by hand, or ask their authors.");
+    expect(m.textContent).toContain("Alpha and Bravo both ask to load last. Order them by hand or contact the authors.");
     expect(m.textContent).toContain("Charlie names gone.mod, which is not installed. That request is skipped.");
     expect(buttons(m)).toEqual(["Close"]);
   });
@@ -98,9 +98,9 @@ describe("sort texts", () => {
   });
 
   it("words each kind of clash", () => {
-    expect(clashText({ kind: "both_first", mods: ["a", "b", "c"], rules: [] }, name)).toBe("Alpha, Bravo and Charlie all ask to load first. Order them by hand, or ask their authors.");
+    expect(clashText({ kind: "both_first", mods: ["a", "b", "c"], rules: [] }, name)).toBe("Alpha, Bravo and Charlie all ask to load first. Order them by hand or contact the authors.");
     expect(clashText({ kind: "cycle", mods: ["a", "b"], rules: [{ mod: "a", kind: "after", other: "b" }, { mod: "b", kind: "after", other: "a" }] }, name))
-      .toBe("These requests can't all hold: Alpha loads after Bravo; Bravo loads after Alpha. Order them by hand, or ask their authors.");
+      .toBe("These requests conflict: Alpha loads after Bravo; Bravo loads after Alpha. Order them by hand or contact the authors.");
     expect(clashText({ kind: "locked", mods: ["a"], rules: [{ mod: "a", kind: "after", other: "b" }] }, name)).toContain("Unlock the folder");
   });
 });

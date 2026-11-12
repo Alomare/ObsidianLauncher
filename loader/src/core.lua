@@ -13,6 +13,10 @@ local game_text = require("obsidian/loader/game_text")
 local menu = require("obsidian/loader/menu")
 local ui = require("obsidian/loader/ui")
 local storage = require("obsidian/loader/storage")
+local save_data = require("obsidian/loader/save_data")
+local sandbox = require("obsidian/loader/sandbox")
+local war = require("obsidian/loader/war")
+local lobby = require("obsidian/loader/lobby")
 
 local API_VERSION = 1
 local MAX_ERRORS = 10
@@ -26,7 +30,8 @@ local M = {
 local capabilities = {
 	after_startup = true, log = true, hook = true, wrap = true, on_require = true, on_session = true, session = true,
 	settings = true, keybind = true, text = true, on_frame = true, module = true, import = true, menu = true, toast = true, notify = true, storage = true, caller = true,
-	ui = true, scope = true, guardrails = true, info = true, expansion = true,
+	ui = true, scope = true, guardrails = true, info = true, expansion = true, save_data = true,
+	language = true, game_text = true, parts = true,
 }
 local api = {
 	version = API_VERSION,
@@ -43,6 +48,7 @@ local api = {
 	ui = ui.api(),
 	toast = menu.toast,
 	storage = storage.api(),
+	save_data = save_data.api(),
 	guardrails = guardrails.api(M),
 	capabilities = B.setmetatable({}, {
 		__index = capabilities,
@@ -58,16 +64,40 @@ function M.consent()
 	return M.consent_on == true
 end
 
+-- Whether this launch was started on a Sandbox save, usable or not.
+-- Whether this launch plays a custom war whose requests can only reach Obsidian's relay.
+function M.war_reporting()
+	return war.reporting(M)
+end
+
+function M.sandboxed()
+	return sandbox.wanted(M)
+end
+
 function M.notice(key, ...)
 	B.insert(M.notices, { key = key, args = { ... } })
 end
 
-local LANGUAGES = { en = "en", fr = "fr", es = "es", bp = "pt-BR" }
+-- The game's language codes (Boot.setup_localization) as the keys mods use in `locales` and in
+-- obsidian.json. "" is English. Boot.language is there before LocalizationManager:setup has run.
+local LANGUAGES = {
+	[""] = "en", en = "en", fr = "fr", es = "es", las = "es", es_ar = "es", bp = "pt-BR", pt = "pt-BR",
+	de = "de", it = "it", ru = "ru", pl = "pl", ko = "ko", ja = "ja", jp = "ja",
+	chs = "zh-CN", ch = "zh-TW", se = "sv", dk = "da", nl = "nl", fi = "fi", no = "no",
+}
 
 function M.language()
-	local lm = B.rawget(B.G, "LocalizationManager")
+	local lm, boot = B.rawget(B.G, "LocalizationManager"), B.rawget(B.G, "Boot")
 	local code = B.type(lm) == "table" and lm.current_language or nil
-	return LANGUAGES[code] or "en"
+	if B.type(code) ~= "string" then code = B.type(boot) == "table" and boot.language or nil end
+	if B.type(code) ~= "string" then return "en" end
+	return LANGUAGES[B.lower(code)] or LANGUAGES[B.lower(B.sub(code, 1, 2))] or "en"
+end
+api.language = M.language
+
+-- Words for a game text key, which the game then shows instead of the text the game has.
+function api.game_text(key, words)
+	return game_text.set(M, hooks, key, words)
 end
 
 -- A loader text in the game language, English when the language or the key is missing.
@@ -162,7 +192,10 @@ function M.call(state, site, fn, ...)
 	local previous = M.current
 	M.current = state
 	local args, n = { ... }, B.select("#", ...)
-	local result = { B.xpcall(function() return fn(B.unpack(args, 1, n)) end, traceback) }
+	-- Counted, because a trailing nil is a result too: `tonumber(SaveManager:get(key))` fails when a
+	-- hook turns the game's nil into no value at all.
+	local function counted(...) return { n = B.select("#", ...), ... } end
+	local result = counted(B.xpcall(function() return fn(B.unpack(args, 1, n)) end, traceback))
 	M.current = previous
 	if not result[1] and state then
 		state.errors = state.errors + 1
@@ -173,7 +206,7 @@ function M.call(state, site, fn, ...)
 			M.notice("mod_failed", state.id)
 		end
 	end
-	return B.unpack(result)
+	return B.unpack(result, 1, result.n)
 end
 
 local function snapshot()
@@ -226,16 +259,22 @@ function api.log(...)
 end
 
 -- fn runs once per frame, protected; returning true stops the calls. A session mod's callbacks
--- run only in a cleared session, like the mod's hooks.
-function api.on_frame(fn)
-	if B.type(fn) == "function" then B.insert(M.frame_callbacks, { state = M.current, fn = fn }) end
+-- run only in a cleared session, like the mod's hooks. opts.part: the callback runs with the scope of
+-- that part of the mod, and never while the part is off. opts.always: in any lobby, as with keys.
+function api.on_frame(fn, opts)
+	if B.type(fn) ~= "function" then return end
+	local state = M.current
+	local scope, part = session.part_scope(state, opts)
+	if scope == "off" then return end
+	local always = B.type(opts) == "table" and opts.always == true
+	B.insert(M.frame_callbacks, { state = state, fn = fn, part = part, always = always })
 end
 
 local function run_frame_callbacks()
 	local list, keep = M.frame_callbacks, {}
 	for _, cb in B.ipairs(list) do
 		local state = cb.state
-		local gated = not (state and state.mod.scope == "client")
+		local gated = not cb.always and session.gated(state, cb.part)
 		local stop = false
 		if state and state.off then
 			stop = true
@@ -248,12 +287,13 @@ local function run_frame_callbacks()
 	M.frame_callbacks = keep
 end
 
--- How a mod runs in this deploy: "client", "session" or "expansion". A library has become client or
--- session: session when a session mod or an expansion requires it, so the library sets up what the
--- expansion may use.
+-- How a mod runs in this deploy: "client", "session", "hybrid" or "expansion". A library has become
+-- client or session: session when a session mod or an expansion requires it, so the library sets up
+-- what the expansion may use. Hybrid: the mod's session parts stop in a lobby that isn't cleared, and
+-- the client parts keep running.
 local function scope_of(state)
 	local scope = state.mod.scope
-	if scope == "client" then return "client" end
+	if scope == "client" or scope == "hybrid" then return scope end
 	if scope == "expansion" and expansion.is_own(state.id) then return "expansion" end
 	return "session"
 end
@@ -313,6 +353,15 @@ end
 
 local function start(mod)
 	local state = { id = B.tostring(mod.id), mod = mod, errors = 0, off = false }
+	-- The mod's parts by id, from the deploy: the scope of each, and whether the option of the part has it on.
+	if B.type(mod.parts) == "table" then
+		state.parts, state.part_list = {}, {}
+		for _, p in B.ipairs(mod.parts) do
+			local part = { id = B.tostring(p.id), scope = p.scope == "client" and "client" or "session", on = p.on ~= false, name = p.name }
+			state.parts[part.id] = part
+			B.insert(state.part_list, part)
+		end
+	end
 	B.insert(M.mods, state)
 	M.mods_by_id[state.id] = state
 	local needs = B.tonumber(mod.loader_api) or 1
@@ -347,32 +396,46 @@ function M.boot()
 	end
 
 	local appdata = B.getenv("APPDATA")
-	local game_side = appdata and (appdata .. "/Arrowhead/Helldivers/ObsidianModManager")
+	local game_side = appdata and (appdata .. "/Arrowhead/Helldivers/ObsidianLauncher")
 	if game_side then log.setup(game_side .. "/logs") end
 	log.line("Obsidian Loader, API " .. API_VERSION .. ", jit " .. (B.type(jit) == "table" and "available" or "missing"))
 
 	local ok, deploy = B.pcall(B.require, "obsidian/deploy")
-	if not ok or B.type(deploy) ~= "table" then
+	local deployed = ok and B.type(deploy) == "table"
+	M.deploy = deployed and deploy or nil
+	-- Before the checks below: a launch on a Sandbox that stops at one of them must still keep the
+	-- game off the Official save.
+	settings.load(M, game_side and (game_side .. "/settings.txt"))
+	hooks.setup(M, session)
+	local function stop_saving()
+		if not sandbox.wanted(M) then return end
+		sandbox.setup(M, hooks, true)
+		hooks.on_frame(show_notices)
+		hooks.wrap_require()
+	end
+	if not deployed then
 		log.line("no deploy table, no mod started: " .. B.tostring(deploy))
+		stop_saving()
+		if jit_was_on then B.pcall(jit.on) end
 		return
 	end
-	M.deploy = deploy
 
 	local revision = B.rawget(B.G, "BUILD_REVISION_INFORMATION")
 	local expected = B.tostring(deploy.revision)
 	if B.type(revision) ~= "string" or B.sub(revision, 1, #expected) ~= expected then
 		log.line("build unknown, no mod started (expected " .. expected .. ")")
 		M.notice("build_unknown")
+		stop_saving()
 		if jit_was_on then B.pcall(jit.on) end
 		return
 	end
 
-	settings.load(M, game_side and (game_side .. "/settings.txt"))
-	local tag = pool.apply(deploy)
+	sandbox.setup(M, hooks)
+	war.setup(M, hooks, game_side)
+	local tag = pool.apply(deploy, M.sandboxed(), war.pool_tag(M))
 
 	M.session = session
 	M.expansion = expansion
-	hooks.setup(M, session)
 	session.setup(M)
 	hooks.on_frame(function() M.frame_count = M.frame_count + 1 end)
 	hooks.on_frame(session.tick)
@@ -383,10 +446,12 @@ function M.boot()
 	menu.setup(M, hooks, session)
 	ui.setup(M, hooks, session)
 	storage.setup(M, game_side and (game_side .. "/logs"))
+	save_data.setup(M, appdata and (appdata .. "/Arrowhead/Helldivers/saves"))
 	hooks.wrap_require()
 
 	backend_block.setup(M, hooks)
 	guardrails.setup(M, hooks)
+	lobby.setup(M, hooks, session)
 	-- The lobby browser also lists the open pool's lobbies, and the public door keeps content that
 	-- can't switch off out of public lobbies with vanilla players.
 	pool.bridge(M, hooks, tag)

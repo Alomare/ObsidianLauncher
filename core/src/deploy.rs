@@ -8,7 +8,7 @@ use crate::backup::backup_game_saves;
 use crate::bundle::{self, Bundle, Entry, Variant};
 use crate::compose::{Composition, Conflict};
 use crate::game::GameInstall;
-use crate::gate::{GateReport, KNOWN_BUILDS, KnownBuild, check_build, sha256_file};
+use crate::gate::{GateReport, KNOWN_BUILDS, KnownBuild, check_build, sha256_file, sha256_files};
 use crate::library::{Library, Profile};
 use crate::paths::{rename_retrying, write_atomic};
 use crate::{ObsidianError, Result, loader, settings};
@@ -58,13 +58,55 @@ pub struct DeployOptions<'a> {
     pub keep_backups: usize,
     /// The loader sources; `None` finds them with `loader::find_loader_dir`.
     pub loader_dir: Option<PathBuf>,
-    /// Told how far the writing is, from 0 to 1.
-    pub progress: Option<&'a (dyn Fn(f32) + Sync)>,
+    /// Told what the deploy is doing, from the start to the end of every deploy.
+    pub progress: Option<&'a (dyn Fn(&DeployProgress) + Sync)>,
+    /// Puts the loader in without touching the mods: the set the last deploy put in the game stays as
+    /// it was, whatever the profile says now, and a game with no mods gets the loader alone. The
+    /// loader goes in when something needs it (a selected Sandbox save, or a guardrail). The Saves tab's deploy.
+    pub loader_only: bool,
+}
+
+/// What a deploy is doing right now.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct DeployProgress {
+    /// Of the whole deploy, 0 to 100.
+    pub percent: u32,
+    /// The display name of the mod being worked on; none for a shared step.
+    #[serde(rename = "mod")]
+    pub mod_name: Option<String>,
+    /// `preparing`, `resources`, `scripts`, `sound banks`, `writing patches` or `done`.
+    pub stage: &'static str,
+}
+
+/// Sends progress, leaving out a report the same as the last one: a patch writes many blocks.
+struct Reporter<'a> {
+    sink: Option<&'a (dyn Fn(&DeployProgress) + Sync)>,
+    last: std::sync::Mutex<Option<DeployProgress>>,
+}
+
+impl Reporter<'_> {
+    fn send(&self, part: f32, stage: &'static str, mod_name: Option<String>) {
+        let Some(sink) = self.sink else { return };
+        let now = DeployProgress { percent: (part.clamp(0.0, 1.0) * 100.0) as u32, mod_name, stage };
+        let mut last = self.last.lock().unwrap_or_else(|p| p.into_inner());
+        if last.as_ref() != Some(&now) {
+            sink(&now);
+            *last = Some(now);
+        }
+    }
+}
+
+/// How much of the bar reading the mods and compiling the scripts take; the patches get the rest.
+const READING_END: f32 = 0.3;
+const SCRIPTS_END: f32 = 0.4;
+
+fn display_of(name: &crate::manifest::Localized) -> Option<String> {
+    name.get("en").or_else(|| name.values().next()).cloned()
 }
 
 impl Default for DeployOptions<'static> {
     fn default() -> Self {
-        DeployOptions { known_builds: KNOWN_BUILDS, keep_backups: 10, loader_dir: None, progress: None }
+        DeployOptions { known_builds: KNOWN_BUILDS, keep_backups: 10, loader_dir: None, progress: None, loader_only: false }
     }
 }
 
@@ -217,6 +259,12 @@ pub fn has_deployed(data_dir: &Path) -> bool {
     }
 }
 
+/// Whether the last deploy put the loader in the game, and the patch that holds it is still there.
+pub fn loader_deployed(game: &GameInstall, data_dir: &Path) -> bool {
+    let contents = game.contents();
+    load_state(data_dir).ok().flatten().is_some_and(|s| !s.incomplete && s.files.iter().any(|f| f.path.file_name().is_some_and(|n| n.to_string_lossy().starts_with(loader::BUNDLE)) && here(&contents, f).is_file()))
+}
+
 /// One hash of what a deploy of `comp` writes: every planned resource and, when the loader goes
 /// in, the loader's inputs. Live option values and keys reach the game through `settings.txt`, so
 /// they are not part of it.
@@ -241,7 +289,9 @@ pub fn fingerprint(comp: &Composition, profile: &Profile, loader_dir: &Path) -> 
 /// One hash of the settings file a deploy writes: option values, keys and the guardrails.
 pub fn settings_digest(s: &settings::Settings) -> String {
     use sha2::{Digest, Sha256};
-    Sha256::digest(settings::render(s).as_bytes()).iter().map(|b| format!("{b:02x}")).collect()
+    // Selecting a save reaches the game through the settings file and asks for no deploy.
+    let s = settings::Settings { sandbox: None, ..s.clone() };
+    Sha256::digest(settings::render(&s).as_bytes()).iter().map(|b| format!("{b:02x}")).collect()
 }
 
 /// `contents` is the game's folder of bundles, to check that the recorded patches are still there.
@@ -283,15 +333,22 @@ pub fn changes_waiting_for(comp: &Composition, profile: &Profile, settings: &str
 fn hold_lock(data_dir: &Path) -> Result<std::fs::File> {
     std::fs::create_dir_all(data_dir)?;
     let f = std::fs::OpenOptions::new().create(true).write(true).truncate(false).open(data_dir.join("deploy.lock"))?;
-    match f.try_lock() {
-        Ok(()) => Ok(f),
-        Err(std::fs::TryLockError::WouldBlock) => Err(ObsidianError::Busy),
-        Err(std::fs::TryLockError::Error(e)) => Err(e.into()),
+    // On Linux a child process started by another thread holds a copy of the lock until the child
+    // starts the program, so a lock dropped a moment ago can still look held. A short wait covers that.
+    for _ in 0..25 {
+        match f.try_lock() {
+            Ok(()) => return Ok(f),
+            Err(std::fs::TryLockError::WouldBlock) => std::thread::sleep(std::time::Duration::from_millis(20)),
+            Err(std::fs::TryLockError::Error(e)) => return Err(e.into()),
+        }
     }
+    Err(ObsidianError::Busy)
 }
 
 pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Result<DeployReport> {
     let _lock = hold_lock(data_dir)?;
+    let report = Reporter { sink: opts.progress, last: Default::default() };
+    report.send(0.0, "preparing", None);
     let contents = game.contents();
     let gate = check_build(&game.root, opts.known_builds)?;
     // A build Obsidian doesn't know still gets the deploy: the patches never touch the game's own
@@ -304,6 +361,13 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
     let lib = Library::open(data_dir)?;
     let mut profile = Profile::load(data_dir)?;
     profile.sync(&lib)?;
+    if opts.loader_only {
+        // Only this deploy's copy: the profile on disk is left as it is, and the Mods tab shows any change waiting.
+        let kept: &[String] = previous.as_ref().filter(|p| !p.incomplete).map_or(&[], |p| &p.mods);
+        for e in &mut profile.mods {
+            e.enabled = kept.contains(&e.id);
+        }
+    }
     let loader_dir = match &opts.loader_dir {
         Some(d) => d.clone(),
         None => loader::find_loader_dir()?,
@@ -313,7 +377,10 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
     // aren't in the patches, so the settings are written all the same.
     if let Some(prev) = previous.as_ref().filter(|p| !p.incomplete && !p.files.is_empty()) {
         let planned = crate::compose::plan_for(&lib, &profile, Some(&contents))?;
-        let intact = || prev.files.iter().all(|f| sha256_file(&here(&contents, f)).is_ok_and(|s| s == f.sha256));
+        let intact = || {
+            let places: Vec<PathBuf> = prev.files.iter().map(|f| here(&contents, f)).collect();
+            sha256_files(&places).into_iter().zip(&prev.files).all(|(now, f)| now.is_ok_and(|s| s == f.sha256))
+        };
         if planned.unplaced.is_empty() && prev.fingerprint.as_deref() == Some(fingerprint(&planned, &profile, &loader_dir)?.as_str()) && intact() {
             let live = loader::settings_for(&lib, &profile)?;
             let digest = settings_digest(&live);
@@ -325,12 +392,17 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
             let foreign = foreign_patches(&contents, previous.as_ref(), &[])?;
             let foreign = foreign.into_iter().filter(|(b, _, _)| planned.bundles.contains_key(b)).map(|(_, _, p)| p).collect();
             let patches = prev.files.iter().map(|f| here(&contents, f)).collect();
+            report.send(1.0, "done", None);
             return Ok(DeployReport { patches, conflicts: planned.conflicts, foreign, backup: None, unchanged: true, settings_changed });
         }
     }
-    let mut comp = crate::compose::compose_for(&lib, &profile, Some(&contents))?;
+    let on_mod = |i: usize, total: usize, m: &crate::manifest::Manifest| {
+        report.send(READING_END * i as f32 / total.max(1) as f32, "resources", display_of(&m.name));
+    };
+    let mut comp = crate::compose::compose_reporting(&lib, &profile, Some(&contents), &on_mod)?;
     let fingerprint = fingerprint(&comp, &profile, &loader_dir)?;
     if loader::needed(&comp, &profile) {
+        report.send(READING_END, "scripts", None);
         let dir = &loader_dir;
         let planned = loader::build(dir, &comp)?;
         let slot = comp.bundles.entry(loader::BUNDLE.to_string()).or_default();
@@ -365,8 +437,12 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
         while taken.contains(&slot) {
             slot += 1;
         }
-        if taken.iter().any(|&n| n > slot) {
-            return Err(ObsidianError::ForeignPatchGap { bundle: bundle.clone(), missing: slot });
+        // The game reads patches from 0 up and stops at a missing number: Obsidian's fills one hole, and
+        // a hole left after that hides what is above it. A patch dropped in by hand above Obsidian's,
+        // as some mods' readmes say to do, stays there and wins over Obsidian's.
+        let last = taken.iter().copied().max().unwrap_or(0);
+        if let Some(missing) = (0..=last).find(|n| !taken.contains(n) && *n != slot) {
+            return Err(ObsidianError::ForeignPatchGap { bundle: bundle.clone(), missing });
         }
         plan.push((bundle, base, contents.join(format!("{bundle}.patch_{slot}"))));
     }
@@ -374,18 +450,28 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
 
     let mut temps = Vec::new();
     let count = plan.len().max(1) as f32;
+    let name_of = |owner: &str| comp.mods.iter().find(|m| m.manifest.id == owner).and_then(|m| display_of(&m.manifest.name));
     for (i, (bundle, base, target)) in plan.iter().enumerate() {
-        let tell = |part: f32| {
-            if let Some(progress) = opts.progress {
-                progress((i as f32 + part.min(1.0)) / count);
-            }
-        };
-        tell(0.0);
+        let planned = &comp.bundles[*bundle];
+        let banks = planned.iter().filter(|p| p.recipe.is_some()).count();
+        // Rebuilding the banks of a bundle takes about as long as writing the patch.
+        let writing_from = if banks > 0 { 0.5 } else { 0.0 };
+        let share = |part: f32| SCRIPTS_END + (1.0 - SCRIPTS_END) * (i as f32 + part.min(1.0)) / count;
+        // A patch holding one mod's files is that mod's; a shared one is nobody's in particular.
+        let owner = planned.first().filter(|f| planned.iter().all(|p| p.owner == f.owner)).and_then(|f| name_of(&f.owner));
+        report.send(share(0.0), if banks > 0 { "sound banks" } else { "writing patches" }, if banks > 0 { None } else { owner.clone() });
+        let mut rebuilt_banks = 0;
         // Sound banks are rebuilt here, one bundle at a time, as a big one can pass a gigabyte.
-        let built = comp.bundles[*bundle]
+        let built = planned
             .iter()
             .cloned()
-            .map(|p| crate::compose::rebuilt(&contents, bundle, p))
+            .map(|p| {
+                if p.recipe.is_some() {
+                    report.send(share(writing_from * rebuilt_banks as f32 / banks as f32), "sound banks", name_of(&p.owner));
+                    rebuilt_banks += 1;
+                }
+                crate::compose::rebuilt(&contents, bundle, p)
+            })
             .collect::<Result<Vec<_>>>()
             .and_then(|planned| Ok(patch_of(bundle::read_props(base)?, planned)));
         let (b, stream) = match built {
@@ -397,7 +483,7 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
         };
         let tmp = target.with_extension(format!("{}.{TMP}", target.extension().unwrap().to_string_lossy()));
         temps.push((tmp.clone(), target.clone()));
-        let mut written = bundle::write_file_with(&tmp, &b, &mut |part| tell(part));
+        let mut written = bundle::write_file_with(&tmp, &b, &mut |part| report.send(share(writing_from + (1.0 - writing_from) * part), "writing patches", owner.clone()));
         if written.is_ok() && !stream.is_empty() {
             // The engine reads a patch's streamed bytes from `<patch>.stream`, as it does for a bundle.
             let target = beside(target, "stream");
@@ -410,9 +496,11 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
             return Err(e);
         }
     }
-    let files = temps
-        .iter()
-        .map(|(tmp, p)| Ok(DeployedFile { path: p.clone(), sha256: sha256_file(tmp)? }))
+    let written: Vec<PathBuf> = temps.iter().map(|(tmp, _)| tmp.clone()).collect();
+    let files = sha256_files(&written)
+        .into_iter()
+        .zip(&temps)
+        .map(|(sha256, (_, p))| Ok(DeployedFile { path: p.clone(), sha256: sha256? }))
         .collect::<Result<Vec<_>>>()?;
     let mods = profile.mods.iter().filter(|m| m.enabled).map(|m| m.id.clone()).collect();
     let state = DeployState { build, files, mods, time: chrono::Local::now().to_rfc3339(), fingerprint: Some(fingerprint), settings: Some(digest), incomplete: false, previous: None };
@@ -458,7 +546,10 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
     for (old, _) in &aside {
         let _ = std::fs::remove_file(old);
     }
-    settings::write(&settings::game_side_dir(&game.saves_dir), &settings)?;
+    let game_side = settings::game_side_dir(&game.saves_dir);
+    settings::settle_carry_over(&game_side);
+    settings::write(&game_side, &settings)?;
+    report.send(1.0, "done", None);
     let foreign_paths = foreign.into_iter().filter(|(b, _, _)| comp.bundles.contains_key(b)).map(|(_, _, p)| p).collect();
     Ok(DeployReport { patches: state.files.into_iter().map(|f| f.path).collect(), conflicts: comp.conflicts, foreign: foreign_paths, backup, unchanged: false, settings_changed })
 }
@@ -716,7 +807,7 @@ mod tests {
         p.set_enabled("mod-aa", true).unwrap();
         p.set_enabled("mod-bb", true).unwrap();
         p.save(&data).unwrap();
-        World { _t: t, game, data, opts: DeployOptions { known_builds: known, keep_backups: 10, loader_dir: None, progress: None } }
+        World { _t: t, game, data, opts: DeployOptions { known_builds: known, keep_backups: 10, loader_dir: None, progress: None, loader_only: false } }
     }
 
     fn snapshot(dir: &Path) -> BTreeMap<String, String> {
@@ -730,6 +821,29 @@ mod tests {
 
     fn patch(w: &World, name: &str) -> PathBuf {
         w.game.contents().join(name)
+    }
+
+    #[test]
+    fn every_deploy_says_what_it_is_doing_from_start_to_end() {
+        let w = world();
+        let seen = std::sync::Mutex::new(Vec::new());
+        let tell = |p: &DeployProgress| seen.lock().unwrap().push(p.clone());
+        let opts = DeployOptions { known_builds: w.opts.known_builds, keep_backups: 10, loader_dir: w.opts.loader_dir.clone(), progress: Some(&tell), loader_only: false };
+        deploy(&w.game, &w.data, &opts).unwrap();
+        let first_run = std::mem::take(&mut *seen.lock().unwrap());
+        assert_eq!((first_run[0].percent, first_run[0].stage), (0, "preparing"));
+        assert_eq!((first_run.last().unwrap().percent, first_run.last().unwrap().stage), (100, "done"));
+        assert!(first_run.windows(2).all(|p| p[0].percent <= p[1].percent), "{first_run:?}");
+        assert!(first_run.iter().any(|p| p.stage == "resources" && p.mod_name.is_some()), "{first_run:?}");
+        assert!(first_run.iter().any(|p| p.stage == "scripts" && p.mod_name.is_none()));
+        assert!(first_run.iter().any(|p| p.stage == "writing patches"));
+        let json = serde_json::to_value(&first_run[0]).unwrap();
+        assert_eq!(json, serde_json::json!({ "percent": 0, "mod": null, "stage": "preparing" }));
+
+        // The same deploy again writes nothing, and still reports.
+        deploy(&w.game, &w.data, &opts).unwrap();
+        let again = seen.lock().unwrap();
+        assert_eq!((again[0].stage, again.last().unwrap().stage), ("preparing", "done"));
     }
 
     #[test]
@@ -769,6 +883,83 @@ mod tests {
         purge(&w.game, &w.data).unwrap();
         assert!(!patch(&w, "9cf71054ea26dddf.patch_0").exists());
         assert!(settings_text(&w).contains("consent"), "purge leaves settings.txt");
+    }
+
+    /// Selects a Sandbox save the way the Saves tab does, by the pointer file the loader settings read.
+    fn select_sandbox(w: &World) {
+        put(&w.data.join("saves"), "active-sandbox", b"107296691\tsandbox1");
+        assert!(crate::saves::active_sandbox(&w.data).is_some());
+    }
+
+    fn mods_off(w: &World) {
+        let mut p = Profile::load(&w.data).unwrap();
+        p.set_enabled("mod-aa", false).unwrap();
+        p.set_enabled("mod-bb", false).unwrap();
+        p.save(&w.data).unwrap();
+    }
+
+    #[test]
+    fn a_sandbox_with_no_mods_still_gets_the_loader() {
+        let w = world();
+        mods_off(&w);
+        assert!(deploy(&w.game, &w.data, &w.opts).unwrap().patches.is_empty(), "an Official save with no mods: vanilla");
+        assert!(!loader_deployed(&w.game, &w.data));
+        select_sandbox(&w);
+        let lib = Library::open(&w.data).unwrap();
+        assert_eq!(changes_waiting(&lib, &Profile::load(&w.data).unwrap(), &w.data, Some(&w.game.contents())).unwrap(), ChangesWaiting::Waiting);
+        assert_eq!(deploy(&w.game, &w.data, &w.opts).unwrap().patches, vec![patch(&w, "9cf71054ea26dddf.patch_0")]);
+        assert!(loader_deployed(&w.game, &w.data));
+        assert!(settings_text(&w).contains("sandbox\tsandbox1\n"), "the loader reads which Sandbox");
+        purge(&w.game, &w.data).unwrap();
+        assert!(!patch(&w, "9cf71054ea26dddf.patch_0").exists());
+        assert!(!loader_deployed(&w.game, &w.data));
+    }
+
+    fn loader_only(w: &World) -> DeployOptions<'static> {
+        DeployOptions { known_builds: w.opts.known_builds, keep_backups: 10, loader_dir: None, progress: None, loader_only: true }
+    }
+
+    #[test]
+    fn a_loader_only_deploy_keeps_the_deployed_mods_and_adds_the_loader() {
+        let w = world();
+        // Mods deployed with no loader needed: the Official save case.
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert!(patch(&w, "00000000000000aa.patch_0").exists() && patch(&w, "00000000000000bb.patch_0").exists());
+        select_sandbox(&w);
+        let mut p = Profile::load(&w.data).unwrap();
+        p.set_enabled("mod-bb", false).unwrap();
+        p.save(&w.data).unwrap();
+        let r = loader_only(&w);
+        deploy(&w.game, &w.data, &r).unwrap();
+        assert!(loader_deployed(&w.game, &w.data));
+        assert!(patch(&w, "00000000000000aa.patch_0").exists() && patch(&w, "00000000000000bb.patch_0").exists(), "the deployed mods stay, even mod-bb that the profile has off now");
+        assert_eq!(load_state(&w.data).unwrap().unwrap().mods, vec!["mod-aa".to_string(), "mod-bb".to_string()]);
+        let p = Profile::load(&w.data).unwrap();
+        assert!(!p.mods.iter().find(|m| m.id == "mod-bb").unwrap().enabled, "the profile is left as it was");
+        let lib = Library::open(&w.data).unwrap();
+        assert_eq!(changes_waiting(&lib, &p, &w.data, Some(&w.game.contents())).unwrap(), ChangesWaiting::Waiting, "the Mods tab shows the change waiting");
+        // Done once, a second one changes nothing.
+        assert!(deploy(&w.game, &w.data, &r).unwrap().unchanged);
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert!(patch(&w, "00000000000000aa.patch_0").exists() && !patch(&w, "00000000000000bb.patch_0").exists() && loader_deployed(&w.game, &w.data));
+    }
+
+    #[test]
+    fn a_loader_only_deploy_in_a_game_with_no_mods_puts_the_loader_alone() {
+        let w = world();
+        select_sandbox(&w);
+        let r = deploy(&w.game, &w.data, &loader_only(&w)).unwrap();
+        assert_eq!(r.patches, vec![patch(&w, "9cf71054ea26dddf.patch_0")]);
+        assert!(!patch(&w, "00000000000000aa.patch_0").exists() && !patch(&w, "00000000000000bb.patch_0").exists());
+        assert!(loader_deployed(&w.game, &w.data));
+        let b = bundle::read_file(&patch(&w, "9cf71054ea26dddf.patch_0")).unwrap();
+        assert!(!b.entries.iter().any(|e| e.name_hash == crate::hash::hash_name(&crate::loader::entry_name("mod-aa"))), "no mod script");
+        let p = Profile::load(&w.data).unwrap();
+        assert!(p.mods.iter().all(|m| m.enabled), "the profile keeps the mods on");
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert!(patch(&w, "00000000000000aa.patch_0").exists() && loader_deployed(&w.game, &w.data));
+        purge(&w.game, &w.data).unwrap();
+        assert!(!patch(&w, "00000000000000aa.patch_0").exists() && !patch(&w, "9cf71054ea26dddf.patch_0").exists());
     }
 
     #[test]
@@ -948,9 +1139,32 @@ mod tests {
     fn foreign_gap_is_refused() {
         let w = world();
         bundle::write_file(&patch(&w, "00000000000000aa.patch_0"), &base(7)).unwrap();
+        bundle::write_file(&patch(&w, "00000000000000aa.patch_3"), &base(8)).unwrap();
+        assert!(matches!(deploy(&w.game, &w.data, &w.opts), Err(ObsidianError::ForeignPatchGap { missing: 2, .. })));
+        assert!(!patch(&w, "00000000000000bb.patch_0").exists());
+    }
+
+    #[test]
+    fn a_hand_placed_patch_above_obsidians_keeps_its_number() {
+        let w = world();
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        // A mod's readme: copy the file in as patch_1, on top of what Obsidian wrote.
+        bundle::write_file(&patch(&w, "00000000000000aa.patch_1"), &base(8)).unwrap();
+        // Another set of mods, so the deploy writes the patches again.
+        let mut p = Profile::load(&w.data).unwrap();
+        p.set_enabled("mod-bb", false).unwrap();
+        p.save(&w.data).unwrap();
+        let r = deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert!(!r.unchanged);
+        assert!(r.patches.contains(&patch(&w, "00000000000000aa.patch_0")), "{:?}", r.patches);
+        assert!(patch(&w, "00000000000000aa.patch_1").exists(), "foreign patches stay");
+    }
+
+    #[test]
+    fn a_foreign_patch_with_nothing_below_it_is_refused() {
+        let w = world();
         bundle::write_file(&patch(&w, "00000000000000aa.patch_2"), &base(8)).unwrap();
         assert!(matches!(deploy(&w.game, &w.data, &w.opts), Err(ObsidianError::ForeignPatchGap { missing: 1, .. })));
-        assert!(!patch(&w, "00000000000000bb.patch_0").exists());
     }
 
     #[test]
@@ -973,6 +1187,19 @@ mod tests {
         assert_eq!(waiting(&w), ChangesWaiting::UpToDate, "the moved patch is still the deploy");
         let r = purge(&w.game, &w.data).unwrap();
         assert!(r.kept_changed.is_empty() && !patch(&w, "00000000000000aa.patch_0").exists());
+    }
+
+    #[test]
+    fn a_deploy_settles_the_game_side_folder_of_an_older_copy() {
+        let w = world();
+        let old = w.game.saves_dir.with_file_name(crate::settings::LEGACY_DIR);
+        put(&old, "logs/a.b.store", b"store");
+        let dir = settings::game_side_dir(&w.game.saves_dir);
+        assert!(dir.join(settings::CARRY_OVER).is_file(), "copied, and waiting for the deploy");
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        assert!(!dir.join(settings::CARRY_OVER).exists());
+        assert_eq!(std::fs::read(dir.join("logs/a.b.store")).unwrap(), b"store");
+        assert!(dir.join(settings::FILE).is_file() && old.join("logs/a.b.store").is_file());
     }
 
     #[test]

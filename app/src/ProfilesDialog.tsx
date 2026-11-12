@@ -33,7 +33,7 @@ export function ProfilesDialog({ snap, onClose }: { snap: Snapshot; onClose: () 
   const box = useRef<HTMLDivElement>(null);
   const close = () => setAsk(null);
   const last = snap.profileRows.length <= 1;
-  // The focus comes into the dialog, so the keys work from its first button on.
+  // The focus comes into the dialog, so the keys work from the first button on.
   useEffect(() => box.current?.focus(), []);
   useEffect(() => {
     // Esc closes the question on top first, then the dialog.
@@ -64,7 +64,7 @@ export function ProfilesDialog({ snap, onClose }: { snap: Snapshot; onClose: () 
           const active = p.name === snap.profile;
           return (
             <li key={p.name} className={active ? "profile active" : "profile"} style={p.color ? ({ "--rc": p.color } as CSSProperties) : undefined}>
-              <Thumb image={p.image} name={p.name} pick={{ owner: "profile", key: p.name, custom: !!p.image }} />
+              <Thumb image={p.image} name={p.name} pick={{ key: p.name, custom: !!p.image }} />
               <div className="profile-text">
                 <div className="nm">
                   {p.name}

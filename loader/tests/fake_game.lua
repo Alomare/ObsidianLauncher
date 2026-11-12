@@ -33,6 +33,9 @@ for component, list in pairs({
 	exosuit_inventory = "set_full_ammo",
 	equipment = "wielder wield holster unwield",
 	drone_station = "set_uses set_drone ammo_pickup backpack_used drone_reload set_force_dock",
+	-- The game's missiles (homing_component.lua, explosive_component.lua).
+	homing = "set_target_unit set_velocity",
+	explosive = "arm on_collided",
 }) do
 	KNOWN[component] = {}
 	for word in list:gmatch("%S+") do KNOWN[component][word] = true end
@@ -109,6 +112,8 @@ function G.start(ids, opts)
 			keybinds = b.keybinds })
 	end
 	local e = E.new({ deploy = E.deploy({ mods = deploy_mods, has_session = opts.scope ~= "client", font_files = opts.font_files }), mods = mods, lobby = opts.lobby })
+	-- opts.loaded: modules taken as already loaded, for a loader without one.
+	for name, value in pairs(opts.loaded or {}) do e.loaded[name] = value end
 
 	-- string and table helpers the game adds, then the rest of the game.
 	local game = { commands = {}, tampered = {}, protected = {}, sent = {}, rpc = {}, spawned = {}, saved = 0 }

@@ -7,7 +7,7 @@ import sys
 
 import github_api
 
-REPO = "Alomare/ObsidianModManager"
+REPO = "Alomare/ObsidianLauncher"
 
 
 def main():

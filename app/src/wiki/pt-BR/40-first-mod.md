@@ -58,7 +58,7 @@ O loader dá a cada mod uma tabela global chamada `obsidian`, com as funções d
 1. Arraste a pasta para a lista de mods na aba [Mods](app:mods).
 2. Ligue o mod e clique em **Aplicar**.
 3. Abra o jogo e depois feche.
-4. Abra `%APPDATA%\Arrowhead\Helldivers\ObsidianModManager\logs`. `seunomeola-helldiver.log` tem as suas duas linhas, e o `loader.log` mostra o mod iniciando. O log de um mod tem o nome do id do mod, só com letras, dígitos, `_` e `-`.
+4. Abra `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher\logs`. `seunomeola-helldiver.log` tem as suas duas linhas, e o `loader.log` mostra o mod iniciando. O log de um mod tem o nome do id do mod, só com letras, dígitos, `_` e `-`.
 
 Para mudar o mod, edite os arquivos e importe a pasta de novo: um mod com o mesmo id substitui a cópia antiga. Aumente o `version` quando compartilhar uma versão nova.
 

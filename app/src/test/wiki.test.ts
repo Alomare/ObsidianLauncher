@@ -2,8 +2,33 @@ import { describe, expect, it } from "vitest";
 import { wikiPages } from "../wiki";
 
 const LANGS = ["en", "pt-BR", "zh-CN"];
+/** Pages written since the last translation pass: English for now, listed in internal/release/untranslated-keys.txt. */
+const UNTRANSLATED = new Set([
+  "saves", "commander", "commander-wars", "commander-playing", "commander-game-master", "commander-rules",
+  "commander-hosting", "commander-sharing", "commander-joining", "commander-faq", "commander-troubleshooting",
+]);
 
 describe("wiki", () => {
+  it("splits into a Launcher and a Commander subtab, each with the FAQ and Troubleshooting pinned", () => {
+    for (const lang of LANGS) {
+      const { pages, books } = wikiPages(lang);
+      expect(books.launcher.pages.length + books.commander.pages.length).toBe(pages.length);
+      expect(books.launcher.pinned.map((p) => p.id)).toEqual(["faq", "troubleshooting"]);
+      expect(books.commander.pinned.map((p) => p.id)).toEqual(["commander-faq", "commander-troubleshooting"]);
+      for (const b of [books.launcher, books.commander]) {
+        expect(b.steps.some((p) => p.pin)).toBe(false);
+        // Every step is in a group (an untranslated page can sit in a group of its own, under the English name).
+        expect(b.groups.flatMap((g) => g.pages.map((p) => p.id)).sort()).toEqual(b.steps.map((p) => p.id).sort());
+      }
+      expect(books.commander.steps[0].id).toBe("commander");
+      expect(books.launcher.steps[0].id).toBe("how-obsidian-works");
+    }
+  });
+
+  it("keeps Evolved wars out of the Commander pages while they are on hold", () => {
+    for (const p of wikiPages("en").books.commander.pages) expect(p.text, p.id).not.toMatch(/evolved/i);
+  });
+
   it("has a translation of every page in every language", () => {
     const ids = wikiPages("en").pages.map((p) => p.id);
     for (const lang of LANGS) {
@@ -12,7 +37,9 @@ describe("wiki", () => {
       if (lang !== "en") {
         // A translated page differs from the English one; a missing file would show English.
         const en = wikiPages("en").pages;
-        pages.forEach((p, i) => expect(p.title, `${lang} ${p.id}`).not.toBe(en[i].title));
+        pages.forEach((p, i) => {
+          if (!UNTRANSLATED.has(p.id)) expect(p.title, `${lang} ${p.id}`).not.toBe(en[i].title);
+        });
       }
     }
   });

@@ -24,10 +24,12 @@ pub struct Ctx {
     /// Held by each command that reads or changes the library or profile. The commands are async,
     /// so they run off the window's thread and the window stays responsive; this keeps them in turn.
     pub work: Mutex<()>,
+    /// Commander's relay and server (commander.rs).
+    pub commander: Mutex<crate::commander::Runtime>,
 }
 
 impl Ctx {
-    fn turn(&self) -> std::sync::MutexGuard<'_, ()> {
+    pub(crate) fn turn(&self) -> std::sync::MutexGuard<'_, ()> {
         self.work.lock().unwrap_or_else(|p| p.into_inner())
     }
 }
@@ -63,7 +65,7 @@ pub fn fresh(ctx: &Ctx) -> CmdResult<Snapshot> {
 }
 
 /// Loads the active profile in step with the library, lets `f` change it, and saves it.
-fn with_profile(data: &Path, f: impl FnOnce(&mut Profile) -> obsidian_core::Result<()>) -> CmdResult<()> {
+pub(crate) fn with_profile(data: &Path, f: impl FnOnce(&mut Profile) -> obsidian_core::Result<()>) -> CmdResult<()> {
     let lib = Library::open(data)?;
     let mut p = Profile::load(data)?;
     p.sync(&lib)?;
@@ -229,12 +231,11 @@ pub async fn delete_profile(ctx: State<'_, Ctx>, name: String) -> CmdResult<Snap
     live_edit(&ctx, |_, _| Ok(()))
 }
 
-/// Sets the player's image for a mod or a profile (`owner` "mod" or "profile"), or removes it.
+/// Sets the image of the profile `key`, or removes it.
 #[tauri::command]
-pub async fn set_image(ctx: State<'_, Ctx>, owner: String, key: String, path: Option<PathBuf>) -> CmdResult<Snapshot> {
+pub async fn set_image(ctx: State<'_, Ctx>, key: String, path: Option<PathBuf>) -> CmdResult<Snapshot> {
     let _turn = ctx.turn();
-    let owner = if owner == "profile" { images::Owner::Profile } else { images::Owner::Mod };
-    images::set(&ctx.data, owner, &key, path.as_deref())?;
+    images::set(&ctx.data, &key, path.as_deref())?;
     fresh(&ctx)
 }
 
@@ -436,14 +437,44 @@ pub async fn check_game(ctx: State<'_, Ctx>) -> CmdResult<Snapshot> {
 
 /// Opens a folder the app knows in Explorer: the game, the data folder, the logs or one save backup.
 #[tauri::command]
-pub fn open_folder(ctx: State<'_, Ctx>, app: tauri::AppHandle, path: PathBuf) -> CmdResult<()> {
-    use tauri_plugin_opener::OpenerExt;
+pub async fn open_folder(ctx: State<'_, Ctx>, app: tauri::AppHandle, path: PathBuf) -> CmdResult<()> {
     let settings = AppSettings::load(&ctx.data);
     let known = path.starts_with(&ctx.data) || find(&settings).is_some_and(|g| path == g.root) || logs_dir(&settings).is_some_and(|d| path == d);
     if !known {
         return Err(CmdError { code: "Io".into(), message: format!("not a folder Obsidian opens: {}", path.display()) });
     }
-    app.opener().open_path(path.to_string_lossy(), None::<&str>).map_err(|e| CmdError { code: "Io".into(), message: e.to_string() })
+    open_external(&app, &path.to_string_lossy(), true).map_err(|message| CmdError { code: "Io".into(), message })
+}
+
+/// Opens a web page in the default browser. Only http and https: the window never opens files.
+#[tauri::command]
+pub async fn open_link(app: tauri::AppHandle, url: String) -> CmdResult<()> {
+    let lower = url.to_ascii_lowercase();
+    if !(lower.starts_with("https://") || lower.starts_with("http://")) {
+        return Err(CmdError { code: "Io".into(), message: format!("not a web link: {url}") });
+    }
+    open_external(&app, &url, false).map_err(|message| CmdError { code: "Io".into(), message })
+}
+
+/// Hands a URL (or, with `path`, a folder) to the system. On Linux xdg-open runs without the
+/// AppImage's environment (obsidian_core::host): with it, KDE's opener fails on the bundled OpenSSL.
+fn open_external(app: &tauri::AppHandle, target: &str, path: bool) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        let _ = (app, path);
+        let out = obsidian_core::host::command("xdg-open").arg(target).stdin(std::process::Stdio::null()).output().map_err(|e| format!("xdg-open: {e}"))?;
+        if out.status.success() {
+            return Ok(());
+        }
+        let detail = String::from_utf8_lossy(&out.stderr).trim().chars().take(300).collect::<String>();
+        Err(format!("xdg-open {target} failed ({}){}{detail}", out.status, if detail.is_empty() { "" } else { ": " }))
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        use tauri_plugin_opener::OpenerExt;
+        let r = if path { app.opener().open_path(target, None::<&str>) } else { app.opener().open_url(target, None::<&str>) };
+        r.map_err(|e| e.to_string())
+    }
 }
 
 #[tauri::command]
@@ -461,6 +492,14 @@ pub struct ModUpdate {
     /// The newer version; `None` when the mod is up to date or the check failed.
     pub version: Option<String>,
     pub error: Option<CmdError>,
+}
+
+/// Starts the app again on the version just installed. The Windows installer closes and reopens the
+/// app itself; on Linux the new AppImage or package is in place and the old version still runs. An
+/// AppImage starts again from the AppImage file, not from the copy it ran from.
+#[tauri::command]
+pub fn restart_app(app: tauri::AppHandle) {
+    app.restart()
 }
 
 /// What a version of Obsidian changes, as the GitHub release reads now.
@@ -589,16 +628,18 @@ pub async fn restore_starter_pack(ctx: State<'_, Ctx>) -> CmdResult<Snapshot> {
 }
 
 const STEAM_LAUNCH: &str = "steam://rungameid/394510";
-const APP_SOURCE: &str = "https://github.com/Alomare/ObsidianModManager";
+const APP_SOURCE: &str = "https://github.com/Alomare/ObsidianLauncher";
 
 fn game_of(ctx: &Ctx) -> CmdResult<GameInstall> {
     Ok(find(&AppSettings::load(&ctx.data)).ok_or_else(|| ObsidianError::GameNotFound(String::new()))?)
 }
 
-/// Calls `launch`. The game runs what was last deployed, even with changes waiting.
-pub fn play_with(game: Option<&GameInstall>, launch: impl FnOnce() -> CmdResult<()>) -> CmdResult<()> {
-    game.ok_or_else(|| ObsidianError::GameNotFound(String::new()))?;
+/// Readies the active save with `prepare`, then calls `launch`. The game runs what was last
+/// deployed, even with changes waiting.
+pub fn play_with(game: Option<&GameInstall>, prepare: impl FnOnce(&GameInstall) -> CmdResult<()>, launch: impl FnOnce() -> CmdResult<()>) -> CmdResult<()> {
+    let game = game.ok_or_else(|| ObsidianError::GameNotFound(String::new()))?;
     ensure_closed()?;
+    prepare(game)?;
     launch()
 }
 
@@ -613,29 +654,40 @@ pub struct DeployDone {
     pub unchanged: bool,
     /// Option values or keys changed since the last deploy.
     pub settings: bool,
+    /// The loader is in the game after this deploy, as a Sandbox save needs.
+    pub loader: bool,
 }
 
 #[tauri::command]
 pub async fn deploy(app: tauri::AppHandle, ctx: State<'_, Ctx>) -> CmdResult<DeployDone> {
-    use std::sync::atomic::{AtomicU32, Ordering};
     use tauri::Emitter;
     let _turn = ctx.turn();
     let game = game_of(&ctx)?;
     ensure_closed()?;
     // An option changed in the game can pick resources, so it goes into this deploy.
     take_game_options(&ctx.data, Some(&game));
-    // A deploy that's over in a moment needs no window. Mods that rebuild sound banks can take a minute.
-    let started = std::time::Instant::now();
-    let shown = AtomicU32::new(u32::MAX);
-    let tell = move |part: f32| {
-        let percent = (part * 100.0) as u32;
-        if started.elapsed().as_millis() > 1500 && shown.swap(percent, Ordering::Relaxed) != percent {
-            let _ = app.emit("deploy-progress", percent);
-        }
+    let tell = move |p: &obsidian_core::deploy::DeployProgress| {
+        let _ = app.emit("deploy-progress", p);
     };
     let r = core_deploy(&game, &ctx.data, &DeployOptions { progress: Some(&tell), ..DeployOptions::default() })?;
     let snapshot = fresh(&ctx)?;
-    Ok(DeployDone { mods: if r.patches.is_empty() { 0 } else { snapshot.mods.iter().filter(|m| m.on).count() }, backup: r.backup.is_some(), unchanged: r.unchanged, settings: r.settings_changed, snapshot })
+    Ok(DeployDone { mods: if r.patches.is_empty() { 0 } else { snapshot.mods.iter().filter(|m| m.on).count() }, backup: r.backup.is_some(), unchanged: r.unchanged, settings: r.settings_changed, loader: snapshot.loader, snapshot })
+}
+
+/// The Saves tab's deploy: the loader goes in if it is not there, and the mods the game has stay as
+/// they are, so a Sandbox save works in a game with or without mods. The Mods tab's deploy changes the mods.
+#[tauri::command]
+pub async fn deploy_loader(app: tauri::AppHandle, ctx: State<'_, Ctx>) -> CmdResult<DeployDone> {
+    use tauri::Emitter;
+    let _turn = ctx.turn();
+    let game = game_of(&ctx)?;
+    ensure_closed()?;
+    let tell = move |p: &obsidian_core::deploy::DeployProgress| {
+        let _ = app.emit("deploy-progress", p);
+    };
+    let r = core_deploy(&game, &ctx.data, &DeployOptions { progress: Some(&tell), loader_only: true, ..DeployOptions::default() })?;
+    let snapshot = fresh(&ctx)?;
+    Ok(DeployDone { mods: 0, backup: r.backup.is_some(), unchanged: r.unchanged, settings: r.settings_changed, loader: snapshot.loader, snapshot })
 }
 
 #[derive(Debug, Serialize)]
@@ -658,13 +710,142 @@ pub async fn purge(ctx: State<'_, Ctx>) -> CmdResult<PurgeDone> {
 
 #[tauri::command]
 pub async fn play(ctx: State<'_, Ctx>, app: tauri::AppHandle) -> CmdResult<Snapshot> {
-    use tauri_plugin_opener::OpenerExt;
     let _turn = ctx.turn();
     let game = find(&AppSettings::load(&ctx.data));
-    play_with(game.as_ref(), || {
-        app.opener().open_url(STEAM_LAUNCH, None::<&str>).map_err(|e| CmdError { code: "Launch".into(), message: e.to_string() })
+    let prepare = |g: &GameInstall| -> CmdResult<()> {
+        obsidian_core::saves::prepare_play(&ctx.data, g, obsidian_core::game::is_running)?;
+        Ok(())
+    };
+    play_with(game.as_ref(), prepare, || {
+        open_external(&app, STEAM_LAUNCH, false).map_err(|message| CmdError { code: "Launch".into(), message })
     })?;
     fresh(&ctx)
+}
+
+pub(crate) fn saves_of(ctx: &Ctx) -> CmdResult<obsidian_core::saves::Saves> {
+    let g = game_of(ctx)?;
+    Ok(obsidian_core::saves::Saves::open(&ctx.data, &g, obsidian_core::game::is_running)?)
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavesDone {
+    pub saves: obsidian_core::saves::SaveList,
+    /// What changed for the whole app: the Deploy state and the settings shown.
+    pub snapshot: Snapshot,
+}
+
+fn saves_done(ctx: &Ctx, s: &obsidian_core::saves::Saves) -> CmdResult<SavesDone> {
+    Ok(SavesDone { saves: s.list()?, snapshot: fresh(ctx)? })
+}
+
+/// The active Steam account's saves. The first call adopts the game's files as an Official save.
+#[tauri::command]
+pub async fn saves_list(ctx: State<'_, Ctx>) -> CmdResult<obsidian_core::saves::SaveList> {
+    let _turn = ctx.turn();
+    Ok(saves_of(&ctx)?.list()?)
+}
+
+/// Selects a save. Refused while the game runs.
+#[tauri::command]
+pub async fn saves_activate(ctx: State<'_, Ctx>, id: String) -> CmdResult<SavesDone> {
+    let _turn = ctx.turn();
+    let s = saves_of(&ctx)?;
+    s.activate(&id)?;
+    saves_done(&ctx, &s)
+}
+
+#[tauri::command]
+pub async fn saves_create_official(ctx: State<'_, Ctx>, name: String) -> CmdResult<SavesDone> {
+    let _turn = ctx.turn();
+    let s = saves_of(&ctx)?;
+    s.create_official(&name)?;
+    saves_done(&ctx, &s)
+}
+
+#[tauri::command]
+pub async fn saves_snapshot(ctx: State<'_, Ctx>, id: String, name: String) -> CmdResult<SavesDone> {
+    let _turn = ctx.turn();
+    let s = saves_of(&ctx)?;
+    s.snapshot(&id, &name)?;
+    saves_done(&ctx, &s)
+}
+
+#[tauri::command]
+pub async fn saves_create_sandbox(ctx: State<'_, Ctx>, name: String) -> CmdResult<SavesDone> {
+    let _turn = ctx.turn();
+    let s = saves_of(&ctx)?;
+    s.create_sandbox(&name)?;
+    saves_done(&ctx, &s)
+}
+
+#[tauri::command]
+pub async fn saves_duplicate(ctx: State<'_, Ctx>, id: String, name: String) -> CmdResult<SavesDone> {
+    let _turn = ctx.turn();
+    let s = saves_of(&ctx)?;
+    s.duplicate(&id, &name)?;
+    saves_done(&ctx, &s)
+}
+
+#[tauri::command]
+pub async fn saves_rename(ctx: State<'_, Ctx>, id: String, name: String) -> CmdResult<SavesDone> {
+    let _turn = ctx.turn();
+    let s = saves_of(&ctx)?;
+    s.rename(&id, &name)?;
+    saves_done(&ctx, &s)
+}
+
+#[tauri::command]
+pub async fn saves_delete(ctx: State<'_, Ctx>, id: String) -> CmdResult<SavesDone> {
+    let _turn = ctx.turn();
+    let s = saves_of(&ctx)?;
+    s.delete(&id)?;
+    saves_done(&ctx, &s)
+}
+
+#[tauri::command]
+pub async fn saves_export(ctx: State<'_, Ctx>, id: String, dest: PathBuf) -> CmdResult<()> {
+    let _turn = ctx.turn();
+    saves_of(&ctx)?.export(&id, &dest)?;
+    Ok(())
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveImported {
+    pub id: String,
+    pub saves: obsidian_core::saves::SaveList,
+    pub snapshot: Snapshot,
+}
+
+#[tauri::command]
+pub async fn saves_import(ctx: State<'_, Ctx>, path: PathBuf, name: Option<String>) -> CmdResult<SaveImported> {
+    let _turn = ctx.turn();
+    let s = saves_of(&ctx)?;
+    let id = s.import(&path, name.as_deref())?;
+    Ok(SaveImported { id, saves: s.list()?, snapshot: fresh(&ctx)? })
+}
+
+#[tauri::command]
+pub async fn saves_editor_state(ctx: State<'_, Ctx>, id: String) -> CmdResult<obsidian_core::saves::editor::EditorState> {
+    let _turn = ctx.turn();
+    Ok(saves_of(&ctx)?.editor_state(&id)?)
+}
+
+#[tauri::command]
+pub async fn saves_apply_edits(ctx: State<'_, Ctx>, id: String, edits: Vec<obsidian_core::saves::editor::Edit>) -> CmdResult<obsidian_core::saves::editor::EditorState> {
+    let _turn = ctx.turn();
+    Ok(saves_of(&ctx)?.apply_edits(&id, &edits)?)
+}
+
+/// The lobby info guardrail: leave client mods out of the lobby info this player hosts.
+#[tauri::command]
+pub async fn set_hide_client_mods(ctx: State<'_, Ctx>, on: bool) -> CmdResult<Snapshot> {
+    let _turn = ctx.turn();
+    live_edit(&ctx, |_, p| {
+        p.hide_client_mods = on;
+        Ok(())
+    })
 }
 
 #[cfg(test)]
@@ -748,11 +929,11 @@ mod tests {
         mod_folder(&t.path().join("m"), "1.0.0");
         import_all(&data, Some(&game), &[t.path().join("m")]);
         with_profile(&data, |p| p.set_enabled("a.drop", true)).unwrap();
-        play_with(Some(&game), launch).unwrap();
+        play_with(Some(&game), |_| Ok(()), launch).unwrap();
         assert!(launched.replace(false));
         assert!(!obsidian_core::deploy::has_deployed(&data), "the changes stay waiting");
 
-        assert_eq!(play_with(None, launch).unwrap_err().code, "GameNotFound");
+        assert_eq!(play_with(None, |_| Ok(()), launch).unwrap_err().code, "GameNotFound");
         assert!(!launched.get());
     }
 }

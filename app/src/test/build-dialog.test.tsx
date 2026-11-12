@@ -39,7 +39,7 @@ describe("game files dialog", () => {
     expect(rows).toHaveLength(2);
     expect(rows[0].textContent).toContain("contents/9e13b2414b41b842");
     expect(rows[1].querySelector(".tag")!.textContent).toBe("Missing");
-    expect(m.textContent).toContain("copied straight into the game's contents folder");
+    expect(m.textContent).toContain("copied straight into the contents folder of the game");
     expect(m.textContent).not.toContain("different version or was patched");
   });
 

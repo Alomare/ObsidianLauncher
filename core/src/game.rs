@@ -93,13 +93,20 @@ pub fn proton_appdata(game_root: &Path, libraries: &[PathBuf]) -> Option<PathBuf
     own.iter().chain(libraries).map(|lib| lib.join(PROTON_PREFIX)).find(|p| p.is_dir()).map(|p| p.join(PROTON_APPDATA))
 }
 
-fn steam_roots() -> Vec<PathBuf> {
+pub fn steam_roots() -> Vec<PathBuf> {
     let mut roots = Vec::new();
     #[cfg(windows)]
     {
         let key = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER).open_subkey(r"Software\Valve\Steam");
         if let Ok(path) = key.and_then(|k| k.get_value::<String, _>("SteamPath")) {
             roots.push(PathBuf::from(path));
+        }
+        // The machine-wide key, for a Windows account that has not started Steam yet.
+        for key in [r"SOFTWARE\WOW6432Node\Valve\Steam", r"SOFTWARE\Valve\Steam"] {
+            let key = winreg::RegKey::predef(winreg::enums::HKEY_LOCAL_MACHINE).open_subkey(key);
+            if let Ok(path) = key.and_then(|k| k.get_value::<String, _>("InstallPath")) {
+                roots.push(PathBuf::from(path));
+            }
         }
         roots.push(PathBuf::from(r"C:\Program Files (x86)\Steam"));
     }
@@ -143,10 +150,35 @@ pub fn is_running() -> bool {
 /// Whether a process with this file name runs, ignoring case.
 pub fn is_running_named(name: &str) -> bool {
     use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
-    // A system that can't list processes counts as "not running", so deploys stay possible.
-    let Ok(mut s) = System::new() else { return false };
-    s.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing());
-    s.processes().values().any(|p| p.name().to_string_lossy().eq_ignore_ascii_case(name))
+    // One process list for the whole run: the app asks every 2 seconds, and a refresh of a kept
+    // list costs less than a new one each time.
+    static LIST: std::sync::Mutex<Option<System>> = std::sync::Mutex::new(None);
+    let mut list = LIST.lock().unwrap_or_else(|p| p.into_inner());
+    if list.is_none() {
+        // A system that can't list processes counts as "not running", so deploys stay possible.
+        let Ok(s) = System::new() else { return false };
+        *list = Some(s);
+    }
+    let Some(s) = list.as_mut() else { return false };
+    #[cfg(windows)]
+    {
+        s.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing());
+        s.processes().values().any(|p| p.name().to_string_lossy().eq_ignore_ascii_case(name))
+    }
+    // Under Proton the game is a Wine process: Linux cuts process names at 15 characters, and Wine
+    // puts the Windows path of the exe first on the command line, so that counts too.
+    #[cfg(not(windows))]
+    {
+        s.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing().with_cmd(sysinfo::UpdateKind::OnlyIfNotSet));
+        s.processes().values().any(|p| names_program(&p.name().to_string_lossy(), p.cmd().first().map(|a| a.to_string_lossy()).as_deref(), name))
+    }
+}
+
+/// Whether a process named `comm`, started with `arg0` first on the command line, is `name`: by
+/// name, or by the file name of `arg0` as Linux or Windows spells paths.
+#[cfg_attr(windows, allow(dead_code))]
+fn names_program(comm: &str, arg0: Option<&str>, name: &str) -> bool {
+    comm.eq_ignore_ascii_case(name) || arg0.and_then(|a| a.rsplit(['/', '\\']).next()).is_some_and(|f| f.eq_ignore_ascii_case(name))
 }
 
 #[cfg(test)]
@@ -216,5 +248,14 @@ mod tests {
         let name: String = name.chars().take(if cfg!(windows) { usize::MAX } else { 15 }).collect();
         assert!(is_running_named(&name));
         assert!(!is_running_named("no-such-process-obsidian.exe"));
+    }
+
+    #[test]
+    fn a_wine_process_is_known_by_the_windows_path_on_the_command_line() {
+        assert!(names_program("helldivers.exe", None, EXE));
+        assert!(names_program("wine64-preloade", Some(r"Z:\home\deck\.local\share\Steam\steamapps\common\Helldivers\binaries\x64\helldivers.exe"), EXE));
+        assert!(names_program("x", Some("/games/Helldivers/binaries/x64/HELLDIVERS.EXE"), EXE));
+        assert!(!names_program("helldivers", Some("/usr/bin/helldivers"), EXE));
+        assert!(!names_program("x", Some(""), EXE));
     }
 }

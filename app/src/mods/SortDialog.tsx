@@ -87,7 +87,7 @@ export function SortDialog({ plan, name, off, onApply, onClose }: Props) {
   }, [onClose]);
   const moves = new Map(plan.moves.map((m) => [m.id, m]));
   const n = plan.moves.length;
-  const lead = n === 1 ? t("app.sort.leadOne") : n > 1 ? t("app.sort.lead", n) : plan.conflicts.length ? t("app.sort.nothing") : t("app.sort.inOrder");
+  const lead = n ? null : plan.conflicts.length ? t("app.sort.nothing") : t("app.sort.inOrder");
   return createPortal(
     <div className="modal-back" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal sort" role="dialog" aria-modal="true" aria-label={t("app.sort.title")}>
@@ -95,7 +95,7 @@ export function SortDialog({ plan, name, off, onApply, onClose }: Props) {
           <h2 className="cap">{t("app.sort.title")}</h2>
           <button className="bare close" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /></button>
         </div>
-        <p className="lead">{lead}</p>
+        {lead && <p className="lead">{lead}</p>}
         {n > 0 && (
           <div className="sort-scroll">
             <table className="sort-table">

@@ -1,5 +1,5 @@
 // About Obsidian: the version, the license, links and the credits. Opens from the status bar.
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "./opener";
 import { useEffect, useRef } from "react";
 import logo from "./assets/logo.png";
 import { CloseIcon, DiscordIcon, ExternalIcon, KofiIcon } from "./Icons";

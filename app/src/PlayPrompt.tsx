@@ -7,8 +7,9 @@ import { t } from "./i18n";
 import type { AppSettings, Snapshot } from "./types";
 
 /** Whether Play asks first. "Deployed" is what the last deploy wrote into the game, as the app keeps
- *  track of it, not the switches in the list: Play starts the game with the last deploy. */
-export const asksBeforePlay = (snap: Snapshot, settings: AppSettings) => !snap.deployed && settings.askVanillaPlay;
+ *  track of it, not the switches in the list: Play starts the game with the last deploy. A Sandbox
+ *  cannot run vanilla, and Play asks for the deploy it needs instead. */
+export const asksBeforePlay = (snap: Snapshot, settings: AppSettings) => !snap.deployed && settings.askVanillaPlay && !snap.sandbox;
 
 export function PlayPrompt({ onPlay, onCancel }: { onPlay: (dontAsk: boolean) => void; onCancel: () => void }) {
   const [dontAsk, setDontAsk] = useState(false);

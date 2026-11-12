@@ -13,7 +13,7 @@ use crate::library::{Library, Profile};
 use crate::lua::{check_bytecode, unwrap_resource, wrap_resource};
 use crate::luajit::compile_all;
 use crate::manifest::{Manifest, Scope, load_manifest};
-use crate::modset::{SessionMod, every_hash, every_pool_tag, expansion_pool_tag, modset_hash, open_pool_tag};
+use crate::modset::{SessionMod, every_hash, every_pool_tag, expansion_pool_tag, modset_hash, open_pool_tag, sandbox_pool_tag};
 use crate::options::{effective_values, value_text};
 use crate::settings::Settings;
 use crate::{ObsidianError, Result};
@@ -26,7 +26,9 @@ const FONT_BASE: &str = "obsidian/fonts";
 pub const ENTRY: &str = "foundation/lua/build_date_information";
 /// The start of `BUILD_REVISION_INFORMATION` on the supported build.
 pub const REVISION: &str = "parent: 32148:3bd83d77c8ae";
-const LANGUAGES: [&str; 4] = ["en", "fr", "es", "pt-BR"];
+/// The languages of the game, by the name a catalog file has in a mod's `locales` folder. The loader
+/// maps the game's own codes to these.
+const LANGUAGES: [&str; 17] = ["en", "fr", "es", "pt-BR", "de", "it", "ru", "pl", "ko", "ja", "zh-CN", "zh-TW", "sv", "da", "nl", "fi", "no"];
 
 /// `rel` in the app's resources, beside the exe, then in this workspace. Debug builds look in the
 /// workspace first: the copy beside a dev exe is only refreshed when the Rust side rebuilds, so it
@@ -81,10 +83,11 @@ fn deployed_fonts(comp: &Composition) -> (Vec<String>, Vec<String>) {
         if r.bundle.as_deref() != Some(BUNDLE) || !planned.iter().any(|p| p.type_hash == r.type_hash && p.name_hash == r.name_hash) {
             continue;
         }
-        match r.type_text.as_str() {
-            "material" => files.push(r.name_text.clone()),
-            "font" => paths.push(r.name_text.clone()),
-            _ => {}
+        // By the hash: a manifest can write the type as "#eac0b497876adedf".
+        if r.type_hash == hash_name("material") {
+            files.push(r.name_text.clone());
+        } else if r.type_hash == hash_name("font") {
+            paths.push(r.name_text.clone());
         }
     }
     (files, paths)
@@ -119,7 +122,7 @@ pub fn find_loader_dir() -> Result<PathBuf> {
 /// players' session mods alone needs no loader: a game without it runs none, and the others treat
 /// it as a vanilla player.
 pub fn needed(comp: &Composition, profile: &Profile) -> bool {
-    !comp.mods.is_empty() || profile.block_achievements || profile.freeze_progress
+    !comp.mods.is_empty() || profile.block_achievements || profile.freeze_progress || comp.sandbox
 }
 
 /// The folder of a mod's resources. Ids are already limited to `[a-z0-9._-]`.
@@ -209,10 +212,11 @@ fn libraries_of<'a>(from: &'a ComposedMod, mods: &'a [ComposedMod]) -> BTreeSet<
 }
 
 /// The ids of the libraries that run as session mods: those an enabled session mod requires,
-/// directly or through another library. Every other library runs as a client mod, or as part of
-/// the expansions that require it.
+/// directly or through another library. A mod with a session part on counts, as the session parts of the
+/// mod may call guarded functions. Every other library runs as a client mod, or as part of the expansions
+/// that require it.
 fn session_libraries(mods: &[ComposedMod]) -> BTreeSet<&str> {
-    mods.iter().filter(|c| c.manifest.scope == Scope::Session).flat_map(|c| libraries_of(c, mods)).collect()
+    mods.iter().filter(|c| c.manifest.scope_with(&c.values) == Scope::Session).flat_map(|c| libraries_of(c, mods)).collect()
 }
 
 /// Each library an enabled expansion requires, directly or through another library, with the ids
@@ -275,28 +279,35 @@ fn table_with(comp: &Composition, texts: Value, mod_texts: fn(&Path) -> Result<V
     let mut expansion_tags = Map::new();
     let mut mods = Vec::new();
     let (mut has_session, mut has_static_session) = (false, false);
+    let mut static_session = Vec::new();
     let libraries = session_libraries(&comp.mods);
     let served = expansion_libraries(&comp.mods);
     for c in start_order(&comp.mods) {
         let m = &c.manifest;
         let specs = m.option_specs()?;
         // A session mod's library is a session mod, and costs the deploy anyway. One only expansions
-        // need follows their content.
-        let scope = match m.scope {
+        // need follows their content. A mod with parts runs with the scope of the parts that are on.
+        let scope = match m.scope_with(&c.values) {
             Scope::Library if libraries.contains(m.id.as_str()) => Scope::Session,
             Scope::Library if served.contains_key(m.id.as_str()) => Scope::Expansion,
             Scope::Library => Scope::Client,
             scope => scope,
         };
+        let hybrid = scope == Scope::Session && m.hybrid_with(&c.values);
         let line = || SessionMod {
             id: m.id.clone(),
             version: m.version.clone(),
-            options: specs.iter().map(|s| (s.id.clone(), c.values[&s.id].clone(), s.client)).collect(),
+            options: specs.iter().map(|s| (s.id.clone(), c.values[&s.id].clone(), m.option_personal(s, &c.values))).collect(),
         };
         if scope == Scope::Session {
             has_session = true;
-            has_static_session |= c.resources > 0;
+            // The files of client parts are this player's own, as a client mod's are.
+            let shared_files = c.resources - c.client_resources;
+            has_static_session |= shared_files > 0;
             let sm = line();
+            if shared_files > 0 {
+                static_session.push(sm.clone());
+            }
             if m.every_player {
                 every.insert(m.id.clone(), Value::String(every_hash(&sm)));
             }
@@ -340,7 +351,8 @@ fn table_with(comp: &Composition, texts: Value, mod_texts: fn(&Path) -> Result<V
             // By language, for obsidian.info: Obsidian API names each mod's folder of the in-game window with it.
             "name": m.name,
             "version": m.version.to_string(),
-            "scope": scope_text(&scope),
+            // Hybrid: the session parts stop in a lobby that isn't cleared, the client parts keep running.
+            "scope": if hybrid { "hybrid" } else { scope_text(&scope) },
             "entry": entry_name(&m.id),
             "loader_api": m.loader_api,
             "requires": m.requires,
@@ -353,10 +365,16 @@ fn table_with(comp: &Composition, texts: Value, mod_texts: fn(&Path) -> Result<V
         if !gate.is_empty() {
             entry["expansions"] = json!(gate);
         }
+        // Each part with the scope the code tagged with the part runs with, and whether the part is on. The name, by
+        // language, is for the notice when the session parts stop.
+        if !m.parts.is_empty() {
+            entry["parts"] = m.parts.iter().map(|p| json!({ "id": p.id, "scope": p.scope.name(), "on": m.part_on(p, &c.values), "name": p.name })).collect();
+        }
         mods.push(entry);
     }
     let modset = modset_hash(&session);
-    let mut hashes = json!({ "open": open_pool_tag() });
+    let static_hash = (!static_session.is_empty()).then(|| modset_hash(&static_session));
+    let mut hashes = json!({ "open": open_pool_tag(), "sandbox": sandbox_pool_tag(static_hash.as_deref()) });
     if !every.is_empty() {
         hashes["every"] = json!(every_pool_tag(every.iter().map(|(id, h)| (id.as_str(), h.as_str().unwrap_or_default()))));
     }
@@ -501,19 +519,25 @@ pub fn build_inputs(loader_dir: &Path, comp: &Composition) -> Result<Vec<u8>> {
 /// The settings file for this profile: consent, the guardrails and the value of every option of each
 /// enabled mod with an entry. Reads manifests only, so nothing is compiled.
 pub fn settings_for(lib: &Library, profile: &Profile) -> Result<Settings> {
-    settings_from(profile, |id| load_manifest(&lib.mod_dir(id)).ok().map(Cow::Owned))
+    let sandbox = crate::saves::active_sandbox(lib.data_dir());
+    let war = crate::commander::war_line(lib.data_dir(), sandbox.as_deref());
+    let mut s = settings_from(profile, sandbox, |id| load_manifest(&lib.mod_dir(id)).ok().map(Cow::Owned))?;
+    s.war = war;
+    Ok(s)
 }
 
 /// `settings_for` with the manifests already read, as the app's snapshot has them.
 pub fn settings_with(profile: &Profile, manifests: &BTreeMap<String, Manifest>) -> Result<Settings> {
-    settings_from(profile, |id| manifests.get(id).map(Cow::Borrowed))
+    settings_from(profile, None, |id| manifests.get(id).map(Cow::Borrowed))
 }
 
-fn settings_from<'a>(profile: &Profile, manifest: impl Fn(&str) -> Option<Cow<'a, Manifest>>) -> Result<Settings> {
+fn settings_from<'a>(profile: &Profile, sandbox: Option<String>, manifest: impl Fn(&str) -> Option<Cow<'a, Manifest>>) -> Result<Settings> {
     let mut s = Settings {
         consent: profile.allows_others(),
         block_achievements: profile.block_achievements,
         freeze_progress: profile.freeze_progress,
+        sandbox,
+        hide_client_mods: profile.hide_client_mods,
         ..Default::default()
     };
     for entry in profile.mods.iter().filter(|m| m.enabled) {
@@ -603,10 +627,22 @@ mod tests {
         assert_eq!(table["has_session"], true);
         assert_eq!(table["has_static_session"], false, "an entry can stop when the session isn't cleared");
         assert_eq!(table["modset"].as_str().unwrap().len(), 64);
+        assert_eq!(table["hashes"]["sandbox"], crate::modset::sandbox_pool_tag(None), "no static session content");
+        let mut with_static = comp.clone();
+        with_static.mods.iter_mut().find(|m| m.manifest.id == "b").unwrap().resources = 1;
+        let folded = deploy_table(&with_static, json!({})).unwrap();
+        assert_ne!(folded["hashes"]["sandbox"], table["hashes"]["sandbox"], "static session content is folded in");
         let planned = build(&find_loader_dir().unwrap(), &comp).unwrap();
         for name in [ENTRY, "obsidian/loader/core", "obsidian/mods/a/main", "obsidian/mods/b/main", "obsidian/deploy"] {
             assert!(planned.iter().any(|p| p.name_hash == hash_name(name)), "{name}");
         }
+    }
+
+    #[test]
+    fn a_selected_sandbox_needs_the_loader() {
+        let comp = Composition::default();
+        assert!(!needed(&comp, &Profile::default()));
+        assert!(needed(&Composition { sandbox: true, ..comp }, &Profile::default()));
     }
 
     fn add_requiring(t: &Path, lib: &Library, id: &str, scope: &str, requires: &str) {
@@ -783,6 +819,113 @@ mod tests {
     }
 
     #[test]
+    fn a_mod_with_no_parts_hashes_and_deploys_as_before_parts() {
+        use sha2::{Digest, Sha256};
+        let t = spaced_tempdir();
+        let lib = Library::open(&t.path().join("data")).unwrap();
+        let d = t.path().join("stage-plain");
+        put(&d, "obsidian.json", br#"{"obsidian":1,"id":"plain","version":"1.2.0","name":{"en":"Plain"},"scope":"session","entry":"main.lua",
+            "options":[{"id":"speed","type":"number","default":5},{"id":"cam","type":"toggle","default":true,"scope":"client"}],
+            "resources":[{"type":"texture","name":"a/b","bundle":"00000000000000aa","data":"f"}]}"#);
+        put(&d, "main.lua", b"return true\n");
+        put(&d, "f", b"x");
+        lib.install(&d).unwrap();
+        let table = table_of(&lib, &["plain"]);
+        // The line and the hash as they were written before parts: id@version and the shared options.
+        let want: String = Sha256::digest(b"plain@1.2.0;speed=5").iter().map(|b| format!("{b:02x}")).collect();
+        assert_eq!(table["modset"], json!(want));
+        assert_eq!((table["has_session"].clone(), table["has_static_session"].clone()), (json!(true), json!(true)));
+        let entry = &table["mods"][0];
+        assert_eq!(entry["scope"], "session");
+        assert!(entry.get("parts").is_none());
+        let keys: Vec<&str> = entry.as_object().unwrap().keys().map(String::as_str).collect();
+        assert_eq!(keys, ["entry", "id", "keybinds", "loader_api", "name", "options", "requires", "scope", "texts", "version"]);
+        assert_eq!(entry["options"][1], json!({ "id": "cam", "type": "toggle", "default": true, "client": true }));
+    }
+
+    /// A mod like Integrated Third Person, with the option `far` switching the session part, and a
+    /// library it requires.
+    fn hybrid_library(t: &Path) -> Library {
+        let lib = Library::open(&t.join("data")).unwrap();
+        add(t, &lib, "lib", "library");
+        let d = t.join("stage-cam");
+        put(&d, "obsidian.json", br#"{"obsidian":1,"id":"cam","version":"1.0.0","name":{"en":"Cam"},"scope":"session","entry":"main.lua","requires":["lib"],
+            "parts":[{"id":"view","scope":"client","name":{"en":"View"}},{"id":"range","scope":"session","option":"far","name":{"en":"Range"}}],
+            "options":[{"id":"fov","type":"number","default":70,"part":"view"},{"id":"far","type":"toggle","default":true,"part":"range"},
+                       {"id":"power","type":"number","default":1,"part":"range"}],
+            "resources":[{"type":"texture","name":"cam/sky","bundle":"00000000000000aa","data":"f","part":"view"},
+                         {"type":"texture","name":"cam/range","bundle":"00000000000000aa","data":"f","part":"range"}]}"#);
+        put(&d, "main.lua", b"return true\n");
+        put(&d, "f", b"x");
+        lib.install(&d).unwrap();
+        lib
+    }
+
+    fn hybrid_table(lib: &Library, values: &[(&str, Value)]) -> (Value, Composition) {
+        let entries = ["lib", "cam"].iter().map(|id| ProfileEntry { id: (*id).into(), enabled: true, folder: None }).collect();
+        let mut profile = Profile { mods: entries, ..Default::default() };
+        for (k, v) in values {
+            profile.options.entry("cam".into()).or_default().insert((*k).into(), v.clone());
+        }
+        let comp = compose(lib, &profile).unwrap();
+        (deploy_table(&comp, json!({})).unwrap(), comp)
+    }
+
+    #[test]
+    fn a_hybrid_mod_deploys_its_parts_and_the_library_it_needs_as_session() {
+        let t = spaced_tempdir();
+        let lib = hybrid_library(t.path());
+        let (table, comp) = hybrid_table(&lib, &[]);
+        assert_eq!(scope_in(&table, "cam"), "hybrid");
+        assert_eq!(scope_in(&table, "lib"), "session", "the session part may call guarded functions");
+        let cam = table["mods"].as_array().unwrap().iter().find(|m| m["id"] == "cam").unwrap();
+        assert_eq!(cam["parts"], json!([
+            { "id": "view", "scope": "client", "on": true, "name": { "en": "View" } },
+            { "id": "range", "scope": "session", "on": true, "name": { "en": "Range" } },
+        ]));
+        assert_eq!((table["has_session"].clone(), table["has_static_session"].clone()), (json!(true), json!(true)));
+        assert_eq!(comp.bundles["00000000000000aa"].len(), 2);
+
+        let (fov, _) = hybrid_table(&lib, &[("fov", json!(90))]);
+        assert_eq!(fov["modset"], table["modset"], "a client part's option stays out of the hash");
+        let (power, _) = hybrid_table(&lib, &[("power", json!(2))]);
+        assert_ne!(power["modset"], table["modset"]);
+    }
+
+    #[test]
+    fn a_session_part_that_is_off_counts_for_nothing() {
+        let t = spaced_tempdir();
+        let lib = hybrid_library(t.path());
+        let (table, comp) = hybrid_table(&lib, &[("far", json!(false))]);
+        assert_eq!(scope_in(&table, "cam"), "client");
+        assert_eq!(scope_in(&table, "lib"), "client");
+        assert_eq!(table["has_session"], false, "Galactic War results go out");
+        assert_eq!(table["has_static_session"], false);
+        assert_eq!(table["modset"], table_of(&lib, &[])["modset"], "as a client mod");
+        let cam = table["mods"].as_array().unwrap().iter().find(|m| m["id"] == "cam").unwrap();
+        assert_eq!(cam["parts"][1]["on"], false);
+        assert_eq!(comp.bundles["00000000000000aa"].len(), 1, "the part's file stays out");
+        let (power, _) = hybrid_table(&lib, &[("far", json!(false)), ("power", json!(2))]);
+        assert_eq!(power["modset"], table["modset"]);
+    }
+
+    #[test]
+    fn the_files_of_a_client_part_keep_the_public_door_open() {
+        let t = spaced_tempdir();
+        let lib = hybrid_library(t.path());
+        let json = std::fs::read_to_string(lib.mod_dir("cam").join("obsidian.json")).unwrap();
+        let d = t.path().join("stage-cam2");
+        let view_only = json.replace(r#""name":"cam/range","bundle":"00000000000000aa","data":"f","part":"range""#, r#""name":"cam/sky2","bundle":"00000000000000aa","data":"f","part":"view""#);
+        assert_ne!(view_only, json);
+        put(&d, "obsidian.json", view_only.as_bytes());
+        put(&d, "main.lua", b"return true\n");
+        put(&d, "f", b"x");
+        lib.install(&d).unwrap();
+        let (table, _) = hybrid_table(&lib, &[]);
+        assert_eq!((table["has_session"].clone(), table["has_static_session"].clone()), (json!(true), json!(false)));
+    }
+
+    #[test]
     fn the_loader_brings_its_fonts_and_tells_the_guis() {
         let dir = find_loader_dir().unwrap();
         let t = spaced_tempdir();
@@ -817,6 +960,22 @@ mod tests {
     }
 
     #[test]
+    fn a_changed_loader_script_counts_as_a_change_to_deploy() {
+        // The game-side folder moved with the rename of the product: a loader deployed before it
+        // reads the old folder, so the first deploy after the upgrade must be asked for.
+        let t = spaced_tempdir();
+        let lib = Library::open(&t.path().join("data")).unwrap();
+        let comp = compose(&lib, &Profile::default()).unwrap();
+        let root = t.path().join("game");
+        put(&root, "loader/src/core.lua", b"local dir = 'ObsidianModManager'\n");
+        put(&root, "locales/en.json", b"{}");
+        let dir = root.join("loader").join("src");
+        let before = build_inputs(&dir, &comp).unwrap();
+        put(&root, "loader/src/core.lua", b"local dir = 'ObsidianLauncher'\n");
+        assert_ne!(before, build_inputs(&dir, &comp).unwrap());
+    }
+
+    #[test]
     fn only_fonts_in_the_boot_bundle_are_offered() {
         let t = spaced_tempdir();
         let lib = Library::open(&t.path().join("data")).unwrap();
@@ -836,6 +995,37 @@ mod tests {
         let table = deploy_table(&compose(&lib, &profile).unwrap(), json!({})).unwrap();
         assert_eq!(table["font_files"], json!(["a/fonts/fonts"]));
         assert_eq!(table["font_paths"], json!(["a/fonts/good"]), "what isn't loaded for sure stays out");
+    }
+
+    #[test]
+    fn a_boot_material_written_by_hash_is_still_a_material() {
+        let t = spaced_tempdir();
+        let lib = Library::open(&t.path().join("data")).unwrap();
+        let d = t.path().join("stage");
+        let json = format!(
+            r##"{{"obsidian":1,"id":"a.hash","version":"1.0.0","name":{{"en":"x"}},"entry":"main.lua","resources":[
+            {{"type":"#{:016x}","name":"a/icons","bundle":"{BUNDLE}","data":"f"}}]}}"##,
+            hash_name("material")
+        );
+        put(&d, "obsidian.json", json.as_bytes());
+        put(&d, "main.lua", b"return true\n");
+        put(&d, "f", b"x");
+        lib.install(&d).unwrap();
+        let profile = Profile { mods: vec![ProfileEntry { id: "a.hash".into(), enabled: true, folder: None }], ..Default::default() };
+        let table = deploy_table(&compose(&lib, &profile).unwrap(), json!({})).unwrap();
+        assert_eq!(table["font_files"], json!(["a/icons"]));
+    }
+
+    #[test]
+    fn a_mods_catalogs_reach_the_game_in_every_language_the_game_has() {
+        let t = spaced_tempdir();
+        for (lang, text) in [("en", "hi"), ("ru", "privet"), ("zh-CN", "ni hao"), ("xx", "unknown")] {
+            put(t.path(), &format!("locales/{lang}.json"), format!(r#"{{"hello":"{text}"}}"#).as_bytes());
+        }
+        let texts = read_texts(&t.path().join("locales")).unwrap();
+        assert_eq!(texts["ru"]["hello"], "privet");
+        assert_eq!(texts["zh-CN"]["hello"], "ni hao");
+        assert!(texts.get("xx").is_none(), "a file that names no language of the game stays out");
     }
 
     #[test]

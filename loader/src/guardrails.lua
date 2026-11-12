@@ -64,15 +64,17 @@ end
 function M.setup(core, hooks)
 	M.core = core
 	M.held, M.kept, M.told = {}, nil, false
+	-- A Sandbox save never earns achievements. Unlike the guardrail, that needs no notice.
+	local no_achievements = core.block_achievements or core.sandboxed()
 	if core.freeze_progress then
 		for _, key in B.ipairs(PROGRESS) do M.held[key] = true end
-	elseif core.block_achievements then
+	elseif no_achievements then
 		for _, key in B.ipairs(ACHIEVEMENT_PROGRESS) do M.held[key] = true end
 	end
-	if not (core.freeze_progress or core.block_achievements) then return end
-	log.line("guardrails:" .. (core.freeze_progress and " progression frozen" or "") .. (core.block_achievements and " achievements off" or ""))
+	if not (core.freeze_progress or no_achievements) then return end
+	log.line("guardrails:" .. (core.freeze_progress and " progression frozen" or "") .. (no_achievements and " achievements off" or ""))
 	hooks.loader_hook("UserManager", "unlock_trophy", function(original, self, ...)
-		if core.block_achievements then
+		if no_achievements then
 			log.limited("achievement", "guardrails: kept an achievement from unlocking")
 			return
 		end

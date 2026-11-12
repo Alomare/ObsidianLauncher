@@ -1,21 +1,25 @@
 // A styled dropdown in place of the native <select>: a button that opens a list. Arrow keys move,
 // Enter or Space picks, Esc, a click outside, a scroll or a resize closes. The list sits on the
 // body: inside a box with a folded corner, the corner's mask would cut it off at the edge of the box.
-import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ChevronIcon } from "./Icons";
+import { ScrollText } from "./ScrollText";
 
 const GAP = 4;
 const EDGE = 8;
 
 type Props<T extends string> = {
   value: T;
-  options: { value: T; label: string }[];
+  /** `view` draws the option in place of the label (a glyph, say); the label stays the name and shows beside it in the list. */
+  options: { value: T; label: string; view?: ReactNode }[];
   onChange: (v: T) => void;
   /** Shown before the value inside the button, muted. */
   prefix?: string;
   label: string;
   tip?: string;
+  /** Takes the whole width of the parent; a value too long for it scrolls. */
+  fill?: boolean;
 };
 
 /** Under the button, or over it when the list doesn't fit there and there's more room above, and
@@ -37,7 +41,7 @@ export function listPlace(
   };
 }
 
-export function Select<T extends string>({ value, options, onChange, prefix, label, tip }: Props<T>) {
+export function Select<T extends string>({ value, options, onChange, prefix, label, tip, fill }: Props<T>) {
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
   const [place, setPlace] = useState<CSSProperties>({ visibility: "hidden" });
@@ -89,13 +93,13 @@ export function Select<T extends string>({ value, options, onChange, prefix, lab
   };
 
   return (
-    <div className={open ? "select open" : "select"} ref={root} onKeyDown={key}>
+    <div className={["select", open && "open", fill && "fill"].filter(Boolean).join(" ")} ref={root} onKeyDown={key}>
       <button type="button" className="select-btn" aria-haspopup="listbox" aria-expanded={open} aria-controls={list}
         aria-label={`${label}: ${current?.label ?? ""}`} data-tip-title={open || !tip ? undefined : label} data-tip={open ? undefined : tip} onClick={() => setOpen((o) => !o)}>
         {prefix && <span className="select-prefix">{prefix}</span>}
         {/* Every label sits in the same grid cell, so the button keeps the width of the widest. */}
         <span className="select-value">
-          {options.map((o) => <span key={o.value} aria-hidden={o.value !== value || undefined}>{o.label}</span>)}
+          {fill && !current?.view ? <ScrollText text={current?.label ?? ""} /> : options.map((o) => <span key={o.value} aria-hidden={o.value !== value || undefined}>{o.view ?? o.label}</span>)}
         </span>
         <ChevronIcon />
       </button>
@@ -104,7 +108,7 @@ export function Select<T extends string>({ value, options, onChange, prefix, lab
           {options.map((o, i) => (
             <li key={o.value} role="option" aria-selected={o.value === value} className={i === hi ? "hi" : undefined}
               onPointerEnter={() => setHi(i)} onClick={() => pick(o.value)}>
-              {o.label}
+              {o.view ? <><span className="select-view">{o.view}</span>{o.label}</> : o.label}
             </li>
           ))}
         </ul>,

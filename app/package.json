@@ -1,9 +1,9 @@
 {
   "name": "obsidian",
   "private": true,
-  "version": "1.4.0",
+  "version": "2.0.0-beta.1",
   "type": "module",
-  "repository": "github:Alomare/ObsidianModManager",
+  "repository": "github:Alomare/ObsidianLauncher",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

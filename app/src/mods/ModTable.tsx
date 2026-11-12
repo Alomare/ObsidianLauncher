@@ -80,12 +80,14 @@ type RowProps = {
   id: string; folder: string | null; color: string | null; name: string; description: string; version: string | null; update: string | null;
   scope: string; on: boolean; imagePath: string | null; imageV: number; num: number; pinned: boolean; selected: boolean; checked: boolean;
   lifted: boolean; leaving: boolean; tips: string | null; lose: boolean; h: MutableRefObject<Handlers>;
+  /** One line per part of the mod, with the scope, for the diamond's tooltip; null for a mod with no parts. */
+  parts: string | null;
   /** The UI language: the row's texts change with it. */
   lang: string;
 };
 
 /** One mod. Every prop is a plain value, so a click elsewhere in a long list leaves this row alone. */
-const ModLine = memo(function ModLine({ id, folder, color, name, description, version, update, scope, on, imagePath, imageV, num, pinned: fixed, selected, checked, lifted, leaving, tips, lose, h }: RowProps) {
+const ModLine = memo(function ModLine({ id, folder, color, name, description, version, update, scope, on, imagePath, imageV, num, pinned: fixed, selected, checked, lifted, leaving, tips, lose, h, parts }: RowProps) {
   const line: Line = { kind: "mod", id, folder };
   const image: ImageRef | null = useMemo(() => (imagePath ? { path: imagePath, v: imageV } : null), [imagePath, imageV]);
   const cls = ["tr", folder && "in", fixed && "pinned", selected && "sel", checked && "checked", lifted && "lifted", leaving && "leaving"].filter(Boolean).join(" ");
@@ -108,7 +110,7 @@ const ModLine = memo(function ModLine({ id, folder, color, name, description, ve
       {tips ? (
         <button className={lose ? "bare cf-ico lose" : "bare cf-ico"} aria-label={t("app.drawer.conflicts")}
           data-tip-title={t("app.drawer.conflicts")} data-tip={tips} {...stop} onClick={() => h.current.conflicts(id)}>
-          <WarnIcon />
+          <WarnIcon filled={!lose} />
         </button>
       ) : <span />}
       {update ? (
@@ -116,23 +118,33 @@ const ModLine = memo(function ModLine({ id, folder, color, name, description, ve
           <span>{version ?? t("app.mods.imported")}</span><UpArrowIcon />
         </button>
       ) : <span className="ver">{version ?? t("app.mods.imported")}</span>}
-      <button className={`bare scope ${scope}`} aria-label={t(`app.scope.${scope}`)} data-tip-title={t(`app.scope.${scope}`)} data-tip={`${t(`app.scope.${scope}Hint`)}
-${t("app.scope.wikiHint")}`}
+      <button className={`bare scope ${scope}`} aria-label={t(`app.scope.${scope}`)} data-tip-title={t(`app.scope.${scope}`)}
+        data-tip={[t(`app.scope.${scope}Hint`), parts, t("app.scope.wikiHint")].filter(Boolean).join("\n")}
         {...stop} onClick={() => go("wiki", `scopes#${SCOPE_ANCHORS[scope] ?? ""}`)}><i /></button>
     </div>
   );
 });
 
 /** The part of the Scopes page in the Wiki about each scope. */
-const SCOPE_ANCHORS: Record<string, string> = { client: "client-mods", session: "session-mods", expansion: "expansions", unspecified: "unspecified-mods", library: "libraries" };
+const SCOPE_ANCHORS: Record<string, string> = { client: "client-mods", session: "session-mods", hybrid: "mods-with-parts", expansion: "expansions", unspecified: "unspecified-mods", library: "libraries" };
+
+/** The tooltip lines of a mod's parts: name and scope, and whether the part is off. */
+export function partLines(m: ModRow): string | null {
+  if (!m.parts.length) return null;
+  return m.parts.map((p) => t(p.on ? "app.mods.partLine" : "app.mods.partLineOff", pick(p.name, p.id), t(`app.scope.${p.scope}`))).join("\n");
+}
 
 /** How long the mods of a closing folder take to fade before the rows below move up. */
 const CLOSE_MS = 140;
+/** The slide of `.tr` (160 ms in styles.css) with a little room. */
+const SLIDE_MS = 200;
 
 export function ModTable({ tree: saved, rows, byId, order, names, conflicts, selected, checked, onCheck, onSelect, onToggle, onConflicts, onArrange, onCollapse, onLock, onMenu, updates, onUpdate }: Props) {
   const body = useRef<HTMLDivElement>(null);
   const drag = useRef<Drag | null>(null);
   const before = useRef<Map<string, number> | null>(null);
+  const slideEnd = useRef(0);
+  useEffect(() => () => clearTimeout(slideEnd.current), []);
   const lastCheck = useRef<string | null>(null);
   useEffect(() => {
     try { localStorage.removeItem(OLD_COLUMN_KEY); } catch { /* storage may be off; nothing reads the key */ }
@@ -196,6 +208,15 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
       if (dy) moved.push([el, dy]);
     }
     if (!moved.length) return;
+    // Rows held back at their old place by the slide still count as content of the list: when a folder
+    // closes in a list that now fits, they would bring up a scrollbar for the length of the slide, and
+    // the narrower rows would move every column to the left and back. The list scrolls again after.
+    const list = body.current;
+    if (list && list.scrollHeight <= list.clientHeight) {
+      clearTimeout(slideEnd.current);
+      list.style.overflowY = "hidden";
+      slideEnd.current = window.setTimeout(() => { list.style.overflowY = ""; }, SLIDE_MS);
+    }
     for (const [el, dy] of moved) {
       el.style.transition = "none";
       el.style.transform = `translateY(${dy}px)`;
@@ -343,6 +364,8 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
             const node = folders.get(f.id);
             const ids = node?.kind === "folder" ? node.ids : [];
             const state = ids.length && ids.every((id) => checked.has(id)) ? true : ids.some((id) => checked.has(id)) ? "mixed" : false;
+            // A closed folder still shows how many of the mods in it have an update, in the Version column.
+            const ups = f.collapsed ? ids.filter((id) => { const m = byId.get(id); return m && offered(updates, m); }).length : 0;
             const cls =["tr", "fr", f.collapsed && "closed", f.locked && "locked", marker?.onto === f.id && !f.locked && "onto", draggingKeys.has(keyOf(line)) && "lifted"].filter(Boolean).join(" ");
             return (
               <div key={keyOf(line)} data-key={keyOf(line)} role="row" tabIndex={0} className={cls} style={{ "--fc": f.color } as CSSProperties} aria-expanded={!f.collapsed}
@@ -358,6 +381,7 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
                   </button>
                   <span className="fr-name">{f.name}</span>
                 </span>
+                {ups > 0 && <span className="fr-ups" data-tip-title={t("app.folder.updates", ups)} data-tip={t("app.folder.updatesHint")}>{ups}</span>}
                 <span className="fr-end">
                   {!ids.length && <span className="fr-count">{t("app.folder.empty")}</span>}
                 </span>
@@ -373,7 +397,7 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
               description={pick(m.description)} version={m.version} update={offered(updates, m)} scope={m.scope} on={flips[m.id]?.on ?? m.on} imagePath={m.image?.path ?? null} imageV={m.image?.v ?? 0} num={position.get(m.id) ?? 0}
               pinned={!!folder && folder.kind === "folder" && folder.folder.locked} selected={selected === m.id} checked={checked.has(m.id)}
               lifted={draggingKeys.has(m.id)} leaving={leaving !== null && line.folder === leaving} tips={conflict?.tips ?? null} lose={conflict?.lose ?? false}
-              h={h} lang={language()} />
+              h={h} lang={language()} parts={partLines(m)} />
           );
         })}
         {marker && !marker.onto && <div className="drop-line" style={{ top: marker.y, ...(marker.color ? { ["--lc" as string]: marker.color } : {}) }} aria-hidden="true" />}
