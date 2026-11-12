@@ -79,6 +79,7 @@ pub fn run() {
             commands::import_paths,
             commands::check_mod_updates,
             commands::release_notes,
+            commands::restart_app,
             commands::release_list,
             commands::mod_releases,
             commands::remove_other_patches,

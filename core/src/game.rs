@@ -160,8 +160,25 @@ pub fn is_running_named(name: &str) -> bool {
         *list = Some(s);
     }
     let Some(s) = list.as_mut() else { return false };
-    s.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing());
-    s.processes().values().any(|p| p.name().to_string_lossy().eq_ignore_ascii_case(name))
+    #[cfg(windows)]
+    {
+        s.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing());
+        s.processes().values().any(|p| p.name().to_string_lossy().eq_ignore_ascii_case(name))
+    }
+    // Under Proton the game is a Wine process: Linux cuts process names at 15 characters, and Wine
+    // puts the Windows path of the exe first on the command line, so that counts too.
+    #[cfg(not(windows))]
+    {
+        s.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing().with_cmd(sysinfo::UpdateKind::OnlyIfNotSet));
+        s.processes().values().any(|p| names_program(&p.name().to_string_lossy(), p.cmd().first().map(|a| a.to_string_lossy()).as_deref(), name))
+    }
+}
+
+/// Whether a process named `comm`, started with `arg0` first on the command line, is `name`: by
+/// name, or by the file name of `arg0` as Linux or Windows spells paths.
+#[cfg_attr(windows, allow(dead_code))]
+fn names_program(comm: &str, arg0: Option<&str>, name: &str) -> bool {
+    comm.eq_ignore_ascii_case(name) || arg0.and_then(|a| a.rsplit(['/', '\\']).next()).is_some_and(|f| f.eq_ignore_ascii_case(name))
 }
 
 #[cfg(test)]
@@ -231,5 +248,14 @@ mod tests {
         let name: String = name.chars().take(if cfg!(windows) { usize::MAX } else { 15 }).collect();
         assert!(is_running_named(&name));
         assert!(!is_running_named("no-such-process-obsidian.exe"));
+    }
+
+    #[test]
+    fn a_wine_process_is_known_by_the_windows_path_on_the_command_line() {
+        assert!(names_program("helldivers.exe", None, EXE));
+        assert!(names_program("wine64-preloade", Some(r"Z:\home\deck\.local\share\Steam\steamapps\common\Helldivers\binaries\x64\helldivers.exe"), EXE));
+        assert!(names_program("x", Some("/games/Helldivers/binaries/x64/HELLDIVERS.EXE"), EXE));
+        assert!(!names_program("helldivers", Some("/usr/bin/helldivers"), EXE));
+        assert!(!names_program("x", Some(""), EXE));
     }
 }

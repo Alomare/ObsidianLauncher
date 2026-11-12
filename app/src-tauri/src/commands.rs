@@ -464,6 +464,14 @@ pub struct ModUpdate {
     pub error: Option<CmdError>,
 }
 
+/// Starts the app again on the version just installed. The Windows installer closes and reopens the
+/// app itself; on Linux the new AppImage or package is in place and the old version still runs. An
+/// AppImage starts again from the AppImage file, not from the copy it ran from.
+#[tauri::command]
+pub fn restart_app(app: tauri::AppHandle) {
+    app.restart()
+}
+
 /// What a version of Obsidian changes, as the GitHub release reads now.
 #[tauri::command]
 pub async fn release_notes(version: String) -> CmdResult<Option<String>> {
