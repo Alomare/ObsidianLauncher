@@ -2,6 +2,7 @@
 -- Hooks of session mods call the original whenever the session isn't cleared (spec 6.4).
 local B = require("obsidian/loader/builtins")
 local log = require("obsidian/loader/log")
+local profiler = require("obsidian/loader/profiler")
 
 local M = { pending = {}, chains = {}, chain_of = {}, requires = {}, fired = {}, seen = {}, values = {}, frame_fns = {}, frame_installed = false }
 
@@ -22,9 +23,12 @@ local function wrap(h, target, original)
 	-- A hook that fails falls back to the game's function, unless it already ran it: that would
 	-- spawn, spend or save twice. One closure per hook, as a new one per call stops the JIT here.
 	local ran, results = false, nil
+	-- The game's function runs as the game's for obsidian.profiler, so a mod is charged only its own code.
 	local function once(...)
 		ran = true
+		local at = profiler.on and profiler.enter(false)
 		results = pack(original(...))
+		if at then profiler.leave(at) end
 		return B.unpack(results, 1, results.n)
 	end
 	target[h.method] = function(...)
@@ -180,6 +184,7 @@ local function install_frame()
 	log.line("frame hook installed")
 	local fns = M.frame_fns
 	B.rawset(B.G, "update", function(...)
+		if profiler.on then profiler.frame() end
 		local r = pack(update(...))
 		for i = 1, #fns do B.pcall(fns[i]) end
 		return B.unpack(r, 1, r.n)

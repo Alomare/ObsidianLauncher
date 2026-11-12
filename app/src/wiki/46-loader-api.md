@@ -133,6 +133,10 @@ Makes the game show `words` for one of the game text keys, or for a key the mod 
 
 Writes a line to the log of this mod, in `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher\logs`.
 
+### obsidian.profiler.start(), stop(), running() and read()
+
+Measures how much of each frame the scripts of every mod take. `start()` turns measuring on for the calling mod until it calls `stop()`; measuring stays on while any mod asked for it, and costs a little of every call into a mod. `read()` answers the last result, made about twice a second, or `nil` before the first one: `{ frame_ms, frames, total_ms, clock, mods = { { id, ms, peak_ms, calls } } }`, the most costly mod first. `ms` is the average time a frame, `peak_ms` the most in one frame, and `calls` the average number of calls a frame. The time a hook spends in the game's own function is the game's, not the mod's. `obsidian.loader` is the loader's own hooks. The Script Profiler page of the F6 window shows these numbers over the game. Check `obsidian.capabilities.profiler` on an older loader.
+
 ## Other mods and more files {#other-mods}
 
 ### obsidian.module(name)

@@ -19,6 +19,7 @@ obsidian.capabilities.on_frame boolean
 obsidian.capabilities.on_require boolean
 obsidian.capabilities.on_session boolean
 obsidian.capabilities.parts boolean
+obsidian.capabilities.profiler boolean
 obsidian.capabilities.save_data boolean
 obsidian.capabilities.scope boolean
 obsidian.capabilities.session boolean
@@ -47,6 +48,7 @@ obsidian.notify function
 obsidian.on_frame function
 obsidian.on_require function
 obsidian.on_session function
+obsidian.profiler table
 obsidian.save_data table
 obsidian.scope function
 obsidian.session table

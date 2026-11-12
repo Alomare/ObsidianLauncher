@@ -17,6 +17,7 @@ local save_data = require("obsidian/loader/save_data")
 local sandbox = require("obsidian/loader/sandbox")
 local war = require("obsidian/loader/war")
 local lobby = require("obsidian/loader/lobby")
+local profiler = require("obsidian/loader/profiler")
 
 local API_VERSION = 1
 local MAX_ERRORS = 10
@@ -31,7 +32,7 @@ local capabilities = {
 	after_startup = true, log = true, hook = true, wrap = true, on_require = true, on_session = true, session = true,
 	settings = true, keybind = true, text = true, on_frame = true, module = true, import = true, menu = true, toast = true, notify = true, storage = true, caller = true,
 	ui = true, scope = true, guardrails = true, info = true, expansion = true, save_data = true,
-	language = true, game_text = true, parts = true, war = true,
+	language = true, game_text = true, parts = true, war = true, profiler = true,
 }
 local api = {
 	version = API_VERSION,
@@ -51,6 +52,7 @@ local api = {
 	save_data = save_data.api(),
 	guardrails = guardrails.api(M),
 	war = war.api(M),
+	profiler = profiler.api(M),
 	capabilities = B.setmetatable({}, {
 		__index = capabilities,
 		__newindex = function() B.error("obsidian.capabilities is read-only", 2) end,
@@ -196,7 +198,9 @@ function M.call(state, site, fn, ...)
 	-- Counted, because a trailing nil is a result too: `tonumber(SaveManager:get(key))` fails when a
 	-- hook turns the game's nil into no value at all.
 	local function counted(...) return { n = B.select("#", ...), ... } end
+	local at = profiler.on and profiler.enter(state and state.id or "obsidian.loader")
 	local result = counted(B.xpcall(function() return fn(B.unpack(args, 1, n)) end, traceback))
+	if at then profiler.leave(at) end
 	M.current = previous
 	if not result[1] and state then
 		state.errors = state.errors + 1

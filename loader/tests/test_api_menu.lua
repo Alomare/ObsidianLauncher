@@ -7,6 +7,19 @@ local function test(name, fn) T[#T + 1] = { name, fn } end
 
 local MENU = "obsidian/mods/obsidian.api/lib/menu"
 
+-- Obsidian API lists a page of its own (the Script Profiler) in a folder after the mods. These tests
+-- are about the pages of mods, so that page is taken out unless a test keeps it.
+local function without_api_pages(e)
+	local M = e.loaded["obsidian/mods/obsidian.api/lib/menu"]
+	if not M then return end
+	for i = #M.roots, 1, -1 do
+		if M.roots[i].owner == "obsidian.api" then table.remove(M.roots, i) end
+	end
+	for i = #M.owners, 1, -1 do
+		if M.owners[i] == "obsidian.api" then table.remove(M.owners, i) end
+	end
+end
+
 -- Obsidian API, then each mod of `list` ({ id, source, scope, name, texts }), all requiring it. The API
 -- runs as a session mod when one of them is. opts: lobby, state.
 local function start_mods(list, opts)
@@ -32,6 +45,7 @@ local function start_mods(list, opts)
 	e:boot()
 	e:start_frames()
 	local ui = F.install(e, opts)
+	if not opts.api_pages then without_api_pages(e) end
 	-- The game runs frames before anyone opens the window.
 	ui.frame()
 	return e, ui
@@ -984,6 +998,22 @@ test("with_no_page_listed_the_key_does_nothing", function()
 	local e, ui = start("return true")
 	ui.tap("f6")
 	E.eq(menu().is_open(), false)
+end)
+
+test("the_script_profiler_page_is_always_listed_after_the_mods", function()
+	local e, ui = start(PAGE, { api_pages = true })
+	local M = menu_of(e)
+	E.eq(M.owners[#M.owners], "obsidian.api", "the folder of Obsidian API comes last")
+	E.eq(M.roots[#M.roots].title, "Script Profiler")
+	E.eq(M.roots[1].owner, "m", "the mod's page comes first")
+end)
+
+test("with_only_the_script_profiler_the_key_opens_the_window", function()
+	local e, ui = start("return true", { api_pages = true })
+	ui.tap("f6")
+	E.eq(menu().is_open(), true)
+	ui.frame()
+	E.eq(ui.shown("Script Profiler"), true)
 end)
 
 test("the_key_works_where_the_lobby_isnt_cleared_for_a_client_mods_page", function()
