@@ -90,7 +90,7 @@ English, Portuguese (Brazil) and Simplified Chinese, for the window, the message
 
 ## How to Use
 
-You need Windows 10 or 11, and HELLDIVERS installed through Steam.
+You need Windows 10 or 11, or Linux ([beta](#linux-beta)), and HELLDIVERS installed through Steam.
 
 1. Download Obsidian from [Releases](https://github.com/Alomare/ObsidianLauncher/releases/latest) and run it. The installer isn't code-signed yet, so Windows may say it protected your PC: choose **More info**, then **Run anyway**.
 2. Start Obsidian. It finds the game through Steam. If it can't, pick the game folder in Settings.
@@ -106,6 +106,19 @@ To go back to vanilla, close the game and press **Purge**. Your library and prof
 | `ObsidianLauncher-<version>-portable.zip` | The portable copy, with your library in a `data` folder beside the app. Unzip it anywhere and start `Obsidian.exe`. New versions are downloaded by hand. |
 
 The window needs the Microsoft Edge WebView2 Runtime. The installer adds it when it's missing. For the portable copy, Windows 11 has it, nearly every Windows 10 PC has it too, and the rest can get [Microsoft's free download](https://developer.microsoft.com/microsoft-edge/webview2/).
+
+### Linux (beta)
+
+Linux support is new and still being tested, on desktop distributions and on SteamOS. HELLDIVERS runs through Proton, and Obsidian finds the game and the Proton prefix in the Steam library, for Steam installed as a system package, a Flatpak or a Snap.
+
+| Download | What it is |
+|---|---|
+| `Obsidian.Launcher_<version>_amd64.AppImage` | Runs on any distribution and on SteamOS (in Desktop Mode). Allow it to run as a program (`chmod +x`, or the Permissions tab of the file properties) and start it. New versions install from inside the app, as with the Windows installer. |
+| `Obsidian.Launcher_<version>_amd64.deb` | For Ubuntu, Linux Mint, Pop!_OS and Debian: `sudo apt install ./Obsidian.Launcher_<version>_amd64.deb`. New versions install from inside the app, which may ask for the system password. |
+
+On Ubuntu 24.04 and later, the AppImage needs FUSE 2 first: `sudo apt install libfuse2t64`.
+
+A custom war needs the war server and the relay running while the game runs. To play one with Obsidian closed, as in Steam Game Mode, copy the line from **Steam Launch Option** in the package menu of the **COMMANDER** tab into the launch options of HELLDIVERS in Steam. The same line works on Windows.
 
 ## Making Mods
 

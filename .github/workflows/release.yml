@@ -1,6 +1,7 @@
-# A release: pushing a tag like v0.2.0 builds the installer (signed for the updater, with a .sig and
-# latest.json) and the portable ZIP, and puts them in a draft release. Publishing the draft makes it the
-# release the app's updater sees.
+# A release: pushing a tag like v0.2.0 makes a draft release, then builds into it on Windows (the
+# installer, signed for the updater, and the portable ZIP) and on Linux (the AppImage and the .deb,
+# both signed for the updater). Each build adds the platforms it built to latest.json. Publishing the draft
+# makes it the release the app's updater sees.
 #
 # Needs two repository secrets: TAURI_SIGNING_PRIVATE_KEY, the content of the updater key file
 # (internal/release/obsidian-updater.key, never committed), and TAURI_SIGNING_PRIVATE_KEY_PASSWORD,
@@ -15,13 +16,13 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    runs-on: windows-latest
+  draft:
+    runs-on: ubuntu-24.04
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    defaults:
-      run:
-        shell: bash
+    outputs:
+      id: ${{ steps.draft.outputs.id }}
+      notes: ${{ steps.draft.outputs.notes }}
     steps:
       - uses: actions/checkout@v4
 
@@ -35,6 +36,33 @@ jobs:
             grep -q "^version = \"$v\"" "$f" || { echo "$f does not say $v"; exit 1; }
           done
           [ -s "docs/releases/$v.md" ] || { echo "docs/releases/$v.md is missing"; exit 1; }
+
+      - name: Draft release
+        id: draft
+        run: |
+          # GitHub's "latest" link skips prereleases, and the updater reads through it, so only a tag
+          # with a suffix (v1.1.0-beta.1) stays away from the updater.
+          pre=false
+          [[ "$GITHUB_REF_NAME" == *-* ]] && pre=true
+          notes="docs/releases/${GITHUB_REF_NAME#v}.md"
+          id=$(gh api "repos/$GITHUB_REPOSITORY/releases" -f tag_name="$GITHUB_REF_NAME" -f name="Obsidian ${GITHUB_REF_NAME#v}" \
+            -F draft=true -F prerelease=$pre -F body=@"$notes" --jq .id)
+          [ -n "$id" ] || { echo "no release id"; exit 1; }
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+          # The action fills latest.json from releaseBody, never from the draft. The app shows the text on
+          # GitHub, so editing the release counts, and this copy stands in when GitHub can't be read.
+          { echo "notes<<NOTES_END"; cat "$notes"; echo; echo NOTES_END; } >> "$GITHUB_OUTPUT"
+
+  windows:
+    needs: draft
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
@@ -73,22 +101,6 @@ jobs:
         working-directory: app
         run: npm test
 
-      - name: Draft release
-        id: draft
-        run: |
-          # GitHub's "latest" link skips prereleases, and the updater reads through it, so only a tag
-          # with a suffix (v1.1.0-beta.1) stays away from the updater.
-          pre=false
-          [[ "$GITHUB_REF_NAME" == *-* ]] && pre=true
-          notes="docs/releases/${GITHUB_REF_NAME#v}.md"
-          id=$(gh api "repos/$GITHUB_REPOSITORY/releases" -f tag_name="$GITHUB_REF_NAME" -f name="Obsidian ${GITHUB_REF_NAME#v}" \
-            -F draft=true -F prerelease=$pre -F body=@"$notes" --jq .id)
-          [ -n "$id" ] || { echo "no release id"; exit 1; }
-          echo "id=$id" >> "$GITHUB_OUTPUT"
-          # The action fills latest.json from releaseBody, never from the draft. The app shows the text on
-          # GitHub, so editing the release counts, and this copy stands in when GitHub can't be read.
-          { echo "notes<<NOTES_END"; cat "$notes"; echo; echo NOTES_END; } >> "$GITHUB_OUTPUT"
-
       - name: The installer, the signature and latest.json
         uses: tauri-apps/tauri-action@v0
         env:
@@ -97,11 +109,72 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: app
-          releaseId: ${{ steps.draft.outputs.id }}
+          releaseId: ${{ needs.draft.outputs.id }}
           tagName: ${{ github.ref_name }}
-          releaseBody: ${{ steps.draft.outputs.notes }}
+          releaseBody: ${{ needs.draft.outputs.notes }}
 
       - name: The portable ZIP
         run: |
           python tools/portable.py
           gh release upload "$GITHUB_REF_NAME" target/release/bundle/portable/*.zip
+
+  # After Windows: each build reads latest.json from the draft and adds the platforms it built, so two at
+  # once could each write a copy without the other.
+  linux:
+    needs: [draft, windows]
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: linux
+          save-if: false
+
+      - name: System packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libfuse2t64 patchelf
+
+      - name: The Obsidian Kit
+        run: python3 tools/starter_pack.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: The LuaJIT 2.0 compiler
+        run: sh tools/build-luajit.sh
+
+      - name: Loader tests
+        run: target/luajit/luajit loader/tests/run.lua
+
+      - name: Core and app tests
+        run: cargo test
+
+      - name: Install the app's packages
+        working-directory: app
+        run: npm ci
+
+      - name: UI tests
+        working-directory: app
+        run: npm test
+
+      - name: The AppImage, the .deb, the signatures and latest.json
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: app
+          releaseId: ${{ needs.draft.outputs.id }}
+          tagName: ${{ github.ref_name }}
+          releaseBody: ${{ needs.draft.outputs.notes }}
