@@ -40,14 +40,15 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
   // HD1 gets no more updates, so only a missing game or an unknown build needs a word here.
   const warn = snap && (missing || snap.game === "unknown") ? t(`app.game.${snap.game}`) : null;
   const [showBuild, setShowBuild] = useState(false);
-  // What Play starts: the war and whether the last deploy put mods in. With custom wars to choose from,
+  // What Play starts: the war and whether the last deploy put mods in. With wars or saves to choose from,
   // Play splits, and the narrow part opens the Play choice.
   const choices = useChoices();
   const [choosing, setChoosing] = useState(false);
   useEffect(() => { reloadChoices(); }, [snap]);
   const war = playingWar(choices);
   const label = playLabel(war?.name ?? null, !!snap?.modded);
-  const split = (choices?.wars.length ?? 0) > 0;
+  // The choice opens whenever there is something to choose: a custom war beside the official one, or a second save.
+  const split = (choices?.wars.length ?? 0) > 0 || (choices?.saves ?? 0) > 1;
   // Yellow with no mods deployed, green with mods: the color says it, the tooltip says it in words.
   const tone = snap?.modded ? " modded" : "";
   const playButton = (

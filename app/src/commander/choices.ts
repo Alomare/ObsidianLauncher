@@ -14,7 +14,8 @@ export type WarChoice = {
   allowAchievements?: boolean;
 };
 /** `playing`: the war the next launch plays, which needs a Sandbox the war accepts to be active. */
-export type Choices = { playing: string | null; wars: WarChoice[] };
+/** `saves`: how many saves the account has. */
+export type Choices = { playing: string | null; wars: WarChoice[]; saves?: number };
 
 let choices: Choices | null = null;
 const subs = new Set<() => void>();

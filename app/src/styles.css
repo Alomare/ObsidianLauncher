@@ -787,8 +787,7 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 :root[data-motion="off"] .home-art-img { animation: none; }
 @keyframes art-in { from { opacity: 0; } }
 @keyframes art-zoom { from { transform: scale(1); } to { transform: scale(1.02); } }
-.home-foot { position: relative; display: flex; align-items: flex-end; justify-content: center; }
-.home-steps { position: absolute; z-index: 1; left: 50%; transform: translateX(-50%); top: 1rem; display: flex; align-items: center; height: 1.6rem; color: #f2f1ed; background: rgba(255, 255, 255, 0.12); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); }
+.home-steps { position: absolute; z-index: 1; left: 50%; transform: translateX(-50%); bottom: 1rem; display: flex; align-items: center; height: 1.6rem; color: #f2f1ed; background: rgba(255, 255, 255, 0.12); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); }
 .home-steps button { align-self: stretch; display: flex; align-items: center; padding: 0 0.3rem; border: 0; background: none; color: inherit; cursor: pointer; transition: background var(--fast); }
 .home-steps button:hover { background: rgba(255, 255, 255, 0.16); }
 .home-steps svg { width: 0.9rem; height: 0.9rem; }
@@ -798,8 +797,13 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .art-time i { display: block; height: 100%; background: #f2f1ed; transform-origin: left; animation: art-left var(--art-time, 30s) linear both; }
 @keyframes art-left { from { transform: scaleX(0); } }
 .home-shade { position: absolute; inset: 0; background: rgba(6, 7, 9, 0.72); }
-.home-body { position: relative; height: 100%; display: flex; flex-direction: column; gap: 2rem; padding: 1.9rem 2.2rem; animation: view-in 260ms ease-out; }
-.home-brand { --home-sub: clamp(1rem, 0.6rem + 1.2vmin, 1.6rem); flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.1rem; text-align: center; }
+.home-body { position: relative; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.9rem 2.2rem 3.4rem; animation: view-in 260ms ease-out; }
+/* The logo, the name and the links as one group, centred on the whole window rather than the page under the
+   tab bar: the tab bar (3.3rem) is taller than the status bar (1.7rem), so the group moves up by half the
+   difference. The bottom padding keeps it clear of the picture controls. */
+.home-center { display: flex; flex-direction: column; align-items: center; gap: 2.2rem; transform: translateY(-0.8rem); }
+/* About 15% under the first size. */
+.home-brand { --home-sub: clamp(0.85rem, 0.51rem + 1.02vmin, 1.36rem); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.95rem; text-align: center; }
 .home-brand img { width: calc(var(--home-sub) * 7.5); height: calc(var(--home-sub) * 7.5); filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.5)); }
 .home-brand h1 { margin: 0; padding-left: 0.06em; font-family: "Saira Variable", sans-serif; font-weight: 770; font-size: calc(var(--home-sub) * var(--title-fit, 3.7)); line-height: 0.95; letter-spacing: 0.06em; text-shadow: 0 4px 24px rgba(0, 0, 0, 0.5); }
 .home-brand p { margin: 0.35rem 0 0; padding-left: 0.32em; font-family: "Saira Variable", sans-serif; font-weight: 500; font-size: var(--home-sub); letter-spacing: 0.32em; color: #c9c8c3; }
@@ -941,7 +945,9 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 
 
 /* Home links: one centered row that wraps on a narrow window */
-.home-links { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.6rem; }
+/* The links stacked in one box; each fills it, so all have the same width. */
+.home-links { display: flex; flex-direction: column; align-items: stretch; gap: 0.45rem; width: 15rem; padding: 0.6rem; background: rgba(10, 11, 14, 0.5); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1); }
+.home-links .btn { width: 100%; justify-content: center; }
 .home .btn.play { min-width: 0; }
 
 /* A folder opening: the mods in it fade in as the rows below slide down; closing runs the other way */

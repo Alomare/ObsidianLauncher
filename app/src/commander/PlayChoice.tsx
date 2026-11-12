@@ -1,4 +1,4 @@
-// The Play choice: the right part of the split Play button opens it when there is more than one war to
+// The Play choice: the right part of the split Play button opens it when there is more than one war or save to
 // play. The official war comes first, then the custom wars this PC hosts (running or paused) and the
 // LAN wars it joined; beside them, the saves the chosen war can boot. The official war boots any save.
 // A custom war boots any Sandbox save, or only the one made for it when the war says so; with none
@@ -107,8 +107,10 @@ export function PlayChoice({ snap, choices, onClose }: { snap: Snapshot; choices
   ].filter(Boolean).join("  ·  ");
 
   const hasOwn = !!chosen && saves.some((s) => s.id === chosen.save);
+  // One list for every war, in two groups as on the Saves tab. A custom war never shows the Official group.
+  const officialRows = saves.filter((s) => s.kind === "official");
+  const sandboxRows = saves.filter((s) => s.kind === "sandbox");
   const saveMeta = (s: SaveRow) => [
-    s.kind === "official" ? t("app.saves.official") : t("app.saves.sandbox"),
     chosen && s.id === chosen.save ? t("app.play.warSave") : null,
     s.stats ? t("app.saves.rankN", s.stats.rank) : null,
   ].filter(Boolean).join("  ·  ");
@@ -120,7 +122,7 @@ export function PlayChoice({ snap, choices, onClose }: { snap: Snapshot; choices
           <section className="pc-col">
             <h3 className="pc-h">{t("app.play.wars")}</h3>
             <div className="pc-list" role="radiogroup" aria-label={t("app.play.wars")}>
-              <PickRow on={war === null} now={current === null} title={t("app.play.vanillaGame")} meta={t("app.play.vanillaGameHint")} onPick={() => setWar(null)} />
+              <PickRow on={war === null} now={current === null} title={t("app.play.vanillaGame")} meta="" onPick={() => setWar(null)} />
               {choices.wars.map((w) => (
                 <PickRow key={`${w.host}:${w.id}`} on={war === w.id} now={current === w.id} title={w.name} meta={warMeta(w)} onPick={() => setWar(w.id)} />
               ))}
@@ -130,10 +132,15 @@ export function PlayChoice({ snap, choices, onClose }: { snap: Snapshot; choices
             <h3 className="pc-h">{t("app.play.saves")}</h3>
             <div className="pc-list" role="radiogroup" aria-label={t("app.play.saves")}>
               {!list && <div className="pc-empty">{failed ?? t("app.play.loadingSaves")}</div>}
+              {list && officialRows.length > 0 && <GroupLabel kind="official" count={officialRows.length} />}
+              {list && officialRows.map((s) => (
+                <PickRow key={s.id} on={save === s.id} now={list.active === s.id} title={s.name} meta={saveMeta(s)} onPick={() => setSave(s.id)} />
+              ))}
+              {list && (sandboxRows.length > 0 || (chosen && !hasOwn)) && <GroupLabel kind="sandbox" count={sandboxRows.length} />}
               {list && chosen && !hasOwn && (
                 <PickRow on={save === null} now={false} title={t("app.play.warSaveNewTitle")} meta={t("app.play.warSaveNew")} onPick={() => setSave(null)} />
               )}
-              {list && saves.map((s) => (
+              {list && sandboxRows.map((s) => (
                 <PickRow key={s.id} on={save === s.id} now={list.active === s.id} title={s.name} meta={saveMeta(s)} onPick={() => setSave(s.id)} />
               ))}
               {list && !chosen && saves.length === 0 && <div className="pc-empty">{t("app.play.noSaves")}</div>}
@@ -150,6 +157,16 @@ export function PlayChoice({ snap, choices, onClose }: { snap: Snapshot; choices
       {ask && <Confirm title={t("app.saves.switchTitle", ask.name)} text={t("app.saves.switchText")} confirm={t("app.play.select")} tone="go" onCancel={() => setAsk(null)} onConfirm={() => apply(ask)} />}
     </div>,
     document.body,
+  );
+}
+
+/** The small coloured label over a group of saves: gold for Official, green for Sandbox, as on the Saves tab. */
+function GroupLabel({ kind, count }: { kind: "official" | "sandbox"; count: number }) {
+  return (
+    <div className={`pc-group ${kind}`}>
+      <span className="pc-group-name">{t(kind === "official" ? "app.saves.official" : "app.saves.sandbox")}</span>
+      <span className="pc-group-n">{count}</span>
+    </div>
   );
 }
 

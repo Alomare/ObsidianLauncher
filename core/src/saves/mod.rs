@@ -500,6 +500,11 @@ impl Saves {
         }
     }
 
+    /// How many saves the account has, from the index alone, without reading the save files.
+    pub fn count(&self) -> Result<usize> {
+        Ok(self.ensure()?.saves.len())
+    }
+
     pub fn list(&self) -> Result<SaveList> {
         let idx = self.ensure()?;
         let pointer = read_pointer(&self.data).filter(|(a, _)| *a == self.account).map(|(_, id)| id);

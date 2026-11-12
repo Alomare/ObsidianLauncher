@@ -1,8 +1,9 @@
-// Home: the game's art under an even darkening, the logo and name in the middle and the links
-// centered at the bottom. Each link opens in the browser; the tooltip shows where.
+// Home: the game's art under an even darkening, and one group in the middle of the window: the logo and
+// name, then the links stacked in one box, all the same width. Each link opens in the browser; the
+// tooltip shows where.
 //
 // The art goes round by itself: each picture fills the page, drifts in very slowly (a 2% zoom over
-// the time on screen) and gives way to the next with a cross-fade. The small controls at the top
+// the time on screen) and gives way to the next with a cross-fade. The small controls at the bottom
 // center go to the one before or after. With animations off one picture stays still, and the next
 // launch shows the next one.
 import { openUrl } from "./opener";
@@ -138,14 +139,14 @@ export function HomePage() {
             <button onClick={() => art.step(1)} aria-label={t("app.home.nextPicture")} data-tip={t("app.home.nextPicture")}><ChevronIcon /></button>
           </div>
         )}
-        <div className="home-brand" ref={brand}>
-          <img src={logo} alt="" draggable={false} />
-          <div>
-            <h1>OBSIDIAN</h1>
-            <p>{t("app.home.subtitle")}</p>
+        <div className="home-center">
+          <div className="home-brand" ref={brand}>
+            <img src={logo} alt="" draggable={false} />
+            <div>
+              <h1>OBSIDIAN</h1>
+              <p>{t("app.home.subtitle")}</p>
+            </div>
           </div>
-        </div>
-        <div className="home-foot">
           <div className="home-links">
             <Link url={LINKS.nexus} cls="play" icon={<SearchIcon />} label={t("app.home.nexus")} />
             <Link url={LINKS.discord} cls="discord" icon={<DiscordIcon />} label={t("app.home.discord")} />

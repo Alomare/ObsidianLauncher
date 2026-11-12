@@ -334,6 +334,8 @@ pub async fn commander_vanilla(ctx: TauriState<'_, Ctx>, save: String) -> CmdRes
 pub struct Choices {
     pub playing: Option<String>,
     pub wars: Vec<commander::WarChoice>,
+    /// How many saves the account has: with more than one, Play opens its choice even without wars.
+    pub saves: usize,
 }
 
 /// The wars the Play button can start, and the one it starts now: the war selected, when the save
@@ -341,7 +343,13 @@ pub struct Choices {
 #[tauri::command]
 pub async fn commander_choices(ctx: TauriState<'_, Ctx>) -> CmdResult<Choices> {
     let playing = commander::playing_now(&ctx.data, obsidian_core::saves::active_sandbox(&ctx.data).as_deref());
-    Ok(Choices { playing, wars: commander::war_choices(&ctx.data) })
+    // Without the game or the saves, the count is 0 and Play shows no choice for saves. The index may be
+    // made on first use, so this takes its turn like the Saves tab.
+    let saves = {
+        let _turn = ctx.turn();
+        saves_of(&ctx).ok().and_then(|s| s.count().ok()).unwrap_or(0)
+    };
+    Ok(Choices { playing, wars: commander::war_choices(&ctx.data), saves })
 }
 
 /// The version of a newer Commander package on GitHub, if there is one.
