@@ -30,14 +30,6 @@ export const PackageIcon = () => (
   </svg>
 );
 
-/** A prompt line: the launch option that starts the war pieces with the game. */
-export const LaunchIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="square" aria-hidden="true">
-    <rect x="3" y="4" width="18" height="16" />
-    <path d="M7 9l3 3-3 3M12.5 15h4.5" />
-  </svg>
-);
-
 /** A brick wall: the firewall and the LAN ports. */
 export const WallIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="square" aria-hidden="true">

@@ -161,14 +161,6 @@ pub async fn commander_firewall_open(ctx: TauriState<'_, Ctx>) -> CmdResult<comm
     Ok(commander::firewall::open(&ctx.data)?)
 }
 
-/// The Steam launch option that runs the game through this Obsidian, so wars play with the window
-/// closed. An AppImage names the AppImage file, not the copy it runs from.
-#[tauri::command]
-pub fn commander_launch_option() -> CmdResult<String> {
-    let program = std::env::var_os("APPIMAGE").map(PathBuf::from).map_or_else(std::env::current_exe, Ok)?;
-    Ok(obsidian_core::cli::launch_option(&program))
-}
-
 #[tauri::command]
 pub async fn commander_uninstall(ctx: TauriState<'_, Ctx>) -> CmdResult<CommanderView> {
     let mut runtime = rt(&ctx);

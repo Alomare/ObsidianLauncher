@@ -13,7 +13,6 @@
   border-top: 1px solid color-mix(in srgb, var(--gold) 70%, transparent); transform: rotate(-45deg); pointer-events: none;
 }
 .cmd-pkg.btn.icon.lit .cmd-pkg-dot { position: absolute; top: 0.28rem; right: 0.28rem; }
-.cmd-launch-line { display: block; margin: 0 0 1rem; padding: 0.55rem 0.7rem; font-family: Consolas, "Cascadia Mono", monospace; font-size: 0.88em; color: var(--tx); background: var(--row); box-shadow: inset 0 0 0 1px var(--ln); overflow-wrap: anywhere; user-select: all; }
 .cmd-pkg-dot { display: inline-block; flex: none; width: 0.44rem; height: 0.44rem; margin-left: auto; background: var(--gold); transform: rotate(45deg); }
 @media (prefers-reduced-motion: no-preference) {
   :root[data-motion="on"] .cmd-pkg.lit .cmd-pkg-dot { animation: tab-dot 1.4s ease-in-out infinite alternate; }

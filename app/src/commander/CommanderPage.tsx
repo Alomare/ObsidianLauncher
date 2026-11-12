@@ -17,7 +17,7 @@ import { notify } from "../notices";
 import type { Snapshot } from "../types";
 import { reloadChoices, useChoices } from "./choices";
 import { FirewallDialog, useFirewall } from "./firewall";
-import { LaunchIcon, PackageIcon, ThisPcIcon, WallIcon } from "./icons";
+import { PackageIcon, ThisPcIcon, WallIcon } from "./icons";
 import "./commander.css";
 
 /** What Commander keeps on this PC, for Remove All Commander Data (`commander_footprint`). */
@@ -61,7 +61,6 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
   const [joining, setJoining] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number; opener: HTMLElement } | null>(null);
   const [ask, setAsk] = useState<null | "remove" | "wipe">(null);
-  const [launchLine, setLaunchLine] = useState<string | null>(null);
   const { fw, refresh: refreshFirewall, blocked } = useFirewall();
   const [askFirewall, setAskFirewall] = useState(false);
   const [footprint, setFootprint] = useState<Footprint | null>(null);
@@ -282,19 +281,6 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
     } catch (e) { notify("error", errorText(e)); }
   };
 
-  const showLaunchLine = async () => {
-    try { setLaunchLine(await call<string>("commander_launch_option")); } catch (e) { notify("error", errorText(e)); }
-  };
-
-  const copyLaunchLine = async () => {
-    if (!launchLine) return;
-    try {
-      await navigator.clipboard.writeText(launchLine);
-      notify("info", t("app.commander.launchOptionCopied"));
-    } catch (e) { notify("error", errorText(e)); }
-    setLaunchLine(null);
-  };
-
   const openMenu = (e: { currentTarget: HTMLButtonElement }) => {
     if (menu) { setMenu(null); return; }
     const r = e.currentTarget.getBoundingClientRect();
@@ -312,7 +298,6 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
             { label: newer ? t("app.commander.updateTo", newer) : t("app.commander.update"), icon: <UpdateIcon />, run: install, extra: newer ? <i className="cmd-pkg-dot" aria-hidden="true" /> : undefined },
           ] : []),
           { label: t("app.commander.installFile"), icon: <ImportIcon />, run: installFile },
-          ...(installed ? [{ label: t("app.commander.launchOption"), icon: <LaunchIcon />, run: showLaunchLine }] : []),
           ...(blocked ? [{ label: t("app.commander.firewallAllow"), icon: <WallIcon />, run: () => setAskFirewall(true) }] : []),
           "sep",
           ...(installed ? [{ label: t("app.commander.uninstall"), icon: <TrashIcon />, run: () => setAsk("remove") }] : []),
@@ -321,12 +306,6 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
       )}
       {ask === "remove" && (
         <Confirm title={t("app.commander.uninstall")} text={t("app.commander.uninstallText")} confirm={t("app.commander.uninstall")} onConfirm={uninstall} onCancel={() => setAsk(null)} />
-      )}
-      {launchLine && (
-        <Confirm title={t("app.commander.launchOption")} text={t("app.commander.launchOptionText")} confirm={t("app.commander.launchOptionCopy")} cancel={t("app.close")} tone="go"
-          onConfirm={copyLaunchLine} onCancel={() => setLaunchLine(null)}>
-          <code className="cmd-launch-line">{launchLine}</code>
-        </Confirm>
       )}
       {askFirewall && fw?.backend && <FirewallDialog backend={fw.backend} onClose={() => setAskFirewall(false)} onDone={() => void refreshFirewall()} />}
       {ask === "wipe" && <WipeDialog linux={!!fw?.linux} running={running} onClose={() => setAsk(null)} onDone={wiped} />}

@@ -1,5 +1,4 @@
-//! The `obsidian` command line over obsidian-core, used by the `obsidian` program and by the app for
-//! `launch` (a Steam launch option has to start the app program itself).
+//! The `obsidian` command line over obsidian-core, used by the `obsidian` program.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -79,13 +78,6 @@ enum Command {
     Saves {
         #[command(subcommand)]
         action: SavesAction,
-    },
-    /// Run the game command after it, as a Steam launch option: `<obsidian> launch %command%`.
-    /// Readies the save as Play does and, while a custom war is selected, runs the war server and
-    /// the relay until the game closes (unless the app already does)
-    Launch {
-        #[arg(trailing_var_arg = true, allow_hyphen_values = true, required = true)]
-        command: Vec<std::ffi::OsString>,
     },
     /// Custom Galactic Wars: the Commander package, hosting, and the war the next launch plays
     Commander {
@@ -175,16 +167,6 @@ enum OnOff {
 
 pub fn main() -> ExitCode {
     let cli = Cli::parse();
-    if let Command::Launch { command } = &cli.command {
-        let data = data_dir(cli.data_dir.as_deref());
-        return match launch(&data, find_game(cli.game.as_deref()).ok(), command) {
-            Ok(code) => code,
-            Err(e) => {
-                eprintln!("Error: {e}");
-                ExitCode::FAILURE
-            }
-        };
-    }
     match run(cli) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
@@ -414,7 +396,6 @@ fn run(cli: Cli) -> Result<()> {
         }
         Command::Saves { action } => run_saves(action, &data, &game()?)?,
         Command::Commander { action } => run_commander(action, &data, game)?,
-        Command::Launch { .. } => unreachable!("launch runs from main"),
         Command::Profile { action } => match action {
             ProfileAction::List => {
                 let active = profiles::active(&data)?;
@@ -515,44 +496,6 @@ fn run_commander(action: CommanderAction, data: &std::path::Path, game: impl Fn(
         }
     }
     Ok(())
-}
-
-/// The Steam launch option that runs the game through `program` (this Obsidian): see `launch`.
-pub fn launch_option(program: &std::path::Path) -> String {
-    format!("\"{}\" launch %command%", program.display())
-}
-
-/// `launch`: the war pieces the game needs while it runs, then the game command itself. The game
-/// still starts when a piece can't: it then plays offline or the official war, as on a launch
-/// without Obsidian.
-fn launch(data: &std::path::Path, game: Option<GameInstall>, command: &[std::ffi::OsString]) -> Result<ExitCode> {
-    use obsidian_core::commander::{self, State, WarHost, relay::Relay, server};
-    if let Some(g) = &game {
-        obsidian_core::saves::prepare_play(data, g, obsidian_core::game::is_running)?;
-    }
-    let state = State::load(data);
-    let war = state.playing.as_deref().and_then(|id| state.war(id)).cloned();
-    let mut pieces = None;
-    if let Some(war) = war {
-        // A relay port in use means the app is open and serves the war already.
-        match commander::ensure_relay_port(data).map(Relay::start) {
-            Ok(Ok(relay)) => {
-                let srv = match war.host {
-                    WarHost::Local => server::start(data).map_err(|e| eprintln!("War server: {e}")).ok(),
-                    WarHost::Lan => None,
-                };
-                relay.set_route(State::load(data).route());
-                pieces = Some((relay, srv));
-            }
-            Ok(Err(e)) => eprintln!("Relay: {e} (Obsidian may be open and serving the war)"),
-            Err(e) => eprintln!("Relay: {e}"),
-        }
-    }
-    let (program, args) = command.split_first().expect("clap requires the command");
-    let status = crate::host::command(program).args(args).status();
-    drop(pieces);
-    let status = status?;
-    Ok(status.code().map_or(ExitCode::FAILURE, |c| ExitCode::from(c.clamp(0, 255) as u8)))
 }
 
 /// What `commander wipe` removed, from what was there before.

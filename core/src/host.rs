@@ -1,5 +1,4 @@
-//! Programs of the system that the app starts: xdg-open, pkexec, firewall-cmd, the Commander server,
-//! the game under `Obsidian launch`.
+//! Programs of the system that the app starts: xdg-open, pkexec, firewall-cmd, the Commander server.
 //!
 //! An AppImage runs with its own folder first in `LD_LIBRARY_PATH`, `PATH`, `PYTHONHOME` and more.
 //! A system program that inherits them loads the bundled libraries in place of its own and fails

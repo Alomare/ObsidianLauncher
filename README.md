@@ -118,8 +118,6 @@ Linux support is new and still being tested, on desktop distributions and on Ste
 
 On Ubuntu 24.04 and later, the AppImage needs FUSE 2 first: `sudo apt install libfuse2t64`.
 
-A custom war needs the war server and the relay running while the game runs. To play one with Obsidian closed, as in Steam Game Mode, copy the line from **Steam Launch Option** in the package menu of the **COMMANDER** tab into the launch options of HELLDIVERS in Steam. The same line works on Windows.
-
 ## Making Mods
 
 A mod is a folder with an `obsidian.json` file that describes it, plus the files it uses. A script mod needs one Lua file. Obsidian compiles the Lua when it deploys, so there's no compiler to install.
