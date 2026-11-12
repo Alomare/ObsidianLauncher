@@ -5,7 +5,7 @@
 // the time on screen) and gives way to the next with a cross-fade. The small controls at the top
 // center go to the one before or after. With animations off one picture stays still, and the next
 // launch shows the next one.
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "./opener";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import logo from "./assets/logo-shaded.png";
 import { ChevronIcon, DiscordIcon, GitHubIcon, KofiIcon, OutboundIcon, SearchIcon } from "./Icons";

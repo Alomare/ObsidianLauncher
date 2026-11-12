@@ -21,7 +21,7 @@ import { PadGlyphs } from "./PadGlyphs";
 import { padButtons } from "./padButtons";
 import type { DrawerView } from "./ModsPage";
 import { clampNumber } from "./optionValue";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "../opener";
 
 type Props = {
   view: DrawerView;

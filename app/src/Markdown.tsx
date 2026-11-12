@@ -6,7 +6,7 @@
 //   [text](app:mods)        a tab of the app (home, mods, saves, commander, wiki, settings)
 //   [text](#a-heading)      a heading on this page          [text](https://…)   the web browser
 //   > [!TIP] … / [!NOTE] / [!WARNING]                        a callout
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "./opener";
 import { marked, type Token, type Tokens } from "marked";
 import { Fragment, type ReactNode } from "react";
 import { t } from "./i18n";

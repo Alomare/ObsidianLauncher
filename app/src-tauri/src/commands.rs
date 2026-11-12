@@ -437,14 +437,44 @@ pub async fn check_game(ctx: State<'_, Ctx>) -> CmdResult<Snapshot> {
 
 /// Opens a folder the app knows in Explorer: the game, the data folder, the logs or one save backup.
 #[tauri::command]
-pub fn open_folder(ctx: State<'_, Ctx>, app: tauri::AppHandle, path: PathBuf) -> CmdResult<()> {
-    use tauri_plugin_opener::OpenerExt;
+pub async fn open_folder(ctx: State<'_, Ctx>, app: tauri::AppHandle, path: PathBuf) -> CmdResult<()> {
     let settings = AppSettings::load(&ctx.data);
     let known = path.starts_with(&ctx.data) || find(&settings).is_some_and(|g| path == g.root) || logs_dir(&settings).is_some_and(|d| path == d);
     if !known {
         return Err(CmdError { code: "Io".into(), message: format!("not a folder Obsidian opens: {}", path.display()) });
     }
-    app.opener().open_path(path.to_string_lossy(), None::<&str>).map_err(|e| CmdError { code: "Io".into(), message: e.to_string() })
+    open_external(&app, &path.to_string_lossy(), true).map_err(|message| CmdError { code: "Io".into(), message })
+}
+
+/// Opens a web page in the default browser. Only http and https: the window never opens files.
+#[tauri::command]
+pub async fn open_link(app: tauri::AppHandle, url: String) -> CmdResult<()> {
+    let lower = url.to_ascii_lowercase();
+    if !(lower.starts_with("https://") || lower.starts_with("http://")) {
+        return Err(CmdError { code: "Io".into(), message: format!("not a web link: {url}") });
+    }
+    open_external(&app, &url, false).map_err(|message| CmdError { code: "Io".into(), message })
+}
+
+/// Hands a URL (or, with `path`, a folder) to the system. On Linux xdg-open runs without the
+/// AppImage's environment (obsidian_core::host): with it, KDE's opener fails on the bundled OpenSSL.
+fn open_external(app: &tauri::AppHandle, target: &str, path: bool) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        let _ = (app, path);
+        let out = obsidian_core::host::command("xdg-open").arg(target).stdin(std::process::Stdio::null()).output().map_err(|e| format!("xdg-open: {e}"))?;
+        if out.status.success() {
+            return Ok(());
+        }
+        let detail = String::from_utf8_lossy(&out.stderr).trim().chars().take(300).collect::<String>();
+        Err(format!("xdg-open {target} failed ({}){}{detail}", out.status, if detail.is_empty() { "" } else { ": " }))
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        use tauri_plugin_opener::OpenerExt;
+        let r = if path { app.opener().open_path(target, None::<&str>) } else { app.opener().open_url(target, None::<&str>) };
+        r.map_err(|e| e.to_string())
+    }
 }
 
 #[tauri::command]
@@ -680,7 +710,6 @@ pub async fn purge(ctx: State<'_, Ctx>) -> CmdResult<PurgeDone> {
 
 #[tauri::command]
 pub async fn play(ctx: State<'_, Ctx>, app: tauri::AppHandle) -> CmdResult<Snapshot> {
-    use tauri_plugin_opener::OpenerExt;
     let _turn = ctx.turn();
     let game = find(&AppSettings::load(&ctx.data));
     let prepare = |g: &GameInstall| -> CmdResult<()> {
@@ -688,7 +717,7 @@ pub async fn play(ctx: State<'_, Ctx>, app: tauri::AppHandle) -> CmdResult<Snaps
         Ok(())
     };
     play_with(game.as_ref(), prepare, || {
-        app.opener().open_url(STEAM_LAUNCH, None::<&str>).map_err(|e| CmdError { code: "Launch".into(), message: e.to_string() })
+        open_external(&app, STEAM_LAUNCH, false).map_err(|message| CmdError { code: "Launch".into(), message })
     })?;
     fresh(&ctx)
 }

@@ -6,7 +6,7 @@ import type { ModRow, ProfileRow, Snapshot } from "../types";
 
 const invoke = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/api/core", () => ({ invoke, convertFileSrc: (p: string) => p }));
-vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
+vi.mock("../opener", () => ({ openUrl: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 vi.mock("@tauri-apps/api/webview", () => ({ getCurrentWebview: vi.fn() }));
 const { ModsPage } = await import("../mods/ModsPage");

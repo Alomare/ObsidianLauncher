@@ -3,7 +3,7 @@
 // click opens the same actions for one mod or folder. The line between the table and the drawer
 // drags to resize them.
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "../opener";
 import { call, errorText, run } from "../api";
 import { notify } from "../notices";
 import { SortDialog, SortIcon, type SortPlan } from "./SortDialog";

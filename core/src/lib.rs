@@ -17,6 +17,7 @@ pub mod game;
 pub mod game_options;
 pub mod gate;
 pub mod hash;
+pub mod host;
 pub mod images;
 pub mod import;
 pub mod library;

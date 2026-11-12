@@ -3,7 +3,7 @@
 
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -48,7 +48,7 @@ pub fn server_data(data: &Path) -> PathBuf {
 /// Starts the installed server on `port` (0: any) and waits for the ready line.
 pub fn spawn(data: &Path, installed: &Installed, port: u16, token: &str) -> Result<Server> {
     let pkg = package::package_dir(data);
-    let mut cmd = Command::new(pkg.join(&installed.server));
+    let mut cmd = crate::host::command(pkg.join(&installed.server));
     cmd.arg("--data")
         .arg(server_data(data))
         .arg("--port")

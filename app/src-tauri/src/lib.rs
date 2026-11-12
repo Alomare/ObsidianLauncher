@@ -28,10 +28,11 @@ fn watch_game(app: tauri::AppHandle) {
 }
 
 pub fn run() {
-    // WebKitGTK's DMA-BUF renderer leaves a blank window with some graphics drivers (NVIDIA most of
-    // all). The app draws little, so the older path costs nothing seen. A value already set wins.
+    // WebKitGTK's DMA-BUF renderer leaves a blank window with NVIDIA's driver. Elsewhere it stays on:
+    // the older path draws slowly and leaves trails while the window moves (AMD on KDE Wayland). A
+    // value already set wins.
     #[cfg(target_os = "linux")]
-    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() && std::path::Path::new("/sys/module/nvidia").exists() {
         // SAFETY: nothing else runs yet; no other thread reads the environment.
         unsafe { std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1") };
     }
@@ -110,6 +111,7 @@ pub fn run() {
             commands::set_game_dir,
             commands::check_game,
             commands::open_folder,
+            commands::open_link,
             commands::saves_list,
             commands::saves_activate,
             commands::saves_create_official,

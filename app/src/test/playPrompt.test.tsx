@@ -10,7 +10,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke, convertFileSrc: (p: string) => 
 vi.mock("@tauri-apps/api/event", () => ({ listen: () => Promise.resolve(() => {}) }));
 vi.mock("@tauri-apps/api/webview", () => ({ getCurrentWebview: () => ({ onDragDropEvent: () => Promise.resolve(() => {}) }) }));
 vi.mock("@tauri-apps/plugin-updater", () => ({ check: () => Promise.resolve(null) }));
-vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
+vi.mock("../opener", () => ({ openUrl: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 const { default: App } = await import("../App");
 const { setSnapshot } = await import("../api");

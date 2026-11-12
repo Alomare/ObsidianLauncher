@@ -549,7 +549,7 @@ fn launch(data: &std::path::Path, game: Option<GameInstall>, command: &[std::ffi
         }
     }
     let (program, args) = command.split_first().expect("clap requires the command");
-    let status = std::process::Command::new(program).args(args).status();
+    let status = crate::host::command(program).args(args).status();
     drop(pieces);
     let status = status?;
     Ok(status.code().map_or(ExitCode::FAILURE, |c| ExitCode::from(c.clamp(0, 255) as u8)))

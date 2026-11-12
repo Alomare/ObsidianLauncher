@@ -8,7 +8,6 @@
 //! them.
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use serde::{Deserialize, Serialize};
 
@@ -73,7 +72,7 @@ fn backend() -> Option<Backend> {
     }
     if let Some(cmd) = first_file(&FIREWALL_CMD) {
         // `--state` needs no root and exits 0 only while firewalld runs.
-        if Command::new(cmd).arg("--state").output().is_ok_and(|o| o.status.success()) {
+        if crate::host::command(cmd).arg("--state").output().is_ok_and(|o| o.status.success()) {
             return Some(Backend::Firewalld);
         }
     }
@@ -111,7 +110,7 @@ pub fn status(data: &Path) -> Status {
         None => true,
         // The default zone of some systems (Fedora Workstation) already allows the high ports.
         Some(Backend::Firewalld) => first_file(&FIREWALL_CMD)
-            .and_then(|cmd| Command::new(cmd).arg("--list-ports").output().ok())
+            .and_then(|cmd| crate::host::command(cmd).arg("--list-ports").output().ok())
             .is_some_and(|o| ports_cover(&String::from_utf8_lossy(&o.stdout))),
         // ufw shows rules to root only; the record stands in.
         Some(Backend::Ufw) => recorded,
@@ -153,7 +152,7 @@ fn run_as_root(backend: Backend, add: bool) -> Outcome {
     if !Path::new(PKEXEC).is_file() {
         return Outcome::Failed { message: "pkexec is missing".into() };
     }
-    match Command::new(PKEXEC).arg(SH).arg("-c").arg(script(backend, &tool, add)).output() {
+    match crate::host::command(PKEXEC).arg(SH).arg("-c").arg(script(backend, &tool, add)).output() {
         Err(e) => Outcome::Failed { message: e.to_string() },
         Ok(o) if o.status.success() => Outcome::Done,
         Ok(o) if o.status.code().is_some_and(|c| PKEXEC_REFUSED.contains(&c)) => Outcome::Declined,

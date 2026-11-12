@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ModRow, OptionRow } from "../types";
 
 vi.mock("../api", () => ({ run: vi.fn() }));
-vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
+vi.mock("../opener", () => ({ openUrl: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
 const { Drawer } = await import("../mods/Drawer");
 const { partLines } = await import("../mods/ModTable");

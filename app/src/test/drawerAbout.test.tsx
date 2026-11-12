@@ -5,7 +5,7 @@ import type { ModRow } from "../types";
 
 const openUrl = vi.fn(() => Promise.resolve());
 vi.mock("../api", () => ({ run: vi.fn() }));
-vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: (...a: unknown[]) => openUrl(...(a as [])) }));
+vi.mock("../opener", () => ({ openUrl: (...a: unknown[]) => openUrl(...(a as [])) }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
 const { Drawer } = await import("../mods/Drawer");
 
