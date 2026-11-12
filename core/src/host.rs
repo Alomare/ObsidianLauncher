@@ -53,7 +53,8 @@ fn cleaned(appdir: &Path, vars: impl Iterator<Item = (OsString, OsString)>) -> V
     out
 }
 
-#[cfg(test)]
+// AppImage paths are split on ':', as on Linux; Windows splits path lists on ';'.
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
 
