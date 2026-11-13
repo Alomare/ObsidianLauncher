@@ -899,6 +899,8 @@ test("dlc_goes_by_ownership", function()
 	E.eq(select(2, api.stratagems.give("stratagem_dlc")), "not_available")
 	E.eq(select(2, api.stratagems.call("stratagem_dlc", api.world.cursor())), "not_available")
 	rawget(_G, "DlcSettings").can_use = function(name) return name == "weapon_dlc" end
+	E.eq(has(api.catalog.primaries(), "weapon_dlc"), false, "the answer is kept for a few seconds")
+	api.catalog.forget()
 	E.eq(has(api.catalog.primaries(), "weapon_dlc"), true, "owned, whatever the progress")
 	E.eq(api.gear.give_weapon("primary_weapon", "equipment/dlc"), true)
 end)
