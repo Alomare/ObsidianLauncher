@@ -32,7 +32,7 @@ const mod = (version: string) =>
   ({
     id: "me.mod", name: { en: "My Mod" }, description: { en: "" }, authors: [], version, scope: "client", on: true,
     options: [], keybinds: [], files: [], import: null, source: "https://github.com/me/mod", updatable: true, image: null, folder: null,
-    requires: [], parts: [], optionGroups: [], optionPreviews: [],
+    requires: [], parts: [], optionGroups: [], optionPreviews: [], size: 0, deployed: false, deployedSize: null,
   }) as ModRow;
 
 let found: Record<string, string> = {};

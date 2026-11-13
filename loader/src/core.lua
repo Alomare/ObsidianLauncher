@@ -32,7 +32,7 @@ local capabilities = {
 	after_startup = true, log = true, hook = true, wrap = true, on_require = true, on_session = true, session = true,
 	settings = true, keybind = true, text = true, on_frame = true, module = true, import = true, menu = true, toast = true, notify = true, storage = true, caller = true,
 	ui = true, scope = true, guardrails = true, info = true, expansion = true, save_data = true,
-	language = true, game_text = true, parts = true, war = true, profiler = true,
+	language = true, game_text = true, parts = true, secondary_scopes = true, war = true, profiler = true,
 }
 local api = {
 	version = API_VERSION,
@@ -264,8 +264,8 @@ function api.log(...)
 end
 
 -- fn runs once per frame, protected; returning true stops the calls. A session mod's callbacks
--- run only in a cleared session, like the mod's hooks. opts.part: the callback runs with the scope of
--- that part of the mod, and never while the part is off. opts.always: in any lobby, as with keys.
+-- run only in a cleared session, like the mod's hooks. opts.secondary_scope: the callback runs with that
+-- secondary scope of the mod, and never while it is off. opts.always: in any lobby, as with keys.
 function api.on_frame(fn, opts)
 	if B.type(fn) ~= "function" then return end
 	local state = M.current
@@ -283,7 +283,7 @@ local function run_frame_callbacks()
 		local stop = false
 		if state and state.off then
 			stop = true
-		elseif not (gated and not session.allows(state)) then
+		elseif not (gated and not session.allows(state, cb.part)) then
 			local ok, result = M.call(state, "on_frame", cb.fn)
 			stop = ok and result == true
 		end
@@ -294,8 +294,8 @@ end
 
 -- How a mod runs in this deploy: "client", "session", "hybrid" or "expansion". A library has become
 -- client or session: session when a session mod or an expansion requires it, so the library sets up
--- what the expansion may use. Hybrid: the mod's session parts stop in a lobby that isn't cleared, and
--- the client parts keep running.
+-- what the expansion may use. Hybrid: the mod's session secondary scopes stop in a lobby that isn't
+-- cleared, and the client ones keep running.
 local function scope_of(state)
 	local scope = state.mod.scope
 	if scope == "client" or scope == "hybrid" then return scope end
@@ -358,7 +358,7 @@ end
 
 local function start(mod)
 	local state = { id = B.tostring(mod.id), mod = mod, errors = 0, off = false }
-	-- The mod's parts by id, from the deploy: the scope of each, and whether the option of the part has it on.
+	-- The mod's secondary scopes by id, from the deploy: the scope of each, and whether its option has it on.
 	if B.type(mod.parts) == "table" then
 		state.parts, state.part_list = {}, {}
 		for _, p in B.ipairs(mod.parts) do

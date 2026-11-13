@@ -1,16 +1,18 @@
 // One tooltip for the whole window: any element with `data-tip` (the explanation) and/or
 // `data-tip-title` (the name, in bold above it) and/or `data-tip-note` (a line set apart under the
 // explanation, in the accent color) shows it on hover after a short wait and on keyboard
-// focus. Mounted once in App. It goes above the element, or below when it doesn't fit there;
+// focus. With `data-tip-wiki`, a WIKI tag at the right of the title says a click opens the Wiki. Mounted once in App. It goes above the element, or below when it doesn't fit there;
 // `data-tip-side="bottom"` puts it below by choice.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { OutboundIcon } from "./Icons";
+import { t } from "./i18n";
 
 const WAIT_MS = 450;
 const GAP_PX = 8;
 const EDGE_PX = 8;
 
 type Size = { width: number; height: number };
-type Tip = { title?: string; text?: string; note?: string; anchor: DOMRect; bottom: boolean };
+type Tip = { title?: string; text?: string; note?: string; wiki: boolean; anchor: DOMRect; bottom: boolean };
 
 /** Where a tooltip of this size goes: centred on the element, on the side it fits, inside the window. */
 export function tipPlace(anchor: Pick<DOMRect, "left" | "right" | "top" | "bottom">, tip: Size, win: Size, bottom: boolean) {
@@ -35,7 +37,7 @@ export function Tooltip() {
     const show = (el: HTMLElement) => {
       const { tip: text, tipTitle: title, tipNote: note } = el.dataset;
       if (!text && !title && !note) return;
-      setTip({ title, text, note, anchor: el.getBoundingClientRect(), bottom: el.dataset.tipSide === "bottom" });
+      setTip({ title, text, note, wiki: el.dataset.tipWiki !== undefined, anchor: el.getBoundingClientRect(), bottom: el.dataset.tipSide === "bottom" });
     };
     const hide = () => {
       clearTimeout(timer);
@@ -77,7 +79,7 @@ export function Tooltip() {
     <div className="tip-layer">
       <div ref={box} role="tooltip" className={place?.below ? "tip below" : "tip"}
         style={place ? { left: place.x, top: place.y } : { left: 0, top: 0, visibility: "hidden" }}>
-        {tip.title && <b className="tip-title">{tip.title}</b>}
+        {tip.title && <b className="tip-title">{tip.title}{tip.wiki && <span className="tip-wiki">{t("app.tip.wiki")}<OutboundIcon /></span>}</b>}
         {tip.text && <span>{tip.text}</span>}
         {tip.note && <span className="tip-note">{tip.note}</span>}
       </div>

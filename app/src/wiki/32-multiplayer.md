@@ -44,16 +44,16 @@ Client mods always run. A few examples, from the point of view of player A with 
 
 In a friends-only or private lobby, every row is On. The check runs again whenever someone joins, leaves or changes setup, and when the host changes who can join. Mods switch on and off live, and a session mod can undo what it changed when that happens.
 
-## Mods with parts
+## Hybrid Scopes
 
-A [mod with parts](wiki:scopes#mods-with-parts) follows the same rules, part by part. The session parts run where session mods run, and the client parts run in any lobby. When the session parts switch off in a public lobby, the game names them and says the rest keeps working.
+A mod with [Hybrid Scopes](wiki:scopes#hybrid-scopes) follows the same rules, one secondary scope at a time. The session secondary scopes run where session mods run, and the client ones run in any lobby. When the session secondary scopes switch off in a public lobby, the game names them and says the rest keeps working.
 
-| Other players | Camera part of A (client) | Weapon range part of A (session) |
+| Other players | Camera of A (client secondary scope) | Weapon range of A (session secondary scope) |
 |---|---|---|
 | B runs the same set | On | On |
 | B has vanilla HELLDIVERS | On | Off |
 
-The options of client parts don't count when Obsidian compares sets, and a part switched off in the options of the mod counts for nothing.
+The options of client secondary scopes don't count when Obsidian compares sets, and a secondary scope switched off in the options of the mod counts for nothing.
 
 ## Mods every player needs
 

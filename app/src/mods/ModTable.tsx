@@ -4,9 +4,10 @@
 // Alt+Up and Alt+Down move the focused mod or folder from the keyboard. A warning icon marks
 // mods in a conflict and opens the conflicts; a right click opens the menu. A mod with a newer version
 // found shows it in gold in the Version column. Checked mods are checked for updates from the bar under the list.
-// The Version and Scope columns have fixed widths (styles.css, .table).
+// Size is the mod's folder; Deployed is what the last deploy put in the game. The columns at the right have
+// fixed widths, and Size and Deployed give way in a narrow list (styles.css, .table).
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type MutableRefObject, type PointerEvent } from "react";
-import { CheckIcon, ChevronIcon, LockIcon, UnlockIcon, UpArrowIcon, WarnIcon } from "../Icons";
+import { CheckIcon, ChevronIcon, CloseIcon, LockIcon, UnlockIcon, UpArrowIcon, WarnIcon } from "../Icons";
 import { go } from "../nav";
 import { language, pick, t } from "../i18n";
 import { Thumb } from "../Thumb";
@@ -80,14 +81,14 @@ type RowProps = {
   id: string; folder: string | null; color: string | null; name: string; description: string; version: string | null; update: string | null;
   scope: string; on: boolean; imagePath: string | null; imageV: number; num: number; pinned: boolean; selected: boolean; checked: boolean;
   lifted: boolean; leaving: boolean; tips: string | null; lose: boolean; h: MutableRefObject<Handlers>;
-  /** One line per part of the mod, with the scope, for the diamond's tooltip; null for a mod with no parts. */
-  parts: string | null;
+  /** Bytes of the mod's folder, and what the last deploy put in the game: null when not deployed. */
+  size: number; deployed: boolean; deployedSize: number | null;
   /** The UI language: the row's texts change with it. */
   lang: string;
 };
 
 /** One mod. Every prop is a plain value, so a click elsewhere in a long list leaves this row alone. */
-const ModLine = memo(function ModLine({ id, folder, color, name, description, version, update, scope, on, imagePath, imageV, num, pinned: fixed, selected, checked, lifted, leaving, tips, lose, h, parts }: RowProps) {
+const ModLine = memo(function ModLine({ id, folder, color, name, description, version, update, scope, on, imagePath, imageV, num, pinned: fixed, selected, checked, lifted, leaving, tips, lose, h, size, deployed, deployedSize }: RowProps) {
   const line: Line = { kind: "mod", id, folder };
   const image: ImageRef | null = useMemo(() => (imagePath ? { path: imagePath, v: imageV } : null), [imagePath, imageV]);
   const cls = ["tr", folder && "in", fixed && "pinned", selected && "sel", checked && "checked", lifted && "lifted", leaving && "leaving"].filter(Boolean).join(" ");
@@ -97,7 +98,8 @@ const ModLine = memo(function ModLine({ id, folder, color, name, description, ve
       onKeyDown={(e) => h.current.key(e, line)} onContextMenu={(e) => h.current.menu(e, { kind: "mod", id })}>
       <Check state={checked} label={name} onChange={(v, shift) => h.current.check(id, v, shift)} />
       <span className="num">{num}</span>
-      <button role="switch" aria-checked={on} aria-label={name} className={on ? "sw on" : "sw"} data-tip={t(on ? "app.mods.turnOff" : "app.mods.turnOn", name)}
+      <button role="switch" aria-checked={on} aria-label={name} className={["sw", on && "on", deployed && "dep"].filter(Boolean).join(" ")}
+        data-tip={t(on ? "app.mods.turnOff" : "app.mods.turnOn", name)} data-tip-note={deployed ? t("app.mods.inGame") : undefined}
         {...stop} onClick={() => h.current.toggle(id, !on)} />
       <div className="mod-cell" data-tip-title={description ? name : undefined} data-tip={description || undefined}>
         <Thumb image={image} name={name} />
@@ -113,25 +115,33 @@ const ModLine = memo(function ModLine({ id, folder, color, name, description, ve
           <WarnIcon filled={!lose} />
         </button>
       ) : <span />}
+      <span className="sz">{formatSize(size)}</span>
+      {deployed ? (
+        <span className="dep-cell"><span className="dep-tag" data-tip-title={t("app.mods.deployedTitle")} data-tip={t("app.mods.deployedHint")}>
+          {deployedSize === null ? t("app.mods.deployedYes") : formatSize(deployedSize)}</span></span>
+      ) : (
+        <span className="dep-cell"><span className="dep-no" aria-label={t("app.mods.notDeployed")} data-tip-title={t("app.mods.notDeployed")} data-tip={t("app.mods.notDeployedHint")}><CloseIcon /></span></span>
+      )}
       {update ? (
         <button className="ver ver-up" data-tip-title={t("app.mods.updateTo", update)} data-tip={t("app.mods.updateHint")} {...stop} onClick={() => h.current.update(id)}>
           <span>{version ?? t("app.mods.imported")}</span><UpArrowIcon />
         </button>
       ) : <span className="ver">{version ?? t("app.mods.imported")}</span>}
       <button className={`bare scope ${scope}`} aria-label={t(`app.scope.${scope}`)} data-tip-title={t(`app.scope.${scope}`)}
-        data-tip={[t(`app.scope.${scope}Hint`), parts, t("app.scope.wikiHint")].filter(Boolean).join("\n")}
-        {...stop} onClick={() => go("wiki", `scopes#${SCOPE_ANCHORS[scope] ?? ""}`)}><i /></button>
+        data-tip={t(`app.scope.${scope}Hint`)} data-tip-wiki="" {...stop} onClick={() => go("wiki", `scopes#${SCOPE_ANCHORS[scope] ?? ""}`)}><i /></button>
     </div>
   );
 });
 
 /** The part of the Scopes page in the Wiki about each scope. */
-const SCOPE_ANCHORS: Record<string, string> = { client: "client-mods", session: "session-mods", hybrid: "mods-with-parts", expansion: "expansions", unspecified: "unspecified-mods", library: "libraries" };
+const SCOPE_ANCHORS: Record<string, string> = { client: "client-mods", session: "session-mods", hybrid: "hybrid-scopes", expansion: "expansions", unspecified: "unspecified-mods", library: "libraries" };
 
-/** The tooltip lines of a mod's parts: name and scope, and whether the part is off. */
-export function partLines(m: ModRow): string | null {
-  if (!m.parts.length) return null;
-  return m.parts.map((p) => t(p.on ? "app.mods.partLine" : "app.mods.partLineOff", pick(p.name, p.id), t(`app.scope.${p.scope}`))).join("\n");
+/** Bytes as MB, or as GB from 1000 MB, in the UI language. */
+export function formatSize(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  const n = (v: number, digits: number) => v.toLocaleString(language(), { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  if (mb >= 1000) return t("app.mods.sizeGb", n(mb / 1024, 2));
+  return t("app.mods.sizeMb", mb >= 100 ? n(mb, 0) : n(Math.max(mb, bytes > 0 ? 0.1 : 0), 1));
 }
 
 /** How long the mods of a closing folder take to fade before the rows below move up. */
@@ -354,6 +364,8 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
         <span>{t("app.mods.colOn")}</span>
         <span>{t("app.mods.colMod")}</span>
         <span />
+        <span className="th-col sz">{t("app.mods.colSize")}</span>
+        <span className="th-col dep-cell">{t("app.mods.colDeployed")}</span>
         <span className="th-col">{t("app.mods.colVersion")}</span>
         <span className="th-col th-scope">{t("app.mods.colScope")}</span>
       </div>
@@ -397,7 +409,7 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
               description={pick(m.description)} version={m.version} update={offered(updates, m)} scope={m.scope} on={flips[m.id]?.on ?? m.on} imagePath={m.image?.path ?? null} imageV={m.image?.v ?? 0} num={position.get(m.id) ?? 0}
               pinned={!!folder && folder.kind === "folder" && folder.folder.locked} selected={selected === m.id} checked={checked.has(m.id)}
               lifted={draggingKeys.has(m.id)} leaving={leaving !== null && line.folder === leaving} tips={conflict?.tips ?? null} lose={conflict?.lose ?? false}
-              h={h} lang={language()} parts={partLines(m)} />
+              h={h} lang={language()} size={m.size} deployed={m.deployed} deployedSize={m.deployedSize} />
           );
         })}
         {marker && !marker.onto && <div className="drop-line" style={{ top: marker.y, ...(marker.color ? { ["--lc" as string]: marker.color } : {}) }} aria-hidden="true" />}

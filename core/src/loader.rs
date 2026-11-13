@@ -212,11 +212,14 @@ fn libraries_of<'a>(from: &'a ComposedMod, mods: &'a [ComposedMod]) -> BTreeSet<
 }
 
 /// The ids of the libraries that run as session mods: those an enabled session mod requires,
-/// directly or through another library. A mod with a session part on counts, as the session parts of the
-/// mod may call guarded functions. Every other library runs as a client mod, or as part of the expansions
+/// directly or through another library. A mod with a session secondary scope on counts, an expansion
+/// too, as that code may call guarded functions. Every other library runs as a client mod, or as part of the expansions
 /// that require it.
 fn session_libraries(mods: &[ComposedMod]) -> BTreeSet<&str> {
-    mods.iter().filter(|c| c.manifest.scope_with(&c.values) == Scope::Session).flat_map(|c| libraries_of(c, mods)).collect()
+    mods.iter()
+        .filter(|c| c.manifest.scope_with(&c.values) == Scope::Session || c.manifest.session_outside_content(&c.values))
+        .flat_map(|c| libraries_of(c, mods))
+        .collect()
 }
 
 /// Each library an enabled expansion requires, directly or through another library, with the ids
@@ -286,7 +289,7 @@ fn table_with(comp: &Composition, texts: Value, mod_texts: fn(&Path) -> Result<V
         let m = &c.manifest;
         let specs = m.option_specs()?;
         // A session mod's library is a session mod, and costs the deploy anyway. One only expansions
-        // need follows their content. A mod with parts runs with the scope of the parts that are on.
+        // need follows their content. A mod with secondary scopes runs with the scope of those that are on.
         let scope = match m.scope_with(&c.values) {
             Scope::Library if libraries.contains(m.id.as_str()) => Scope::Session,
             Scope::Library if served.contains_key(m.id.as_str()) => Scope::Expansion,
@@ -299,10 +302,17 @@ fn table_with(comp: &Composition, texts: Value, mod_texts: fn(&Path) -> Result<V
             version: m.version.clone(),
             options: specs.iter().map(|s| (s.id.clone(), c.values[&s.id].clone(), m.option_personal(s, &c.values))).collect(),
         };
-        if scope == Scope::Session {
+        // An expansion with a session secondary scope on changes the shared game outside the content
+        // too: the deploy counts it as a session mod, with the files of those secondary scopes.
+        let outside = m.session_outside_content(&c.values);
+        if scope == Scope::Session || outside {
             has_session = true;
-            // The files of client parts are this player's own, as a client mod's are.
-            let shared_files = c.resources - c.client_resources;
+            // The files of client secondary scopes are this player's own, as a client mod's are.
+            let shared_files = if outside {
+                m.resources.iter().filter(|r| m.tag_scope(r.part.as_deref(), &c.values) == Some(Scope::Session) && r.part.is_some()).count()
+            } else {
+                c.resources - c.client_resources
+            };
             has_static_session |= shared_files > 0;
             let sm = line();
             if shared_files > 0 {
@@ -351,7 +361,7 @@ fn table_with(comp: &Composition, texts: Value, mod_texts: fn(&Path) -> Result<V
             // By language, for obsidian.info: Obsidian API names each mod's folder of the in-game window with it.
             "name": m.name,
             "version": m.version.to_string(),
-            // Hybrid: the session parts stop in a lobby that isn't cleared, the client parts keep running.
+            // Hybrid: the session secondary scopes stop in a lobby that isn't cleared, the client ones keep running.
             "scope": if hybrid { "hybrid" } else { scope_text(&scope) },
             "entry": entry_name(&m.id),
             "loader_api": m.loader_api,
@@ -365,8 +375,8 @@ fn table_with(comp: &Composition, texts: Value, mod_texts: fn(&Path) -> Result<V
         if !gate.is_empty() {
             entry["expansions"] = json!(gate);
         }
-        // Each part with the scope the code tagged with the part runs with, and whether the part is on. The name, by
-        // language, is for the notice when the session parts stop.
+        // Each secondary scope with the scope its code runs with, and whether it is on. The name, by
+        // language, is for the notice when the session ones stop.
         if !m.parts.is_empty() {
             entry["parts"] = m.parts.iter().map(|p| json!({ "id": p.id, "scope": p.scope.name(), "on": m.part_on(p, &c.values), "name": p.name })).collect();
         }
@@ -923,6 +933,34 @@ mod tests {
         lib.install(&d).unwrap();
         let (table, _) = hybrid_table(&lib, &[]);
         assert_eq!((table["has_session"].clone(), table["has_static_session"].clone()), (json!(true), json!(false)));
+    }
+
+    #[test]
+    fn an_expansion_with_a_session_secondary_scope_on_deploys_as_session_content_and_stays_an_expansion() {
+        let t = spaced_tempdir();
+        let lib = hybrid_library(t.path());
+        let json = std::fs::read_to_string(lib.mod_dir("cam").join("obsidian.json")).unwrap();
+        let expansion = json
+            .replacen(r#""scope":"session","entry""#, r#""scope":"expansion","entry""#, 1)
+            .replace(r#""parts":"#, r#""secondary_scopes":"#)
+            .replace(r#""part":"#, r#""secondary_scope":"#);
+        assert!(expansion.contains(r#""scope":"expansion""#) && expansion.contains("secondary_scopes"), "{expansion}");
+        let d = t.path().join("stage-cam3");
+        put(&d, "obsidian.json", expansion.as_bytes());
+        put(&d, "main.lua", b"return true\n");
+        put(&d, "f", b"x");
+        lib.install(&d).unwrap();
+
+        let (on, _) = hybrid_table(&lib, &[]);
+        assert_eq!(scope_in(&on, "cam"), "expansion", "the loader keeps the content gate");
+        assert_eq!(scope_in(&on, "lib"), "session", "the session secondary scope may call guarded functions outside the content");
+        assert_eq!((on["has_session"].clone(), on["has_static_session"].clone()), (json!(true), json!(true)), "its file changes the shared game");
+        let cam = on["mods"].as_array().unwrap().iter().find(|m| m["id"] == "cam").unwrap();
+        assert_eq!(cam["parts"][1], json!({ "id": "range", "scope": "session", "on": true, "name": { "en": "Range" } }));
+
+        let (off, _) = hybrid_table(&lib, &[("far", json!(false))]);
+        assert_eq!(scope_in(&off, "cam"), "expansion");
+        assert_eq!(off["has_session"], false, "with the session secondary scope off, an expansion is an expansion");
     }
 
     #[test]

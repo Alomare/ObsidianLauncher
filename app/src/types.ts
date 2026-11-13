@@ -7,10 +7,10 @@ export type OptionRow = {
   label: Localized; description: Localized; default: unknown; value: unknown;
   min: number | null; max: number | null; step: number | null; choices: string[]; choiceLabels: Localized[];
   visible: boolean; deploy: boolean;
-  /** The option group it shows under, and the part of the mod it belongs to. */
+  /** The option group it shows under, and the secondary scope it belongs to (Hybrid Scopes). */
   group: string | null; part: string | null;
 };
-/** One part of a mod (`parts`): on is false while the part's toggle option is off. */
+/** One secondary scope of a mod (`secondary_scopes`, Hybrid Scopes): on is false while its toggle option is off. */
 export type PartRow = { id: string; scope: "client" | "session"; name: Localized; description: Localized; on: boolean };
 /** A collapsible heading of the Options tab (`option_groups`). */
 export type OptionGroup = { id: string; label: Localized; description: Localized; collapsed: boolean };
@@ -23,7 +23,7 @@ export type ImageRef = { path: string; v: number };
 /** Every scope a manifest can give, as `Scope::name` in core/src/manifest.rs writes it. */
 export const SCOPES = ["unspecified", "client", "session", "library", "expansion"] as const;
 export type Scope = (typeof SCOPES)[number];
-/** What a mod runs as: a scope, or hybrid for a mod with a client part and a session part on. */
+/** What a mod runs as: a scope, or hybrid for a mod with a client and a session secondary scope on. */
 export type ModScope = Scope | "hybrid";
 export type ModRow = {
   id: string; name: Localized; description: Localized; authors: string[];
@@ -32,6 +32,8 @@ export type ModRow = {
   options: OptionRow[]; keybinds: KeyRow[]; files: string[];
   import: ImportInfo | null; source: string | null; updatable: boolean; image: ImageRef | null;
   folder: string | null; requires: string[];
+  /** Bytes of the mod's folder; whether the last deploy put it in the game, and the bytes it put there (null before Obsidian counted them). */
+  size: number; deployed: boolean; deployedSize: number | null;
 };
 export type Folder = { id: string; name: string; color: string; collapsed: boolean; locked: boolean };
 export type ConflictRow = { resource: string; mods: string[]; winner: string };

@@ -22,7 +22,7 @@ const { go } = await import("../nav");
 
 const mod = (id: string, on: boolean): ModRow => ({
   id, name: { en: id }, description: {}, authors: [], version: "1.0.0", scope: "client", on, options: [], keybinds: [], files: [],
-  import: null, source: null, updatable: false, image: null, folder: null, requires: [], parts: [], optionGroups: [], optionPreviews: [],
+  import: null, source: null, updatable: false, image: null, folder: null, requires: [], parts: [], optionGroups: [], optionPreviews: [], size: 0, deployed: false, deployedSize: null,
 });
 /** `deployed` is what the app tracks of the last deploy; `on` is the switch of the one mod in the list. */
 const snap = ({ deployed, on }: { deployed: boolean; on: boolean }): Snapshot => ({

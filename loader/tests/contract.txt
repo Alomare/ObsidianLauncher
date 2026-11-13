@@ -22,6 +22,7 @@ obsidian.capabilities.parts boolean
 obsidian.capabilities.profiler boolean
 obsidian.capabilities.save_data boolean
 obsidian.capabilities.scope boolean
+obsidian.capabilities.secondary_scopes boolean
 obsidian.capabilities.session boolean
 obsidian.capabilities.settings boolean
 obsidian.capabilities.storage boolean

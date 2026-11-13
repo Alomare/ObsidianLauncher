@@ -219,19 +219,28 @@ button.nav-warn:hover { filter: brightness(1.2); text-decoration: underline; tex
 .list { position: relative; flex: 1; min-width: 30rem; display: flex; flex-direction: column; background: linear-gradient(160deg, var(--p1), var(--p2)); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); }
 /* Version fits the header and 1.29.0 with the update arrow, so Scope sits close (the user, 2026-11-04). The
    two widths are fixed; they used to drag, which the user dropped on 2026-11-06. */
-.table { --col-ver: 5.2rem; --col-scope: 3.2rem; flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.table { --col-size: 4.4rem; --col-dep: 5rem; --col-ver: 6rem; --col-scope: 3.2rem; flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; container: modlist / inline-size; }
 .tbody { overflow: auto; min-height: 0; position: relative; }
-/* In a narrow list Version gives way first, down to its minimum, so the Mod column keeps 11rem, enough
-   for a name beside the badges in the same cell: 21.25rem is the lead columns, the conflict icon, the
-   six gaps and those 11rem. */
-.th, .tr { --lead: 1.3rem 1.25rem 2.9rem; display: grid; grid-template-columns: var(--lead) minmax(0, 1fr) 1.8rem clamp(3.7rem, min(30%, 100% - 21.25rem - var(--col-scope)), var(--col-ver)) var(--col-scope); gap: 0.5rem; align-items: center; padding: 0 0.8rem; }
+/* Left to right: check, #, On, Mod, the conflict icon, then Size, Deployed, Version and Scope at fixed
+   widths. In a narrow list Version gives way first, down to its minimum, so the Mod column keeps 11rem:
+   22.25rem is the lead columns, the conflict icon, the eight gaps and those 11rem. Narrower still, Size
+   and then Deployed go (the container queries below). Every cell starts at the left of its column. */
+.th, .tr { --lead: 1.3rem 1.25rem 2.9rem; --cols: var(--col-size) var(--col-dep); --fixed: calc(var(--col-size) + var(--col-dep) + 1rem); display: grid; grid-template-columns: var(--lead) minmax(0, 1fr) 1.8rem var(--cols) clamp(3.7rem, min(30%, 100% - 20.25rem - var(--fixed) - var(--col-scope)), var(--col-ver)) var(--col-scope); gap: 0.5rem; align-items: center; padding: 0 0.8rem; }
+@container modlist (max-width: 44rem) {
+  .th, .tr { --cols: var(--col-dep); --fixed: calc(var(--col-dep) + 0.5rem); }
+  .th > .sz, .tr > .sz { display: none; }
+}
+@container modlist (max-width: 37rem) {
+  .th, .tr { --cols: ; --fixed: 0rem; grid-template-columns: var(--lead) minmax(0, 1fr) 1.8rem clamp(3.7rem, min(30%, 100% - 20.25rem - var(--col-scope)), var(--col-ver)) var(--col-scope); }
+  .th > .dep-cell, .tr > .dep-cell { display: none; }
+}
 .th { padding-top: 0.35rem; padding-bottom: 0.35rem; font-size: var(--fs-xs); color: var(--mu); border-bottom: 1px solid var(--ln); }
 .tr { padding-top: 0.2rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--ln); cursor: pointer; outline-offset: -2px; touch-action: none; }
 .tr { transition: background var(--fast), transform 160ms ease-out; }
 /* Rows out of view skip layout and paint; a long list then shows at once. */
 .tbody > .tr:not(.fr) { content-visibility: auto; contain-intrinsic-size: auto 3.15rem; }
 .tr:hover { background: var(--row); }
-.ver { text-align: center; font-family: "Saira Variable", sans-serif; font-weight: 500; font-size: var(--fs-sm); color: var(--mu); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ver { text-align: left; font-family: "Saira Variable", sans-serif; font-weight: 500; font-size: var(--fs-sm); color: var(--mu); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .who { display: flex; flex-direction: column; justify-content: center; }
 .tr.sel { background: var(--row); box-shadow: inset 3px 0 0 var(--gold); }
 .tr.dragging { transition: background var(--fast); background: color-mix(in srgb, var(--gold) 14%, var(--s1)); box-shadow: inset 3px 0 0 var(--gold), 0 4px 16px rgba(0, 0, 0, 0.3); cursor: grabbing; position: relative; z-index: 1; }
@@ -242,15 +251,23 @@ button.nav-warn:hover { filter: brightness(1.2); text-decoration: underline; tex
 .sub { font-size: var(--fs-sm); color: var(--mu); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sub.warn, .warn { color: var(--warn); }
 .tag { font-size: var(--fs-xs); letter-spacing: 0.1em; text-transform: uppercase; padding: 0.1rem 0.45rem; background: var(--gold); color: var(--on); font-weight: 660; margin-left: 0.5rem; vertical-align: 0.1rem; }
-.ver-up { display: flex; align-items: center; justify-content: center; justify-self: center; gap: 0.2rem; max-width: 100%; padding: 0.12rem 0.3rem; border: 0; cursor: pointer; color: var(--on); background: var(--gold); }
+.ver-up { display: flex; align-items: center; justify-content: flex-start; justify-self: start; gap: 0.2rem; max-width: 100%; padding: 0.12rem 0.3rem; border: 0; cursor: pointer; color: var(--on); background: var(--gold); }
 .ver-up:hover { filter: brightness(1.12); }
 .ver-up span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ver-up svg { flex: none; width: 0.8rem; height: 0.8rem; }
 .link-row { align-self: flex-start; display: inline-flex; align-items: center; gap: 0.3rem; }
 .scope { justify-self: center; display: flex; padding: 0.35rem; }
+/* In the list the diamond starts at the left edge of the Scope column, under the title. */
+.tr > .scope { justify-self: start; margin-left: -0.35rem; }
 button.bare.scope { padding: 0.35rem; border-radius: 2px; }
 button.bare.scope:hover { background: var(--ln); }
-.th-col { align-self: stretch; display: flex; align-items: center; justify-content: center; white-space: nowrap; }
+.th-col { align-self: stretch; display: flex; align-items: center; justify-content: flex-start; white-space: nowrap; }
+/* Size: the mod's folder. Deployed: a green tag with what the last deploy put in the game, or a grey cross. */
+.sz { font-family: "Saira Variable", sans-serif; font-weight: 500; font-size: var(--fs-sm); color: var(--mu); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dep-cell { display: flex; justify-content: flex-start; min-width: 0; }
+.dep-tag { max-width: 100%; padding: 0.08rem 0.4rem; background: color-mix(in srgb, var(--go) 22%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--go) 60%, transparent); color: var(--go); font-family: "Saira Variable", sans-serif; font-weight: 600; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dep-no { display: flex; color: var(--mu); opacity: 0.7; }
+.dep-no svg { width: 0.95rem; height: 0.95rem; }
 .th > .ck, .tr > .ck { justify-self: center; }
 /* Shaded as if lit from above: the gradient runs corner to corner, which the rotation turns upright. */
 .scope i {
@@ -282,6 +299,8 @@ button.bare.scope:hover { background: var(--ln); }
 .tr .sw { width: 2rem; height: 1.05rem; }
 .tr .sw::after { top: 0.12rem; left: 0.12rem; width: 0.76rem; height: 0.68rem; }
 .tr .sw.on::after { left: 1rem; }
+/* A mod the last deploy put in the game, on or off now: a green ring round the switch. */
+.tr .sw.dep { box-shadow: 0 0 0 1px var(--s1), 0 0 0 3px var(--go); }
 
 .empty { padding: 1rem; color: var(--mu); margin: 0; }
 button.link { background: none; border: 0; padding: 0; color: var(--goldtx); cursor: pointer; text-decoration: underline; text-underline-offset: 0.2em; }
@@ -727,6 +746,9 @@ button.link.small { font-size: var(--fs-sm); margin-top: 0.45rem; }
 .switch-line small { font-size: var(--fs-sm); color: var(--mu); line-height: 1.45; max-width: 40rem; }
 .tip-title { display: block; font-family: "Saira Variable", sans-serif; font-weight: 660; font-size: 1.15em; letter-spacing: 0.04em; margin-bottom: 0.15rem; }
 .tip-title:only-child { margin: 0; }
+.tip-title:has(.tip-wiki) { display: flex; align-items: center; gap: 1rem; }
+.tip-wiki { margin-left: auto; display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.05rem 0.35rem; font-family: Barlow, sans-serif; font-size: var(--fs-xs); font-weight: 660; letter-spacing: 0.1em; color: var(--goldtx); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gold) 55%, transparent); }
+.tip-wiki svg { width: 0.75rem; height: 0.75rem; }
 .tip .tip-note { display: block; color: var(--goldtx); }
 .tip span + .tip-note, .tip-title + .tip-note { margin-top: 0.4rem; }
 .tab.lit { position: relative; color: var(--goldtx); }
@@ -950,7 +972,7 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 /* A folder row keeps the columns of a mod row: the name keeps to the Mod column, and a closed
    folder shows how many mods in it have an update in the Version column. */
 .fr-end { grid-column: 5 / -1; grid-row: 1; justify-self: end; display: flex; align-items: center; }
-.fr-ups { grid-column: 6; grid-row: 1; justify-self: center; min-width: 1.3rem; height: 1.3rem; padding: 0 0.25rem; display: grid; place-items: center; font-family: "Saira Variable", sans-serif; font-weight: 600; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; color: var(--on); background: var(--gold); }
+.fr-ups { grid-column: -3; grid-row: 1; justify-self: start; min-width: 1.3rem; height: 1.3rem; padding: 0 0.25rem; display: grid; place-items: center; font-family: "Saira Variable", sans-serif; font-weight: 600; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; color: var(--on); background: var(--gold); }
 .fr-title { grid-column: 4 / 5; display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
 .bare.fr-lock { flex: none; padding: 0.2rem; border-radius: 2px; color: var(--tx); background: var(--ln); opacity: 0.45; transition: opacity var(--fast), color var(--fast); }
 .fr-lock svg { width: 0.85rem; height: 0.85rem; }

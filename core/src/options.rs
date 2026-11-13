@@ -23,7 +23,7 @@ pub struct OptionSpec {
     /// `"scope": "client"`: personal, so the value stays out of the mod-set hash.
     pub client: bool,
     pub visible_when: BTreeMap<String, Value>,
-    /// The part of the mod the option belongs to (`parts`). Manifest::validate checks that the part exists.
+    /// The secondary scope the option belongs to (`secondary_scope`). Manifest::validate checks that it exists.
     pub part: Option<String>,
     /// The heading the Options tab lists the option under (`option_groups`). Checked the same way.
     pub group: Option<String>,
@@ -103,7 +103,11 @@ pub fn parse_options(raw: &[Value]) -> Result<Vec<OptionSpec>> {
             default: Value::Null,
             client: o.get("scope").and_then(Value::as_str) == Some("client"),
             visible_when,
-            part: tag("part")?,
+            // `part` before Hybrid Scopes had the name.
+            part: match tag("secondary_scope")? {
+                Some(id) => Some(id),
+                None => tag("part")?,
+            },
             group: tag("group")?,
         };
         let default = o.get("default").ok_or_else(|| bad(i, "needs a default"))?;

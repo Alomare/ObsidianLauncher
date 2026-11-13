@@ -33,7 +33,7 @@ local function wrap(h, target, original)
 		return B.unpack(results, 1, results.n)
 	end
 	target[h.method] = function(...)
-		if (state and state.off) or (gated and not session.allows(state)) then return original(...) end
+		if (state and state.off) or (gated and not session.allows(state, h.part)) then return original(...) end
 		local outer_ran, outer_results = ran, results
 		ran, results = false, nil
 		local r = pack(core.call(state, site, fn, once, ...))
@@ -52,7 +52,7 @@ end
 
 local function describe(h)
 	local where = B.type(h.target) == "string" and h.target or "table"
-	return where .. "." .. B.tostring(h.method) .. (h.state and (" by " .. h.state.id) or "") .. (h.part and (" part " .. h.part.id) or "")
+	return where .. "." .. B.tostring(h.method) .. (h.state and (" by " .. h.state.id) or "") .. (h.part and (" secondary scope " .. h.part.id) or "")
 end
 
 local function install(h)
@@ -122,13 +122,13 @@ local function recheck()
 	end
 end
 
--- opts.part: the hook belongs to that part of the mod, and runs with the part's scope. A part that is
--- off gets no hook at all.
+-- opts.secondary_scope: the hook belongs to that secondary scope of the mod, and runs with its scope.
+-- One that is off gets no hook at all.
 function M.hook(target, method, fn, opts)
 	local state = M.core.current
 	local scope, part = M.session.part_scope(state, opts)
 	if scope == "off" then
-		log.line("hook left out: " .. (B.type(target) == "string" and target or "table") .. "." .. B.tostring(method) .. " by " .. state.id .. ", part " .. part.id .. " is off")
+		log.line("hook left out: " .. (B.type(target) == "string" and target or "table") .. "." .. B.tostring(method) .. " by " .. state.id .. ", secondary scope " .. part.id .. " is off")
 		return
 	end
 	local h = { state = state, part = part, target = target, method = method, fn = fn }

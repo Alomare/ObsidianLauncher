@@ -36,9 +36,9 @@ Each option has an `id` (lowercase letters, digits and `_`), a `type`, a `defaul
 
 The option values of a session mod or an expansion count when Obsidian compares two players' mods, because a balance slider changes the shared game. Mark an option `"scope": "client"` when the value only changes what this player sees, such as a color or a camera distance. Players can then pick different values and still match ([Playing online](wiki:multiplayer)).
 
-### Options of a part
+### Options in a secondary scope
 
-In a mod with [parts](wiki:manifest#parts), `"part": "<part id>"` puts an option in that part. An option of a client part counts as `"scope": "client"`, and an option of a part that is off doesn't count at all. An option without a part follows the strictest part that is on. The toggle a part names in `option` switches that part, so changing the toggle needs a deploy.
+In a mod with [Hybrid Scopes](wiki:manifest#hybrid-scopes), `"secondary_scope": "<id>"` puts an option in that secondary scope. An option of a client secondary scope counts as `"scope": "client"`, and an option of one that is off doesn't count at all. In a session mod, an untagged option follows the strictest secondary scope that is on. The toggle a secondary scope names in `option` switches it, so changing the toggle needs a deploy.
 
 ## Option groups
 

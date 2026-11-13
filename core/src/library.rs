@@ -57,6 +57,20 @@ pub(crate) fn copy_dir(from: &Path, to: &Path) -> Result<()> {
     Ok(())
 }
 
+/// The bytes of every file under `dir`, in all its folders. Links are not followed, and what can't be
+/// read counts as nothing.
+pub fn folder_bytes(dir: &Path) -> u64 {
+    let Ok(entries) = std::fs::read_dir(dir) else { return 0 };
+    entries
+        .flatten()
+        .map(|e| match e.file_type() {
+            Ok(t) if t.is_dir() => folder_bytes(&e.path()),
+            Ok(t) if t.is_file() => e.metadata().map(|m| m.len()).unwrap_or(0),
+            _ => 0,
+        })
+        .sum()
+}
+
 impl Library {
     pub fn open(data_dir: &Path) -> Result<Library> {
         let root = data_dir.join("mods");

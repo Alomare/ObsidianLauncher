@@ -16,7 +16,7 @@ const { ModsPage } = await import("../mods/ModsPage");
 /** A mod; one whose id starts with "gh." names a GitHub repository and can be checked for updates. */
 const mod = (id: string): ModRow => ({
   id, name: { en: id }, description: {}, authors: [], version: "1.0.0", scope: "client", on: true, options: [], keybinds: [], files: [],
-  import: null, source: null, updatable: id.startsWith("gh."), image: null, folder: null, requires: [], parts: [], optionGroups: [], optionPreviews: [],
+  import: null, source: null, updatable: id.startsWith("gh."), image: null, folder: null, requires: [], parts: [], optionGroups: [], optionPreviews: [], size: 0, deployed: false, deployedSize: null,
 });
 const row = (name: string, extra: Partial<ProfileRow> = {}): ProfileRow => ({ name, on: 0, blockPublic: false, guarded: false, image: null, color: null, ...extra });
 const snap = (ids: string[], profileRows: ProfileRow[] = [row("Default")]): Snapshot => ({
@@ -195,7 +195,8 @@ describe("the list and the bar for checked mods", () => {
   it("has no column of update checks: not in the header, the rows or a folder", () => {
     show(snap(["gh.one", "b.two"]));
     expect(document.querySelectorAll(".up-ck")).toHaveLength(0);
-    expect(document.querySelector(".th")!.children).toHaveLength(7);
+    // Check, #, On, Mod, the conflict icon, Size, Deployed, Version and Scope.
+    expect(document.querySelector(".th")!.children).toHaveLength(9);
   });
 
   it("holds the count, Turn on, Turn off, Check for Updates, Remove and Uncheck all, in that order, and no Actions", () => {

@@ -139,8 +139,8 @@ function M.get(id, mod_id)
 end
 
 -- Calls fn once each time the key bound to `id` goes down: the key from the app, else the default.
--- opts.always: the session gate leaves it alone, as with obsidian.wrap. opts.part: the key belongs to
--- that part of the mod, and does nothing while the part is off.
+-- opts.always: the session gate leaves it alone, as with obsidian.wrap. opts.secondary_scope: the key
+-- belongs to that secondary scope of the mod, and does nothing while it is off.
 function M.keybind(id, fn, opts)
 	local state = M.core and M.core.current
 	if not state or B.type(fn) ~= "function" then return end
@@ -174,7 +174,7 @@ function M.tick()
 			down = ok and down and true or false
 			if down and not b.down then
 				local gated = not b.always and session and session.gated(b.state, b.part)
-				if not b.state.off and not (gated and session and not session.allows(b.state)) then
+				if not b.state.off and not (gated and session and not session.allows(b.state, b.part)) then
 					M.core.call(b.state, "keybind " .. b.id, b.fn)
 				end
 			end

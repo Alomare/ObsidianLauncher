@@ -1,5 +1,6 @@
 //! Deploy writes Obsidian's patches next to the game's bundles; purge removes exactly those.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -42,6 +43,15 @@ pub struct DeployState {
     /// The deploy being replaced, kept until the swap is done.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub previous: Option<Box<DeployState>>,
+    /// Bytes each mod put in the game's patches, by mod id: the resources it won and its compiled
+    /// scripts. Missing in states written before it existed.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub sizes: BTreeMap<String, u64>,
+}
+
+/// The bytes a planned resource puts in a patch, streamed data included.
+fn planned_bytes(p: &crate::compose::Planned) -> u64 {
+    (p.data.len() + p.pieces.iter().map(|x| x.data.len() + x.stream.len()).sum::<usize>()) as u64
 }
 
 /// Whether the game holds what the active profile would deploy.
@@ -449,6 +459,7 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
     let backup = backup_game_saves(game, &data_dir.join("backups"), opts.keep_backups)?;
 
     let mut temps = Vec::new();
+    let mut sizes: BTreeMap<String, u64> = BTreeMap::new();
     let count = plan.len().max(1) as f32;
     let name_of = |owner: &str| comp.mods.iter().find(|m| m.manifest.id == owner).and_then(|m| display_of(&m.manifest.name));
     for (i, (bundle, base, target)) in plan.iter().enumerate() {
@@ -470,7 +481,9 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
                     report.send(share(writing_from * rebuilt_banks as f32 / banks as f32), "sound banks", name_of(&p.owner));
                     rebuilt_banks += 1;
                 }
-                crate::compose::rebuilt(&contents, bundle, p)
+                let p = crate::compose::rebuilt(&contents, bundle, p)?;
+                *sizes.entry(p.owner.clone()).or_default() += planned_bytes(&p);
+                Ok(p)
             })
             .collect::<Result<Vec<_>>>()
             .and_then(|planned| Ok(patch_of(bundle::read_props(base)?, planned)));
@@ -503,7 +516,7 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
         .map(|(sha256, (_, p))| Ok(DeployedFile { path: p.clone(), sha256: sha256? }))
         .collect::<Result<Vec<_>>>()?;
     let mods = profile.mods.iter().filter(|m| m.enabled).map(|m| m.id.clone()).collect();
-    let state = DeployState { build, files, mods, time: chrono::Local::now().to_rfc3339(), fingerprint: Some(fingerprint), settings: Some(digest), incomplete: false, previous: None };
+    let state = DeployState { build, files, mods, time: chrono::Local::now().to_rfc3339(), fingerprint: Some(fingerprint), settings: Some(digest), incomplete: false, previous: None, sizes };
 
     // Only now, with the new set ready, does the game change. The old patches step aside instead of
     // going, so a failure can put them back, and the state says what's under way first, so a crash
@@ -859,6 +872,10 @@ mod tests {
         assert_eq!(p.entries[0].variants[0].data, b"modded");
         assert!(r.backup.is_some());
         assert!(status(&w.game, &w.data, w.opts.known_builds).unwrap().deployed.is_some());
+        // The record keeps the bytes each mod put in the patches, for the Deployed column.
+        let sizes = load_state(&w.data).unwrap().unwrap().sizes;
+        assert_eq!(sizes.get("mod-aa"), Some(&(b"modded".len() as u64)), "{sizes:?}");
+        assert!(sizes.values().all(|n| *n > 0), "{sizes:?}");
         purge(&w.game, &w.data).unwrap();
         assert_eq!(snapshot(&w.game.contents()), before);
         assert!(status(&w.game, &w.data, w.opts.known_builds).unwrap().deployed.is_none());

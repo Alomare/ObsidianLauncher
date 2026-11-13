@@ -5,12 +5,12 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use obsidian_core::compose::plan_with;
-use obsidian_core::deploy::{ChangesWaiting, UncleanEnd, changes_waiting_for, crash_culprit, settings_digest, has_deployed, loader_deployed, unclean_end};
+use obsidian_core::deploy::{ChangesWaiting, UncleanEnd, changes_waiting_for, crash_culprit, settings_digest, has_deployed, load_state, loader_deployed, unclean_end};
 use obsidian_core::game::{GameInstall, find_game, is_running};
 use obsidian_core::gate::{KNOWN_BUILDS, check_build};
 use obsidian_core::hash::{display_name, display_text};
 use obsidian_core::images;
-use obsidian_core::library::{BrokenMod, ImportInfo, Library, Profile};
+use obsidian_core::library::{BrokenMod, ImportInfo, Library, Profile, folder_bytes};
 use obsidian_core::manifest::{Localized, Manifest};
 use obsidian_core::options::{OptionKind, OptionSpec, effective_values, parse_keybinds};
 use obsidian_core::{Result, option_layout, profiles, starter};
@@ -147,6 +147,32 @@ pub struct ModRow {
     pub folder: Option<String>,
     /// Ids of the mods this one needs.
     pub requires: Vec<String>,
+    /// Bytes of the mod's folder in the library.
+    pub size: u64,
+    /// The last deploy put the mod in the game.
+    pub deployed: bool,
+    /// Bytes the mod put in the game's patches at the last deploy; `None` when not deployed, or when the
+    /// deploy was made before Obsidian counted them.
+    pub deployed_size: Option<u64>,
+}
+
+/// Folder sizes by mod id, kept while the manifest file is unchanged: every click builds a snapshot,
+/// and an install or update rewrites the manifest.
+static SIZES: std::sync::Mutex<BTreeMap<String, (Option<std::time::SystemTime>, u64)>> = std::sync::Mutex::new(BTreeMap::new());
+
+fn installed_size(lib: &Library, id: &str) -> u64 {
+    let dir = lib.mod_dir(id);
+    let stamp = std::fs::metadata(dir.join("obsidian.json")).and_then(|m| m.modified()).ok();
+    let mut sizes = SIZES.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some((s, n)) = sizes.get(id)
+        && *s == stamp
+        && stamp.is_some()
+    {
+        return *n;
+    }
+    let n = folder_bytes(&dir);
+    sizes.insert(id.to_string(), (stamp, n));
+    n
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -370,6 +396,8 @@ pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Re
         }
     }
 
+    // What the last deploy put in the game. A cut-short deploy still has the previous one in place.
+    let state = load_state(data).ok().flatten().and_then(|s| if s.incomplete { s.previous.map(|p| *p) } else { Some(s) });
     let mut mods = Vec::new();
     for e in &profile.mods {
         let Some(m) = manifests.get(&e.id) else { continue };
@@ -408,6 +436,9 @@ pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Re
             image: image_ref(images::from_manifest(&lib, m)),
             folder: e.folder.clone(),
             requires: m.requires.clone(),
+            size: installed_size(&lib, &m.id),
+            deployed: state.as_ref().is_some_and(|s| s.mods.contains(&m.id)),
+            deployed_size: state.as_ref().filter(|s| s.mods.contains(&m.id)).and_then(|s| s.sizes.get(&m.id).copied()),
         });
     }
 

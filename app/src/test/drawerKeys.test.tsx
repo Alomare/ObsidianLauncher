@@ -32,7 +32,7 @@ const api = (padValue = "thumbs") =>
       { id: "open", label: { en: "Open in-game menu" }, default: "f6", key: null, clash: [], pad: "pad_open" },
       { id: "shot", label: { en: "Take a screenshot" }, default: "f7", key: "f9", clash: [], pad: null },
     ],
-    files: [], import: null, source: null, updatable: false, image: null, folder: null, requires: [], parts: [], optionGroups: [], optionPreviews: [],
+    files: [], import: null, source: null, updatable: false, image: null, folder: null, requires: [], parts: [], optionGroups: [], optionPreviews: [], size: 0, deployed: false, deployedSize: null,
   }) as ModRow;
 
 function show(m: ModRow, tab: "keys" | "options") {

@@ -23,7 +23,7 @@ end)
 
 When the global doesn't exist yet, the hook waits and goes in as soon as the game defines it. If `fn` fails, the original runs instead.
 
-In a session mod, the hook calls only the original while the lobby isn't cleared ([Writing session mods](wiki:session-mods)). In an expansion, it calls only the original until the content starts ([Writing an expansion](wiki:session-mods#expansions)). `opts.part` puts the hook in a [part](#parts) of the mod.
+In a session mod, the hook calls only the original while the lobby isn't cleared ([Writing session mods](wiki:session-mods)). In an expansion, it calls only the original until the content starts ([Writing an expansion](wiki:session-mods#expansions)). `opts.secondary_scope` puts the hook in a [secondary scope](#hybrid-scopes) of the mod.
 
 ### obsidian.wrap(target, method, fn)
 
@@ -35,7 +35,7 @@ Calls `fn(module)` when the game loads the script `name`, such as `"lua/settings
 
 ### obsidian.on_frame(fn, opts)
 
-Calls `fn` once per frame. Return `true` to stop the calls. The frame functions of a session mod only run in a cleared lobby, and those of an expansion only while the content runs. `opts.part` puts the function in a [part](#parts) of the mod. `opts.always` runs it in any lobby, as `obsidian.wrap` does a hook, for work only this player sees; check `obsidian.capabilities.parts` first, since an older loader gates it as before.
+Calls `fn` once per frame. Return `true` to stop the calls. The frame functions of a session mod only run in a cleared lobby, and those of an expansion only while the content runs. `opts.secondary_scope` puts the function in a [secondary scope](#hybrid-scopes) of the mod. `opts.always` runs it in any lobby, as `obsidian.wrap` does a hook, for work only this player sees; check `obsidian.capabilities.secondary_scopes` first, since an older loader gates it as before.
 
 ### obsidian.after_startup(fn)
 
@@ -49,13 +49,13 @@ The value of option `id` of this mod: the one the player chose in the app, or th
 
 ### obsidian.keybind(id, fn, opts)
 
-Calls `fn` each time the key bound to `id` goes down. The key comes from the app, or from the default in `obsidian.json`. The keys of a session mod wait for a cleared lobby, and those of an expansion for the content, as the hooks of the mod do. `opts.always` leaves the key alone, as `obsidian.wrap` does a hook, for a key that only acts on the screen of this player. `opts.part` puts the key in a [part](#parts) of the mod.
+Calls `fn` each time the key bound to `id` goes down. The key comes from the app, or from the default in `obsidian.json`. The keys of a session mod wait for a cleared lobby, and those of an expansion for the content, as the hooks of the mod do. `opts.always` leaves the key alone, as `obsidian.wrap` does a hook, for a key that only acts on the screen of this player. `opts.secondary_scope` puts the key in a [secondary scope](#hybrid-scopes) of the mod.
 
 ## Multiplayer
 
-### obsidian.session.cleared(part)
+### obsidian.session.cleared(id)
 
-`true` while the calling mod may run: the session is cleared, and for a mod marked `every_player`, every other player runs it too ([Mods every player needs](wiki:session-mods#every-player)). For an expansion, `true` while the content runs. Client mods rarely need it. With a part id, the answer for that [part](#parts): always `true` for a client part, and `false` for a part that is off.
+`true` while the calling mod may run: the session is cleared, and for a mod marked `every_player`, every other player runs it too ([Mods every player needs](wiki:session-mods#every-player)). For an expansion, `true` while the content runs. Client mods rarely need it. With the id of a [secondary scope](#hybrid-scopes), the answer for that one: always `true` for a client secondary scope, and `false` for one that is off.
 
 ### obsidian.session.guard(t, free)
 
@@ -81,23 +81,23 @@ The custom war from [Commander](wiki:commander) this launch plays, as `{ id, mod
 
 ### obsidian.on_session(fn, opts)
 
-Calls `fn(on)` whenever the loader switches this mod on or off, so the mod can undo what other players would see. A mod marked `every_player` also hears when a player who doesn't run it comes or goes. An expansion hears `true` when the content starts and `false` when it ends, in every game in the lobby, and so does a library that only expansions require. With `opts.part`, `fn` hears only the switch of that [part](#parts): a client part never switches off.
+Calls `fn(on)` whenever the loader switches this mod on or off, so the mod can undo what other players would see. A mod marked `every_player` also hears when a player who doesn't run it comes or goes. An expansion hears `true` when the content starts and `false` when it ends, in every game in the lobby, and so does a library that only expansions require. With `opts.secondary_scope`, `fn` hears only the switch of that [secondary scope](#hybrid-scopes): a client one never switches off.
 
-### Parts {#parts}
+### Hybrid Scopes {#hybrid-scopes}
 
-A mod with [`parts`](wiki:manifest#parts) tags each registration with the part it belongs to, as the last argument of `obsidian.hook`, `obsidian.on_frame`, `obsidian.keybind` and `obsidian.on_session`:
+A mod with [`secondary_scopes`](wiki:manifest#hybrid-scopes) tags each registration with the secondary scope it belongs to, as the last argument of `obsidian.hook`, `obsidian.on_frame`, `obsidian.keybind` and `obsidian.on_session`:
 
 ```lua
-local view = { part = "view" }
+local view = { secondary_scope = "view" }
 obsidian.hook("CameraManager", "update", on_camera, view)
 obsidian.on_frame(tick_view, view)
-obsidian.keybind("toggle_view", toggle, { part = "view", always = true })
-obsidian.on_session(function(on) if not on then undo_range() end end, { part = "weapon_range" })
+obsidian.keybind("toggle_view", toggle, { secondary_scope = "view", always = true })
+obsidian.on_session(function(on) if not on then undo_range() end end, { secondary_scope = "weapon_range" })
 ```
 
-The code of a client part runs in any lobby, the code of a session part only in a cleared one. Untagged code follows the strictest part that is on. A part that is off registers nothing. Code that runs once, such as the entry script and `on_require`, isn't tagged. One Lua state serves every part, so a client part can still call session code directly: only the registrations are gated.
+The code of a client secondary scope runs in any lobby, the code of a session one only in a cleared one. In an expansion, the code of a session secondary scope runs while the content runs, and outside it in a cleared lobby. In a session mod, untagged code follows the strictest secondary scope that is on; in an expansion, it stays with the expansion. A secondary scope that is off registers nothing. Code that runs once, such as the entry script and `on_require`, isn't tagged. One Lua state serves every secondary scope, so code in a client one can still call session code directly: only the registrations are gated.
 
-`obsidian.scope()` answers `"hybrid"` while a client part and a session part are both on. The calls a library guards treat a hybrid mod as a session mod, from any part. An older loader ignores `opts.part` and gates everything as session content, so check `obsidian.capabilities.parts` before telling the player that the personal parts keep running.
+`obsidian.scope()` answers `"hybrid"` while a session mod has a client and a session secondary scope on. The calls a library guards treat a hybrid mod as a session mod, from any secondary scope. An older loader ignores `opts.secondary_scope` and gates everything with the primary scope, so check `obsidian.capabilities.secondary_scopes` before telling the player that the personal code keeps running. Loaders from before Hybrid Scopes had that name read `opts.part` instead, and this loader still does.
 
 ## Expansions {#expansions}
 
@@ -149,7 +149,7 @@ What the `entry` script of another mod returned, or `nil` when that mod isn't ru
 
 ### obsidian.scope()
 
-How the calling mod runs in this deploy: `"client"`, `"session"`, `"hybrid"` (a mod with a client part and a session part on, [Parts](#parts)) or `"expansion"`. A library gets `"client"` or `"session"`, and `"session"` when an expansion requires it, so the library sets up what the expansion may use ([Writing a library](wiki:session-mods#libraries)).
+How the calling mod runs in this deploy: `"client"`, `"session"`, `"hybrid"` (a session mod with a client and a session secondary scope on, [Hybrid Scopes](#hybrid-scopes)) or `"expansion"`. A library gets `"client"` or `"session"`, and `"session"` when an expansion requires it, so the library sets up what the expansion may use ([Writing a library](wiki:session-mods#libraries)).
 
 ### obsidian.caller()
 
@@ -385,7 +385,7 @@ Values a player should be able to edit in the save editor go in the [`save_edito
 
 `obsidian.version` is the API version, `1` today. A mod that needs a newer API sets `loader_api` in `obsidian.json`, and older loaders refuse to start it.
 
-`obsidian.capabilities` is a read-only table of what the running loader supports, one entry per feature: `hook`, `on_require`, `on_frame`, `on_session`, `after_startup`, `settings`, `keybind`, `session`, `text`, `log`, `module`, `import`, `caller`, `info`, `menu`, `toast`, `notify`, `storage`, `save_data`, `ui`, `expansion`, `language`, `game_text`, `parts`. Test a feature by name before using one that came later:
+`obsidian.capabilities` is a read-only table of what the running loader supports, one entry per feature: `hook`, `on_require`, `on_frame`, `on_session`, `after_startup`, `settings`, `keybind`, `session`, `text`, `log`, `module`, `import`, `caller`, `info`, `menu`, `toast`, `notify`, `storage`, `save_data`, `ui`, `expansion`, `language`, `game_text`, `secondary_scopes` (also `parts`, the older name). Test a feature by name before using one that came later:
 
 ```lua
 if obsidian.capabilities.on_frame then

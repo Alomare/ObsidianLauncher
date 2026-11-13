@@ -45,7 +45,7 @@ summary: Every field of the file that describes a mod.
 | `source` | no | The web address of the mod, shown in the details. A GitHub repository such as `https://github.com/author/mod` also lets players update the mod from the app ([Sharing a mod](wiki:sharing#updates)). |
 | `scope` | no | `client`, `session`, `expansion` or `library` ([Scopes](wiki:scopes)). Missing or unknown makes the mod unspecified, which runs as a client mod, or as a session mod with `every_player`. |
 | `every_player` | no | `true` for a mod that only works when every player in the lobby runs it ([Mods every player needs](wiki:session-mods#every-player)). Not for client mods or expansions. |
-| `parts` | no | Pieces of the mod with a scope of their own ([Parts](#parts)). Not for libraries or expansions. |
+| `secondary_scopes` | no | Code, options and files that run with a scope other than `scope` ([Hybrid Scopes](#hybrid-scopes)). Not for libraries. |
 | `entry` | no | The Lua script the loader starts. Mods that only replace game files leave it out. |
 | `modules` | no | More `.lua` files beside `entry`, which the mod loads with `obsidian.module`. Paths inside the mod folder. |
 | `requires` | no | Ids of mods this one needs. Switching the mod on switches them on, and they start first. Players see them in the Dependencies tab of the mod. A deploy stops with a message if one is missing. |
@@ -87,13 +87,13 @@ Ask only for what the mod needs. Two mods that both ask to load last, or that as
 
 Obsidian checks `load` on import: a position other than `first` or `last`, an unknown field, the id of the mod itself, or the same id in `before` and `after` is refused. Obsidian 1.3.1 and earlier read only `"last"`, and list a mod with any other `load` as one that can't be read.
 
-## Parts
+## Hybrid Scopes
 
-`parts` splits a session mod into pieces, each `client` or `session`, so the personal pieces keep running in a lobby that isn't cleared ([Mods with parts](wiki:scopes#mods-with-parts)).
+`scope` is the primary scope of the mod. `secondary_scopes` lists the scopes that some of the code, options and files run with instead, each `client` or `session` ([Hybrid Scopes](wiki:scopes#hybrid-scopes)). A session mod uses them to keep personal code running in a lobby that isn't cleared; an expansion uses a session secondary scope for code that also runs outside the content, in a cleared lobby.
 
 ```json
 "scope": "session",
-"parts": [
+"secondary_scopes": [
   { "id": "view", "scope": "client",
     "name": { "en": "Camera and view" }, "description": { "en": "Keeps working in any lobby." } },
   { "id": "weapon_range", "scope": "session", "option": "max_weapon_range",
@@ -106,11 +106,11 @@ Obsidian checks `load` on import: a position other than `first` or `last`, an un
 | `id` | Lowercase letters, digits and `_`, as an option id. |
 | `scope` | `client` or `session`. |
 | `name`, `description` | Text by language, shown in the details of the mod and in the in-game notice. |
-| `option` | A toggle option of the mod. The part is on only while that option is on, and changing it needs a deploy. |
+| `option` | A toggle option of the mod. The secondary scope is on only while that option is on, and changing it needs a deploy. |
 
-Code, options and files name their part: `opts.part` in the [Loader API](wiki:loader-api#parts), `part` on an [option](wiki:options-and-keys) and on a [resource](wiki:resources#parts). Anything without a part follows the strictest part that is on. A part that is off runs no code, deploys no file and doesn't count for what players compare.
+Code, options and files name their secondary scope: `opts.secondary_scope` in the [Loader API](wiki:loader-api#hybrid-scopes), `secondary_scope` on an [option](wiki:options-and-keys#options-in-a-secondary-scope) and on a [resource](wiki:resources#hybrid-scopes). In a session mod, anything untagged follows the strictest secondary scope that is on; in an expansion, it stays with the expansion. A secondary scope that is off runs no code, deploys no file and doesn't count for what players compare.
 
-The top-level `scope` stays the strictest one: `session` when any part is. An older Obsidian reads only that, and runs the whole mod as a session mod. Obsidian refuses a part id that isn't unique, a scope other than `client` or `session`, an `option` that isn't a toggle, and a `part` that names no part.
+The primary scope is the one an older Obsidian reads, and it runs the whole mod with it, so declare the strictest one there: `session` for a session mod with a session secondary scope, `expansion` for an expansion. Obsidian refuses an id that isn't unique, a scope other than `client` or `session`, a session secondary scope under a primary scope other than `session` or `expansion`, an `option` that isn't a toggle, and a `secondary_scope` tag that names none of them. Obsidian 2.0.0-beta.1 and earlier read the same list under the name `parts`, with `part` as the tag; Obsidian still reads those names.
 
 ## Text in several languages
 

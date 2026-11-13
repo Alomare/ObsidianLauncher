@@ -393,8 +393,8 @@ function AboutTab({ mod }: { mod: ModRow }) {
   );
 }
 
-/** One line per part of the mod: the scope diamond, the name, the description, and Off while the
- *  option that switches the part is off. */
+/** One line per secondary scope of the mod (Hybrid Scopes): the scope diamond, the name, the
+ *  description, and Off while the option that switches it is off. */
 function PartList({ mod }: { mod: ModRow }) {
   return (
     <section className="parts" aria-label={t("app.drawer.parts")}>

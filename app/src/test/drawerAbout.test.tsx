@@ -22,7 +22,7 @@ const SOURCE = "https://github.com/someone/a-mod-with-a-rather-long-repository-n
 const mod = (source: string | null) =>
   ({
     id: "someone.long-mod", name: { en: "Long Mod" }, description: { en: "" }, authors: ["Someone"], version: "1.0.0", scope: "client", on: true,
-    options: [], keybinds: [], files: [], import: null, source, updatable: false, image: null, folder: null, requires: [], parts: [], optionGroups: [], optionPreviews: [],
+    options: [], keybinds: [], files: [], import: null, source, updatable: false, image: null, folder: null, requires: [], parts: [], optionGroups: [], optionPreviews: [], size: 0, deployed: false, deployedSize: null,
   }) as ModRow;
 
 function show(m: ModRow) {
