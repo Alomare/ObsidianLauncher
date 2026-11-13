@@ -234,7 +234,8 @@ button.nav-warn:hover { filter: brightness(1.2); text-decoration: underline; tex
   .th > .sz, .tr > .sz { display: none; }
 }
 @container modlist (max-width: 43rem) {
-  .th, .tr { --cols: ; --fixed: 0rem; grid-template-columns: var(--lead) minmax(0, 1fr) 1.8rem clamp(3.7rem, min(30%, 100% - 20.25rem - var(--col-scope)), var(--col-ver)) var(--col-scope); }
+  /* With Size and Deployed gone, Version and Scope take the widths the list had before them, so the Mod column keeps 11rem. */
+  .th, .tr { --col-ver: 5.2rem; --col-scope: 3.2rem; --cols: ; --fixed: 0rem; grid-template-columns: var(--lead) minmax(0, 1fr) 1.8rem clamp(3.7rem, min(30%, 100% - 21.25rem - var(--col-scope)), var(--col-ver)) var(--col-scope); }
   .th > .dep-cell, .tr > .dep-cell { display: none; }
 }
 .th { overflow: hidden; scrollbar-gutter: stable; padding-top: 0.35rem; padding-bottom: 0.35rem; font-size: var(--fs-xs); color: var(--mu); border-bottom: 1px solid var(--ln); }
