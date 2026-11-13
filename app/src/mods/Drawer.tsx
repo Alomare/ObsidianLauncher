@@ -266,8 +266,9 @@ function KeyButton({ value, label, onSet, clash }: { value: string; label: strin
   );
 }
 
-/** One row per action: its key on the mouse and keyboard, and its controller input when the manifest names
-    one (a keybind's `pad`, a choice option), under a head with an icon over each column. */
+/** One row per action in five columns: the name, the key on the mouse and keyboard and its reset, the
+    controller input when the manifest names one (a keybind's `pad`, a choice option) and its reset. Every
+    row shares the columns of the list, so the inputs line up; a head puts an icon over each input. */
 function KeysTab({ mod, names }: { mod: ModRow; names: Map<string, string> }) {
   if (!mod.keybinds.length) return <p className="muted pad">{t("app.drawer.noKeys")}</p>;
   const options = new Map(mod.options.map((o) => [o.id, o]));
@@ -276,7 +277,9 @@ function KeysTab({ mod, names }: { mod: ModRow; names: Map<string, string> }) {
       <div className="keys-head">
         <span />
         <span role="img" aria-label={t("app.drawer.keyboard")} data-tip={t("app.drawer.keyboard")}><KeyboardMouseIcon /></span>
+        <span />
         <span role="img" aria-label={t("app.drawer.controller")} data-tip={t("app.drawer.controller")}><GamepadIcon /></span>
+        <span />
       </div>
       <ul className="opts">
         {mod.keybinds.map((k: KeyRow) => {
@@ -294,11 +297,19 @@ function KeysTab({ mod, names }: { mod: ModRow; names: Map<string, string> }) {
               </div>
               <div className="opt-ctl key-col">
                 <KeyButton value={key} label={label} clash={k.clash.length > 0} onSet={(v) => run("set_key", { id: mod.id, keybind: k.id, key: v })} />
+              </div>
+              <div className="opt-ctl reset-col key-reset">
                 <button className="bare" disabled={k.key === null} onClick={() => run("set_key", { id: mod.id, keybind: k.id, key: null })}
                   aria-label={t("app.drawer.reset")} data-tip={t("app.drawer.resetKey", k.default)}><ResetIcon /></button>
               </div>
               <div className="opt-ctl pad-col">
                 {shown ? <PadControl mod={mod} o={shown} /> : <span className="none" data-tip={t("app.drawer.noController")}>–</span>}
+              </div>
+              <div className="opt-ctl reset-col pad-reset">
+                {shown && (
+                  <button className="bare" disabled={same(shown.value, shown.default)} onClick={() => run("set_option", { id: mod.id, option: shown.id, value: null })}
+                    aria-label={t("app.drawer.reset")} data-tip={t("app.drawer.reset")}><ResetIcon /></button>
+                )}
               </div>
             </li>
           );
@@ -318,13 +329,7 @@ function PadControl({ mod, o }: { mod: ModRow; o: OptionRow }) {
     return { value: c, label: name, view: buttons ? <PadGlyphs buttons={buttons} /> : undefined };
   });
   const current = options.find((c) => c.value === String(o.value))?.label;
-  return (
-    <>
-      <Select value={String(o.value)} options={options} label={label} tip={current} onChange={(value) => run("set_option", { id: mod.id, option: o.id, value })} />
-      <button className="bare" disabled={same(o.value, o.default)} onClick={() => run("set_option", { id: mod.id, option: o.id, value: null })}
-        aria-label={t("app.drawer.reset")} data-tip={t("app.drawer.reset")}><ResetIcon /></button>
-    </>
-  );
+  return <Select value={String(o.value)} options={options} label={label} tip={current} onChange={(value) => run("set_option", { id: mod.id, option: o.id, value })} />;
 }
 
 function FilesTab({ mod, conflicts, names }: { mod: ModRow; conflicts: ConflictRow[]; names: Map<string, string> }) {

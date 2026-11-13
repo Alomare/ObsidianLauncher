@@ -54,6 +54,17 @@ describe("the Keys tab", () => {
     expect(head.querySelectorAll("svg")).toHaveLength(2);
   });
 
+  it("puts each row in five cells: name, key, key reset, controller input, controller reset", () => {
+    const box = show(api(), "keys");
+    const [open, shot] = [...box.querySelectorAll(".keys .opt")];
+    expect([...open.children].map((c) => c.className)).toEqual(["opt-text", "opt-ctl key-col", "opt-ctl reset-col key-reset", "opt-ctl pad-col", "opt-ctl reset-col pad-reset"]);
+    expect(box.querySelector(".keys-head")!.children).toHaveLength(5);
+    expect(open.querySelector(".key-col .bare"), "the key cell holds the key alone").toBeNull();
+    expect(open.querySelector(".pad-col .bare"), "the controller cell holds the input alone").toBeNull();
+    expect(shot.querySelector<HTMLButtonElement>(".key-reset button.bare")!.disabled, "a changed key can go back").toBe(false);
+    expect(shot.querySelector(".pad-reset button"), "no controller input, no reset").toBeNull();
+  });
+
   it("shows the key and the controller input of one action in one row", () => {
     const rows = [...show(api(), "keys").querySelectorAll(".keys .opt")];
     expect(rows).toHaveLength(2);
@@ -87,7 +98,7 @@ describe("the Keys tab", () => {
     const choices = [...document.querySelectorAll<HTMLLIElement>(".select-list li")];
     act(() => choices.find((c) => c.textContent!.endsWith("Both sticks pressed in (L3 + R3)"))!.click());
     expect(run).toHaveBeenCalledWith("set_option", { id: "obsidian.api", option: "pad_open", value: "thumbs" });
-    const reset = open.querySelector<HTMLButtonElement>(".pad-col button.bare")!;
+    const reset = open.querySelector<HTMLButtonElement>(".pad-reset button.bare")!;
     expect(reset.disabled).toBe(false);
     act(() => reset.click());
     expect(run).toHaveBeenCalledWith("set_option", { id: "obsidian.api", option: "pad_open", value: null });

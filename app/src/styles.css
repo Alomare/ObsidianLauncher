@@ -466,29 +466,32 @@ button.link:hover { filter: brightness(1.2); }
 .opt-ctl .bare:disabled, .opt-cell .bare:disabled { opacity: 0.3; cursor: default; }
 /* Three columns without a head, the same width in every row: text, control, reset. Each control starts at
    the left of the cell; those with no natural width (dropdown, key, color, number) fill it. */
-.opt-table .opt { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) 1.6rem; column-gap: 0.5rem; }
+.opt-table .opt { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) 1.4rem; column-gap: 0.4rem; padding-right: 0.3rem; }
 .opt-cell { display: flex; align-items: center; justify-content: flex-start; min-width: 0; }
 .opt-cell > .select, .opt-cell > .key-btn, .opt-cell > .color-ctl, .opt-cell > .num-ctl { flex: 1; min-width: 0; }
 .opt-cell .num-ctl input[type="range"] { flex: 1; width: auto; min-width: 0; }
-.opt-cell .num-ctl input[type="number"] { flex: none; width: 3.4rem; }
+.opt-cell .num-ctl input[type="number"] { flex: none; width: 4.4rem; }
 .opt-cell .num-ctl input[type="number"]:only-child { flex: 1; width: auto; min-width: 0; }
 /* Keys: the action, then a mouse and keyboard column and a controller column, the head's icons over them. */
 /* The action takes the room left, and the two inputs sit close together at the right, a fixed width each so
    the head's icons stay over them. The key is a small button; the controller choice takes the rest of the column. */
-.keys { --key-col: 5.4rem; --pad-col: 8rem; }
-.keys-head, .keys .opt { display: grid; grid-template-columns: minmax(0, 1fr) var(--key-col) var(--pad-col); column-gap: 0; align-items: center; }
-.keys .opt { padding-right: 0.45rem; }
-.keys .opt-ctl { gap: 0.1rem; }
+/* Five columns shared by the head and every row (subgrid): the name fills, the inputs and resets take what
+   they need. */
+.keys { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto auto; }
+.keys > .keys-head, .keys > .opts, .keys > .opts > .opt { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: center; column-gap: 0; }
+.keys > .opts > .opt { padding-right: 0.35rem; }
+.keys .opt-ctl { gap: 0; min-width: 0; }
 .keys .opt-ctl .bare { padding: 0.15rem; }
+.keys .key-col { justify-content: center; padding: 0 0.15rem; }
 .keys .key-col .key-btn { flex: 0 1 auto; min-width: 2.4rem; padding: 0 0.4rem; }
-.key-text { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.keys .reset-col { justify-content: center; padding-right: 0.5rem; }
+.keys .pad-reset { padding-right: 0; }
 .keys .opt-text { padding-right: 0.5rem; }
-.keys-head { padding: 0.75rem 0.45rem 0.45rem 0.8rem; color: var(--mu); border-bottom: 1px solid var(--ln); }
+.keys-head { padding: 0.75rem 0.35rem 0.45rem 0.8rem; color: var(--mu); border-bottom: 1px solid var(--ln); }
 .keys-head > span { display: flex; justify-content: center; }
 .keys-head svg { width: 1.25rem; height: 1.25rem; }
-.keys .opt-ctl { min-width: 0; }
-.keys .pad-col { justify-content: center; }
-.keys .pad-col .select { flex: 1; min-width: 0; }
+.keys .pad-col { justify-content: center; padding: 0 0.15rem; }
+.keys .pad-col .select { flex: 0 1 auto; min-width: 0; }
 .keys .pad-col .select-btn { width: 100%; }
 .keys .pad-col .select-value { flex: 1; min-width: 0; overflow: hidden; }
 .keys .pad-col .select-value > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -553,7 +556,9 @@ input[type="range"]:disabled::-webkit-slider-runnable-track { background: linear
 .opt-group-head svg { width: 0.9rem; height: 0.9rem; flex: none; color: var(--mu); transform: rotate(-90deg); transition: transform var(--fast); }
 .opt-group.open > .opt-group-head svg { transform: none; }
 .opt-group-body > .opt-table > .opt:last-child { border-bottom: 0; }
-.opt-preview { margin: 0; padding: 0.6rem 0.8rem; display: flex; flex-direction: column; align-items: center; gap: 0.35rem; border-bottom: 1px solid var(--ln); }
+/* The preview stays at the top of the view while its group scrolls under it, inside that group only: it
+   never passes the end of the group, and goes up with the group once the group leaves the view. */
+.opt-preview { margin: 0; padding: 0.6rem 0.8rem; display: flex; flex-direction: column; align-items: center; gap: 0.35rem; border-bottom: 1px solid var(--ln); position: sticky; top: 0; z-index: 2; background: var(--well); }
 .opt-preview figcaption { align-self: flex-start; font-size: var(--fs-sm); color: var(--mu); }
 .opt-preview img { display: block; max-width: 100%; height: auto; border: 1px solid var(--ln); background: var(--row); }
 /* The Changelogs in a mod's About: one fold for the list, one per version inside it. */
