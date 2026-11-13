@@ -558,7 +558,10 @@ input[type="range"]:disabled::-webkit-slider-runnable-track { background: linear
 .opt-group-body > .opt-table > .opt:last-child { border-bottom: 0; }
 /* The preview stays at the top of the view while its group scrolls under it, inside that group only: it
    never passes the end of the group, and goes up with the group once the group leaves the view. */
-.opt-preview { margin: 0; padding: 0.6rem 0.8rem; display: flex; flex-direction: column; align-items: center; gap: 0.35rem; border-bottom: 1px solid var(--ln); position: sticky; top: 0; z-index: 2; background: var(--well); }
+.opt-preview { margin: 0; padding: 0.6rem 0.8rem; display: flex; flex-direction: column; align-items: center; gap: 0.35rem; border-bottom: 1px solid var(--ln); position: sticky; top: 0; z-index: 2;
+  /* Opaque, so the rows that scroll under it do not show through: the two translucent wells (the drawer body
+     and this box) laid over the solid panel color. */
+  background: linear-gradient(var(--well), var(--well)), linear-gradient(var(--well), var(--well)), var(--s1); }
 .opt-preview figcaption { align-self: flex-start; font-size: var(--fs-sm); color: var(--mu); }
 .opt-preview img { display: block; max-width: 100%; height: auto; border: 1px solid var(--ln); background: var(--row); }
 /* The Changelogs in a mod's About: one fold for the list, one per version inside it. */
@@ -820,7 +823,7 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .home-brand { --home-sub: clamp(0.85rem, 0.51rem + 1.02vmin, 1.36rem); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.95rem; text-align: center; }
 .home-brand img { width: calc(var(--home-sub) * 7.5); height: calc(var(--home-sub) * 7.5); filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.5)); }
 .home-brand h1 { margin: 0; padding-left: 0.06em; font-family: "Saira Variable", sans-serif; font-weight: 770; font-size: calc(var(--home-sub) * var(--title-fit, 3.7)); line-height: 0.95; letter-spacing: 0.06em; text-shadow: 0 4px 24px rgba(0, 0, 0, 0.5); }
-.home-brand p { margin: 0.35rem 0 0; padding-left: 0.32em; font-family: "Saira Variable", sans-serif; font-weight: 500; font-size: var(--home-sub); letter-spacing: 0.32em; color: #c9c8c3; }
+.home-brand p { margin: 0; line-height: 1.15; padding-left: 0.32em; font-family: "Saira Variable", sans-serif; font-weight: 500; font-size: var(--home-sub); letter-spacing: 0.32em; color: #c9c8c3; }
 .home .btn { height: 2rem; padding: 0 0.95rem; gap: 0.45rem; font-size: var(--fs-xs); }
 .home .btn:not(.play) { background: rgba(255, 255, 255, 0.12); color: #f2f1ed; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); }
 .home .btn:not(.play):hover { background: rgba(255, 255, 255, 0.22); }
@@ -959,8 +962,8 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 
 
 /* Home links: one centered row that wraps on a narrow window */
-/* The links stacked in one box; each fills it, so all have the same width. */
-.home-links { display: flex; flex-direction: column; align-items: stretch; gap: 0.45rem; width: 15rem; padding: 0.6rem; background: rgba(10, 11, 14, 0.5); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1); }
+/* The links stacked in one column with no box around them; each fills it, so all have the same width. */
+.home-links { display: flex; flex-direction: column; align-items: stretch; gap: 0.45rem; width: 15rem; }
 .home-links .btn { width: 100%; justify-content: center; }
 .home .btn.play { min-width: 0; }
 
