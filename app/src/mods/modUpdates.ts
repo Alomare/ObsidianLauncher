@@ -9,6 +9,7 @@ import { t } from "../i18n";
 import { notify } from "../notices";
 import type { CmdError, ImportBatch } from "../types";
 import { importMessage } from "./dropImport";
+import { compareVersions } from "../updates";
 
 type Checked = { id: string; version: string | null; error: CmdError | null };
 /** `checking` holds the mods of the check under way; one runs at a time. */
@@ -70,6 +71,23 @@ export async function updateMod(id: string, name: string) {
     setSnapshot(b.snapshot);
     const found = { ...state.found };
     delete found[id];
+    set({ found });
+    for (const r of b.results) notify("info", importMessage(r));
+  } catch (e) {
+    notify("error", t("app.import.failed", name, errorText(e)));
+  }
+}
+
+/** Installs the release `tag` of a mod in place of the one it has, from the Versions tab. `latest` is
+ *  the newest stable version known: when the mod is now older, the update notice offers it, so the
+ *  way back is one click. */
+export async function installModVersion(id: string, tag: string, name: string, version: string, latest: string | null) {
+  try {
+    const b = await withTask(t("app.task.install_mod_version", name, version), () => call<ImportBatch>("install_mod_version", { id, tag }), true);
+    setSnapshot(b.snapshot);
+    const found = { ...state.found };
+    if (latest && compareVersions(latest, version) > 0) found[id] = latest;
+    else delete found[id];
     set({ found });
     for (const r of b.results) notify("info", importMessage(r));
   } catch (e) {

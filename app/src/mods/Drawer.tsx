@@ -5,12 +5,13 @@ import { useEffect, useMemo, useState } from "react";
 import { run } from "../api";
 import { openColorPicker } from "../ColorPicker";
 import { Confirm } from "../Confirm";
-import { ArrowIcon, ChevronIcon, CloseIcon, ExternalIcon, FileIcon, GamepadIcon, InfoIcon, KeyboardIcon, KeyboardMouseIcon, LinkIcon, ResetIcon, SlidersIcon, TrashIcon } from "../Icons";
+import { ArrowIcon, ChevronIcon, CloseIcon, ExternalIcon, FileIcon, GamepadIcon, HistoryIcon, InfoIcon, KeyboardIcon, KeyboardMouseIcon, LinkIcon, ResetIcon, SlidersIcon, TrashIcon } from "../Icons";
 import { language, pick, t } from "../i18n";
 import { Markdown, parse } from "../Markdown";
 import { Select } from "../Select";
-import { changelog, type ChangelogEntry } from "../updates";
+import { compareVersions, type Release } from "../updates";
 import { loadMore, useModReleases } from "./modReleases";
+import { installModVersion } from "./modUpdates";
 import { Thumb } from "../Thumb";
 import type { ConflictRow, KeyRow, ModRow, OptionGroup, OptionPreview, OptionRow } from "../types";
 import { previewSrc } from "./preview";
@@ -43,16 +44,16 @@ export function Drawer({ view, mods, conflicts, order, names, onOpen, onClose, c
   return null;
 }
 
-type Tab = "about" | "options" | "keys" | "files" | "deps";
+type Tab = "about" | "versions" | "options" | "keys" | "files" | "deps";
 
-const TAB_ICONS: Record<Tab, () => React.JSX.Element> = { about: InfoIcon, options: SlidersIcon, keys: KeyboardIcon, files: FileIcon, deps: LinkIcon };
+const TAB_ICONS: Record<Tab, () => React.JSX.Element> = { about: InfoIcon, versions: HistoryIcon, options: SlidersIcon, keys: KeyboardIcon, files: FileIcon, deps: LinkIcon };
 
 function ModDrawer({ mod, mods, conflicts, names, onOpen, onClose }: { mod: ModRow; mods: ModRow[]; conflicts: ConflictRow[]; names: Map<string, string>; onOpen: (id: string) => void; onClose: () => void }) {
   const [tab, setTab] = useState<Tab>("about");
   const [ask, setAsk] = useState(false);
   const name = pick(mod.name, mod.id);
   const { needs, neededBy } = dependencies(mod, mods);
-  const tabs: [Tab, number | null][] = [["about", null], ["options", ownOptions(mod).length], ["keys", mod.keybinds.length], ["files", mod.files.length], ["deps", needs.length + neededBy.length]];
+  const tabs: [Tab, number | null][] = [["about", null], ...(mod.updatable ? [["versions", null] as [Tab, null]] : []), ["options", ownOptions(mod).length], ["keys", mod.keybinds.length], ["files", mod.files.length], ["deps", needs.length + neededBy.length]];
   return (
     <aside className={`drawer ${mod.scope}`} aria-label={name}>
       <div className="dh">
@@ -81,6 +82,7 @@ function ModDrawer({ mod, mods, conflicts, names, onOpen, onClose }: { mod: ModR
       </div>
       <div className="dbody">
         {tab === "about" && <AboutTab mod={mod} />}
+        {tab === "versions" && mod.updatable && <VersionsTab mod={mod} />}
         {tab === "options" && <OptionsTab mod={mod} />}
         {tab === "keys" && <KeysTab mod={mod} names={names} />}
         {tab === "files" && <FilesTab mod={mod} conflicts={conflicts} names={names} />}
@@ -382,7 +384,6 @@ function AboutTab({ mod }: { mod: ModRow }) {
         {mod.source && <><dt>{t("app.drawer.source")}</dt><dd className="src"><button className="link src-link" aria-label={mod.source} data-tip-title={t("app.drawer.source")} data-tip={mod.source} onClick={() => openUrl(mod.source!).catch(() => {})}><ExternalIcon /></button></dd></>}
         {mod.import && <><dt>{t("app.drawer.imported")}</dt><dd>{date}</dd><dt>{t("app.drawer.file")}</dt><dd className="mono">{mod.import.file}</dd></>}
       </dl>
-      {mod.updatable && <ModChangelog mod={mod} />}
     </div>
   );
 }
@@ -413,73 +414,104 @@ function PartList({ mod }: { mod: ModRow }) {
 
 /** How many versions show at first, and how many more each Load more adds. */
 const LOG_STEP = 8;
-const LOG_OPEN_KEY = "obsidian.modChangelogOpen";
-const logOpenSaved = () => { try { return localStorage.getItem(LOG_OPEN_KEY) !== "0"; } catch { return true; } };
 
-/** The releases of the mod's GitHub repository, newest first, each folded. The list starts open;
- *  closed, it stays closed for the next mod too and asks GitHub nothing. */
-function ModChangelog({ mod }: { mod: ModRow }) {
-  const [open, setOpen] = useState(logOpenSaved);
+/** The channel of a version, as the core names it: `stable`, or the first word of the pre-release part. */
+export function channelOf(version: string | null): string {
+  const pre = version?.split("+")[0].split("-").slice(1).join("-");
+  if (!pre) return "stable";
+  const word = pre.split(".")[0].match(/^[A-Za-z]+/)?.[0].toLowerCase();
+  return word || "pre";
+}
+
+/** The channels of a release list: Stable first, then the others by name. */
+export function channelsOf(list: Release[]): string[] {
+  const set = new Set(list.map((r) => r.channel ?? "stable"));
+  return [...set].sort((x, y) => (x === "stable" ? -1 : y === "stable" ? 1 : x.localeCompare(y)));
+}
+
+function channelName(c: string): string {
+  if (c === "stable") return t("app.drawer.channelStable");
+  return c.length <= 3 ? c.toUpperCase() : c[0].toUpperCase() + c.slice(1);
+}
+
+/** The Versions tab: the releases of the mod's GitHub repository, one tab per channel (Stable, Beta and
+ *  so on, from the tags), newest first and each folded. An unfolded release can be installed in place
+ *  of the version the mod has. */
+function VersionsTab({ mod }: { mod: ModRow }) {
+  const r = useModReleases(mod.id, true);
+  const [picked, setPicked] = useState<string | null>(null);
   const [shown, setShown] = useState(LOG_STEP);
   const [unfolded, setUnfolded] = useState<Record<string, boolean>>({});
-  const r = useModReleases(mod.id, open);
-  const entries = useMemo(() => changelog(r.list, mod.version ?? "", []), [r.list, mod.version]);
-  const toggle = () => {
-    setOpen((v) => {
-      try { localStorage.setItem(LOG_OPEN_KEY, v ? "0" : "1"); } catch { /* kept for this session only */ }
-      return !v;
-    });
-  };
+  const [busy, setBusy] = useState(false);
+  const channels = useMemo(() => channelsOf(r.list), [r.list]);
+  const mine = channelOf(mod.version);
+  const channel = picked ?? (channels.includes(mine) ? mine : channels[0] ?? "stable");
+  const latest = useMemo(() => r.list.filter((x) => (x.channel ?? "stable") === "stable").map((x) => x.version).sort(compareVersions).pop() ?? null, [r.list]);
+  const entries = useMemo(() => r.list.filter((x) => (x.channel ?? "stable") === channel).sort((x, y) => compareVersions(y.version, x.version)), [r.list, channel]);
+  const when = (v: string) => (!mod.version ? "older" : compareVersions(v, mod.version) > 0 ? "new" : compareVersions(v, mod.version) === 0 ? "installed" : "older");
   const more = () => {
     const next = shown + LOG_STEP;
     setShown(next);
-    if (next > r.list.length && r.more) loadMore(mod.id);
+    if (next > entries.length && r.more) loadMore(mod.id);
   };
-  const badge = (e: ChangelogEntry) =>
-    !mod.version ? null : e.when === "new" ? <span className="upd-badge new">{t("app.update.badgeNew")}</span> : e.when === "installed" ? <span className="upd-badge">{t("app.update.badgeInstalled")}</span> : null;
+  const install = async (e: Release) => {
+    if (!e.tag || busy) return;
+    setBusy(true);
+    await installModVersion(mod.id, e.tag, pick(mod.name, mod.id), e.version, latest);
+    setBusy(false);
+  };
+  const badge = (w: string) =>
+    !mod.version ? null : w === "new" ? <span className="upd-badge new">{t("app.update.badgeNew")}</span> : w === "installed" ? <span className="upd-badge">{t("app.update.badgeInstalled")}</span> : null;
   const first = r.pages === 0 && (r.loading || !r.error);
   return (
-    <section className={open ? "mod-log open" : "mod-log"}>
-      <button className="mod-log-head" aria-expanded={open} onClick={toggle}>
-        <ChevronIcon />
-        <span className="cap">{t("app.drawer.changelogs")}</span>
-      </button>
-      {open && (
-        <div className="mod-log-body">
-          {first && <p className="muted mod-log-note"><span className="upd-spin" aria-hidden="true" />{t("app.drawer.changelogsLoading")}</p>}
-          {r.error && (
-            <p className="muted mod-log-note">
-              {t("app.drawer.changelogsFailed", r.error)} <button className="link small" onClick={() => loadMore(mod.id)} disabled={r.loading}>{t("app.drawer.tryAgain")}</button>
-            </p>
-          )}
-          {!first && !r.error && entries.length === 0 && <p className="muted mod-log-note">{t("app.update.noReleases")}</p>}
-          <ol className="mod-log-list">
-            {entries.slice(0, shown).map((e) => {
-              const unfold = !!unfolded[e.version];
-              return (
-                <li key={e.version} className={`mod-log-entry ${e.when}${unfold ? " open" : ""}`}>
-                  <button className="upd-head" aria-expanded={unfold} onClick={() => setUnfolded((u) => ({ ...u, [e.version]: !unfold }))}>
-                    <ChevronIcon />
-                    <b>{e.version}</b>
-                    {badge(e)}
-                    <span className="date">{e.date ? new Date(e.date).toLocaleDateString(language(), { dateStyle: "medium" }) : ""}</span>
-                  </button>
-                  {unfold && (
-                    <div className="upd-body">
-                      {e.notes ? <Markdown tokens={parse(e.notes).tokens} /> : <p className="muted">{t("app.update.noNotes")}</p>}
-                      {e.url && <button className="link small" onClick={() => openUrl(e.url!).catch(() => {})}>{t("app.update.onGithub")}</button>}
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ol>
-          {(entries.length > shown || (r.more && r.pages > 0 && !r.error)) && (
-            <button className="btn small mod-log-more" onClick={more} disabled={r.loading}>{r.loading ? t("app.drawer.changelogsLoading") : t("app.drawer.loadMore")}</button>
-          )}
+    <div className="versions pad">
+      {channels.length > 1 && (
+        <div className="seg versions-channels" role="tablist" aria-label={t("app.drawer.channels")}>
+          {channels.map((c) => (
+            <button key={c} role="tab" aria-selected={c === channel} className={c === channel ? "on" : undefined} onClick={() => { setPicked(c); setShown(LOG_STEP); }}>
+              {channelName(c)}
+            </button>
+          ))}
         </div>
       )}
-    </section>
+      {first && <p className="muted mod-log-note"><span className="upd-spin" aria-hidden="true" />{t("app.drawer.changelogsLoading")}</p>}
+      {r.error && (
+        <p className="muted mod-log-note">
+          {t("app.drawer.changelogsFailed", r.error)} <button className="link small" onClick={() => loadMore(mod.id)} disabled={r.loading}>{t("app.drawer.tryAgain")}</button>
+        </p>
+      )}
+      {!first && !r.error && entries.length === 0 && <p className="muted mod-log-note">{t("app.update.noReleases")}</p>}
+      <ol className="mod-log-list">
+        {entries.slice(0, shown).map((e) => {
+          const unfold = !!unfolded[e.version];
+          const w = when(e.version);
+          return (
+            <li key={e.version} className={`mod-log-entry ${w}${unfold ? " open" : ""}`}>
+              <button className="upd-head" aria-expanded={unfold} onClick={() => setUnfolded((u) => ({ ...u, [e.version]: !unfold }))}>
+                <ChevronIcon />
+                <b>{e.version}</b>
+                {badge(w)}
+                <span className="date">{e.date ? new Date(e.date).toLocaleDateString(language(), { dateStyle: "medium" }) : ""}</span>
+              </button>
+              {unfold && (
+                <div className="upd-body">
+                  {w !== "installed" && e.tag && (
+                    <button className="btn small versions-switch" onClick={() => install(e)} disabled={busy}>
+                      {t(w === "new" ? "app.drawer.switchUp" : "app.drawer.switchDown", e.version)}
+                    </button>
+                  )}
+                  {e.notes.trim() ? <Markdown tokens={parse(e.notes).tokens} /> : <p className="muted">{t("app.update.noNotes")}</p>}
+                  {e.url && <button className="link small" onClick={() => openUrl(e.url).catch(() => {})}>{t("app.update.onGithub")}</button>}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+      {(entries.length > shown || (r.more && r.pages > 0 && !r.error)) && (
+        <button className="btn small mod-log-more" onClick={more} disabled={r.loading}>{r.loading ? t("app.drawer.changelogsLoading") : t("app.drawer.loadMore")}</button>
+      )}
+    </div>
   );
 }
 

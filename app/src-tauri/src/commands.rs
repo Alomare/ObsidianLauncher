@@ -534,8 +534,32 @@ pub async fn mod_releases(ctx: State<'_, Ctx>, id: String, page: u32) -> CmdResu
         load_manifest(&Library::open(&ctx.data)?.mod_dir(&id))?
     };
     let Some(repo) = updates::source_of(&m) else { return Ok(ReleasePage { releases: Vec::new(), more: false }) };
-    let (releases, more) = GitHub::default().releases_page(&repo, page, 30)?;
+    let (releases, more) = GitHub::default().releases_page_with(&repo, page, 30, true)?;
     Ok(ReleasePage { releases, more })
+}
+
+/// Installs the release `tag` of a mod in place of the version it has, older or newer, from the
+/// Versions tab. As with `update_mod`, the download runs outside the turn.
+#[tauri::command]
+pub async fn install_mod_version(ctx: State<'_, Ctx>, id: String, tag: String) -> CmdResult<ImportBatch> {
+    let current = {
+        let _turn = ctx.turn();
+        load_manifest(&Library::open(&ctx.data)?.mod_dir(&id))?
+    };
+    let staged = updates::stage_tag(&GitHub::default(), &current, &tag)?;
+    let _turn = ctx.turn();
+    staged.install(&Library::open(&ctx.data)?)?;
+    with_profile(&ctx.data, |_| Ok(()))?;
+    let result = ImportResult {
+        file: id,
+        ok: true,
+        kind: "updated",
+        name: staged.manifest.name.clone(),
+        version: Some(staged.manifest.version.to_string()),
+        old_version: Some(current.version.to_string()),
+        error: None,
+    };
+    Ok(ImportBatch { snapshot: fresh(&ctx)?, results: vec![result] })
 }
 
 /// Asks GitHub about the mods in `ids` that name a repository. Only reading the library takes a

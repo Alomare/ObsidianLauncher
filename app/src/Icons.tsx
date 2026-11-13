@@ -81,6 +81,8 @@ export const ChevronIcon = () => <Icon><path d="M6 9l6 6 6-6" /></Icon>;
 export const GripIcon = () => <Icon><path d="M5 8h14M5 12h14M5 16h14" /></Icon>;
 export const CloseIcon = () => <Icon><path d="M6 6l12 12M18 6L6 18" /></Icon>;
 export const UpdateIcon = () => <Icon><path d="M20 11a8 8 0 0 0-14.3-4.3L3.5 9M3.5 4v5h5M4 13a8 8 0 0 0 14.3 4.3L20.5 15M20.5 20v-5h-5" /></Icon>;
+/** A clock face with an arrow round it: the Versions tab of a mod. */
+export const HistoryIcon = () => <Icon><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6L3.5 8.5M3.5 4v4.5H8M12 7.5V12l3 2" /></Icon>;
 export const ResetIcon = () => <Icon><path d="M4 4v6h6M4.5 15a8 8 0 1 0 1.5-8.5L4 10" /></Icon>;
 export const InfoIcon = () => <Icon><circle cx="12" cy="12" r="8.5" /><path d="M12 11v5.5M12 7.6v.1" strokeWidth={2.4} /></Icon>;
 /** Three sliders. */

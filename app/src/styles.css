@@ -573,6 +573,11 @@ input[type="range"]:disabled::-webkit-slider-runnable-track { background: linear
 .mod-log-note { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 0; padding: 0.2rem; font-size: var(--fs-md); }
 .mod-log-note .upd-spin { width: 0.8rem; height: 0.8rem; }
 .mod-log-more { align-self: flex-start; margin-top: 0.2rem; }
+.versions { display: flex; flex-direction: column; gap: 0.5rem; }
+.versions-channels { align-self: flex-start; }
+.versions-channels button { padding: 0.35rem 0.8rem; font-size: var(--fs-sm); }
+.versions .mod-log-more { align-self: flex-start; }
+.versions-switch { display: block; margin: 0.2rem 0 0.5rem; }
 .bare.cf-ico { color: var(--mu); justify-self: center; }
 .bare.cf-ico:hover { filter: brightness(1.25); }
 .cf-ico svg { width: 1.15rem; height: 1.15rem; }

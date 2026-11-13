@@ -76,11 +76,28 @@ export const updateState = () => state;
 
 export type ChangelogEntry = { version: string; date: string | null; notes: string; url: string | null; when: "new" | "installed" | "older" };
 
-/** Orders plain versions: 1.0.2 before 1.0.10. Below zero when a comes first. */
+/** Orders versions as semver does: 1.0.2 before 1.0.10, and 1.1.0-beta.2 before 1.1.0-beta.10 and
+ *  before 1.1.0. Build metadata after `+` doesn't count. Below zero when a comes first. */
 export function compareVersions(a: string, b: string) {
-  const parts = (v: string) => v.split(".").map((n) => parseInt(n, 10) || 0);
-  const x = parts(a), y = parts(b);
-  for (let i = 0; i < 3; i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) - (y[i] ?? 0);
+  const split = (v: string) => {
+    const plain = v.split("+")[0];
+    const dash = plain.indexOf("-");
+    const core = (dash < 0 ? plain : plain.slice(0, dash)).split(".").map((n) => parseInt(n, 10) || 0);
+    return { core, pre: dash < 0 ? [] : plain.slice(dash + 1).split(".") };
+  };
+  const x = split(a), y = split(b);
+  for (let i = 0; i < 3; i++) if ((x.core[i] ?? 0) !== (y.core[i] ?? 0)) return (x.core[i] ?? 0) - (y.core[i] ?? 0);
+  if (!x.pre.length || !y.pre.length) return (x.pre.length ? -1 : 0) + (y.pre.length ? 1 : 0);
+  for (let i = 0; i < Math.max(x.pre.length, y.pre.length); i++) {
+    const p = x.pre[i], q = y.pre[i];
+    if (p === undefined) return -1;
+    if (q === undefined) return 1;
+    if (p === q) continue;
+    const pn = /^\d+$/.test(p), qn = /^\d+$/.test(q);
+    if (pn && qn) return parseInt(p, 10) - parseInt(q, 10);
+    if (pn !== qn) return pn ? -1 : 1;
+    return p < q ? -1 : 1;
+  }
   return 0;
 }
 
@@ -103,7 +120,8 @@ export function changelog(remote: Release[], current: string, local: { version: 
   return [...all.values()].sort((a, b) => compareVersions(b.version, a.version));
 }
 
-export type Release = { version: string; date: string | null; notes: string; url: string };
+/** `tag` and `channel` come with a mod's releases (the Versions tab); the app's own list has neither. */
+export type Release = { version: string; date: string | null; notes: string; url: string; tag?: string; channel?: string };
 type ReleaseList = { list: Release[]; failed: boolean; loaded: boolean };
 
 let releases: ReleaseList = { list: [], failed: false, loaded: false };

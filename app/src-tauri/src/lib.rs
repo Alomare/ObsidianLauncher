@@ -83,6 +83,7 @@ pub fn run() {
             commands::restart_app,
             commands::release_list,
             commands::mod_releases,
+            commands::install_mod_version,
             commands::remove_other_patches,
             commands::update_mod,
             commands::deploy,
