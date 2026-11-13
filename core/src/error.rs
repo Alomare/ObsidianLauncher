@@ -106,6 +106,10 @@ pub enum ObsidianError {
     UpdateNetwork(String),
     #[error("GitHub's limit on update checks was reached, so try again in about an hour")]
     UpdateLimited,
+    #[error("the Store list is in a newer format: update Obsidian to see the Store")]
+    StoreFormat,
+    #[error("{0} is not in the Store")]
+    StoreUnknown(String),
     #[error("this save can't be read: {0}")]
     BadSave(String),
     #[error("there is no save with the id {0}")]

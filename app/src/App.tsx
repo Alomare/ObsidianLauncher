@@ -19,6 +19,7 @@ import { SettingsPage, type SettingsTab } from "./SettingsPage";
 import { Notices } from "./NoticeList";
 import { asksBeforePlay, PlayPrompt } from "./PlayPrompt";
 import { SavesPage } from "./saves/SavesPage";
+import { StorePage } from "./store/StorePage";
 import { loadSettings, updateSettings, useAppSettings } from "./settings";
 import { StatusBar } from "./StatusBar";
 import { Tooltip } from "./Tooltip";
@@ -47,6 +48,10 @@ export default function App() {
   // Each click on the Commander tab while it is open takes Commander back to the war list.
   const [commanderHome, setCommanderHome] = useState(0);
   useEffect(() => { if (tab === "commander") setCommanderOpened(true); }, [tab]);
+  // The Store keeps its filters and place once opened; a click on the Store tab while it is open goes back to the list.
+  const [storeOpened, setStoreOpened] = useState(false);
+  const [storeHome, setStoreHome] = useState(0);
+  useEffect(() => { if (tab === "store") setStoreOpened(true); }, [tab]);
   const [wave, setWave] = useState<Wave | null>(null);
   const update = useUpdates();
   const startWave = (tone: Wave["tone"]) => {
@@ -95,10 +100,11 @@ export default function App() {
   if (!settings) return null;
   return (
     <div className="app">
-      <NavBar tab={tab} onTab={(to) => { if (to === "settings" && update.phase === "found") setSettingsTab("updates"); if (to === "commander" && tab === "commander") setCommanderHome((n) => n + 1); setTab(to); }} snap={snap} busy={busy} updateFound={update.phase === "found"} wave={wave} onWaveEnd={() => setWave(null)}
+      <NavBar tab={tab} onTab={(to) => { if (to === "settings" && update.phase === "found") setSettingsTab("updates"); if (to === "commander" && tab === "commander") setCommanderHome((n) => n + 1); if (to === "store" && tab === "store") setStoreHome((n) => n + 1); setTab(to); }} snap={snap} busy={busy} updateFound={update.phase === "found"} wave={wave} onWaveEnd={() => setWave(null)}
         onPlay={() => (snap && asksBeforePlay(snap, settings) ? setAskPlay(true) : startPlay())} />
-      <main className={tab === "home" || tab === "wiki" || tab === "commander" ? "page bleed" : "page"}>
+      <main className={tab === "home" || tab === "store" || tab === "wiki" || tab === "commander" ? "page bleed" : "page"}>
         {tab === "home" && <div className="view" key="home"><HomePage /></div>}
+        {snap && (tab === "store" || storeOpened) && <div className="view" hidden={tab !== "store"}><StorePage snap={snap} home={storeHome} /></div>}
         {/* Mods stays mounted while hidden: a long list then costs nothing to come back to. */}
         {snap && <div className="view" hidden={tab !== "mods"}><ModsPage snap={snap} busy={busy} onPurge={() => { startWave(snap.deployed ? "red" : "grey"); purge(); }} onDeploy={() => { startWave(snap.changes === "Waiting" ? "green" : "grey"); deploy(); }} /></div>}
         {snap && (tab === "saves" || savesOpened) && <div className="view" hidden={tab !== "saves"}><SavesPage snap={snap} visible={tab === "saves"} /></div>}

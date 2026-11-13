@@ -1,6 +1,6 @@
 // Home: the game's art under an even darkening, and one group in the middle of the window: the logo and
-// name, then the links stacked in one box, all the same width. Each link opens in the browser; the
-// tooltip shows where.
+// name, then the links stacked in one box, all the same width: the Store tab first, in silver, then the
+// links that open in the browser, with the address in the tooltip.
 //
 // The art goes round by itself: each picture fills the page, drifts in very slowly (a 2% zoom over
 // the time on screen) and gives way to the next with a cross-fade. The small controls at the bottom
@@ -9,9 +9,10 @@
 import { openUrl } from "./opener";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import logo from "./assets/logo-shaded.png";
-import { ChevronIcon, DiscordIcon, GitHubIcon, KofiIcon, OutboundIcon, SearchIcon } from "./Icons";
+import { ChevronIcon, DiscordIcon, GitHubIcon, KofiIcon, OutboundIcon, SearchIcon, StoreIcon } from "./Icons";
 import { t } from "./i18n";
 import { LINKS } from "./links";
+import { go } from "./nav";
 import { useAppSettings } from "./settings";
 import { motionOn, systemReducesMotion } from "./theme";
 
@@ -148,6 +149,10 @@ export function HomePage() {
             </div>
           </div>
           <div className="home-links">
+            <button className="btn silver" onClick={() => go("store")} data-tip={t("app.home.storeHint")}>
+              <StoreIcon />
+              {t("app.home.store")}
+            </button>
             <Link url={LINKS.nexus} cls="play" icon={<SearchIcon />} label={t("app.home.nexus")} />
             <Link url={LINKS.discord} cls="discord" icon={<DiscordIcon />} label={t("app.home.discord")} />
             <Link url={LINKS.kofi} cls="" icon={<KofiIcon />} label={t("app.home.sponsor")} />

@@ -7,7 +7,7 @@ import { CommanderIcon, MenuIcon } from "./commander/icons";
 import { PlayChoice } from "./commander/PlayChoice";
 import { BuildDialog } from "./BuildDialog";
 import { GuardrailsDialog, guardrailsSummary, guardsOn } from "./GuardrailsDialog";
-import { BookIcon, CogIcon, HomeIcon, ModsIcon, PlayIcon, SaveIcon, ShieldIcon, WarnIcon } from "./Icons";
+import { BookIcon, CogIcon, HomeIcon, ModsIcon, PlayIcon, SaveIcon, ShieldIcon, StoreIcon, WarnIcon } from "./Icons";
 import { t } from "./i18n";
 import type { Tab } from "./nav";
 import type { Snapshot } from "./types";
@@ -27,8 +27,8 @@ type Props = {
   onPlay: () => void;
 };
 
-// Home, Mods and Saves carry their names; the Wiki and Settings are icons at the far end (the user, 2026-11-04).
-const TABS: [Tab, ComponentType][] = [["home", HomeIcon], ["mods", ModsIcon], ["saves", SaveIcon], ["commander", CommanderIcon]];
+// Home, Store, Mods, Saves and Commander carry their names; the Wiki and Settings are icons at the far end (the user, 2026-11-04).
+const TABS: [Tab, ComponentType][] = [["home", HomeIcon], ["store", StoreIcon], ["mods", ModsIcon], ["saves", SaveIcon], ["commander", CommanderIcon]];
 
 export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, onPlay }: Props) {
   const running = snap?.game === "running";

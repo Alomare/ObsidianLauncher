@@ -15,6 +15,10 @@ export const SaveIcon = () => <Icon><path d="M4.5 3.5h12l3 3v14h-15z" /><path d=
 export const EyeIcon = () => <Icon><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="2.8" /></Icon>;
 export const EyeOffIcon = () => <Icon><path d="M9.8 5.8A8.9 8.9 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16.6 16.6 0 0 1-2.6 3.5M6.2 7.4A16 16 0 0 0 2.5 12S6 18.5 12 18.5a8.8 8.8 0 0 0 4.4-1.2" /><path d="M9.9 10a2.8 2.8 0 0 0 3.9 4" /><path d="M3.5 3.5l17 17" /></Icon>;
 export const HomeIcon = () => <Icon><path d="M3.5 11L12 3.5l8.5 7.5" /><path d="M5.5 9.5v11h5v-6h3v6h5v-11" /></Icon>;
+/** A shop front with an awning: the Store tab. */
+export const StoreIcon = () => <Icon><path d="M4.5 3.5h15l2 5.5a2.6 2.6 0 0 1-4.9 1.2 2.6 2.6 0 0 1-4.6 0 2.6 2.6 0 0 1-4.6 0A2.6 2.6 0 0 1 2.5 9z" /><path d="M4.5 12v8.5h15V12M10 20.5v-5h4v5" /></Icon>;
+/** A picture crossed out: a mod with no thumbnail. */
+export const NoImageIcon = () => <Icon strokeWidth="1.5"><rect x="3.5" y="4.5" width="17" height="15" rx="1" /><circle cx="9" cy="10" r="1.6" /><path d="M20.5 16l-5-5-8.5 8.5M3 3l18 18" /></Icon>;
 const FOLDER = "M3 6.5a1.5 1.5 0 0 1 1.5-1.5h4.8l2 2.2h8.2A1.5 1.5 0 0 1 21 8.7v9.8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z";
 export const FolderIcon = () => <Icon><path d={FOLDER} /></Icon>;
 /** A folder outline with a plus inside. */

@@ -1491,3 +1491,153 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .cmd-wipe-wait { margin: 0; color: var(--mu); font-size: 0.86rem; }
 .cmd-left { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 0.6rem; margin: 0.8rem 0 0; max-width: 34rem; padding: 0.5rem 0.7rem; font-size: 0.82rem; line-height: 1.45; color: var(--mu); background: var(--well); border-left: 2px solid var(--warn); }
 .wiki-step .cap { letter-spacing: 0; }
+
+/* ---------- Store ---------- */
+/* The Home link to the Store: silver, first in the list. */
+.home .btn.silver { background: linear-gradient(180deg, #eef0f2, #b9bdc3); color: #1b1b1b; font-weight: 700; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6); }
+.home .btn.silver:hover { background: linear-gradient(180deg, #fafbfc, #cdd1d6); }
+.home .btn.silver:focus-visible { outline-color: #1b1b1b; outline-offset: -2px; }
+
+.store { height: 100%; overflow: auto; }
+.store-in { max-width: 82rem; margin: 0 auto; padding: 1.1rem 1.2rem 2.4rem; display: flex; flex-direction: column; gap: 1.2rem; }
+.store-note { display: flex; align-items: baseline; gap: 0.7rem; padding: 0.5rem 0.75rem; font-size: var(--fs-sm); color: var(--mu); background: var(--well); border-left: 2px solid var(--warn); }
+.store-note button.link.small { margin: 0; }
+.store-empty { display: grid; justify-items: center; gap: 0.6rem; padding: 4rem 1rem; text-align: center; color: var(--mu); }
+.store-empty h2 { margin: 0; color: var(--tx); font-size: var(--fs-lg); }
+.store-empty p { margin: 0; display: inline-flex; align-items: center; gap: 0.5rem; }
+
+/* Icons: opaque; the first letter when a mod has no image, as in the Mods tab */
+.mico { --ts: 2.7rem; flex: none; width: var(--ts); height: var(--ts); display: block; overflow: hidden; background: var(--s2); box-shadow: inset 0 0 0 1px var(--ln); }
+.mico img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mico.letter { display: grid; place-items: center; color: var(--mu); font-family: "Saira Variable", sans-serif; font-weight: 660; font-size: calc(var(--ts) * 0.46); line-height: 1; background: var(--s1); }
+.mico.sm { --ts: 2rem; }
+.mico.xl { --ts: 5.2rem; }
+
+/* Tags: the scope with an outline in its colour; Early access yellow on grey; Installed and Update filled */
+.store-tag { display: inline-flex; align-items: center; gap: 0.35rem; height: 1.35rem; padding: 0 0.45rem; background: var(--row); color: var(--tx); box-shadow: inset 0 0 0 1px var(--ln);
+  font-family: "Saira Variable", sans-serif; font-weight: 650; font-size: var(--fs-xs); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
+.store-tag svg { width: 0.75rem; height: 0.75rem; }
+.store-tag .scope i { width: 0.45rem; height: 0.45rem; }
+.store-tag.scoped { box-shadow: inset 0 0 0 1px var(--scb); }
+.store-tag.early { background: var(--s1); color: var(--goldtx); box-shadow: inset 0 0 0 1px var(--gold); }
+.store-tag.inst { background: var(--go); color: #0d1f18; box-shadow: none; }
+.store-tag.upd { background: var(--gold); color: #1b1b1b; box-shadow: none; }
+
+/* Obsidian Kit: icon, then the name over the scope, on plain grey; a soft outline sets the icon off */
+.kit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.9rem; }
+.kit-card { position: relative; display: flex; align-items: center; gap: 0.85rem; padding: 0.75rem 0.9rem 0.75rem 0.75rem; min-width: 0; background: var(--s1); box-shadow: inset 0 0 0 1px var(--ln); cursor: pointer; transition: transform var(--fast), box-shadow var(--fast); }
+.kit-card:hover, .kit-card:focus-visible { transform: translateY(-2px); box-shadow: inset 0 0 0 1px var(--ln), inset 0 -3px 0 var(--gold); outline: 0; }
+.kit-card .mico { box-shadow: 0 0 0 1px color-mix(in srgb, var(--tx) 18%, transparent), 0 2px 8px rgba(0, 0, 0, 0.25); }
+.kc-text { min-width: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.kc-text b { font-size: var(--fs-base); font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kc-tags { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+
+/* Filter row: scope chips, the sort list, Installed; the search at the right */
+.fbar { display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.7rem; background: linear-gradient(160deg, var(--p1), var(--p2)); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); }
+.fbar-left { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; min-width: 0; }
+.fbar .sep { width: 1px; align-self: stretch; margin: 0.2rem 0.25rem; background: var(--ln); }
+.fbar .select-btn { height: 1.9rem; font-size: var(--fs-sm); }
+.fbar .check-line { align-self: center; padding: 0 0.3rem; font-size: var(--fs-sm); }
+.fbar .search { width: 17rem; height: 1.9rem; flex: none; }
+.chip { display: inline-flex; align-items: center; gap: 0.4rem; height: 1.9rem; padding: 0 0.7rem; border: 1px solid var(--ln); background: var(--row); color: var(--mu); font-size: var(--fs-sm); font-weight: 600; cursor: pointer; white-space: nowrap; transition: color var(--fast), border-color var(--fast), background var(--fast); }
+.chip:hover { color: var(--tx); border-color: color-mix(in srgb, var(--tx) 30%, transparent); }
+.chip.on { color: var(--on); background: var(--gold); border-color: var(--gold); }
+.chip svg { width: 0.9rem; height: 0.9rem; }
+.chip .scope i { width: 0.5rem; height: 0.5rem; }
+
+/* Cards: the thumbnail, the icon over its edge, the name, three lines of the summary, then the tags */
+.grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 0.9rem; }
+.card { position: relative; display: flex; flex-direction: column; min-width: 0; background: linear-gradient(160deg, var(--p1), var(--p2)); box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18); cursor: pointer; transition: transform var(--fast), box-shadow var(--fast); }
+.card:hover, .card:focus-visible { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(0, 0, 0, 0.3), inset 0 -3px 0 var(--gold); outline: 0; }
+.c-img { position: relative; aspect-ratio: 16 / 9; overflow: hidden; background: #0b0c0e; }
+.c-img > img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 400ms ease; }
+.card:hover .c-img > img { transform: scale(1.04); }
+.c-img:has(> img)::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0, 0, 0, 0.55), transparent 45%); pointer-events: none; }
+.noimg { width: 100%; height: 100%; display: grid; place-items: center; background: var(--row); color: var(--mu); }
+.noimg svg { width: 2.6rem; height: 2.6rem; opacity: 0.6; }
+.c-quick { position: absolute; right: 0.5rem; top: 0.5rem; z-index: 1; opacity: 0; transform: translateY(-3px); transition: opacity var(--fast), transform var(--fast); }
+.card:hover .c-quick, .card:focus-within .c-quick, .c-quick:has(.installing) { opacity: 1; transform: none; }
+.c-body { position: relative; flex: 1; display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto 1fr auto; gap: 0 0.7rem; padding: 0.65rem 0.75rem 0.85rem; }
+.c-body .mico { --ts: 3rem; margin-top: -1.75rem; z-index: 1; box-shadow: 0 0 0 2px var(--s2), 0 6px 16px rgba(0, 0, 0, 0.4); }
+.c-body b { align-self: center; font-size: var(--fs-base); font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-desc { grid-column: 1 / -1; margin: 0.5rem 0 0; min-height: calc(1.38em * 3); font-size: var(--fs-sm); color: var(--mu); line-height: 1.38;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.c-tags { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.7rem; padding-top: 0.65rem; border-top: 1px solid var(--ln); }
+
+/* Install button */
+.btn.inst { min-width: 9rem; font-weight: 660; white-space: nowrap; }
+.btn.inst svg { width: 1.05rem; height: 1.05rem; flex: none; }
+.btn.inst.small { min-width: 0; height: 2rem; padding: 0 0.8rem; font-size: var(--fs-xs); }
+.btn.inst.small svg { width: 0.9rem; height: 0.9rem; }
+.btn.inst.big { height: 2.9rem; min-width: 12rem; font-size: var(--fs-md); }
+.btn.inst.installing { background: var(--row); box-shadow: inset 0 0 0 1px var(--go); color: var(--tx); cursor: progress; opacity: 1; }
+.btn.inst.installing .upd-spin { width: 0.9rem; height: 0.9rem; }
+.btn.inst.done { background: var(--row); box-shadow: inset 0 0 0 1px var(--ln); color: var(--go); }
+.btn.inst.done:hover { background: var(--btn); color: var(--tx); }
+.inst-note { font-size: var(--fs-sm); color: var(--mu); }
+
+/* The page of a mod: a header on the thumbnail, blurred, then the description and versions beside the details */
+.mhero { position: relative; overflow: hidden; background: #0b0c0e; color: #f2f1ed; border-bottom: 1px solid var(--ln); }
+.mh-back { position: absolute; inset: -40px; }
+.mh-back img { width: 100%; height: 100%; object-fit: cover; filter: blur(28px) saturate(1.25) brightness(0.55); transform: scale(1.08); }
+.mhero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8, 9, 11, 0.85), rgba(8, 9, 11, 0.35) 60%, rgba(8, 9, 11, 0.55)); pointer-events: none; }
+.mhero.plain { background: linear-gradient(160deg, var(--p1), var(--p2)); color: var(--tx); }
+.mhero.plain::after { display: none; }
+.mhero-in { position: relative; z-index: 1; max-width: 82rem; margin: 0 auto; padding: 1.1rem 1.2rem 1.3rem; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr); gap: 1.8rem; align-items: center; }
+.mhero.plain .mhero-in { grid-template-columns: minmax(0, 1fr); }
+.mh-left { display: flex; flex-direction: column; gap: 0.85rem; min-width: 0; }
+.crumbs { align-self: flex-start; display: inline-flex; align-items: center; gap: 0.35rem; padding: 0; border: 0; background: none; color: inherit; opacity: 0.75; font-size: var(--fs-sm); cursor: pointer; }
+.crumbs:hover { opacity: 1; }
+.crumbs svg { width: 0.85rem; height: 0.85rem; transform: rotate(90deg); }
+.mh-title { display: flex; align-items: center; gap: 1rem; min-width: 0; }
+.mh-title .mico { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.18), 0 12px 30px rgba(0, 0, 0, 0.6); }
+.mhero h1 { margin: 0; font-family: "Saira Variable", sans-serif; font-weight: 770; font-size: 2.2rem; line-height: 1; letter-spacing: 0.03em; text-transform: uppercase; overflow-wrap: anywhere; }
+.mh-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
+.mhero:not(.plain) .store-tag:not(.early):not(.scoped) { background: rgba(0, 0, 0, 0.35); color: #f2f1ed; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16); }
+.mhero:not(.plain) .store-tag.scoped { background: rgba(0, 0, 0, 0.35); color: #f2f1ed; }
+.mh-sum { margin: 0; font-size: var(--fs-base); line-height: 1.5; opacity: 0.9; }
+.mh-act { display: flex; align-items: center; flex-wrap: wrap; gap: 0.6rem 1rem; }
+.mhero:not(.plain) .inst-note { color: #c9c8c3; }
+.mhero:not(.plain) .btn.inst.done { background: rgba(255, 255, 255, 0.1); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2); }
+.mh-shot { aspect-ratio: 16 / 9; overflow: hidden; background: #000; box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.12); }
+.mh-shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mbody { max-width: 82rem; margin: 0 auto; padding: 1.2rem 1.2rem 2.4rem; display: grid; grid-template-columns: minmax(0, 1fr) 19rem; gap: 1.4rem; align-items: start; }
+.mmain { min-width: 0; display: flex; flex-direction: column; gap: 1.2rem; }
+.mside { display: flex; flex-direction: column; gap: 0.9rem; }
+.store-box { padding: 0.85rem 0.95rem; display: flex; flex-direction: column; gap: 0.65rem; background: linear-gradient(160deg, var(--p1), var(--p2)); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); }
+.store-box > h3 { margin: 0.2rem 0 0; font-size: var(--fs-xs); color: var(--mu); }
+.store-box .md { user-select: text; }
+ol.store-box { margin: 0; padding: 0.4rem 0.5rem; gap: 0.2rem; }
+.store-h { margin: 0 0 0.55rem; font-family: "Saira Variable", sans-serif; font-size: var(--fs-lg); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+.store-facts { margin: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.store-facts > div { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: 0.6rem; align-items: center; }
+.store-facts dt { color: var(--mu); font-size: var(--fs-sm); }
+.store-facts dd { margin: 0; display: flex; align-items: center; gap: 0.45rem; font-variant-numeric: tabular-nums; }
+.store-box > .btn.small { align-self: flex-start; }
+.store-box > .btn.small svg:last-child { width: 0.7rem; height: 0.7rem; opacity: 0.7; }
+.req { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.req-row { width: 100%; display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.5rem; border: 0; background: var(--row); color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background var(--fast); }
+.req-row:hover:not(:disabled) { background: color-mix(in srgb, var(--tx) 9%, transparent); }
+.req-row:disabled { cursor: default; }
+.rq-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.rq-name b { font-weight: 600; font-size: var(--fs-md); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rq-name small { color: var(--mu); font-size: var(--fs-sm); }
+.rq-state { font-size: var(--fs-sm); color: var(--mu); white-space: nowrap; }
+.rq-state.ok { color: var(--go); }
+@media (max-width: 1150px) {
+  .mhero-in { grid-template-columns: minmax(0, 1fr); }
+  .mh-right { display: none; }
+  .mbody { grid-template-columns: minmax(0, 1fr) 16rem; }
+  .fbar .search { width: 12rem; }
+}
+
+/* Folded corners for the Store panels, as for the others */
+.kit-card, .card, .fbar, .store-box {
+  -webkit-mask: linear-gradient(135deg, transparent var(--cut), #000 calc(var(--cut) + 0.5px)), linear-gradient(315deg, transparent var(--cut), #000 calc(var(--cut) + 0.5px));
+  -webkit-mask-composite: source-in; mask-composite: intersect;
+}
+.chip { -webkit-mask: linear-gradient(315deg, transparent var(--cut-sm), #000 calc(var(--cut-sm) + 0.5px)); }
+/* The outline of a Kit card closes across each cut corner. */
+.kit-card::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(135deg, transparent calc(var(--cut) - 0.3px), var(--ln) calc(var(--cut) - 0.3px), var(--ln) calc(var(--cut) + 1.2px), transparent calc(var(--cut) + 1.2px)),
+    linear-gradient(315deg, transparent calc(var(--cut) - 0.3px), var(--ln) calc(var(--cut) - 0.3px), var(--ln) calc(var(--cut) + 1.2px), transparent calc(var(--cut) + 1.2px)); }

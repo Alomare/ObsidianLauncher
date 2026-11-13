@@ -608,6 +608,39 @@ pub async fn update_mod(ctx: State<'_, Ctx>, id: String) -> CmdResult<ImportBatc
     Ok(ImportBatch { snapshot: fresh(&ctx)?, results: vec![result] })
 }
 
+/// The Store list from GitHub, with the pictures kept in the data folder; the last list read when
+/// GitHub is out of reach. Touches nothing in the library, so it takes no turn.
+#[tauri::command]
+pub async fn store_index(ctx: State<'_, Ctx>) -> CmdResult<obsidian_core::store::StoreIndex> {
+    Ok(obsidian_core::store::fetch(&ctx.data)?)
+}
+
+/// Installs the newest release of a mod in the Store, or replaces the copy in the library with it.
+/// The repository comes from the last list read, never from the window. As with `update_mod`, the
+/// download runs outside the turn. A new mod comes in switched off, as an imported one does.
+#[tauri::command]
+pub async fn store_install(ctx: State<'_, Ctx>, id: String) -> CmdResult<ImportBatch> {
+    let entry = obsidian_core::store::find(&ctx.data, &id)?;
+    let staged = obsidian_core::store::stage(&GitHub::default(), &entry)?;
+    let _turn = ctx.turn();
+    let outcome = staged.install(&Library::open(&ctx.data)?)?;
+    with_profile(&ctx.data, |_| Ok(()))?;
+    let (kind, old_version) = match outcome {
+        obsidian_core::library::InstallOutcome::Added => ("installed", None),
+        obsidian_core::library::InstallOutcome::Replaced { old_version } => ("updated", Some(old_version.to_string())),
+    };
+    let result = ImportResult {
+        file: id,
+        ok: true,
+        kind,
+        name: staged.manifest.name.clone(),
+        version: Some(staged.manifest.version.to_string()),
+        old_version,
+        error: None,
+    };
+    Ok(ImportBatch { snapshot: fresh(&ctx)?, results: vec![result] })
+}
+
 /// Saves a change to options or keys and writes the settings file the loader reads, so the change
 /// reaches the game at the next launch (also while the game runs).
 fn live_edit(ctx: &Ctx, f: impl FnOnce(&Library, &mut Profile) -> obsidian_core::Result<()>) -> CmdResult<Snapshot> {

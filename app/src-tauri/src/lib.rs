@@ -86,6 +86,8 @@ pub fn run() {
             commands::install_mod_version,
             commands::remove_other_patches,
             commands::update_mod,
+            commands::store_index,
+            commands::store_install,
             commands::deploy,
             commands::deploy_loader,
             commands::purge,

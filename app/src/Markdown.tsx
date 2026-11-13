@@ -55,7 +55,7 @@ export function parse(md: string): Doc {
   return { tokens, headings, text: plainText(tokens) };
 }
 
-const TABS: Tab[] = ["home", "mods", "saves", "commander", "wiki", "settings"];
+const TABS: Tab[] = ["home", "store", "mods", "saves", "commander", "wiki", "settings"];
 const CALLOUT = /^\[!(TIP|NOTE|WARNING)\]\s*/;
 
 /** A link to a place in the app. An inline element, not a button, so the line can wrap inside it. */

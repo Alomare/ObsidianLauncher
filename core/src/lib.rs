@@ -38,6 +38,7 @@ pub mod saves;
 pub mod settings;
 pub mod sort;
 pub mod starter;
+pub mod store;
 #[cfg(test)]
 pub(crate) mod testutil;
 pub mod updates;
