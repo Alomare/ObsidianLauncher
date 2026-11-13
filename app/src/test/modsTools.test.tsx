@@ -176,14 +176,14 @@ describe("the conflicts panel", () => {
   const withConflict = (): Snapshot => ({ ...snap(["a.one", "b.two"]), conflicts: [{ resource: "x", mods: ["a.one", "b.two"], winner: "b.two" }] });
   const panel = () => document.querySelector(".drawer.conflicts");
 
-  it("closes on the X, stays closed, and comes back from a conflict icon", () => {
+  it("never opens by itself, opens from a conflict icon and closes on the X", () => {
     show(withConflict());
-    expect(panel()).not.toBeNull();
-    act(() => panel()!.querySelector<HTMLButtonElement>(".dh button.bare")!.click());
     expect(panel()).toBeNull();
     expect(document.querySelector(".split")).toBeNull();
     act(() => document.querySelector<HTMLButtonElement>(".cf-ico")!.click());
     expect(panel()).not.toBeNull();
+    act(() => panel()!.querySelector<HTMLButtonElement>(".dh button.bare")!.click());
+    expect(panel()).toBeNull();
   });
 });
 

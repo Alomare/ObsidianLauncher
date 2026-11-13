@@ -20,6 +20,7 @@ import { reloadChoices, useChoices } from "./choices";
 import { FirewallDialog, useFirewall } from "./firewall";
 import { PackageIcon, ThisPcIcon, WallIcon } from "./icons";
 import "./commander.css";
+import logo from "../assets/logo-shaded.png";
 
 /** What Commander keeps on this PC, for Remove All Commander Data (`commander_footprint`). */
 type Footprint = { package: string | null; hosted: number; joined: number; saves: { id: string; name: string }[]; namesFile: boolean; firewallRules: number; bytes: number };
@@ -468,7 +469,10 @@ function Intro({ onInstall, onInstallFile, onJoin, leftovers, onWipe }: { onInst
       <div className="cmd-hero">
         <GalaxyArt />
         <div className="cmd-hero-text">
-          <h1 className="cap">{t("app.commander.title")}</h1>
+          <div className="cmd-title">
+            <img src={logo} alt="" draggable={false} />
+            <h1>OBSIDIAN COMMANDER</h1>
+          </div>
           <p className="cmd-lead">{t("app.commander.lead")}</p>
           <div className="cmd-actions">
             <button className="btn play" onClick={onInstall} data-tip={t("app.commander.installNote")}>{t("app.commander.install")}</button>
@@ -484,8 +488,8 @@ function Intro({ onInstall, onInstallFile, onJoin, leftovers, onWipe }: { onInst
         </div>
       </div>
       <div className="cmd-cards">
-        <div className="cmd-card"><h3>{t("app.commander.cardVanilla")}</h3><p>{t("app.commander.cardVanillaText")}</p></div>
-        <div className="cmd-card"><h3>{t("app.commander.cardLan")}</h3><p>{t("app.commander.cardLanText")}</p></div>
+        <div className="cmd-card"><h3>{t("app.commander.cardHost")}</h3><p>{t("app.commander.cardHostText")}</p></div>
+        <div className="cmd-card"><h3>{t("app.commander.cardFriends")}</h3><p>{t("app.commander.cardFriendsText")}</p></div>
         <div className="cmd-card"><h3>{t("app.commander.cardSafe")}</h3><p>{t("app.commander.cardSafeText")}</p></div>
       </div>
     </div>

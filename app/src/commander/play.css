@@ -2,9 +2,10 @@
 
 /* The label: PLAY bold and big, then the war name of a custom war, thinner and smaller after a gap. The
    war name gives way first, cut short with an ellipsis. */
-.play-text { display: inline-flex; align-items: baseline; gap: 0.6rem; min-width: 0; max-width: 26rem; white-space: nowrap; }
-.play-word { flex: none; font-weight: 770; text-transform: uppercase; letter-spacing: 0.06em; }
-.play-war { display: inline-block; min-width: 0; max-width: 13rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom;
+/* Centred on one line: a box that clips (the war name) has no text baseline, so baseline alignment lifted it. */
+.play-text { display: inline-flex; align-items: center; gap: 0.6rem; min-width: 0; max-width: 26rem; white-space: nowrap; }
+.play-word { flex: none; font-weight: 770; text-transform: uppercase; letter-spacing: 0.06em; line-height: 1; }
+.play-war { display: block; min-width: 0; max-width: 13rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1;
   font-size: 0.8em; font-weight: 500; letter-spacing: 0.02em; }
 .nav .btn.play { max-width: 34rem; }
 

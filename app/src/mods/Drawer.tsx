@@ -33,14 +33,12 @@ type Props = {
   names: Map<string, string>;
   onOpen: (id: string) => void;
   onClose: () => void;
-  /** The X closed the conflicts: they stay away until a conflict icon asks for them. */
-  conflictsClosed?: boolean;
 };
 
-export function Drawer({ view, mods, conflicts, order, names, onOpen, onClose, conflictsClosed }: Props) {
+export function Drawer({ view, mods, conflicts, order, names, onOpen, onClose }: Props) {
   const mod = view?.kind === "mod" ? mods.find((m) => m.id === view.id) : undefined;
   if (mod) return <ModDrawer key={mod.id} mod={mod} mods={mods} conflicts={conflicts} names={names} onOpen={onOpen} onClose={onClose} />;
-  if (view?.kind === "conflicts" || (conflicts.length && !conflictsClosed)) return <ConflictsView conflicts={conflicts} order={order} names={names} focus={view?.kind === "conflicts" ? view.focus : undefined} onClose={onClose} />;
+  if (view?.kind === "conflicts") return <ConflictsView conflicts={conflicts} order={order} names={names} focus={view?.kind === "conflicts" ? view.focus : undefined} onClose={onClose} />;
   return null;
 }
 

@@ -87,7 +87,7 @@ describe("StorePage", () => {
     expect(names(host)).toEqual(["ARCADE", "HUD", "CROSSHAIR"]);
     expect(host.querySelector(".card .store-tag.early")?.textContent).toBe(t("app.store.early"));
     const hud = [...host.querySelectorAll(".card")].find((c) => c.textContent?.includes("HUD"))!;
-    expect(hud.querySelector(".store-tag.inst")).not.toBeNull();
+    expect(hud.querySelector(".c-flag.inst")).not.toBeNull();
 
     const chip = [...host.querySelectorAll(".chip")].find((b) => b.textContent === t("app.scope.expansion"))!;
     await act(async () => (chip as HTMLElement).click());

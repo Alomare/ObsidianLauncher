@@ -58,8 +58,6 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState<Node[] | null>(null);
   const [view, setView] = useState<DrawerView>(null);
-  /** The X on the conflicts closes them; a conflict icon on a row brings them back. */
-  const [conflictsClosed, setConflictsClosed] = useState(false);
   const [profiles, setProfiles] = useState(false);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [menu, setMenu] = useState<{ x: number; y: number; up?: boolean; target: MenuTarget } | null>(null);
@@ -249,12 +247,10 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
   const waiting = snap.mods.filter((m) => offered(modUpdates.found, m)).map((m) => m.id);
   const allUpdatable = snap.mods.filter((m) => m.updatable).map((m) => m.id);
   const askFolder = ask?.kind === "editFolder" || ask?.kind === "deleteFolder" ? folderOf(ask.id) : undefined;
-  // The panel shows a selected mod, or the conflicts; with neither, the list takes the whole width.
-  const panel = (view?.kind === "mod" && snap.mods.some((m) => m.id === view.id)) || view?.kind === "conflicts" || (shownConflicts.length > 0 && !conflictsClosed);
-  const closeDrawer = () => {
-    if (view?.kind !== "mod") setConflictsClosed(true);
-    setView(null);
-  };
+  // The panel shows a selected mod, or the conflicts when a conflict icon opened them (never by itself);
+  // with neither, the list takes the whole width.
+  const panel = (view?.kind === "mod" && snap.mods.some((m) => m.id === view.id)) || view?.kind === "conflicts";
+  const closeDrawer = () => setView(null);
 
   return (
     <div className="mods">
@@ -367,7 +363,7 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
           <>
             <div className="split" role="separator" aria-orientation="vertical" aria-label={t("app.mods.resize")} onPointerDown={resize}
               onDoubleClick={() => { setWidth(0); try { localStorage.removeItem(DRAWER_KEY); } catch { /* fine */ } }} data-tip={t("app.mods.resizeHint")} />
-            <Drawer view={view} mods={snap.mods} conflicts={shownConflicts} order={order} names={names} onOpen={(id) => setView({ kind: "mod", id })} onClose={closeDrawer} conflictsClosed={conflictsClosed} />
+            <Drawer view={view} mods={snap.mods} conflicts={shownConflicts} order={order} names={names} onOpen={(id) => setView({ kind: "mod", id })} onClose={closeDrawer} />
           </>
         )}
       </div>

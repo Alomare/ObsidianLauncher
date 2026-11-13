@@ -111,6 +111,8 @@ export default function App() {
         {snap && (tab === "commander" || commanderOpened) && <div className="view" hidden={tab !== "commander"}><CommanderPage snap={snap} visible={tab === "commander"} onPlay={startPlay} home={commanderHome} /></div>}
         {tab === "wiki" && <div className="view" key="wiki"><WikiPage /></div>}
         {snap && tab === "settings" && <div className="view" key="settings"><SettingsPage snap={snap} tab={settingsTab} onTab={setSettingsTab} /></div>}
+        {/* The first read of the library can take a few seconds: the tabs that need it wait on this. */}
+        {!snap && tab !== "home" && tab !== "wiki" && <div className="view" key="wait"><div className="store-empty app-wait"><p><span className="upd-spin" aria-hidden="true" />{t("app.loadingLibrary")}</p></div></div>}
       </main>
       <StatusBar version={snap?.version ?? null} updateFound={update.phase === "found"} onUpdates={() => { setSettingsTab("updates"); setTab("settings"); }} />
       {dropping && (

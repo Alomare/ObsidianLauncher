@@ -3,7 +3,7 @@
 // README, the versions with their notes, the details and the mods it requires. The list comes from
 // github.com/Alomare/ObsidianStoreIndex (storeIndex.ts); installing downloads the newest release.
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useLocked } from "../busy";
 import { CheckIcon, ChevronIcon, CloseIcon, GitHubIcon, ImportIcon, NoImageIcon, OutboundIcon, SearchIcon, UpdateIcon } from "../Icons";
 import { language, t } from "../i18n";
@@ -46,20 +46,23 @@ function ModIcon({ m, size = "" }: { m: StoreMod; size?: string }) {
 
 function ScopeTag({ scope }: { scope: Scope }) {
   return (
-    <span className="store-tag scoped" style={{ "--scb": `var(--${scope})` } as CSSProperties} data-tip-title={t(`app.scope.${scope}`)} data-tip={t(`app.scope.${scope}Hint`)}>
-      <span className={`scope ${scope}`}><i /></span>
-      {t(`app.scope.${scope}`)}
-    </span>
+    <span className={`store-scope ${scope}`} role="img" aria-label={t(`app.scope.${scope}`)} data-tip-title={t(`app.scope.${scope}`)} data-tip={t(`app.scope.${scope}Hint`)} />
   );
 }
 
 const Early = ({ m }: { m: StoreMod }) =>
   m.early ? <span className="store-tag early" data-tip={t("app.store.earlyHint", m.version)}>{t("app.store.early")}</span> : null;
 
+/** A corner over the top right of a card: green with a check when installed, yellow with an arrow when the
+    Store has a newer version. */
 function Flag({ mark }: { mark: StoreMark }) {
-  if (mark === "installed") return <span className="store-tag inst"><CheckIcon />{t("app.store.installed")}</span>;
-  if (mark === "update") return <span className="store-tag upd"><UpdateIcon />{t("app.store.updateFlag")}</span>;
-  return null;
+  if (mark !== "installed" && mark !== "update") return null;
+  const label = mark === "installed" ? t("app.store.installed") : t("app.store.updateFlag");
+  return (
+    <span className={`c-flag ${mark === "installed" ? "inst" : "upd"}`} role="img" aria-label={label} data-tip={label}>
+      {mark === "installed" ? <CheckIcon /> : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" /></svg>}
+    </span>
+  );
 }
 
 function InstallButton({ m, mark, size, onInstall }: { m: StoreMod; mark: StoreMark; size: "small" | "big"; onInstall: () => void }) {
@@ -166,7 +169,7 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
               const on = scopes.includes(s);
               return (
                 <button key={s} className={on ? "chip on" : "chip"} aria-pressed={on} onClick={() => setScopes(on ? scopes.filter((x) => x !== s) : [...scopes, s])}>
-                  <span className={`scope ${s}`}><i /></span>{t(`app.scope.${s}`)}
+                  <span className={`scope ${s}`}><i /></span><span>{t(`app.scope.${s}`)}</span>
                 </button>
               );
             })}
@@ -196,11 +199,12 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
                     {m.banner ? <img src={src(m.banner)} alt="" draggable={false} loading="lazy" /> : <div className="noimg"><NoImageIcon /></div>}
                     {k !== "installed" && <div className="c-quick"><InstallButton m={m} mark={k} size="small" onInstall={() => doInstall(m)} /></div>}
                   </div>
+                  <Flag mark={k} />
                   <div className="c-body">
                     <ModIcon m={m} />
                     <b>{m.name}</b>
                     <p className="c-desc">{m.summary}</p>
-                    <div className="c-tags"><ScopeTag scope={m.scope} /><Early m={m} /><Flag mark={k} /></div>
+                    <div className="c-tags"><ScopeTag scope={m.scope} /><Early m={m} /></div>
                   </div>
                 </div>
               );
