@@ -138,6 +138,7 @@ export function WikiPage() {
           <SearchIcon />
           <input type="search" placeholder={t("app.wiki.search")} aria-label={t("app.wiki.search")} value={query} onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return; // an IME (Chinese input) uses Enter and Escape to finish or cancel a word
               if (e.key === "Escape") { if (query) setQuery(""); else e.currentTarget.blur(); }
               else if (e.key === "Enter" && groups.length) open(groups[0].pages[0].id);
               else if (e.key === "Enter" && pinsFound.length) open(pinsFound[0].id);
@@ -240,6 +241,7 @@ function FindBar({ article, reader, page, open, onClose }: {
         <input ref={box} type="text" value={query} placeholder={t("app.wiki.find")} aria-label={t("app.wiki.find")} spellCheck={false}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing) return;
             if (e.key === "Enter") { e.preventDefault(); step(e.shiftKey ? -1 : 1); }
             else if (e.key === "Escape") { e.preventDefault(); onClose(); }
           }} />

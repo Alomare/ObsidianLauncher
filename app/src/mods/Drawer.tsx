@@ -238,7 +238,7 @@ function NumberControl({ o, label, onSet, onDraft }: { o: OptionRow; label: stri
           onChange={(e) => change(Number(e.target.value))} onPointerUp={() => commit(v)} onKeyUp={() => commit(v)} />
       )}
       <input type="number" value={v} min={o.min ?? undefined} max={o.max ?? undefined} step={o.step ?? "any"} aria-label={label}
-        onChange={(e) => change(Number(e.target.value))} onBlur={() => commit(v)} onKeyDown={(e) => e.key === "Enter" && commit(v)} />
+        onChange={(e) => change(Number(e.target.value))} onBlur={() => commit(v)} onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && commit(v)} />
     </div>
   );
 }

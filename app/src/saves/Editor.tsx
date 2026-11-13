@@ -184,7 +184,7 @@ function NumField({ value, min, max, label, disabled, onCommit }: { value: numbe
     if (v !== value) onCommit(v);
   };
   return <input className="ed-num" inputMode="numeric" value={text} disabled={disabled} aria-label={label} spellCheck={false}
-    onChange={(e) => setText(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === "Enter") commit(); }} />;
+    onChange={(e) => setText(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) commit(); }} />;
 }
 
 /** A panel of rows under a title, with an optional line about the whole group under the rows. */
