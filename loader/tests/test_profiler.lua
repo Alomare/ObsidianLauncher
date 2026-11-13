@@ -67,6 +67,44 @@ test("each_mod_gets_its_own_time_and_not_the_game_s", function()
 	E.eq(p.read(), nil, "stopping clears the result")
 end)
 
+test("each_mod_s_time_is_split_by_hook_and_measured_section", function()
+	rawset(_G, "Slow", { work = function() return "done" end })
+	local e = E.new({
+		deploy = E.deploy({ mods = { E.mod("parts", { scope = "client" }) } }),
+		mods = { ["obsidian/mods/parts/main"] = [[
+			local function busy(ms) local t = os.clock() while (os.clock() - t) * 1000 < ms do end end
+			PROFILER = obsidian.profiler
+			obsidian.hook("Slow", "work", function(original, ...) busy(1) return original(...) end)
+			obsidian.on_frame(function()
+				busy(0.5)
+				PROFILER.measure("frame: heavy part", busy, 2)
+			end)
+		]] },
+	})
+	e:boot()
+	e:start_frames()
+	local p = rawget(_G, "PROFILER")
+	p.start()
+	for _ = 1, 400 do
+		rawget(_G, "Slow").work()
+		e:frames(1)
+		if p.read() then break end
+	end
+	local r = p.read()
+	assert(r, "a result")
+	local row = r.mods[1]
+	E.eq(row.id, "parts")
+	local by = {}
+	for _, s in ipairs(row.sites) do by[s.site] = s.ms end
+	assert(by["frame: heavy part"] and by["frame: heavy part"] > 1.5, "the measured part: " .. tostring(by["frame: heavy part"]))
+	assert(by["hook Slow.work"] and by["hook Slow.work"] > 0.7, "the hook, named by class and method")
+	assert(by.on_frame and by.on_frame < 1.5, "the frame function without the measured part: " .. tostring(by.on_frame))
+	E.eq(row.sites[1].site, "frame: heavy part", "costliest first")
+	E.eq(r.clock, "qpc", "the precise clock")
+	assert(type(p.clock()) == "number")
+	E.eq(p.measure("x", function(a, b) return a + b end, 2, 3), 5, "gives back what fn gives")
+end)
+
 test("a_hook_that_throws_still_closes_its_timing", function()
 	rawset(_G, "Slow", { work = function() return "done" end })
 	local e = E.new({

@@ -198,7 +198,7 @@ function M.call(state, site, fn, ...)
 	-- Counted, because a trailing nil is a result too: `tonumber(SaveManager:get(key))` fails when a
 	-- hook turns the game's nil into no value at all.
 	local function counted(...) return { n = B.select("#", ...), ... } end
-	local at = profiler.on and profiler.enter(state and state.id or "obsidian.loader")
+	local at = profiler.on and profiler.enter(state and state.id or "obsidian.loader", site)
 	local result = counted(B.xpcall(function() return fn(B.unpack(args, 1, n)) end, traceback))
 	if at then profiler.leave(at) end
 	M.current = previous

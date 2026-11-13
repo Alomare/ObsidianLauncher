@@ -16,7 +16,8 @@ end
 
 -- Puts the hook around target[method] and returns the new function.
 local function wrap(h, target, original)
-	local core, session, state, fn, site = M.core, M.session, h.state, h.fn, "hook " .. B.tostring(h.method)
+	local core, session, state, fn = M.core, M.session, h.state, h.fn
+	local site = "hook " .. (B.type(h.target) == "string" and (h.target .. ".") or "") .. B.tostring(h.method)
 	-- A missing or unknown scope counts as session, a hybrid mod's untagged hooks too. A client part's
 	-- hooks run in any lobby. The loader's own hooks are never gated.
 	local gated = not h.loader and not h.always and session.gated(state, h.part)
