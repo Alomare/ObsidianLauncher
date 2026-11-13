@@ -442,6 +442,8 @@
   "app.drawer.channelStable": "Stable",
   "app.drawer.switchUp": "Update to %s",
   "app.drawer.switchDown": "Switch to %s",
+  "app.drawer.refreshVersions": "Refresh versions",
+  "app.drawer.refreshWait": "Refresh again in %s s",
   "app.drawer.partOff": "Off",
   "app.drawer.partOffHint": "The option that switches this part on is off, so the part doesn't run.",
   "app.drawer.parts": "Parts",

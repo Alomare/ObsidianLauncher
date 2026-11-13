@@ -89,6 +89,19 @@ describe("the Versions tab", () => {
     expect([...box.querySelectorAll(".mod-log-entry b")].map((b) => b.textContent)).toEqual(["1.3.0-beta.1"]);
   });
 
+  it("refreshes from GitHub at most once every 20 seconds", async () => {
+    const box = await show(mod("1.2.0"));
+    const asked = () => call.mock.calls.filter((c) => c[0] === "mod_releases").length;
+    const before = asked();
+    const button = box.querySelector<HTMLButtonElement>(".versions-refresh")!;
+    await act(async () => { button.click(); await Promise.resolve(); });
+    expect(asked()).toBe(before + 1);
+    expect(button.classList.contains("cooling")).toBe(true);
+    expect(button.dataset.tip).toMatch(/^Refresh again in \d+ s$/);
+    await act(async () => { button.click(); await Promise.resolve(); });
+    expect(asked()).toBe(before + 1);
+  });
+
   it("puts a switch button above the notes of an unfolded release, none on the installed one", async () => {
     const box = await show(mod("1.2.0"));
     const heads = box.querySelectorAll<HTMLButtonElement>(".mod-log-entry .upd-head");

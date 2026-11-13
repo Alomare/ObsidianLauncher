@@ -5,12 +5,12 @@ import { useEffect, useMemo, useState } from "react";
 import { run } from "../api";
 import { openColorPicker } from "../ColorPicker";
 import { Confirm } from "../Confirm";
-import { ArrowIcon, ChevronIcon, CloseIcon, ExternalIcon, FileIcon, GamepadIcon, HistoryIcon, InfoIcon, KeyboardIcon, KeyboardMouseIcon, LinkIcon, ResetIcon, SlidersIcon, TrashIcon } from "../Icons";
+import { ArrowIcon, ChevronIcon, CloseIcon, ExternalIcon, FileIcon, GamepadIcon, HistoryIcon, InfoIcon, UpdateIcon, KeyboardIcon, KeyboardMouseIcon, LinkIcon, ResetIcon, SlidersIcon, TrashIcon } from "../Icons";
 import { language, pick, t } from "../i18n";
 import { Markdown, parse } from "../Markdown";
 import { Select } from "../Select";
 import { compareVersions, type Release } from "../updates";
-import { loadMore, useModReleases } from "./modReleases";
+import { loadMore, refresh, refreshWait, useModReleases } from "./modReleases";
 import { installModVersion } from "./modUpdates";
 import { Thumb } from "../Thumb";
 import type { ConflictRow, KeyRow, ModRow, OptionGroup, OptionPreview, OptionRow } from "../types";
@@ -463,17 +463,32 @@ function VersionsTab({ mod }: { mod: ModRow }) {
   const badge = (w: string) =>
     !mod.version ? null : w === "new" ? <span className="upd-badge new">{t("app.update.badgeNew")}</span> : w === "installed" ? <span className="upd-badge">{t("app.update.badgeInstalled")}</span> : null;
   const first = r.pages === 0 && (r.loading || !r.error);
+  // The cooldown of Refresh counts down on the button's tooltip.
+  const [, tick] = useState(0);
+  const wait = refreshWait();
+  useEffect(() => {
+    if (wait <= 0) return;
+    const timer = setTimeout(() => tick((n) => n + 1), Math.min(wait, 1000));
+    return () => clearTimeout(timer);
+  }, [wait]);
+  const refreshTip = wait > 0 ? t("app.drawer.refreshWait", Math.ceil(wait / 1000)) : t("app.drawer.refreshVersions");
   return (
     <div className="versions pad">
-      {channels.length > 1 && (
-        <div className="seg versions-channels" role="tablist" aria-label={t("app.drawer.channels")}>
-          {channels.map((c) => (
-            <button key={c} role="tab" aria-selected={c === channel} className={c === channel ? "on" : undefined} onClick={() => { setPicked(c); setShown(LOG_STEP); }}>
-              {channelName(c)}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="versions-head">
+        {channels.length > 1 ? (
+          <div className="seg versions-channels" role="tablist" aria-label={t("app.drawer.channels")}>
+            {channels.map((c) => (
+              <button key={c} role="tab" aria-selected={c === channel} className={c === channel ? "on" : undefined} onClick={() => { setPicked(c); setShown(LOG_STEP); }}>
+                {channelName(c)}
+              </button>
+            ))}
+          </div>
+        ) : <span />}
+        <button onClick={() => { setShown(LOG_STEP); refresh(mod.id).then(() => tick((n) => n + 1)); tick((n) => n + 1); }}
+          disabled={r.loading} aria-disabled={wait > 0} className={wait > 0 ? "bare versions-refresh cooling" : "bare versions-refresh"} aria-label={t("app.drawer.refreshVersions")} data-tip={refreshTip}>
+          <UpdateIcon />
+        </button>
+      </div>
       {first && <p className="muted mod-log-note"><span className="upd-spin" aria-hidden="true" />{t("app.drawer.changelogsLoading")}</p>}
       {r.error && (
         <p className="muted mod-log-note">

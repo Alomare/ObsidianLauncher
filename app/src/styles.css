@@ -574,7 +574,11 @@ input[type="range"]:disabled::-webkit-slider-runnable-track { background: linear
 .mod-log-note .upd-spin { width: 0.8rem; height: 0.8rem; }
 .mod-log-more { align-self: flex-start; margin-top: 0.2rem; }
 .versions { display: flex; flex-direction: column; gap: 0.5rem; }
-.versions-channels { align-self: flex-start; }
+.versions-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.versions-refresh { padding: 0.3rem; color: var(--mu); }
+.versions-refresh:hover:not(:disabled):not(.cooling) { color: var(--tx); }
+.versions-refresh:disabled, .versions-refresh.cooling { opacity: 0.45; cursor: default; }
+.versions-refresh svg { width: 1rem; height: 1rem; }
 .versions-channels button { padding: 0.35rem 0.8rem; font-size: var(--fs-sm); }
 .versions .mod-log-more { align-self: flex-start; }
 .versions-switch { display: block; margin: 0.2rem 0 0.5rem; }

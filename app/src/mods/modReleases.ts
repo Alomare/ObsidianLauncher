@@ -34,6 +34,21 @@ export async function loadMore(id: string) {
   }
 }
 
+/** Each refresh is a call to GitHub, which allows a stranger 60 an hour: one per this many ms. */
+export const REFRESH_COOLDOWN_MS = 20_000;
+let lastRefresh = 0;
+
+/** Ms until the Refresh button works again; 0 when it does. */
+export const refreshWait = (now = Date.now()) => Math.max(0, lastRefresh + REFRESH_COOLDOWN_MS - now);
+
+/** Forgets what is known of `id` and asks GitHub for the first page again. */
+export async function refresh(id: string) {
+  if (refreshWait() > 0 || cache.get(id)?.loading) return;
+  lastRefresh = Date.now();
+  put(id, { ...empty });
+  await loadMore(id);
+}
+
 /** The releases of `id` known so far; the first page loads when `on` holds for a moment. */
 export function useModReleases(id: string, on: boolean): ModReleases {
   const [, bump] = useState(0);
