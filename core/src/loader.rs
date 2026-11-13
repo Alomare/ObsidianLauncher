@@ -142,8 +142,11 @@ pub fn module_name(id: &str, path: &Path) -> String {
     format!("{}/{}", mod_root(id), parts.join("/"))
 }
 
-fn lua_resource(name: &str, bytecode: &[u8]) -> Planned {
-    Planned::new(hash_name("lua"), hash_name(name), 0, wrap_resource(bytecode), "obsidian".into())
+/// The owner of what the loader itself puts in the game: its scripts, fonts and the deploy table.
+pub const LOADER_OWNER: &str = "obsidian";
+
+fn lua_resource(name: &str, bytecode: &[u8], owner: &str) -> Planned {
+    Planned::new(hash_name("lua"), hash_name(name), 0, wrap_resource(bytecode), owner.to_string())
 }
 
 /// One script of a loader build: bytecode already, or source for the compiler with its chunk name.
@@ -447,26 +450,27 @@ pub fn build(loader_dir: &Path, comp: &Composition) -> Result<Vec<Planned>> {
         let stem = p.file_stem().unwrap().to_string_lossy().to_string();
         let module = format!("obsidian/loader/{stem}");
         let name = if stem == "boot" { ENTRY.to_string() } else { module.clone() };
-        scripts.push((name, Script::Source(std::fs::read(&p)?, module)));
+        scripts.push((name, Script::Source(std::fs::read(&p)?, module), LOADER_OWNER.to_string()));
     }
     for c in &comp.mods {
         if let Some(entry) = &c.manifest.entry {
             let name = entry_name(&c.manifest.id);
             let script = entry_script(std::fs::read(c.dir.join(entry))?, &name)?;
-            scripts.push((name, script));
+            // A mod's scripts are that mod's, so the Deployed column counts them.
+            scripts.push((name, script, c.manifest.id.clone()));
             for p in &c.manifest.modules {
                 let name = module_name(&c.manifest.id, p);
                 let script = entry_script(std::fs::read(c.dir.join(p))?, &name)?;
-                scripts.push((name, script));
+                scripts.push((name, script, c.manifest.id.clone()));
             }
         }
     }
     let source = format!("return {}\n", to_lua(&full_table(loader_dir, comp)?));
-    scripts.push(("obsidian/deploy".to_string(), Script::Source(source.into_bytes(), "obsidian/deploy".to_string())));
+    scripts.push(("obsidian/deploy".to_string(), Script::Source(source.into_bytes(), "obsidian/deploy".to_string()), LOADER_OWNER.to_string()));
 
     let sources: Vec<(&[u8], &str)> = scripts
         .iter()
-        .filter_map(|(_, s)| match s {
+        .filter_map(|(_, s, _)| match s {
             Script::Source(source, chunk) => Some((source.as_slice(), chunk.as_str())),
             Script::Bytecode(_) => None,
         })
@@ -474,13 +478,13 @@ pub fn build(loader_dir: &Path, comp: &Composition) -> Result<Vec<Planned>> {
     let mut compiled = compile_all(&sources)?.into_iter();
     let mut planned: Vec<Planned> = scripts
         .iter()
-        .map(|(name, s)| match s {
-            Script::Bytecode(code) => lua_resource(name, code),
-            Script::Source(..) => lua_resource(name, &compiled.next().unwrap()),
+        .map(|(name, s, owner)| match s {
+            Script::Bytecode(code) => lua_resource(name, code, owner),
+            Script::Source(..) => lua_resource(name, &compiled.next().unwrap(), owner),
         })
         .collect();
     for (kind, name, path) in own_fonts(loader_dir) {
-        planned.push(Planned::new(hash_name(kind), hash_name(&name), 0, std::fs::read(path)?, "obsidian".into()));
+        planned.push(Planned::new(hash_name(kind), hash_name(&name), 0, std::fs::read(path)?, LOADER_OWNER.into()));
     }
     Ok(planned)
 }
@@ -646,6 +650,10 @@ mod tests {
         for name in [ENTRY, "obsidian/loader/core", "obsidian/mods/a/main", "obsidian/mods/b/main", "obsidian/deploy"] {
             assert!(planned.iter().any(|p| p.name_hash == hash_name(name)), "{name}");
         }
+        // Each script belongs to the mod it comes from, so the deploy counts its bytes for that mod.
+        let owner = |name: &str| planned.iter().find(|p| p.name_hash == hash_name(name)).unwrap().owner.clone();
+        assert_eq!([owner("obsidian/mods/a/main"), owner("obsidian/mods/b/main")], ["a", "b"]);
+        assert_eq!([owner(ENTRY), owner("obsidian/deploy")], [LOADER_OWNER, LOADER_OWNER]);
     }
 
     #[test]
