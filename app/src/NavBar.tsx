@@ -98,19 +98,21 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
         {showBuild && snap?.game === "unknown" && <BuildDialog snap={snap} onClose={() => setShowBuild(false)} />}
         {guarding && snap && <GuardrailsDialog snap={snap} onClose={() => setGuarding(false)} />}
         <div className="actions">
-          {snap && (
-            <button className={guards ? "btn icon guard on" : "btn icon guard"} onClick={() => setGuarding(true)} aria-haspopup="dialog" aria-label={t("app.nav.guardrails")}
-              data-tip-title={t("app.guardrails.button", snap.profile)} data-tip={guardrailsSummary(snap)}>
-              <ShieldIcon filled={guards > 0} />
-            </button>
-          )}
-          {split ? (
+          {snap || split ? (
             <div className="play-split">
+              {snap && (
+                <button className={guards ? "btn icon guard on" : "btn icon guard"} onClick={() => setGuarding(true)} aria-haspopup="dialog" aria-label={t("app.nav.guardrails")}
+                  data-tip-title={t("app.guardrails.button", snap.profile)} data-tip={guardrailsSummary(snap)}>
+                  <ShieldIcon filled={guards > 0} />
+                </button>
+              )}
               {playButton}
-              <button className={`btn play play-more${tone}`} onClick={() => setChoosing(true)} disabled={!snap || missing} aria-haspopup="dialog" aria-expanded={choosing}
-                aria-label={t("app.play.choose")} data-tip={t("app.play.choose")}>
-                <MenuIcon />
-              </button>
+              {split && (
+                <button className={`btn play play-more${tone}`} onClick={() => setChoosing(true)} disabled={!snap || missing} aria-haspopup="dialog" aria-expanded={choosing}
+                  aria-label={t("app.play.choose")} data-tip={t("app.play.choose")}>
+                  <MenuIcon />
+                </button>
+              )}
             </div>
           ) : playButton}
           {choosing && snap && choices && <PlayChoice snap={snap} choices={choices} onClose={() => setChoosing(false)} />}

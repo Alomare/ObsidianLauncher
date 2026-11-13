@@ -12,18 +12,21 @@
 .nav .btn.play.modded { background: linear-gradient(180deg, #3fcf9c, #239a70); color: #0d1f18; }
 .nav .btn.play.modded:hover:not(:disabled) { background: linear-gradient(180deg, #55dcac, #2bab7e); }
 
-/* One angled container, two segments: Play and the narrow list button, split by a thin line. */
+/* One angled container, split by thin lines: the silver Guardrails button on the left, Play, and the
+   narrow list button on the right when there is a choice. */
 .play-split { display: flex; align-items: stretch; gap: 3px; height: 2.5rem; min-width: 0; clip-path: polygon(0.42rem 0, calc(100% - 0.42rem) 0, 100% 50%, calc(100% - 0.42rem) 100%, 0.42rem 100%, 0 50%); }
 .actions .play-split .btn { clip-path: none; height: 100%; }
-.actions .play-split .btn.play:first-child { padding-right: 0.95rem; }
+.actions .play-split .btn.play:not(:last-child) { padding-right: 0.95rem; }
+.actions .play-split .btn.play:not(:first-child) { padding-left: 0.95rem; }
 /* Wide enough that the icon sits in the middle of what the angled end leaves. */
 .actions .play-split .btn.play-more { min-width: 0; width: 3.3rem; padding: 0 0.42rem 0 0; }
-.actions .play-split .btn.play-more svg { width: 1.15rem; height: 1.15rem; }
+.actions .play-split .btn.play-more svg { width: 26px; height: 26px; }
+.actions .play-split .btn.guard { flex: none; width: 3.3rem; padding: 0 0 0 0.42rem; }
 .actions .play-split .btn.play-more[aria-expanded="true"] { background: linear-gradient(180deg, #ffd466, #f0b429); }
 .actions .play-split .btn.play-more.modded[aria-expanded="true"] { background: linear-gradient(180deg, #55dcac, #2bab7e); }
 @container nav (max-width: 48rem) {
   .play-split .play-text { display: none; }
-  .actions .play-split .btn.play-more { width: 2.9rem; }
+  .actions .play-split :is(.btn.play-more, .btn.guard) { width: 2.9rem; }
 }
 
 /* The Play choice dialog */
