@@ -219,8 +219,9 @@ button.nav-warn:hover { filter: brightness(1.2); text-decoration: underline; tex
 .list { position: relative; flex: 1; min-width: 30rem; display: flex; flex-direction: column; background: linear-gradient(160deg, var(--p1), var(--p2)); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); }
 /* Version fits the header and 1.29.0 with the update arrow, so Scope sits close (the user, 2026-11-04). The
    two widths are fixed; they used to drag, which the user dropped on 2026-11-06. */
-/* Size, Deployed, Version and Scope share one width, so the columns are spaced evenly. */
-.table { --col: 6rem; --col-size: var(--col); --col-dep: var(--col); --col-ver: var(--col); --col-scope: var(--col); flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; container: modlist / inline-size; }
+/* Size, Deployed, Version and Scope each take the room the widest title or value needs (999.9 MB, DEPLOYED,
+   1.50.0-beta.2, SCOPE) and a little more, so the gap before the next column looks the same everywhere. */
+.table { --col-size: 4.2rem; --col-dep: 5.2rem; --col-ver: 6rem; --col-scope: 3.2rem; flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; container: modlist / inline-size; }
 /* The rows keep the room of the scrollbar whether or not they scroll, and the header keeps the same room,
    so the columns at the right sit under their titles in a long list too. */
 .tbody { overflow: auto; min-height: 0; position: relative; scrollbar-gutter: stable; }
@@ -229,11 +230,11 @@ button.nav-warn:hover { filter: brightness(1.2); text-decoration: underline; tex
    22.25rem is the lead columns, the conflict icon, the eight gaps and those 11rem. Narrower still, Size
    and then Deployed go (the container queries below). Every cell starts at the left of its column. */
 .th, .tr { --lead: 1.3rem 1.25rem 2.9rem; --cols: var(--col-size) var(--col-dep); --fixed: calc(var(--col-size) + var(--col-dep) + 1rem); display: grid; grid-template-columns: var(--lead) minmax(0, 1fr) 1.8rem var(--cols) clamp(3.7rem, min(30%, 100% - 20.25rem - var(--fixed) - var(--col-scope)), var(--col-ver)) var(--col-scope); gap: 0.5rem; align-items: center; padding: 0 0.8rem; }
-@container modlist (max-width: 50rem) {
+@container modlist (max-width: 42.5rem) {
   .th, .tr { --cols: var(--col-dep); --fixed: calc(var(--col-dep) + 0.5rem); }
   .th > .sz, .tr > .sz { display: none; }
 }
-@container modlist (max-width: 43rem) {
+@container modlist (max-width: 37.5rem) {
   /* With Size and Deployed gone, Version and Scope take the widths the list had before them, so the Mod column keeps 11rem. */
   .th, .tr { --col-ver: 5.2rem; --col-scope: 3.2rem; --cols: ; --fixed: 0rem; grid-template-columns: var(--lead) minmax(0, 1fr) 1.8rem clamp(3.7rem, min(30%, 100% - 21.25rem - var(--col-scope)), var(--col-ver)) var(--col-scope); }
   .th > .dep-cell, .tr > .dep-cell { display: none; }
