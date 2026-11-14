@@ -842,7 +842,7 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 :root[data-motion="off"] .home-art-img { animation: none; }
 @keyframes art-in { from { opacity: 0; } }
 @keyframes art-zoom { from { transform: scale(1); } to { transform: scale(1.02); } }
-.home-steps { position: absolute; z-index: 1; left: 50%; transform: translateX(-50%); bottom: 1rem; display: flex; align-items: center; height: 1.6rem; color: #f2f1ed; background: rgba(255, 255, 255, 0.12); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); }
+.home-steps { position: absolute; z-index: 1; left: 50%; transform: translateX(-50%); bottom: 1rem; display: flex; align-items: center; height: 1.6rem; color: #f2f1ed; background: rgba(255, 255, 255, 0.06); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07); }
 .home-steps button { align-self: stretch; display: flex; align-items: center; padding: 0 0.3rem; border: 0; background: none; color: inherit; cursor: pointer; transition: background var(--fast); }
 .home-steps button:hover { background: rgba(255, 255, 255, 0.16); }
 .home-steps svg { width: 0.9rem; height: 0.9rem; }
@@ -856,9 +856,9 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 /* The logo, the name and the links as one group, centred on the whole window rather than the page under the
    tab bar: the tab bar (3.3rem) is taller than the status bar (1.7rem), so the group moves up by half the
    difference. The bottom padding keeps it clear of the picture controls. */
-.home-center { display: flex; flex-direction: column; align-items: center; gap: 2.2rem; transform: translateY(-0.8rem); }
+.home-center { --home-sub: clamp(0.85rem, 0.51rem + 1.02vmin, 1.36rem); display: flex; flex-direction: column; align-items: center; gap: 2.2rem; transform: translateY(-0.8rem); }
 /* About 15% under the first size. */
-.home-brand { --home-sub: clamp(0.85rem, 0.51rem + 1.02vmin, 1.36rem); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.95rem; text-align: center; }
+.home-brand { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.95rem; text-align: center; }
 .home-brand img { width: calc(var(--home-sub) * 7.5); height: calc(var(--home-sub) * 7.5); filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.5)); }
 .home-brand h1 { margin: 0; padding-left: 0.06em; font-family: "Saira Variable", sans-serif; font-weight: 770; font-size: calc(var(--home-sub) * var(--title-fit, 3.7)); line-height: 0.95; letter-spacing: 0.06em; text-shadow: 0 4px 24px rgba(0, 0, 0, 0.5); }
 .home-brand p { margin: 0; line-height: 1.15; padding-left: 0.32em; font-family: "Saira Variable", sans-serif; font-weight: 500; font-size: var(--home-sub); letter-spacing: 0.32em; color: #c9c8c3; }
@@ -1008,7 +1008,8 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 
 /* Home links: one centered row that wraps on a narrow window */
 /* The links stacked in one column with no box around them; each fills it, so all have the same width. */
-.home-links { display: flex; flex-direction: column; align-items: stretch; gap: 0.45rem; width: 15rem; }
+/* As wide as the subtitle, which the title matches (HomePage.tsx). */
+.home-links { display: flex; flex-direction: column; align-items: stretch; gap: 0.45rem; width: calc(var(--home-sub) * var(--brand-w, 11)); }
 .home-links .btn { width: 100%; justify-content: center; }
 .home .btn.play { min-width: 0; }
 
@@ -1451,7 +1452,7 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .commander { height: 100%; display: flex; flex-direction: column; min-height: 0; }
 .commander.shell { gap: 0; }
 .cmd-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.55rem 1rem; background: var(--p2); border-bottom: 1px solid var(--ln); }
-.cmd-sources { display: flex; align-items: center; gap: 0.35rem; min-width: 0; flex-wrap: wrap; }
+.cmd-sources { display: flex; align-items: center; gap: 0.55rem; min-width: 0; flex-wrap: wrap; }
 .cmd-src, .cmd-src > button { display: inline-flex; align-items: center; gap: 0.45rem; height: 2.1rem; padding: 0 0.85rem; border: 0; border-radius: 2px; background: transparent; color: var(--mu); font: inherit; font-size: 0.86rem; text-transform: uppercase; cursor: pointer; }
 .cmd-src.lan { padding: 0; }
 .cmd-src.lan > button:first-child { padding-right: 0.35rem; text-transform: none; letter-spacing: 0; font-weight: 500; }
@@ -1461,7 +1462,7 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .cmd-forget { display: inline-flex; align-items: center; justify-content: center; width: 1.7rem; height: 2.1rem; border: 0; background: transparent; color: var(--mu); cursor: pointer; opacity: 0.6; }
 .cmd-forget:hover { opacity: 1; color: var(--tx); }
 .cmd-forget svg { width: 0.85rem; height: 0.85rem; }
-.cmd-join { height: 2.1rem; margin-left: 0.4rem; }
+.cmd-join { height: 2.1rem; }
 .cmd-next { display: flex; align-items: center; gap: 0.55rem; flex-shrink: 0; }
 .cmd-next .btn { height: 2.1rem; }
 .cmd-next-label { font-size: 0.72rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--mu); }

@@ -95,8 +95,8 @@ function inkPerEm(el: HTMLElement): number {
   return (m.actualBoundingBoxLeft + m.actualBoundingBoxRight + spacing) / parseFloat(style.fontSize);
 }
 
-/** Keeps the title as wide as the subtitle. The ratio of the two sizes depends only on the words and the
-    font, so it is worked out here and the CSS scales both with the window. */
+/** Keeps the title as wide as the subtitle, and the buttons under them as wide as both. The ratios depend
+    only on the words and the font, so they are worked out here and the CSS scales everything with the window. */
 function useTitleFit() {
   const brand = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -106,7 +106,9 @@ function useTitleFit() {
     if (!box || !h || !p) return;
     const fit = () => {
       const title = inkPerEm(h);
-      if (title > 0) box.style.setProperty("--title-fit", String(inkPerEm(p) / title));
+      const sub = inkPerEm(p);
+      if (title > 0) box.style.setProperty("--title-fit", String(sub / title));
+      if (sub > 0) box.parentElement?.style.setProperty("--brand-w", String(sub));
     };
     fit();
     if (typeof ResizeObserver === "undefined") return;

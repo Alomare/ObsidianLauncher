@@ -378,7 +378,7 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
           {showTools && (
             <>
               <button className="btn cmd-tool" onClick={importWar} data-tip={t("app.commander.importWarHint")}><ImportIcon /><span>{t("app.commander.importWar")}</span></button>
-              <button className="btn play cmd-tool" onClick={() => post({ type: "obsidian:create" })} data-tip={t("app.commander.newWarHint")}><PlusIcon /><span>{t("app.commander.newWar")}</span></button>
+              <button className="btn go cmd-tool" onClick={() => post({ type: "obsidian:create" })} data-tip={t("app.commander.newWarHint")}><PlusIcon /><span>{t("app.commander.newWar")}</span></button>
             </>
           )}
         </div>
