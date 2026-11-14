@@ -332,8 +332,8 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
               <h1>{m.name}</h1>
               <div className="mh-tags">
                 <ScopeTag scope={m.scope} />
+                <Early m={m} />
                 <span className="mh-ver" data-tip={t("app.store.factVersion")}>{m.version}</span>
-                <Early m={m} />{m.kit && <span className="store-tag">{t("app.store.kit")}</span>}
               </div>
             </div>
           </div>
@@ -345,8 +345,8 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
           </dl>
           {needs.length > 0 && fold(t("app.store.requires"), needs.map((n) => reqRow(n.id, n.entry, n.entry?.name ?? n.id, !!n.row)))}
           {neededBy.length > 0 && fold(t("app.store.neededBy"), neededBy.map((x) => reqRow(x.id, x, x.name, snap.mods.some((r) => r.id === x.id))))}
-          {m.summary && <p className="msum">{m.summary}</p>}
           <OptionList m={m} />
+          {m.summary && <p className="msum">{m.summary}</p>}
         </aside>
         <div className="mmain">
           <section className="store-box"><Markdown tokens={desc} /></section>
