@@ -6,6 +6,7 @@ const LANGS = ["en", "pt-BR", "zh-CN"];
 const UNTRANSLATED = new Set([
   "saves", "commander", "commander-wars", "commander-playing", "commander-game-master", "commander-rules",
   "commander-hosting", "commander-sharing", "commander-joining", "commander-faq", "commander-troubleshooting",
+  "tab-store", "tab-mods", "tab-saves", "tab-wars", "tab-wiki", "tab-settings",
 ]);
 
 describe("wiki", () => {

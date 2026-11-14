@@ -25,12 +25,13 @@ The loader also applies the multiplayer rules. In a public lobby, mods that chan
 
 | Tab | What it is for |
 |---|---|
-| Home | Links to the community and the source code |
-| [Mods](app:mods) | The library: mods on and off, load order, options and keys |
-| [Saves](app:saves) | Official and Sandbox saves, and the save editor |
-| [Commander](app:commander) | Custom Galactic Wars, covered in the Commander subtab of this Wiki |
-| Wiki | These guides |
-| [Settings](app:settings) | Language, theme, game folder, updates |
+| Home | Links to the Store, the community and the source code |
+| [Store](app:store) | Mods to install in one click ([more](wiki:tab-store)) |
+| [Mods](app:mods) | The library: mods on and off, load order, options and keys ([more](wiki:tab-mods)) |
+| [Saves](app:saves) | Official and Sandbox saves, and the save editor ([more](wiki:tab-saves)) |
+| [Wars](app:commander) | Custom Galactic Wars, covered in the Commander subtab of this Wiki ([more](wiki:tab-wars)) |
+| Wiki | These guides ([more](wiki:tab-wiki)) |
+| [Settings](app:settings) | Language, theme, game folder, updates ([more](wiki:tab-settings)) |
 
 The tabs sit on the left of the bar, and the Wiki (the book) and Settings (the cog) are the two icons at the right end. Between them are [Guardrails](wiki:guardrails), the shield, and three buttons:
 
