@@ -46,16 +46,11 @@ function ModIcon({ m, size = "" }: { m: StoreMod; size?: string }) {
   );
 }
 
-/** In place of a thumbnail: the icon over a blurred, darkened copy of itself, or the first letter over one
-    of the Home pictures when the mod has no icon either. */
+/** In place of a thumbnail: the icon blurred and darkened, or one of the Home pictures when the mod has no
+    icon either. */
 function Backdrop({ m }: { m: StoreMod }) {
   const under = m.icon ? src(m.icon) : artFor(m.id);
-  return (
-    <span className="backdrop">
-      {under && <span className="bd-blur" aria-hidden="true" style={{ backgroundImage: `url("${under}")` }} />}
-      <ModIcon m={m} size="xl" />
-    </span>
-  );
+  return <span className="backdrop">{under && <span className="bd-blur" aria-hidden="true" style={{ backgroundImage: `url("${under}")` }} />}</span>;
 }
 
 function ScopeTag({ scope }: { scope: Scope }) {
@@ -335,12 +330,15 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
             {m.icon ? <Zoom path={m.icon} className="mid-ico"><ModIcon m={m} /></Zoom> : <ModIcon m={m} />}
             <div className="mid-t">
               <h1>{m.name}</h1>
-              <div className="mh-tags"><ScopeTag scope={m.scope} /><Early m={m} />{m.kit && <span className="store-tag">{t("app.store.kit")}</span>}</div>
+              <div className="mh-tags">
+                <ScopeTag scope={m.scope} />
+                <span className="mh-ver" data-tip={t("app.store.factVersion")}>{m.version}</span>
+                <Early m={m} />{m.kit && <span className="store-tag">{t("app.store.kit")}</span>}
+              </div>
             </div>
           </div>
           <InstallButton m={m} mark={k} size="big" onInstall={() => onInstall(m)} />
           <dl className="mstats">
-            <div><dt>{t("app.store.factVersion")}</dt><dd>{m.version}</dd></div>
             {m.added && <div><dt>{t("app.store.factReleased")}</dt><dd>{date(m.added)}</dd></div>}
             {m.released && <div><dt>{t("app.store.factUpdated")}</dt><dd>{date(m.released)}</dd></div>}
             {row?.version && row.version !== m.version && <div><dt>{t("app.store.factInstalled")}</dt><dd>{row.version}</dd></div>}

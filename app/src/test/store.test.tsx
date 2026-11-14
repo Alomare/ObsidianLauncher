@@ -88,10 +88,10 @@ describe("StorePage", () => {
     expect([...host.querySelectorAll(".kit-card b")].map((b) => b.textContent)).toEqual(["API"]);
     expect(names(host)).toEqual(["ARCADE", "HUD", "CROSSHAIR"]);
     expect(host.querySelector(".card .store-tag.early")?.textContent).toBe(t("app.store.early"));
-    // No thumbnail and no icon: the letter over a blurred picture, never an empty box.
+    // No thumbnail and no icon: a blurred picture alone, never an empty box.
     const plain = host.querySelector(".card .c-img .backdrop")!;
     expect(plain.querySelector(".bd-blur")).not.toBeNull();
-    expect(plain.querySelector(".mico.letter")).not.toBeNull();
+    expect(plain.querySelector(".mico")).toBeNull();
     const hud = [...host.querySelectorAll(".card")].find((c) => c.textContent?.includes("HUD"))!;
     expect(hud.querySelector(".c-flag.inst")).not.toBeNull();
 
@@ -121,7 +121,8 @@ describe("StorePage", () => {
     expect(host.querySelector(".store-mod .md")?.textContent).toContain("Long text");
     expect(host.querySelector(".msum")?.textContent).toBe("About arcade");
     // First release and newest release in their own boxes.
-    expect([...host.querySelectorAll(".mstats dt")].map((d) => d.textContent)).toEqual([t("app.store.factVersion"), t("app.store.factReleased"), t("app.store.factUpdated")]);
+    expect([...host.querySelectorAll(".mstats dt")].map((d) => d.textContent)).toEqual([t("app.store.factReleased"), t("app.store.factUpdated")]);
+    expect(host.querySelector(".mh-tags .mh-ver")?.textContent).toBe("0.4.0");
     // Requires folds shut, with the count beside the label.
     const req = [...host.querySelectorAll(".mrail details.fold")].find((d) => d.textContent?.includes(t("app.store.requires"))) as HTMLDetailsElement;
     expect(req.open).toBe(false);
