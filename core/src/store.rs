@@ -31,6 +31,22 @@ pub struct StoreVersion {
     pub notes: String,
 }
 
+/// An option of a mod, in English; `group` names one of the mod's `option_groups`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct StoreOption {
+    pub label: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub group: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct StoreGroup {
+    pub id: String,
+    pub label: String,
+}
+
 /// One mod of the index. `icon` and `banner` are paths in the index repository as read, and paths on
 /// this PC once `fetch` has the pictures (None when a picture couldn't be had).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -50,6 +66,11 @@ pub struct StoreMod {
     pub requires: Vec<String>,
     #[serde(default)]
     pub options: u32,
+    /// The options by name and tooltip, for the mod page; indexes built before 2026-11-13 lack them.
+    #[serde(default)]
+    pub option_list: Vec<StoreOption>,
+    #[serde(default)]
+    pub option_groups: Vec<StoreGroup>,
     pub repo: String,
     #[serde(default)]
     pub kit: bool,
@@ -252,6 +273,19 @@ mod tests {
         assert!(got.mods[0].icon.is_some(), "a picture already here still shows");
         assert_eq!(find(dir.path(), "a.mod").unwrap().repo, "o/a");
         assert!(matches!(find(dir.path(), "b.mod"), Err(ObsidianError::StoreUnknown(_))));
+    }
+
+    #[test]
+    fn options_read_with_their_groups_and_default_to_none() {
+        let old = parse(&index(1, "img/a.jpg")).unwrap();
+        assert!(old[0].option_list.is_empty() && old[0].option_groups.is_empty());
+        let text = r#"{"format":1,"mods":[{"id":"a.mod","name":"A","version":"1.0.0","repo":"o/a","options":2,
+            "option_list":[{"label":"Lives","description":"Per mission","group":null},{"label":"Price","group":"shop"}],
+            "option_groups":[{"id":"shop","label":"Shop"}]}]}"#;
+        let m = &parse(text).unwrap()[0];
+        assert_eq!(m.option_list[0], StoreOption { label: "Lives".into(), description: "Per mission".into(), group: None });
+        assert_eq!(m.option_list[1].group.as_deref(), Some("shop"));
+        assert_eq!(m.option_groups, vec![StoreGroup { id: "shop".into(), label: "Shop".into() }]);
     }
 
     #[test]

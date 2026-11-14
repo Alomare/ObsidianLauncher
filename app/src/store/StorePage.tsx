@@ -5,14 +5,15 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useLocked } from "../busy";
-import { CheckIcon, ChevronIcon, CloseIcon, GitHubIcon, ImportIcon, NoImageIcon, OutboundIcon, SearchIcon, UpdateIcon } from "../Icons";
+import { CheckIcon, ChevronIcon, CloseIcon, GitHubIcon, ImportIcon, NoImageIcon, SearchIcon, UpdateIcon } from "../Icons";
 import { language, t } from "../i18n";
 import { Markdown, parse } from "../Markdown";
 import { go } from "../nav";
 import { openUrl } from "../opener";
 import { Select } from "../Select";
+import { ImageViewer } from "../Thumb";
 import type { Scope, Snapshot } from "../types";
-import { install, loadStore, markOf, useStore, type StoreMark, type StoreMod } from "./storeIndex";
+import { install, loadStore, markOf, useStore, type StoreMark, type StoreMod, type StoreOption } from "./storeIndex";
 
 const FILTER_SCOPES: Scope[] = ["library", "client", "session", "expansion"];
 type Sort = "az" | "za" | "scope" | "new" | "updated" | "random";
@@ -221,6 +222,47 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
 
 type PageProps = { m: StoreMod; all: StoreMod[]; snap: Snapshot; mark: (m: StoreMod) => StoreMark; onOpen: (id: string | null) => void; onInstall: (m: StoreMod) => void };
 
+/** A picture of the mod that opens large on a click. */
+function Zoom({ path, className, children }: { path: string; className: string; children: ReactNode }) {
+  const [big, setBig] = useState(false);
+  return (
+    <>
+      <button className={`zoomable ${className}`} onClick={() => setBig(true)} aria-haspopup="dialog" aria-label={t("app.image.view")} data-tip={t("app.image.view")}>
+        {children}
+      </button>
+      {big && <ImageViewer image={{ path, v: 0 }} onClose={() => setBig(false)} />}
+    </>
+  );
+}
+
+/** The options by name, folded; options under a group sit in that group, folded as well. */
+function OptionList({ m }: { m: StoreMod }) {
+  const opts = m.option_list ?? [];
+  if (!opts.length) return null;
+  const known = new Set((m.option_groups ?? []).map((g) => g.id));
+  const loose = opts.filter((o) => !o.group || !known.has(o.group));
+  const rows = (list: StoreOption[]) => (
+    <ul className="opt-rows">
+      {list.map((o, i) => <li key={i}><b>{o.label}</b>{o.description && <span>{o.description}</span>}</li>)}
+    </ul>
+  );
+  return (
+    <details className="opt-list">
+      <summary><ChevronIcon />{t("app.store.options")}<i>{opts.length}</i></summary>
+      {loose.length > 0 && rows(loose)}
+      {(m.option_groups ?? []).map((g) => {
+        const inside = opts.filter((o) => o.group === g.id);
+        return inside.length ? (
+          <details key={g.id} className="opt-group">
+            <summary><ChevronIcon />{g.label}<i>{inside.length}</i></summary>
+            {rows(inside)}
+          </details>
+        ) : null;
+      })}
+    </details>
+  );
+}
+
 function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
   const [unfolded, setUnfolded] = useState<Record<string, boolean>>({});
   const k = mark(m);
@@ -229,13 +271,6 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
   const needs = m.requires.map((id) => ({ id, entry: all.find((x) => x.id === id), row: snap.mods.find((r) => r.id === id) }));
   const neededBy = all.filter((x) => x.requires.includes(m.id));
   const url = `https://github.com/${m.repo}`;
-  const facts: [string, ReactNode][] = [
-    [t("app.store.factVersion"), m.version],
-    ...(m.released ? [[t("app.store.factReleased"), date(m.released)] as [string, string]] : []),
-    [t("app.store.factScope"), <><span className={`scope ${m.scope}`}><i /></span>{t(`app.scope.${m.scope}`)}</>],
-    [t("app.store.factOptions"), m.options ? String(m.options) : t("app.store.none")],
-    ...(row?.version ? [[t("app.store.factInstalled"), row.version] as [string, string]] : []),
-  ];
   const reqRow = (key: string, target: StoreMod | undefined, name: string, ok: boolean) => (
     <li key={key}>
       <button className="req-row" onClick={() => target && onOpen(target.id)} disabled={!target}>
@@ -245,35 +280,58 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
       </button>
     </li>
   );
+  const picture = m.banner ?? m.icon;
   return (
     <div className="store-mod">
-      <header className={m.banner ? "mhero" : "mhero plain"}>
-        {m.banner && <div className="mh-back" aria-hidden="true"><img src={src(m.banner)} alt="" draggable={false} /></div>}
-        <div className="mhero-in">
-          <div className="mh-left">
-            <button className="crumbs" onClick={() => onOpen(null)}><ChevronIcon />{t("app.nav.store")}</button>
-            <div className="mh-title">
-              <ModIcon m={m} size="xl" />
-              <div>
-                <h1>{m.name}</h1>
-                <div className="mh-tags"><ScopeTag scope={m.scope} /><Early m={m} />{m.kit && <span className="store-tag">{t("app.store.kit")}</span>}</div>
-              </div>
-            </div>
-            <p className="mh-sum">{m.summary}</p>
-            <div className="mh-act">
-              <InstallButton m={m} mark={k} size="big" onInstall={() => onInstall(m)} />
-              <span className="inst-note">{t("app.store.fromGithub", m.version)}</span>
+      <button className="btn small back" onClick={() => onOpen(null)}><ChevronIcon />{t("app.store.back")}</button>
+      <div className="mcols">
+        <aside className="mrail">
+          {picture ? (
+            <Zoom path={picture} className={m.banner ? "mmedia" : "mmedia none"}>
+              {m.banner ? <img src={src(m.banner)} alt="" draggable={false} /> : <>
+                <span className="mm-blur" aria-hidden="true" style={{ backgroundImage: `url("${src(m.icon!)}")` }} />
+                <ModIcon m={m} size="xl" />
+              </>}
+            </Zoom>
+          ) : (
+            <div className="mmedia none"><ModIcon m={m} size="xl" /></div>
+          )}
+          <div className="mid">
+            {m.icon ? <Zoom path={m.icon} className="mid-ico"><ModIcon m={m} /></Zoom> : <ModIcon m={m} />}
+            <div className="mid-t">
+              <h1>{m.name}</h1>
+              <div className="mh-tags"><ScopeTag scope={m.scope} /><Early m={m} />{m.kit && <span className="store-tag">{t("app.store.kit")}</span>}</div>
             </div>
           </div>
-          {m.banner && <div className="mh-right"><div className="mh-shot"><img src={src(m.banner)} alt="" draggable={false} /></div></div>}
-        </div>
-      </header>
-      <div className="mbody">
+          <InstallButton m={m} mark={k} size="big" onInstall={() => onInstall(m)} />
+          <dl className="mstats">
+            <div><dt>{t("app.store.factVersion")}</dt><dd>{m.version}</dd></div>
+            <div><dt>{t("app.store.factReleased")}</dt><dd>{m.released ? date(m.released) : "-"}</dd></div>
+            {row?.version && row.version !== m.version && <div><dt>{t("app.store.factInstalled")}</dt><dd>{row.version}</dd></div>}
+          </dl>
+          {needs.length > 0 && (
+            <div className="mreq">
+              <h3 className="cap">{t("app.store.requires")}</h3>
+              <ul className="req">{needs.map((n) => reqRow(n.id, n.entry, n.entry?.name ?? n.id, !!n.row))}</ul>
+            </div>
+          )}
+          {neededBy.length > 0 && (
+            <div className="mreq">
+              <h3 className="cap">{t("app.store.neededBy")}</h3>
+              <ul className="req">{neededBy.map((x) => reqRow(x.id, x, x.name, snap.mods.some((r) => r.id === x.id)))}</ul>
+            </div>
+          )}
+          {m.summary && <p className="msum">{m.summary}</p>}
+          <OptionList m={m} />
+        </aside>
         <div className="mmain">
           <section className="store-box"><Markdown tokens={desc} /></section>
           {m.versions.length > 0 && (
             <section>
-              <h2 className="store-h">{t("app.store.versions")}</h2>
+              <div className="store-h">
+                <button className="btn small icon gh" onClick={() => openUrl(url).catch(() => {})} aria-label="GitHub" data-tip={url}><GitHubIcon /></button>
+                <h2>{t("app.store.versions")}</h2>
+              </div>
               <ol className="store-box mod-log-list">
                 {m.versions.map((v, i) => {
                   const unfold = unfolded[v.version] ?? i === 0;
@@ -298,23 +356,6 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
             </section>
           )}
         </div>
-        <aside className="mside">
-          <div className="store-box">
-            <h3 className="cap">{t("app.store.details")}</h3>
-            <dl className="store-facts">{facts.map(([a, b]) => <div key={a}><dt>{a}</dt><dd>{b}</dd></div>)}</dl>
-            <button className="btn small" onClick={() => openUrl(url).catch(() => {})} data-tip={url}><GitHubIcon />GitHub<OutboundIcon /></button>
-          </div>
-          <div className="store-box">
-            <h3 className="cap">{t("app.store.requires")}</h3>
-            {needs.length ? <ul className="req">{needs.map((n) => reqRow(n.id, n.entry, n.entry?.name ?? n.id, !!n.row))}</ul> : <span className="muted">{t("app.store.requiresNone")}</span>}
-            {neededBy.length > 0 && (
-              <>
-                <h3 className="cap">{t("app.store.neededBy")}</h3>
-                <ul className="req">{neededBy.map((x) => reqRow(x.id, x, x.name, snap.mods.some((r) => r.id === x.id)))}</ul>
-              </>
-            )}
-          </div>
-        </aside>
       </div>
     </div>
   );

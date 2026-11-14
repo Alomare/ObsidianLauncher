@@ -9,11 +9,12 @@ import { notify } from "../notices";
 import { compareVersions } from "../updates";
 import type { ImportBatch, ModRow, Scope } from "../types";
 
-export type StoreVersion = { version: string; date: string | null; channel: string; notes: string };
+export type StoreOption = { label: string; description: string; group: string | null };
+export type StoreVersion ={ version: string; date: string | null; channel: string; notes: string };
 /** `icon` and `banner` are files on this PC, kept in the data folder. */
 export type StoreMod = {
   id: string; name: string; summary: string; description: string; version: string; early: boolean;
-  scope: Scope; requires: string[]; options: number; repo: string; kit: boolean;
+  scope: Scope; requires: string[]; options: number; option_list: StoreOption[]; option_groups: { id: string; label: string }[]; repo: string; kit: boolean;
   icon: string | null; banner: string | null; released: string | null; added: string | null; versions: StoreVersion[];
 };
 export type StoreState = { mods: StoreMod[] | null; offline: boolean; loading: boolean; error: string | null; installing: string[] };
