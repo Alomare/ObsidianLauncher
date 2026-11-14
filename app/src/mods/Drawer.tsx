@@ -479,12 +479,9 @@ function VersionsTab({ mod }: { mod: ModRow }) {
     <div className="versions pad">
       <div className="versions-head">
         {channels.length > 1 ? (
-          <div className="seg versions-channels" role="tablist" aria-label={t("app.drawer.channels")}>
-            {channels.map((c) => (
-              <button key={c} role="tab" aria-selected={c === channel} className={c === channel ? "on" : undefined} onClick={() => { setPicked(c); setShown(LOG_STEP); }}>
-                {channelName(c)}
-              </button>
-            ))}
+          <div className="versions-channels">
+            <Select value={channel} label={t("app.drawer.channels")} options={channels.map((c) => ({ value: c, label: channelName(c) }))}
+              onChange={(c) => { setPicked(c); setShown(LOG_STEP); }} />
           </div>
         ) : <span />}
         <button onClick={() => { setShown(LOG_STEP); refresh(mod.id).then(() => tick((n) => n + 1)); tick((n) => n + 1); }}

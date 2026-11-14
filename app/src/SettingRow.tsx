@@ -4,11 +4,12 @@ import type { ReactNode } from "react";
 import { t } from "./i18n";
 import { go } from "./nav";
 
-/** A round "?" beside a heading: the tooltip says what the group is for, a click opens the Wiki at `page`. */
+/** A round "?" beside a heading: the tooltip says what the group is for, with the WIKI tag, and a click
+    opens the Wiki at `page`. */
 export function Help({ page, tip }: { page: string; tip?: string }) {
   return (
-    <button className="help-q" aria-label={t("app.settings.readMore")} data-tip-title={tip ? undefined : t("app.settings.readMore")}
-      data-tip={tip ? `${tip}\n${t("app.scope.wikiHint")}` : t("app.scope.wikiHint")} onClick={() => go("wiki", page)}>?</button>
+    <button className="help-q" aria-label={t("app.settings.readMore")} data-tip-title={t("app.settings.readMore")}
+      data-tip={tip} data-tip-wiki="" onClick={() => go("wiki", page)}>?</button>
   );
 }
 

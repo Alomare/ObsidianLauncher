@@ -79,13 +79,14 @@ describe("versions", () => {
 });
 
 describe("the Versions tab", () => {
-  it("has a tab per channel and lists the installed channel first", async () => {
+  it("has a dropdown of the channels and lists the installed channel first", async () => {
     const box = await show(mod("1.2.0"));
-    const tabs = [...box.querySelectorAll(".versions-channels button")].map((b) => b.textContent);
-    expect(tabs).toEqual(["Stable", "Beta"]);
+    act(() => box.querySelector<HTMLButtonElement>(".versions-channels .select-btn")!.click());
+    const items = [...document.querySelectorAll<HTMLElement>(".select-list [role=option]")];
+    expect(items.map((b) => b.textContent)).toEqual(["Stable", "Beta"]);
     const versions = [...box.querySelectorAll(".mod-log-entry b")].map((b) => b.textContent);
     expect(versions).toEqual(["1.2.0", "1.1.0"]);
-    act(() => box.querySelectorAll<HTMLButtonElement>(".versions-channels button")[1].click());
+    act(() => items[1].click());
     expect([...box.querySelectorAll(".mod-log-entry b")].map((b) => b.textContent)).toEqual(["1.3.0-beta.1"]);
   });
 

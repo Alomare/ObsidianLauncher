@@ -1,5 +1,5 @@
 // Line icons drawn in currentColor, and the Obsidian logo.
-import type { ReactNode, SVGProps } from "react";
+import { useId, type ReactNode, type SVGProps } from "react";
 
 const Icon = ({ children, ...p }: SVGProps<SVGSVGElement> & { children: ReactNode }) => (
   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...p}>
@@ -32,12 +32,17 @@ export const CheckIcon =() => <Icon strokeWidth="2.6"><path d="M5 12.5l4.5 4.5L1
 export const SwitchOnIcon = () => <Icon><rect x="2" y="6.5" width="20" height="11" rx="1" fill="currentColor" /><rect x="14" y="9.5" width="5" height="5" fill="var(--btn)" stroke="none" /></Icon>;
 export const SwitchOffIcon = () => <Icon><rect x="2" y="6.5" width="20" height="11" rx="1" /><rect x="5" y="9.5" width="5" height="5" fill="currentColor" stroke="none" /></Icon>;
 /** A filled square with an arrow leaving it: the link opens outside the app. */
-export const OutboundIcon = () => (
-  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" className="outbound">
-    <defs><mask id="outbound-cut"><rect width="24" height="24" fill="#fff" /><path d="M8.5 15.5l7-7M10 8.5h5.5V14" stroke="#000" strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round" /></mask></defs>
-    <rect x="2.5" y="2.5" width="19" height="19" rx="2.5" fill="currentColor" mask="url(#outbound-cut)" />
-  </svg>
-);
+/** A filled square with an arrow cut out. Each copy has a separate mask: a shared id breaks every copy
+    while the first one sits in a hidden element. */
+export const OutboundIcon = () => {
+  const id = `outbound-${useId().replace(/[^A-Za-z0-9_-]/g, "")}`;
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" className="outbound">
+      <defs><mask id={id}><rect width="24" height="24" fill="#fff" /><path d="M8.5 15.5l7-7M10 8.5h5.5V14" stroke="#000" strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round" /></mask></defs>
+      <rect x="2.5" y="2.5" width="19" height="19" rx="2.5" fill="currentColor" mask={`url(#${id})`} />
+    </svg>
+  );
+};
 export const GitHubIcon = () => (
   <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.58l-.02-2.04c-3.34.73-4.04-1.6-4.04-1.6-.55-1.4-1.34-1.77-1.34-1.77-1.08-.74.09-.73.09-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.31.76-1.6-2.67-.31-5.47-1.34-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.62-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .32.21.7.82.58A12 12 0 0 0 12 .3" /></svg>
 );

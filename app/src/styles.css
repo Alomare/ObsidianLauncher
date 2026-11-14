@@ -226,21 +226,32 @@ button.nav-warn:hover { filter: brightness(1.2); text-decoration: underline; tex
 /* The rows keep the room of the scrollbar whether or not they scroll, and the header keeps the same room,
    so the columns at the right sit under their titles in a long list too. */
 .tbody { overflow: auto; min-height: 0; position: relative; scrollbar-gutter: stable; }
-/* Left to right: check, #, On, Mod, the conflict icon, then Size, Deployed, Version and Scope at fixed
-   widths. In a narrow list Version gives way first, down to its minimum, so the Mod column keeps 11rem:
-   22.25rem is the lead columns, the conflict icon, the eight gaps and those 11rem. Narrower still, Size
-   and then Deployed go (the container queries below). Every cell starts at the left of its column. */
-.th, .tr { --lead: 1.3rem 1.25rem 2.9rem; --cols: var(--col-size) var(--col-dep); --fixed: calc(var(--col-size) + var(--col-dep) + 1rem); display: grid; grid-template-columns: var(--lead) minmax(0, 1fr) 1.8rem var(--cols) clamp(3.7rem, min(30%, 100% - 20.25rem - var(--fixed) - var(--col-scope)), var(--col-ver)) var(--col-scope); gap: 0.5rem; align-items: center; padding: 0 0.8rem; }
+/* Left to right: check, #, On, Mod (the conflict icon after the name), then Size, Deployed, Version and
+   Scope at fixed widths. In a narrow list Version gives way first, down to the minimum, so the Mod column
+   keeps about 11rem: 18rem is the lead columns, the gaps and those 11rem. Narrower still, Size and then
+   Deployed go (the container queries below). A right click on the header hides #, Size, Deployed or Version
+   (.no-* on the table): an empty track variable drops the track. Every cell starts at the left of the column. */
+.th, .tr { --t-num: 1.25rem; --t-size: var(--col-size); --t-dep: var(--col-dep); --f-size: calc(var(--col-size) + 0.5rem); --f-dep: calc(var(--col-dep) + 0.5rem);
+  --t-ver: clamp(3.7rem, min(30%, 100% - 18rem - var(--f-size) - var(--f-dep) - var(--col-scope)), var(--col-ver));
+  display: grid; grid-template-columns: [ck] 1.3rem var(--t-num) [on] 2.9rem [mod] minmax(0, 1fr) [modx] var(--t-size) var(--t-dep) var(--t-ver) var(--col-scope);
+  gap: 0.5rem; align-items: center; padding: 0 0.8rem; }
 @container modlist (max-width: 42.5rem) {
-  .th, .tr { --cols: var(--col-dep); --fixed: calc(var(--col-dep) + 0.5rem); }
+  .th, .tr { --t-size: ; --f-size: 0rem; }
   .th > .sz, .tr > .sz { display: none; }
 }
 @container modlist (max-width: 37.5rem) {
-  /* With Size and Deployed gone, Version and Scope take the widths the list had before them, so the Mod column keeps 11rem. */
-  .th, .tr { --col-ver: 5.2rem; --col-scope: 3.2rem; --cols: ; --fixed: 0rem; grid-template-columns: var(--lead) minmax(0, 1fr) 1.8rem clamp(3.7rem, min(30%, 100% - 21.25rem - var(--col-scope)), var(--col-ver)) var(--col-scope); }
+  .th, .tr { --t-dep: ; --f-dep: 0rem; --col-ver: 5.2rem; }
   .th > .dep-cell, .tr > .dep-cell { display: none; }
 }
-.th { overflow: hidden; scrollbar-gutter: stable; padding-top: 0.35rem; padding-bottom: 0.35rem; font-size: var(--fs-xs); color: var(--mu); border-bottom: 1px solid var(--ln); }
+.table.no-num :is(.th, .tr) { --t-num: ; }
+.table.no-num :is(.th > .h-num, .tr > .num) { display: none; }
+.table.no-size :is(.th, .tr) { --t-size: ; --f-size: 0rem; }
+.table.no-size :is(.th, .tr) > .sz { display: none; }
+.table.no-dep :is(.th, .tr) { --t-dep: ; --f-dep: 0rem; }
+.table.no-dep :is(.th, .tr) > .dep-cell { display: none; }
+.table.no-ver :is(.th, .tr) { --t-ver: ; }
+.table.no-ver :is(.th > .h-ver, .tr > .ver) { display: none; }
+.th { overflow: hidden; scrollbar-gutter: stable; padding-top: 0.35rem; padding-bottom: 0.35rem; font-size: var(--fs-xs); color: var(--mu); border-bottom: 1px solid var(--ln); background: color-mix(in srgb, #000 16%, transparent); }
 .tr { padding-top: 0.2rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--ln); cursor: pointer; outline-offset: -2px; touch-action: none; }
 .tr { transition: background var(--fast), transform 160ms ease-out; }
 /* Rows out of view skip layout and paint; a long list then shows at once. */
@@ -272,8 +283,7 @@ button.bare.scope:hover { background: var(--ln); }
 .sz { font-family: "Saira Variable", sans-serif; font-weight: 500; font-size: var(--fs-sm); color: var(--mu); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dep-cell { display: flex; justify-content: flex-start; min-width: 0; }
 .dep-tag { max-width: 100%; color: var(--go); font-family: "Saira Variable", sans-serif; font-weight: 600; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dep-no { display: flex; color: var(--mu); opacity: 0.7; }
-.dep-no svg { width: 0.95rem; height: 0.95rem; }
+.dep-no { padding: 0 0.15rem; color: var(--mu); font-family: "Saira Variable", sans-serif; font-weight: 600; font-size: var(--fs-sm); opacity: 0.7; }
 .th > .ck, .tr > .ck { justify-self: center; }
 /* Shaded as if lit from above: the gradient runs corner to corner, which the rotation turns upright. */
 .scope i {
@@ -612,10 +622,10 @@ input[type="range"]:disabled::-webkit-slider-runnable-track { background: linear
 .versions-refresh:hover:not(:disabled):not(.cooling) { color: var(--tx); }
 .versions-refresh:disabled, .versions-refresh.cooling { opacity: 0.45; cursor: default; }
 .versions-refresh svg { width: 1rem; height: 1rem; }
-.versions-channels button { padding: 0.35rem 0.8rem; font-size: var(--fs-sm); }
+.versions-channels .select-btn { height: 2rem; min-width: 9rem; font-size: var(--fs-sm); }
 .versions .mod-log-more { align-self: flex-start; }
 .versions-switch { display: block; margin: 0.2rem 0 0.5rem; }
-.bare.cf-ico { color: var(--mu); justify-self: center; }
+.bare.cf-ico { flex: none; display: flex; padding: 0.1rem; color: var(--mu); }
 .bare.cf-ico:hover { filter: brightness(1.25); }
 .cf-ico svg { width: 1.15rem; height: 1.15rem; }
 .tip span { white-space: pre-line; overflow-wrap: anywhere; }
@@ -882,9 +892,10 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 /* Folders: a name line in the folder colour; the mods inside carry a bar of it */
 .tr.fr { padding-top: 0.24rem; padding-bottom: 0.24rem; background: color-mix(in srgb, var(--fc) 20%, transparent); box-shadow: inset 4px 0 0 var(--fc); }
 .tr.fr:hover { background: color-mix(in srgb, var(--fc) 28%, transparent); }
-.fr-chev { display: inline-flex; justify-self: start; color: var(--mu); transform-origin: 50% 50%; transition: transform 180ms ease; }
+.fr-chev { grid-column: 2; display: inline-flex; justify-self: start; color: var(--mu); transform-origin: 50% 50%; transition: transform 180ms ease; }
 .fr-chev svg { width: 1rem; height: 1rem; }
 .tr.fr.closed .fr-chev { transform: rotate(-90deg); }
+.table.no-num .fr-chev { grid-column: on; }
 .fr-name { font-family: "Saira Variable", sans-serif; font-weight: 700; font-size: var(--fs-sm); letter-spacing: 0.12em; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fr-count { font-size: var(--fs-sm); color: var(--mu); }
 .tr.fr.onto { background: color-mix(in srgb, var(--fc) 42%, transparent); box-shadow: inset 4px 0 0 var(--fc), inset 0 0 0 2px var(--fc); }
@@ -983,9 +994,9 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 
 /* A folder row keeps the columns of a mod row: the name keeps to the Mod column, and a closed
    folder shows how many mods in it have an update in the Version column. */
-.fr-end { grid-column: 5 / -1; grid-row: 1; justify-self: end; display: flex; align-items: center; }
+.fr-end { grid-column: modx / -1; grid-row: 1; justify-self: end; display: flex; align-items: center; }
 .fr-ups { grid-column: -3; grid-row: 1; justify-self: start; min-width: 1.3rem; height: 1.3rem; padding: 0 0.25rem; display: grid; place-items: center; font-family: "Saira Variable", sans-serif; font-weight: 600; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; color: var(--on); background: var(--gold); }
-.fr-title { grid-column: 4 / 5; display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
+.fr-title { grid-column: mod / modx; display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
 .bare.fr-lock { flex: none; padding: 0.2rem; border-radius: 2px; color: var(--tx); background: var(--ln); opacity: 0.45; transition: opacity var(--fast), color var(--fast); }
 .fr-lock svg { width: 0.85rem; height: 0.85rem; }
 .bare.fr-lock.on { color: #fff; opacity: 1; }

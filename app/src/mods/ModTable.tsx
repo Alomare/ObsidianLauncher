@@ -7,7 +7,8 @@
 // Size is the mod's folder; Deployed is what the last deploy put in the game. The columns at the right have
 // fixed widths, and Size and Deployed give way in a narrow list (styles.css, .table).
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type MutableRefObject, type PointerEvent } from "react";
-import { CheckIcon, ChevronIcon, CloseIcon, LockIcon, UnlockIcon, UpArrowIcon, WarnIcon } from "../Icons";
+import { ContextMenu } from "../ContextMenu";
+import { CheckIcon, ChevronIcon, LockIcon, UnlockIcon, UpArrowIcon, WarnIcon } from "../Icons";
 import { go } from "../nav";
 import { language, pick, t } from "../i18n";
 import { Thumb } from "../Thumb";
@@ -65,6 +66,19 @@ function Check({ state, label, onChange }: { state: boolean | "mixed"; label: st
 /** Where builds that let the Version and Scope columns be dragged kept the widths. Nothing reads it now. */
 export const OLD_COLUMN_KEY = "obsidian.modColumns";
 
+/** The columns a right click on the header can hide, and where the hidden ones are kept. */
+export type Column = "num" | "size" | "dep" | "ver";
+const COLUMNS: Column[] = ["num", "size", "dep", "ver"];
+export const HIDDEN_KEY = "obsidian.hiddenModColumns";
+const readHidden = (): Column[] => {
+  try {
+    const v = JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? "[]");
+    return Array.isArray(v) ? COLUMNS.filter((c) => v.includes(c)) : [];
+  } catch {
+    return [];
+  }
+};
+
 /** What a row calls back into; kept in a ref so the rows never see new functions. */
 type Handlers = {
   down: (e: PointerEvent<HTMLDivElement>, line: Line) => void;
@@ -106,21 +120,21 @@ const ModLine = memo(function ModLine({ id, folder, color, name, description, ve
         <div className="who">
           <div className="nm">
             <span className="nm-text">{name}</span>
+            {tips && (
+              <button className={lose ? "bare cf-ico lose" : "bare cf-ico"} aria-label={t("app.drawer.conflicts")}
+                data-tip-title={t("app.drawer.conflicts")} data-tip={tips} {...stop} onClick={() => h.current.conflicts(id)}>
+                <WarnIcon filled={!lose} />
+              </button>
+            )}
           </div>
         </div>
       </div>
-      {tips ? (
-        <button className={lose ? "bare cf-ico lose" : "bare cf-ico"} aria-label={t("app.drawer.conflicts")}
-          data-tip-title={t("app.drawer.conflicts")} data-tip={tips} {...stop} onClick={() => h.current.conflicts(id)}>
-          <WarnIcon filled={!lose} />
-        </button>
-      ) : <span />}
       <span className="sz">{formatSize(size)}</span>
       {deployed ? (
         <span className="dep-cell"><span className="dep-tag" data-tip-title={t("app.mods.deployedTitle")} data-tip={t("app.mods.deployedHint")}>
           {deployedSize === null ? t("app.mods.deployedYes") : formatSize(deployedSize)}</span></span>
       ) : (
-        <span className="dep-cell"><span className="dep-no" aria-label={t("app.mods.notDeployed")} data-tip-title={t("app.mods.notDeployed")} data-tip={t("app.mods.notDeployedHint")}><CloseIcon /></span></span>
+        <span className="dep-cell"><span className="dep-no" aria-label={t("app.mods.notDeployed")} data-tip-title={t("app.mods.notDeployed")} data-tip={t("app.mods.notDeployedHint")}>-</span></span>
       )}
       {update ? (
         <button className="ver ver-up" data-tip-title={t("app.mods.updateTo", update)} data-tip={t("app.mods.updateHint")} {...stop} onClick={() => h.current.update(id)}>
@@ -160,6 +174,14 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
     try { localStorage.removeItem(OLD_COLUMN_KEY); } catch { /* storage may be off; nothing reads the key */ }
   }, []);
   const [marker, setMarker] = useState<Marker | null>(null);
+  const [hidden, setHidden] = useState<Column[]>(readHidden);
+  const [colMenu, setColMenu] = useState<{ x: number; y: number } | null>(null);
+  const showColumn = (c: Column, on: boolean) => {
+    const next = on ? hidden.filter((x) => x !== c) : [...hidden, c];
+    setHidden(next);
+    try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(next)); } catch { /* storage may be off: the choice lasts until restart */ }
+  };
+  const colLabel: Record<Column, string> = { num: t("app.mods.orderTitle"), size: t("app.mods.colSize"), dep: t("app.mods.colDeployed"), ver: t("app.mods.colVersion") };
   // Folders open and close on screen at once; the saved state follows.
   const [fold, setFold] = useState<Record<string, boolean>>({});
   const [leaving, setLeaving] = useState<string | null>(null);
@@ -357,16 +379,15 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
   const draggingKeys = new Set(drag.current?.moved ? (drag.current.folder ? [drag.current.key] : drag.current.ids) : []);
 
   return (
-    <div className="table" role="table">
-      <div className="th cap" role="row">
+    <div className={["table", ...hidden.map((c) => `no-${c}`)].join(" ")} role="table">
+      <div className="th cap" role="row" data-tip-side="bottom" onContextMenu={(e) => { e.preventDefault(); setColMenu({ x: e.clientX, y: e.clientY }); }}>
         <Check state={allState} label={t("app.mods.checkAll")} onChange={(on) => onCheck(visibleMods, on)} />
-        <span data-tip-title={t("app.mods.orderTitle")} data-tip={tree ? t("app.mods.orderHint") : t("app.mods.reorderOff")}>#</span>
+        <span className="h-num" data-tip-title={t("app.mods.orderTitle")} data-tip={tree ? t("app.mods.orderHint") : t("app.mods.reorderOff")}>#</span>
         <span>{t("app.mods.colOn")}</span>
         <span>{t("app.mods.colMod")}</span>
-        <span />
         <span className="th-col sz">{t("app.mods.colSize")}</span>
         <span className="th-col dep-cell">{t("app.mods.colDeployed")}</span>
-        <span className="th-col">{t("app.mods.colVersion")}</span>
+        <span className="th-col h-ver">{t("app.mods.colVersion")}</span>
         <span className="th-col th-scope">{t("app.mods.colScope")}</span>
       </div>
       <div ref={body} className={marker ? "tbody dragging-list" : "tbody"}>
@@ -384,7 +405,6 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
                 onPointerDown={(e) => down(e, line)} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onKeyDown={(e) => key(e, line)} onContextMenu={(e) => menu(e, { kind: "folder", id: f.id })}>
                 {ids.length ? <Check state={state} label={f.name} onChange={(v) => onCheck(ids, v)} /> : <span />}
                 <span className="fr-chev"><ChevronIcon /></span>
-                <span />
                 <span className="fr-title">
                   <button className={f.locked ? "bare fr-lock on" : "bare fr-lock"} aria-pressed={f.locked} aria-label={t(f.locked ? "app.menu.unlock" : "app.menu.lock")}
                     data-tip-title={t(f.locked ? "app.folder.locked" : "app.menu.lock")} data-tip={t(f.locked ? "app.folder.lockedHint" : "app.folder.lockHint")}
@@ -414,6 +434,13 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
         })}
         {marker && !marker.onto && <div className="drop-line" style={{ top: marker.y, ...(marker.color ? { ["--lc" as string]: marker.color } : {}) }} aria-hidden="true" />}
       </div>
+      {colMenu && (
+        <ContextMenu x={colMenu.x} y={colMenu.y} label={t("app.mods.columns")} onClose={() => setColMenu(null)}
+          items={COLUMNS.map((c) => {
+            const on = !hidden.includes(c);
+            return { label: colLabel[c], checked: on, icon: <span className={on ? "ck on" : "ck"}>{on && <CheckIcon />}</span>, run: () => showColumn(c, !on) };
+          })} />
+      )}
       {marker && <div className="drag-ghost" style={{ left: marker.x + 14, top: marker.py + 10 }} aria-hidden="true">{marker.label}</div>}
     </div>
   );

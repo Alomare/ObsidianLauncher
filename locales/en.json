@@ -194,6 +194,7 @@
   "app.mods.colOn": "On",
   "app.mods.colScope": "Scope",
   "app.mods.colVersion": "Version",
+  "app.mods.columns": "Columns",
   "app.mods.colSize": "Size",
   "app.mods.colDeployed": "Deployed",
   "app.mods.sizeMb": "%s MB",

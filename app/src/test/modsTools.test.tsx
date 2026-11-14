@@ -195,8 +195,27 @@ describe("the list and the bar for checked mods", () => {
   it("has no column of update checks: not in the header, the rows or a folder", () => {
     show(snap(["gh.one", "b.two"]));
     expect(document.querySelectorAll(".up-ck")).toHaveLength(0);
-    // Check, #, On, Mod, the conflict icon, Size, Deployed, Version and Scope.
-    expect(document.querySelector(".th")!.children).toHaveLength(9);
+    // Check, #, On, Mod, Size, Deployed, Version and Scope: the conflict icon sits in the Mod column.
+    expect(document.querySelector(".th")!.children).toHaveLength(8);
+  });
+
+  it("hides and shows #, Size, Deployed and Version from a right click on the header, and keeps the choice", () => {
+    localStorage.removeItem("obsidian.hiddenModColumns");
+    show(snap(["gh.one", "b.two"]));
+    const open = () => act(() => { document.querySelector(".th")!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 10, clientY: 10 })); });
+    const items = () => [...document.querySelectorAll<HTMLElement>(".ctx > button")];
+    open();
+    expect(items().map((b) => [b.textContent, b.getAttribute("aria-checked")])).toEqual([
+      [t("app.mods.orderTitle"), "true"], [t("app.mods.colSize"), "true"], [t("app.mods.colDeployed"), "true"], [t("app.mods.colVersion"), "true"]]);
+    act(() => items()[1].click());
+    expect(document.querySelector(".table")!.classList.contains("no-size")).toBe(true);
+    expect(JSON.parse(localStorage.getItem("obsidian.hiddenModColumns")!)).toEqual(["size"]);
+    open();
+    expect(items()[1].getAttribute("aria-checked")).toBe("false");
+    act(() => items()[1].click());
+    expect(document.querySelector(".table")!.classList.contains("no-size")).toBe(false);
+    // A row that is not deployed shows a dash.
+    expect(document.querySelector(".tr .dep-no")!.textContent).toBe("-");
   });
 
   it("holds the count, Turn on, Turn off, Check for Updates, Remove and Uncheck all, in that order, and no Actions", () => {
