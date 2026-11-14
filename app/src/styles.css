@@ -1576,20 +1576,19 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .card { position: relative; display: flex; flex-direction: column; min-width: 0; background: linear-gradient(160deg, var(--p1), var(--p2)); box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18); cursor: pointer; transition: transform var(--fast), box-shadow var(--fast); }
 .card:hover, .card:focus-visible { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(0, 0, 0, 0.3), inset 0 -3px 0 var(--gold); outline: 0; }
 .c-img { position: relative; aspect-ratio: 16 / 9; overflow: hidden; background: #0b0c0e; }
-.c-img > img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 400ms ease; }
-.card:hover .c-img > img { transform: scale(1.04); }
+.c-img > img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .c-img:has(> img)::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0, 0, 0, 0.55), transparent 45%); pointer-events: none; }
 /* No thumbnail: the icon over a blurred, darkened copy of itself, or the letter over a Home picture */
 .backdrop { position: relative; display: block; width: 100%; height: 100%; overflow: hidden; background: #0b0c0e; }
 .bd-blur { position: absolute; inset: -30px; background-size: cover; background-position: center; filter: blur(26px) saturate(1.2) brightness(0.42); }
-.c-quick { position: absolute; right: 0.5rem; bottom: 0.5rem; z-index: 1; opacity: 0; transform: translateY(3px); transition: opacity var(--fast), transform var(--fast); }
-.card:hover .c-quick, .card:focus-within .c-quick, .c-quick:has(.installing) { opacity: 1; transform: none; }
+.c-quick { margin-left: auto; opacity: 0; transition: opacity var(--fast); }
+.card:hover .c-quick, .card:focus-within .c-quick, .c-quick:has(.installing) { opacity: 1; }
 .c-body { position: relative; flex: 1; display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto 1fr auto; gap: 0 0.7rem; padding: 0.65rem 0.75rem 0.85rem; }
 .c-body .mico { --ts: 3rem; margin-top: -1.75rem; z-index: 1; box-shadow: 0 0 0 2px var(--s2), 0 6px 16px rgba(0, 0, 0, 0.4); }
 .c-body b { align-self: center; font-size: var(--fs-base); font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .c-desc { grid-column: 1 / -1; margin: 0.5rem 0 0; min-height: calc(1.38em * 3); font-size: var(--fs-sm); color: var(--mu); line-height: 1.38;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.c-tags { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.7rem; padding-top: 0.65rem; border-top: 1px solid var(--ln); }
+.c-tags { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; min-height: 2.65rem; margin-top: 0.7rem; padding-top: 0.65rem; border-top: 1px solid var(--ln); }
 
 /* Install button */
 .btn.inst { min-width: 9rem; white-space: nowrap; }
@@ -1609,59 +1608,61 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
   border-top: 1px solid var(--ln); transform: rotate(-45deg); pointer-events: none; }
 .btn.inst.installing::after { border-top-color: var(--go); }
 
-/* The page of a mod: Back, then a rail with the pictures, Install, the facts, the requirements, the summary
-   and the options, beside the description and the versions. The rail stays in view (useStickyRail), and the
-   description keeps to a reading width. */
-.store-mod { max-width: calc(21rem + 1.8rem + 37rem + 2.4rem); margin: 0 auto; padding: 1rem 1.2rem 2.4rem; display: flex; flex-direction: column; gap: 0.9rem; }
-.store-mod > .back { align-self: flex-start; gap: 0.4rem; padding: 0 1rem 0 0.7rem; }
-.store-mod > .back svg { transform: rotate(90deg); }
-.mcols { display: grid; grid-template-columns: 21rem minmax(0, 37rem); gap: 1.8rem; align-items: start; }
-.mrail { position: sticky; top: 1rem; display: flex; flex-direction: column; gap: 0.9rem; min-width: 0; }
+/* The page of a mod: a band of the picture (thumbnail, else icon, else a Home picture), blurred and darkened,
+   with Back over it; the icon over the lower edge of the band with the name at its foot and Install at the
+   right; the summary, one row of facts, then the description beside the Versions, Options, Requires and
+   Needed by panels. The description keeps to a reading width. */
+.store-mod { --mcol: 60rem; padding-bottom: 2.4rem; }
+.mband { position: relative; height: 12rem; overflow: hidden; background: #0b0c0e; }
+.mb-pic { position: absolute; inset: -18px; background-size: cover; background-position: center 35%; filter: blur(6px) brightness(0.7); }
+.mband::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(0deg, color-mix(in srgb, var(--bg1) 92%, transparent) 0%, transparent 55%); }
+.mb-zoom { position: absolute; inset: 0; z-index: 1; }
+.mband > .back { position: absolute; z-index: 2; top: 1rem; left: max(1.2rem, calc((100% - var(--mcol)) / 2)); gap: 0.4rem; padding: 0 1rem 0 0.7rem; }
+.mband > .back svg { transform: rotate(90deg); }
 .zoomable { display: block; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: zoom-in; }
-.mmedia { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background: #0b0c0e; display: grid; place-items: center; }
-.mmedia > img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 400ms ease; }
-.mmedia:hover > img { transform: scale(1.03); }
-/* The icon is as tall as one line of the name and the tags under it (1.45rem x 1.05, the gap, the 1.35rem tags). */
-.mid { display: flex; align-items: flex-start; gap: 0.85rem; min-width: 0; }
+.mcol { position: relative; z-index: 3; max-width: calc(var(--mcol) + 2.4rem); margin: -3.4rem auto 0; padding: 0 1.2rem; display: flex; flex-direction: column; gap: 0.9rem; }
+.mid { display: flex; align-items: flex-end; gap: 1.1rem; min-width: 0; }
 .mid-ico { flex: none; }
-.mid .mico { --ts: calc(1.45rem * 1.05 + 0.45rem + 1.35rem); }
-.mh-ver { align-self: center; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--mu); }
-.mid .mico { box-shadow: 0 0 0 1px color-mix(in srgb, var(--tx) 18%, transparent), 0 2px 8px rgba(0, 0, 0, 0.25); }
-.mid-t { min-width: 0; display: flex; flex-direction: column; gap: 0.45rem; }
-.mid h1 { margin: 0; font-family: "Saira Variable", sans-serif; font-weight: 770; font-size: 1.45rem; line-height: 1.05; letter-spacing: 0.03em; text-transform: uppercase; overflow-wrap: anywhere; }
-.mh-tags { display: flex; flex-wrap: wrap; gap: 0.35rem; }
-.mrail > .btn.inst.big { width: 100%; min-width: 0; }
-.mstats { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px; }
-.mstats > div { padding: 0.45rem 0.65rem; background: var(--row); display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
-.mstats dt { color: var(--mu); font-family: "Saira Variable", sans-serif; font-size: 0.64rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; }
-.mstats dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
-/* An odd last box takes the whole row. */
-.mstats > div:last-child:nth-child(odd) { grid-column: 1 / -1; }
-.msum { margin: 0; color: var(--mu); font-size: var(--fs-md); line-height: 1.5; }
-/* Requires, Needed by and Options: folded lists with a count; option groups fold inside Options */
-.fold { background: var(--row); }
-.fold summary { list-style: none; display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 0.65rem; cursor: pointer;
-  font-family: "Saira Variable", sans-serif; font-size: var(--fs-xs); font-weight: 650; letter-spacing: 0.1em; text-transform: uppercase; }
-.fold summary::-webkit-details-marker { display: none; }
-.fold summary:hover { background: var(--row); }
-.fold summary svg { width: 0.8rem; height: 0.8rem; flex: none; transform: rotate(-90deg); transition: transform var(--fast); }
-.fold details[open] > summary svg, .fold[open] > summary svg { transform: none; }
-.fold summary i { margin-left: auto; font-style: normal; color: var(--mu); }
-.opt-group { margin: 0 0.45rem 0.45rem; background: var(--row); }
-.opt-group > summary { font-family: inherit; font-size: var(--fs-md); font-weight: 600; letter-spacing: 0; text-transform: none; }
-.opt-rows { list-style: none; margin: 0; padding: 0.1rem 0.65rem 0.6rem 1.95rem; display: flex; flex-direction: column; gap: 0.55rem; }
-.opt-rows li { display: flex; flex-direction: column; gap: 0.1rem; }
-.opt-rows b { font-weight: 600; font-size: var(--fs-md); }
-.opt-rows span { color: var(--mu); font-size: var(--fs-sm); line-height: 1.4; }
-.mmain { min-width: 0; display: flex; flex-direction: column; gap: 1.2rem; }
+.mid .mico { box-shadow: 0 0 0 2px var(--s2), 0 12px 30px rgba(0, 0, 0, 0.5); }
+/* The name sits at the foot of the icon; a long name wraps upward. */
+.mid-t { flex: 1; min-width: 0; display: flex; align-items: flex-end; flex-wrap: wrap; gap: 0.4rem 0.75rem; }
+.mid h1 { margin: 0; font-family: "Saira Variable", sans-serif; font-weight: 770; font-size: 2rem; line-height: 1.02; letter-spacing: 0.03em; text-transform: uppercase; overflow-wrap: anywhere; }
+.mid-t .store-tag { margin-bottom: 0.15rem; }
+.mid > .btn.inst.big { flex: none; }
+.msum { margin: 0; max-width: 40rem; color: var(--mu); line-height: 1.5; }
+.mfacts { margin: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; }
+.mfacts > div { min-width: 0; padding: 0.5rem 0.75rem; background: var(--row); display: flex; flex-direction: column; gap: 0.15rem; }
+.mfacts dt { color: var(--mu); font-family: "Saira Variable", sans-serif; font-size: 0.64rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; }
+.mfacts dd { margin: 0; display: flex; align-items: center; gap: 0.45rem; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mfacts .store-scope { width: 1.05rem; height: 1.05rem; }
+.mcols { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; gap: 1.2rem; align-items: start; }
+.mside { min-width: 0; display: flex; flex-direction: column; gap: 0.9rem; }
 .store-box { padding: 0.85rem 0.95rem; display: flex; flex-direction: column; gap: 0.65rem; background: linear-gradient(160deg, var(--p1), var(--p2)); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); }
 .store-box .md { user-select: text; }
-ol.store-box { margin: 0; padding: 0.4rem 0.5rem; gap: 0.2rem; }
-.store-h { display: flex; align-items: center; gap: 0.6rem; margin: 0 0 0.55rem; }
-.store-h h2 { margin: 0; font-family: "Saira Variable", sans-serif; font-size: var(--fs-lg); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
-.store-h .btn.small.icon { width: 2rem; height: 2rem; padding: 0; }
+.mpanel { padding: 0.7rem 0.75rem 0.75rem; gap: 0.6rem; }
+.mp-h { display: flex; align-items: center; gap: 0.55rem; min-height: 1.8rem; }
+.mp-h h2 { margin: 0; font-family: "Saira Variable", sans-serif; font-size: var(--fs-sm); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.mp-h i { margin-left: auto; font-style: normal; color: var(--mu); font-variant-numeric: tabular-nums; }
+.mp-h .btn.small.icon { width: 1.8rem; height: 1.8rem; padding: 0; }
+.mpanel .mod-log-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+/* Options: the loose ones listed, then each group folded. A hovered heading only brightens, so it never runs
+   into the rows under it. */
+.sopt-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+/* The name box of an option, as in the Mods tab: the outline turns gold on hover when there is a description. */
+.sopt-name { padding: 0.3rem 0.55rem; border: 1px solid color-mix(in srgb, var(--tx) 18%, transparent); font-size: var(--fs-md); overflow-wrap: anywhere; transition: border-color var(--fast); }
+.sopt-name[data-tip]:hover { border-color: var(--goldtx); }
+.sopt-name:focus-visible { outline: 0; border-color: var(--goldtx); }
+.sopt-group { background: var(--row); }
+.mpanel > .sopt-group + .sopt-group { margin-top: calc(3px - 0.6rem); }
+.sopt-group > summary { list-style: none; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.6rem; cursor: pointer; color: var(--mu); font-size: var(--fs-md); font-weight: 600; transition: color var(--fast); }
+.sopt-group > summary::-webkit-details-marker { display: none; }
+.sopt-group > summary:hover, .sopt-group[open] > summary { color: var(--tx); }
+.sopt-group > summary svg { width: 0.8rem; height: 0.8rem; flex: none; transform: rotate(-90deg); transition: transform var(--fast); }
+.sopt-group[open] > summary svg { transform: none; }
+.sopt-group > summary i { margin-left: auto; font-style: normal; color: var(--mu); }
+.sopt-group > .sopt-rows { padding: 0.1rem 0.6rem 0.6rem 1.9rem; }
 .req { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
-.fold > .req { padding: 0 0.45rem 0.45rem; }
 .req-row { width: 100%; display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.5rem; border: 0; background: var(--row); color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background var(--fast); }
 .req-row:hover:not(:disabled) { background: color-mix(in srgb, var(--tx) 9%, transparent); }
 .req-row:disabled { cursor: default; }
@@ -1671,7 +1672,7 @@ ol.store-box { margin: 0; padding: 0.4rem 0.5rem; gap: 0.2rem; }
 .rq-state { font-size: var(--fs-sm); color: var(--mu); white-space: nowrap; }
 .rq-state.ok { color: var(--go); }
 @media (max-width: 1150px) {
-  .mcols { grid-template-columns: 17rem minmax(0, 1fr); }
+  .mcols { grid-template-columns: minmax(0, 1fr) 17rem; }
   .fbar .search { width: 12rem; }
 }
 

@@ -9,9 +9,9 @@ import { notify } from "../notices";
 import { SortDialog, SortIcon, type SortPlan } from "./SortDialog";
 import { Confirm } from "../Confirm";
 import { ContextMenu, type MenuItem } from "../ContextMenu";
-import { ChevronIcon, CloseIcon, DeployIcon, ExternalIcon, FolderAddIcon, FolderIcon, ImportIcon, LockIcon, PlusIcon, ProfilesIcon, PurgeIcon, SearchIcon, SlidersIcon, SwitchOffIcon, SwitchOnIcon, TrashIcon, UnlockIcon, UpdateIcon } from "../Icons";
+import { ChevronIcon, CloseIcon, DeployIcon, ExternalIcon, FolderAddIcon, FolderIcon, ImportIcon, LockIcon, PlusIcon, ProfilesIcon, PurgeIcon, SearchIcon, SlidersIcon, StoreIcon, SwitchOffIcon, SwitchOnIcon, TrashIcon, UnlockIcon, UpdateIcon } from "../Icons";
 import { language, pick, t } from "../i18n";
-import { useNav } from "../nav";
+import { go, useNav } from "../nav";
 import { ProfileGuards, ProfilesDialog } from "../ProfilesDialog";
 import { Thumb } from "../Thumb";
 import type { ModRow, Snapshot } from "../types";
@@ -380,6 +380,7 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
         <ContextMenu x={addMenu.x} y={addMenu.y} onClose={() => setAddMenu(null)} items={[
           { label: t("app.mods.importZip"), icon: <ImportIcon />, run: () => pickAndImport(false) },
           { label: t("app.mods.importFolder"), icon: <FolderIcon />, run: () => pickAndImport(true) },
+          { label: t("app.mods.browseStore"), icon: <StoreIcon />, run: () => go("store") },
         ]} />
       )}
       {ask?.kind === "newFolder" && (

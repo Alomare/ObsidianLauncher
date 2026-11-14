@@ -120,30 +120,29 @@ describe("StorePage", () => {
     expect(host.querySelector(".mid h1")?.textContent).toBe("ARCADE");
     expect(host.querySelector(".store-mod .md")?.textContent).toContain("Long text");
     expect(host.querySelector(".msum")?.textContent).toBe("About arcade");
-    // First release and newest release in their own boxes.
-    expect([...host.querySelectorAll(".mstats dt")].map((d) => d.textContent)).toEqual([t("app.store.factReleased"), t("app.store.factUpdated")]);
-    expect(host.querySelector(".mh-tags .mh-ver")?.textContent).toBe("0.4.0");
-    // Requires folds shut, with the count beside the label.
-    const req = [...host.querySelectorAll(".mrail details.fold")].find((d) => d.textContent?.includes(t("app.store.requires"))) as HTMLDetailsElement;
-    expect(req.open).toBe(false);
-    expect(req.querySelector("summary i")?.textContent).toBe("2");
+    // One row of facts: scope, version, first release, newest release.
+    expect([...host.querySelectorAll(".mfacts dt")].map((d) => d.textContent)).toEqual(
+      [t("app.store.factScope"), t("app.store.factVersion"), t("app.store.factReleased"), t("app.store.factUpdated")]);
+    expect(host.querySelectorAll(".mfacts dd")[1].textContent).toBe("0.4.0");
+    // The side panels in order, each with a count: Versions, Options, Requires.
+    const panels = [...host.querySelectorAll(".mside .mpanel")];
+    expect(panels.map((p) => p.querySelector(".mp-h h2")?.textContent)).toEqual([t("app.store.versions"), t("app.store.options"), t("app.store.requires")]);
+    expect(panels.map((p) => p.querySelector(".mp-h i")?.textContent)).toEqual(["1", "3", "2"]);
+    expect(panels[0].querySelector(".mp-h .gh")).not.toBeNull();
     expect(host.querySelector(".mod-log-entry.open .upd-body")?.textContent).toContain("Fixed a thing");
-    const reqs = [...host.querySelectorAll(".req .rq-state")].map((s) => s.textContent);
+    const reqs = [...panels[2].querySelectorAll(".req .rq-state")].map((s) => s.textContent);
     expect(reqs).toEqual([t("app.store.installed"), t("app.store.notInstalled")]);
-    // Options: loose ones in the list, the rest under their group, each folded.
-    const list = host.querySelector("details.opt-list") as HTMLDetailsElement;
-    expect(list.open).toBe(false);
-    expect(list.querySelector(":scope > summary i")?.textContent).toBe("3");
-    expect([...list.querySelectorAll(":scope > .opt-rows b")].map((b) => b.textContent)).toEqual(["Lives"]);
-    const group = list.querySelector("details.opt-group") as HTMLDetailsElement;
+    // Options: loose ones listed, the rest under their group, folded.
+    expect([...panels[1].querySelectorAll(":scope > .sopt-rows .sopt-name")].map((b) => b.textContent)).toEqual(["Lives"]);
+    const group = panels[1].querySelector("details.sopt-group") as HTMLDetailsElement;
     expect(group.open).toBe(false);
     expect(group.querySelector("summary")?.textContent).toContain("Shop");
-    expect([...group.querySelectorAll(".opt-rows span")].map((s) => s.textContent)).toEqual(["Price of a life", "Price of armor"]);
-    // The thumbnail opens large.
-    await act(async () => (host.querySelector(".mmedia.zoomable") as HTMLElement).click());
+    expect([...group.querySelectorAll(".sopt-name")].map((s) => [s.textContent, s.getAttribute("data-tip")])).toEqual([["Life", "Price of a life"], ["Armor", "Price of armor"]]);
+    // The band opens the thumbnail large; Back sits over the band.
+    await act(async () => (host.querySelector(".mband .mb-zoom") as HTMLElement).click());
     expect(document.querySelector(".image-view img")).not.toBeNull();
     await act(async () => (document.querySelector(".image-view") as HTMLElement).click());
-    await act(async () => (host.querySelector(".store-mod > .back") as HTMLElement).click());
+    await act(async () => (host.querySelector(".mband > .back") as HTMLElement).click());
     expect(host.querySelector(".store-mod")).toBeNull();
     expect(names(host).length).toBe(3);
   });

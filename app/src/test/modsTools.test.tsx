@@ -154,7 +154,7 @@ describe("the head of the Mods page", () => {
     expect(add.getAttribute("aria-expanded")).toBe("false");
     act(() => add.click());
     expect(add.getAttribute("aria-expanded")).toBe("true");
-    expect([...document.querySelectorAll(".ctx [role=menuitem]")].map((b) => b.textContent)).toEqual([t("app.mods.importZip"), t("app.mods.importFolder")]);
+    expect([...document.querySelectorAll(".ctx [role=menuitem]")].map((b) => b.textContent)).toEqual([t("app.mods.importZip"), t("app.mods.importFolder"), t("app.mods.browseStore")]);
   });
 
   it("Create Folder opens the new folder dialog", () => {

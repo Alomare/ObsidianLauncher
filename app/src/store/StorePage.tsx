@@ -206,14 +206,16 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
                 <div key={m.id} className="card" role="link" tabIndex={0} onClick={() => show(m.id)} onKeyDown={keyOpen(() => show(m.id))}>
                   <div className="c-img">
                     {m.banner ? <img src={src(m.banner)} alt="" draggable={false} loading="lazy" /> : <Backdrop m={m} />}
-                    {k !== "installed" && <div className="c-quick"><InstallButton m={m} mark={k} size="small" onInstall={() => doInstall(m)} /></div>}
                   </div>
                   <Flag mark={k} />
                   <div className="c-body">
                     <ModIcon m={m} />
                     <b>{m.name}</b>
                     <p className="c-desc">{m.summary}</p>
-                    <div className="c-tags"><ScopeTag scope={m.scope} /><Early m={m} /></div>
+                    <div className="c-tags">
+                      <ScopeTag scope={m.scope} /><Early m={m} />
+                      {k !== "installed" && <span className="c-quick"><InstallButton m={m} mark={k} size="small" onInstall={() => doInstall(m)} /></span>}
+                    </div>
                   </div>
                 </div>
               );
@@ -243,62 +245,57 @@ function Zoom({ path, className, children }: { path: string; className: string; 
   );
 }
 
-/** The options by name, folded; options under a group sit in that group, folded as well. */
-function OptionList({ m }: { m: StoreMod }) {
+/** A panel of the side column: the title with a count, then its content. */
+function Panel({ title, count, tools, children }: { title: string; count?: number; tools?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="store-box mpanel">
+      <div className="mp-h">{tools}<h2>{title}</h2>{count !== undefined && <i>{count}</i>}</div>
+      {children}
+    </section>
+  );
+}
+
+/** The options by name, each in a box with its description in the tooltip, as in the Mods tab; options
+    under a group sit in that group, folded. */
+function OptionPanel({ m }: { m: StoreMod }) {
   const opts = m.option_list ?? [];
   if (!opts.length) return null;
   const known = new Set((m.option_groups ?? []).map((g) => g.id));
   const loose = opts.filter((o) => !o.group || !known.has(o.group));
   const rows = (list: StoreOption[]) => (
-    <ul className="opt-rows">
-      {list.map((o, i) => <li key={i}><b>{o.label}</b>{o.description && <span>{o.description}</span>}</li>)}
+    <ul className="sopt-rows">
+      {list.map((o, i) => (
+        <li key={i} className="sopt-name" tabIndex={o.description ? 0 : undefined} data-tip-title={o.description ? o.label : undefined} data-tip={o.description || undefined}>
+          {o.label}
+        </li>
+      ))}
     </ul>
   );
   return (
-    <details className="fold opt-list">
-      <summary><ChevronIcon />{t("app.store.options")}<i>{opts.length}</i></summary>
+    <Panel title={t("app.store.options")} count={opts.length}>
       {loose.length > 0 && rows(loose)}
       {(m.option_groups ?? []).map((g) => {
         const inside = opts.filter((o) => o.group === g.id);
         return inside.length ? (
-          <details key={g.id} className="opt-group">
+          <details key={g.id} className="sopt-group">
             <summary><ChevronIcon />{g.label}<i>{inside.length}</i></summary>
             {rows(inside)}
           </details>
         ) : null;
       })}
-    </details>
+    </Panel>
   );
-}
-
-/** The rail stays in view while the page scrolls: by its top when it fits in the window, else by its bottom
-    once the end of it is in view, so every part of it can still be reached. */
-function useStickyRail() {
-  const rail = useRef<HTMLElement>(null);
-  useLayoutEffect(() => {
-    const el = rail.current;
-    const box = el?.closest(".store");
-    if (!el || !box || typeof ResizeObserver === "undefined") return;
-    const pad = 16;
-    const fit = () => { el.style.top = `${Math.min(pad, box.clientHeight - el.offsetHeight - pad)}px`; };
-    const watch = new ResizeObserver(fit);
-    watch.observe(el);
-    watch.observe(box);
-    fit();
-    return () => watch.disconnect();
-  }, []);
-  return rail;
 }
 
 function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
   const [unfolded, setUnfolded] = useState<Record<string, boolean>>({});
-  const rail = useStickyRail();
   const k = mark(m);
   const row = snap.mods.find((r) => r.id === m.id);
   const desc = useMemo(() => parse(m.description || m.summary).tokens, [m.description, m.summary]);
   const needs = m.requires.map((id) => ({ id, entry: all.find((x) => x.id === id), row: snap.mods.find((r) => r.id === id) }));
   const neededBy = all.filter((x) => x.requires.includes(m.id));
   const url = `https://github.com/${m.repo}`;
+  const band = m.banner ? src(m.banner) : m.icon ? src(m.icon) : artFor(m.id);
   const reqRow = (key: string, target: StoreMod | undefined, name: string, ok: boolean) => (
     <li key={key}>
       <button className="req-row" onClick={() => target && onOpen(target.id)} disabled={!target}>
@@ -308,55 +305,33 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
       </button>
     </li>
   );
-  const fold = (label: string, list: ReactNode[]) => (
-    <details className="fold">
-      <summary><ChevronIcon />{label}<i>{list.length}</i></summary>
-      <ul className="req">{list}</ul>
-    </details>
-  );
   return (
     <div className="store-mod">
-      <button className="btn small back" onClick={() => onOpen(null)}><ChevronIcon />{t("app.store.back")}</button>
-      <div className="mcols">
-        <aside className="mrail" ref={rail}>
-          {m.banner ? (
-            <Zoom path={m.banner} className="mmedia"><img src={src(m.banner)} alt="" draggable={false} /></Zoom>
-          ) : m.icon ? (
-            <Zoom path={m.icon} className="mmedia"><Backdrop m={m} /></Zoom>
-          ) : (
-            <div className="mmedia"><Backdrop m={m} /></div>
-          )}
-          <div className="mid">
-            {m.icon ? <Zoom path={m.icon} className="mid-ico"><ModIcon m={m} /></Zoom> : <ModIcon m={m} />}
-            <div className="mid-t">
-              <h1>{m.name}</h1>
-              <div className="mh-tags">
-                <ScopeTag scope={m.scope} />
-                <Early m={m} />
-                <span className="mh-ver" data-tip={t("app.store.factVersion")}>{m.version}</span>
-              </div>
-            </div>
-          </div>
+      <div className="mband">
+        {band && <span className="mb-pic" aria-hidden="true" style={{ backgroundImage: `url("${band}")` }} />}
+        {m.banner && <Zoom path={m.banner} className="mb-zoom">{null}</Zoom>}
+        <button className="btn small back" onClick={() => onOpen(null)}><ChevronIcon />{t("app.store.back")}</button>
+      </div>
+      <div className="mcol">
+        <div className="mid">
+          {m.icon ? <Zoom path={m.icon} className="mid-ico"><ModIcon m={m} size="xl" /></Zoom> : <ModIcon m={m} size="xl" />}
+          <div className="mid-t"><h1>{m.name}</h1><Early m={m} /></div>
           <InstallButton m={m} mark={k} size="big" onInstall={() => onInstall(m)} />
-          <dl className="mstats">
-            {m.added && <div><dt>{t("app.store.factReleased")}</dt><dd>{date(m.added)}</dd></div>}
-            {m.released && <div><dt>{t("app.store.factUpdated")}</dt><dd>{date(m.released)}</dd></div>}
-            {row?.version && row.version !== m.version && <div><dt>{t("app.store.factInstalled")}</dt><dd>{row.version}</dd></div>}
-          </dl>
-          {needs.length > 0 && fold(t("app.store.requires"), needs.map((n) => reqRow(n.id, n.entry, n.entry?.name ?? n.id, !!n.row)))}
-          {neededBy.length > 0 && fold(t("app.store.neededBy"), neededBy.map((x) => reqRow(x.id, x, x.name, snap.mods.some((r) => r.id === x.id))))}
-          <OptionList m={m} />
-          {m.summary && <p className="msum">{m.summary}</p>}
-        </aside>
-        <div className="mmain">
-          <section className="store-box"><Markdown tokens={desc} /></section>
-          {m.versions.length > 0 && (
-            <section>
-              <div className="store-h">
-                <button className="btn small icon gh" onClick={() => openUrl(url).catch(() => {})} aria-label="GitHub" data-tip={url}><GitHubIcon /></button>
-                <h2>{t("app.store.versions")}</h2>
-              </div>
-              <ol className="store-box mod-log-list">
+        </div>
+        {m.summary && <p className="msum">{m.summary}</p>}
+        <dl className="mfacts">
+          <div><dt>{t("app.store.factScope")}</dt><dd><ScopeTag scope={m.scope} />{t(`app.scope.${m.scope}`)}</dd></div>
+          <div><dt>{t("app.store.factVersion")}</dt><dd>{m.version}</dd></div>
+          {m.added && <div><dt>{t("app.store.factReleased")}</dt><dd>{date(m.added)}</dd></div>}
+          {m.released && <div><dt>{t("app.store.factUpdated")}</dt><dd>{date(m.released)}</dd></div>}
+          {row?.version && row.version !== m.version && <div><dt>{t("app.store.factInstalled")}</dt><dd>{row.version}</dd></div>}
+        </dl>
+        <div className="mcols">
+          <section className="store-box mdesc"><Markdown tokens={desc} /></section>
+          <div className="mside">
+            <Panel title={t("app.store.versions")} count={m.versions.length}
+              tools={<button className="btn small icon gh" onClick={() => openUrl(url).catch(() => {})} aria-label="GitHub" data-tip={url}><GitHubIcon /></button>}>
+              <ol className="mod-log-list">
                 {m.versions.map((v, i) => {
                   const unfold = unfolded[v.version] ?? i === 0;
                   return (
@@ -377,8 +352,19 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
                   );
                 })}
               </ol>
-            </section>
-          )}
+            </Panel>
+            <OptionPanel m={m} />
+            {needs.length > 0 && (
+              <Panel title={t("app.store.requires")} count={needs.length}>
+                <ul className="req">{needs.map((n) => reqRow(n.id, n.entry, n.entry?.name ?? n.id, !!n.row))}</ul>
+              </Panel>
+            )}
+            {neededBy.length > 0 && (
+              <Panel title={t("app.store.neededBy")} count={neededBy.length}>
+                <ul className="req">{neededBy.map((x) => reqRow(x.id, x, x.name, snap.mods.some((r) => r.id === x.id)))}</ul>
+              </Panel>
+            )}
+          </div>
         </div>
       </div>
     </div>
