@@ -84,6 +84,13 @@ pub struct StoreMod {
     pub added: Option<String>,
     #[serde(default)]
     pub versions: Vec<StoreVersion>,
+    /// The authors the manifest names, for the mod page.
+    #[serde(default)]
+    pub authors: Vec<String>,
+    /// Obsidian Verified: the index lists the GitHub account that owns the repository as trusted. The
+    /// authors above are written by the mod and never count.
+    #[serde(default)]
+    pub verified: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -286,6 +293,16 @@ mod tests {
         assert_eq!(m.option_list[0], StoreOption { label: "Lives".into(), description: "Per mission".into(), group: None });
         assert_eq!(m.option_list[1].group.as_deref(), Some("shop"));
         assert_eq!(m.option_groups, vec![StoreGroup { id: "shop".into(), label: "Shop".into() }]);
+    }
+
+    #[test]
+    fn authors_and_verified_read_and_default_to_none() {
+        let old = &parse(&index(1, "img/a.jpg")).unwrap()[0];
+        assert!(old.authors.is_empty() && !old.verified);
+        let text = r#"{"format":1,"mods":[{"id":"a.mod","name":"A","version":"1.0.0","repo":"o/a","authors":["Ann"],"verified":true}]}"#;
+        let m = &parse(text).unwrap()[0];
+        assert_eq!(m.authors, vec!["Ann".to_string()]);
+        assert!(m.verified);
     }
 
     #[test]

@@ -80,7 +80,6 @@ function SystemTab({ snap }: { snap: Snapshot }) {
   const settings = useAppSettings()!;
   const [info, setInfo] = useState<SystemInfo | null>(null);
   const [checking, setChecking] = useState(false);
-  const [restoring, setRestoring] = useState(false);
   const [removing, setRemoving] = useState(false);
   useEffect(() => {
     let live = true;
@@ -97,10 +96,6 @@ function SystemTab({ snap }: { snap: Snapshot }) {
     setChecking(true);
     await run("check_game");
     setChecking(false);
-  };
-  const restore = async () => {
-    setRestoring(false);
-    if (await run("restore_starter_pack")) notify("info", t("app.settings.starterDone"));
   };
   const removeOthers = async () => {
     setRemoving(false);
@@ -202,12 +197,6 @@ function SystemTab({ snap }: { snap: Snapshot }) {
         </Group>
       )}
 
-      <Group title={t("app.settings.starter")} help="adding-mods#obsidian-kit">
-        <Field label={t("app.settings.starterLabel")} note={t("app.settings.starterHint")}>
-          <button className="btn small" onClick={() => setRestoring(true)}>{t("app.settings.starterRestore")}</button>
-        </Field>
-      </Group>
-
       <Group title={t("app.settings.data")} help="how-obsidian-works#where-your-files-are">
         <Field label={t("app.settings.dataFolder")} note={snap.portable ? t("app.settings.portable") : t("app.settings.dataHint")}>
           <div className="path-line">
@@ -239,10 +228,6 @@ function SystemTab({ snap }: { snap: Snapshot }) {
         </Field>
       </Group>
 
-      {restoring && (
-        <Confirm title={t("app.settings.starterRestore")} text={t("app.settings.starterText", snap.profile)} confirm={t("app.settings.starterRestore")}
-          onCancel={() => setRestoring(false)} onConfirm={restore} />
-      )}
       {removing && (
         <Confirm title={t("app.settings.otherRemove")} text={t("app.settings.otherRemoveText", others.length)} confirm={t("app.settings.otherRemove")}
           onCancel={() => setRemoving(false)} onConfirm={removeOthers} />

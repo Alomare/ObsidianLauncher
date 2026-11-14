@@ -16,6 +16,8 @@ export type StoreMod = {
   id: string; name: string; summary: string; description: string; version: string; early: boolean;
   scope: Scope; requires: string[]; options: number; option_list: StoreOption[]; option_groups: { id: string; label: string }[]; repo: string; kit: boolean;
   icon: string | null; banner: string | null; released: string | null; added: string | null; versions: StoreVersion[];
+  /** Missing from indexes built before 2026-11-14. */
+  authors?: string[]; verified?: boolean;
 };
 export type StoreState = { mods: StoreMod[] | null; offline: boolean; loading: boolean; error: string | null; installing: string[] };
 

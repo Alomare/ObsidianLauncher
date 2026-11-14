@@ -1084,6 +1084,7 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .md a.md-link { color: var(--goldtx); text-decoration: underline; text-underline-offset: 0.2em; cursor: pointer; }
 .md a.md-link:hover { filter: brightness(1.2); }
 .md a.md-link svg.outbound { width: 0.6rem; height: 0.6rem; margin-left: 0.2rem; vertical-align: 0.1em; }
+.md-nw { white-space: nowrap; }
 .md .callout { display: grid; gap: 0.2rem; padding: 0.6rem 0.9rem; background: color-mix(in srgb, var(--cc) 10%, transparent); box-shadow: inset 3px 0 0 var(--cc); }
 .md .callout > b { font-size: var(--fs-xs); color: var(--cc); }
 .md .callout > div > :last-child { margin-bottom: 0; }
@@ -1539,19 +1540,24 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .store-scope.hybrid::before { background: linear-gradient(to right, var(--client) 50%, var(--session) 50%); }
 .store-tag.early { background: var(--s1); color: var(--goldtx); box-shadow: inset 0 0 0 1px var(--gold); }
 /* Installed or Update: a corner over the top right of a card. */
-.c-flag { position: absolute; top: 0; right: 0; z-index: 2; width: 2.7rem; height: 2.7rem; clip-path: polygon(0 0, 100% 0, 100% 100%); }
+.c-flag { position: absolute; top: 0; right: 0; z-index: 2; width: 2.7rem; height: 2.7rem; clip-path: polygon(0 0, 100% 0, 100% 100%); opacity: 0.9; }
 .c-flag.inst { background: var(--go); color: #0d1f18; }
 .c-flag.upd { background: var(--gold); color: #1b1b1b; }
 .c-flag svg { position: absolute; top: 0.3rem; right: 0.3rem; width: 0.95rem; height: 0.95rem; }
+.c-flag.sm { width: 1.9rem; height: 1.9rem; }
+.c-flag.sm svg { top: 0.2rem; right: 0.2rem; width: 0.7rem; height: 0.7rem; }
+/* Obsidian Verified: a silver square with the Obsidian logo cut out of it. */
+.store-verified { flex: none; display: inline-block; width: 1.35rem; height: 1.35rem; background: linear-gradient(160deg, #f3f5f7, #a9afb7);
+  -webkit-mask: url("./assets/logo.png") center / 92% no-repeat, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: url("./assets/logo.png") center / 92% no-repeat exclude, linear-gradient(#000 0 0); }
 
 /* Obsidian Kit: icon, then the name over the scope, on plain grey; a soft outline sets the icon off */
-.kit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.9rem; }
+.kit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.9rem; }
 .kit-card { position: relative; display: flex; align-items: center; gap: 0.85rem; padding: 0.75rem 0.9rem 0.75rem 0.75rem; min-width: 0; background: var(--s1); box-shadow: inset 0 0 0 1px var(--ln); cursor: pointer; transition: transform var(--fast), box-shadow var(--fast); }
 .kit-card:hover, .kit-card:focus-visible { transform: translateY(-2px); box-shadow: inset 0 0 0 1px var(--ln), inset 0 -3px 0 var(--gold); outline: 0; }
 .kit-card .mico { box-shadow: 0 0 0 1px color-mix(in srgb, var(--tx) 18%, transparent), 0 2px 8px rgba(0, 0, 0, 0.25); }
-.kc-text { min-width: 0; display: flex; flex-direction: column; gap: 0.35rem; }
-.kc-text b { font-size: var(--fs-base); font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.kc-tags { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.kc-text { min-width: 0; display: flex; align-items: center; gap: 0.5rem; }
+.kc-text b { min-width: 0; font-family: "Saira Variable", sans-serif; font-size: var(--fs-md); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Filter row: scope chips, the sort list, Installed; the search at the right */
 .fbar { display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.7rem; background: linear-gradient(160deg, var(--p1), var(--p2)); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); }
@@ -1598,7 +1604,9 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .btn.inst.big { height: 2.9rem; min-width: 12rem; font-size: var(--fs-md); }
 .btn.inst.installing { background: var(--row); box-shadow: inset 0 0 0 1px var(--go); color: var(--tx); cursor: progress; opacity: 1; }
 .btn.inst.installing .upd-spin { width: 0.9rem; height: 0.9rem; }
-.btn.inst.done { background: var(--row); box-shadow: inset 0 0 0 1px var(--ln); color: var(--go); }
+.btn.inst.done { background: var(--s2); box-shadow: inset 0 0 0 1px var(--ln); color: var(--go); }
+.mid > .uninst { flex: none; width: 2.9rem; height: 2.9rem; margin-left: -0.6rem; }
+.mid > .uninst svg { width: 1.15rem; height: 1.15rem; }
 .btn.inst.done:hover { background: var(--btn); color: var(--tx); }
 .inst-note { font-size: var(--fs-sm); color: var(--mu); }
 /* Installed and Installing have an outline; a line on the fold closes it, as on the light theme's buttons. */
@@ -1613,22 +1621,25 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
    right; the summary, one row of facts, then the description beside the Versions, Options, Requires and
    Needed by panels. The description keeps to a reading width. */
 .store-mod { --mcol: 60rem; padding-bottom: 2.4rem; }
-.mband { position: relative; height: 12rem; overflow: hidden; background: #0b0c0e; }
-.mb-pic { position: absolute; inset: -18px; background-size: cover; background-position: center 35%; filter: blur(6px) brightness(0.7); }
-.mband::after { content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(0deg, color-mix(in srgb, var(--bg1) 92%, transparent) 0%, transparent 55%); }
+.mband { position: relative; height: 12rem; overflow: hidden;
+  -webkit-mask: linear-gradient(180deg, #000 35%, transparent 100%); mask: linear-gradient(180deg, #000 35%, transparent 100%); }
+.mb-pic { position: absolute; inset: -22px; background-size: cover; background-position: center 35%; filter: blur(7.2px) brightness(0.7); }
 .mb-zoom { position: absolute; inset: 0; z-index: 1; }
-.mband > .back { position: absolute; z-index: 2; top: 1rem; left: max(1.2rem, calc((100% - var(--mcol)) / 2)); gap: 0.4rem; padding: 0 1rem 0 0.7rem; }
-.mband > .back svg { transform: rotate(90deg); }
+.mband > .back-wrap { position: absolute; z-index: 2; top: 1rem; left: max(1.2rem, calc((100% - var(--mcol)) / 2)); filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.65)); }
+.back-wrap > .back { gap: 0.4rem; padding: 0 1rem 0 0.7rem; }
+.back-wrap > .back svg { transform: rotate(90deg); }
 .zoomable { display: block; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: zoom-in; }
 .mcol { position: relative; z-index: 3; max-width: calc(var(--mcol) + 2.4rem); margin: -3.4rem auto 0; padding: 0 1.2rem; display: flex; flex-direction: column; gap: 0.9rem; }
 .mid { display: flex; align-items: flex-end; gap: 1.1rem; min-width: 0; }
 .mid-ico { flex: none; }
 .mid .mico { box-shadow: 0 0 0 2px var(--s2), 0 12px 30px rgba(0, 0, 0, 0.5); }
 /* The name sits at the foot of the icon; a long name wraps upward. */
-.mid-t { flex: 1; min-width: 0; display: flex; align-items: flex-end; flex-wrap: wrap; gap: 0.4rem 0.75rem; }
+.mid-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.mid-name { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 0.4rem 0.75rem; }
+.mid-name .store-verified { width: 1.6rem; height: 1.6rem; margin-bottom: 0.1rem; }
+.mby { color: var(--mu); font-size: var(--fs-sm); }
 .mid h1 { margin: 0; font-family: "Saira Variable", sans-serif; font-weight: 770; font-size: 2rem; line-height: 1.02; letter-spacing: 0.03em; text-transform: uppercase; overflow-wrap: anywhere; }
-.mid-t .store-tag { margin-bottom: 0.15rem; }
+.mid-name .store-tag { margin-bottom: 0.15rem; }
 .mid > .btn.inst.big { flex: none; }
 .msum { margin: 0; max-width: 40rem; color: var(--mu); line-height: 1.5; }
 .mfacts { margin: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; }
@@ -1641,8 +1652,13 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .store-box { padding: 0.85rem 0.95rem; display: flex; flex-direction: column; gap: 0.65rem; background: linear-gradient(160deg, var(--p1), var(--p2)); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); }
 .store-box .md { user-select: text; }
 .mpanel { padding: 0.7rem 0.75rem 0.75rem; gap: 0.6rem; }
+.mpanel:not(.open) { gap: 0; }
 .mp-h { display: flex; align-items: center; gap: 0.55rem; min-height: 1.8rem; }
-.mp-h h2 { margin: 0; font-family: "Saira Variable", sans-serif; font-size: var(--fs-sm); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.mp-h h2 { flex: 1; min-width: 0; margin: 0; font-family: "Saira Variable", sans-serif; font-size: var(--fs-sm); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.mp-tog { width: 100%; min-height: 1.8rem; display: flex; align-items: center; gap: 0.55rem; padding: 0; border: 0; background: none; color: var(--mu); font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left; cursor: pointer; transition: color var(--fast); }
+.mp-tog:hover, .mpanel.open .mp-tog { color: var(--tx); }
+.mp-tog svg { width: 0.85rem; height: 0.85rem; flex: none; transform: rotate(-90deg); transition: transform var(--fast); }
+.mpanel.open .mp-tog svg { transform: none; }
 .mp-h i { margin-left: auto; font-style: normal; color: var(--mu); font-variant-numeric: tabular-nums; }
 .mp-h .btn.small.icon { width: 1.8rem; height: 1.8rem; padding: 0; }
 .mpanel .mod-log-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.2rem; }

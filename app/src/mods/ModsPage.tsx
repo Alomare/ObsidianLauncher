@@ -327,7 +327,7 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
               <div className="row-btns">
                 <button className="btn small" onClick={() => pickAndImport(false)}><ImportIcon />{t("app.mods.importZip")}</button>
                 <button className="btn small" onClick={() => pickAndImport(true)}><FolderIcon />{t("app.mods.importFolder")}</button>
-                <button className="btn small" onClick={() => run("restore_starter_pack")}>{t("app.settings.starterRestore")}</button>
+                <button className="btn small" onClick={() => go("store")}><StoreIcon />{t("app.mods.browseStore")}</button>
               </div>
             </div>
           )}

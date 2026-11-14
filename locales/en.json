@@ -327,12 +327,6 @@
   "app.settings.report": "Problem report",
   "app.settings.reportHint": "Copies the versions, the mods that are on and the end of the game log for a bug report. The Windows account name is left out.",
   "app.settings.scale": "Interface scale",
-  "app.settings.starter": "Obsidian Kit",
-  "app.settings.starterDone": "The Obsidian Kit is back. Deploy to apply it.",
-  "app.settings.starterHint": "Restores any that were deleted and the Obsidian Kit folder, and resets those mods to default settings in the active profile.",
-  "app.settings.starterLabel": "Obsidian API, Obsidian Trainer and Obsidian Patches",
-  "app.settings.starterRestore": "Restore Obsidian Kit",
-  "app.settings.starterText": "In the profile %s, the three mods go back to the top of the list, in the Obsidian Kit folder, with default options and keys. Only Obsidian Patches stays on, plus anything other mods need. An updated mod keeps the newer version. Other mods stay as they are.",
   "app.settings.system": "System",
   "app.settings.systemLanguage": "System language",
   "app.settings.text.large": "Large",
@@ -371,7 +365,6 @@
   "app.task.import_profile": "Importing the profile...",
   "app.task.remove_mods": "Removing mods...",
   "app.task.rename_profile": "Renaming the profile...",
-  "app.task.restore_starter_pack": "Restoring the Obsidian Kit...",
   "app.task.set_block_achievements": "Saving the Guardrails...",
   "app.task.set_freeze_progress": "Saving the Guardrails...",
   "app.task.set_enabled": "Saving which mods are on...",
@@ -960,5 +953,9 @@
   "app.store.requires": "Requires",
   "app.store.neededBy": "Needed by",
   "app.store.notInstalled": "Not installed",
-  "app.store.notInStore": "Not in the Store"
+  "app.store.notInStore": "Not in the Store",
+  "app.store.verified": "Obsidian Verified",
+  "app.store.verifiedHint": "This mod is developed and maintained by the Obsidian team or by someone who earned their trust.",
+  "app.store.by": "by %s",
+  "app.store.uninstall": "Uninstall"
 }

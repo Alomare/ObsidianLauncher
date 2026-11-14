@@ -66,10 +66,22 @@ function InApp({ to, children }: { to: () => void; children: ReactNode }) {
   );
 }
 
-function Link({ href, children }: { href: string; children: ReactNode }) {
-  if (/^https?:\/\//i.test(href)) {
-    return <a className="md-link" href={href} data-tip={href} onClick={(e) => { e.preventDefault(); openUrl(href).catch(() => {}); }}>{children}<OutboundIcon /></a>;
+/** The text of a web link, with the last word and the arrow kept on one line. */
+function External({ tokens }: { tokens: Token[] }) {
+  const last = tokens[tokens.length - 1] as Tokens.Generic | undefined;
+  if (last?.type === "text" && !last.tokens?.length) {
+    const text = String(last.text ?? "");
+    const word = /\S*$/.exec(text)?.[0] ?? "";
+    return <><Inline tokens={tokens.slice(0, -1)} />{text.slice(0, text.length - word.length)}<span className="md-nw">{word}<OutboundIcon /></span></>;
   }
+  return <><Inline tokens={tokens} /><span className="md-nw">{"⁠"}<OutboundIcon /></span></>;
+}
+
+function Link({ href, tokens }: { href: string; tokens: Token[] }) {
+  if (/^https?:\/\//i.test(href)) {
+    return <a className="md-link" href={href} data-tip={href} onClick={(e) => { e.preventDefault(); openUrl(href).catch(() => {}); }}><External tokens={tokens} /></a>;
+  }
+  const children = <Inline tokens={tokens} />;
   if (href.startsWith("#")) return <InApp to={() => document.getElementById(href.slice(1))?.scrollIntoView({ block: "start" })}>{children}</InApp>;
   const [scheme, rest = ""] = href.split(/:(.*)/s);
   if (scheme === "wiki") return <InApp to={() => go("wiki", rest)}>{children}</InApp>;
@@ -86,7 +98,7 @@ function Inline({ tokens }: { tokens: Token[] | undefined }): ReactNode {
       case "del": return <del key={i}><Inline tokens={k.tokens} /></del>;
       case "codespan": return <code key={i}>{k.text}</code>;
       case "br": return <br key={i} />;
-      case "link": return <Link key={i} href={k.href}><Inline tokens={k.tokens} /></Link>;
+      case "link": return <Link key={i} href={k.href} tokens={k.tokens ?? []} />;
       case "html": return null;
       default: return k.tokens ? <Inline key={i} tokens={k.tokens} /> : <Fragment key={i}>{k.text ?? ""}</Fragment>;
     }

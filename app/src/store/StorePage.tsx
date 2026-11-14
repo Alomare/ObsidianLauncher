@@ -4,8 +4,10 @@
 // github.com/Alomare/ObsidianStoreIndex (storeIndex.ts); installing downloads the newest release.
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { run } from "../api";
 import { useLocked } from "../busy";
-import { CheckIcon, ChevronIcon, CloseIcon, GitHubIcon, ImportIcon, SearchIcon, UpdateIcon } from "../Icons";
+import { Confirm } from "../Confirm";
+import { CheckIcon, ChevronIcon, CloseIcon, GitHubIcon, ImportIcon, SearchIcon, TrashIcon, UpdateIcon } from "../Icons";
 import { artFor } from "../homeArt";
 import { language, t } from "../i18n";
 import { Markdown, parse } from "../Markdown";
@@ -62,13 +64,17 @@ function ScopeTag({ scope }: { scope: Scope }) {
 const Early = ({ m }: { m: StoreMod }) =>
   m.early ? <span className="store-tag early" data-tip={t("app.store.earlyHint", m.version)}>{t("app.store.early")}</span> : null;
 
+/** Obsidian Verified, first of the tags: a silver square with the Obsidian logo cut out of it. */
+const Verified = ({ m }: { m: StoreMod }) =>
+  m.verified ? <span className="store-verified" role="img" aria-label={t("app.store.verified")} data-tip-title={t("app.store.verified")} data-tip={t("app.store.verifiedHint")} /> : null;
+
 /** A corner over the top right of a card: green with a check when installed, yellow with an arrow when the
     Store has a newer version. */
-function Flag({ mark }: { mark: StoreMark }) {
+function Flag({ mark, small }: { mark: StoreMark; small?: boolean }) {
   if (mark !== "installed" && mark !== "update") return null;
   const label = mark === "installed" ? t("app.store.installed") : t("app.store.updateFlag");
   return (
-    <span className={`c-flag ${mark === "installed" ? "inst" : "upd"}`} role="img" aria-label={label} data-tip={label}>
+    <span className={`c-flag ${mark === "installed" ? "inst" : "upd"}${small ? " sm" : ""}`} role="img" aria-label={label} data-tip={label}>
       {mark === "installed" ? <CheckIcon /> : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" /></svg>}
     </span>
   );
@@ -164,11 +170,9 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
         <div className="kit-grid">
           {all.filter((m) => m.kit).map((m) => (
             <div key={m.id} className="kit-card" role="link" tabIndex={0} onClick={() => show(m.id)} onKeyDown={keyOpen(() => show(m.id))}>
+              <Flag mark={mark(m)} small />
               <ModIcon m={m} />
-              <div className="kc-text">
-                <b>{m.name}</b>
-                <div className="kc-tags"><ScopeTag scope={m.scope} /><Early m={m} /></div>
-              </div>
+              <div className="kc-text"><Verified m={m} /><ScopeTag scope={m.scope} /><b>{m.name}</b><Early m={m} /></div>
             </div>
           ))}
         </div>
@@ -213,7 +217,7 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
                     <b>{m.name}</b>
                     <p className="c-desc">{m.summary}</p>
                     <div className="c-tags">
-                      <ScopeTag scope={m.scope} /><Early m={m} />
+                      <Verified m={m} /><ScopeTag scope={m.scope} /><Early m={m} />
                       {k !== "installed" && <span className="c-quick"><InstallButton m={m} mark={k} size="small" onInstall={() => doInstall(m)} /></span>}
                     </div>
                   </div>
@@ -245,12 +249,16 @@ function Zoom({ path, className, children }: { path: string; className: string; 
   );
 }
 
-/** A panel of the side column: the title with a count, then its content. */
+/** A panel of the side column, folded at first: the title with a count opens it; tools stay at the right. */
 function Panel({ title, count, tools, children }: { title: string; count?: number; tools?: ReactNode; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
   return (
-    <section className="store-box mpanel">
-      <div className="mp-h">{tools}<h2>{title}</h2>{count !== undefined && <i>{count}</i>}</div>
-      {children}
+    <section className={open ? "store-box mpanel open" : "store-box mpanel"}>
+      <div className="mp-h">
+        <h2><button className="mp-tog" aria-expanded={open} onClick={() => setOpen(!open)}><ChevronIcon /><span>{title}</span>{count !== undefined && <i>{count}</i>}</button></h2>
+        {tools}
+      </div>
+      {open && children}
     </section>
   );
 }
@@ -289,6 +297,7 @@ function OptionPanel({ m }: { m: StoreMod }) {
 
 function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
   const [unfolded, setUnfolded] = useState<Record<string, boolean>>({});
+  const [ask, setAsk] = useState(false);
   const k = mark(m);
   const row = snap.mods.find((r) => r.id === m.id);
   const desc = useMemo(() => parse(m.description || m.summary).tokens, [m.description, m.summary]);
@@ -310,14 +319,24 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
       <div className="mband">
         {band && <span className="mb-pic" aria-hidden="true" style={{ backgroundImage: `url("${band}")` }} />}
         {m.banner && <Zoom path={m.banner} className="mb-zoom">{null}</Zoom>}
-        <button className="btn small back" onClick={() => onOpen(null)}><ChevronIcon />{t("app.store.back")}</button>
+        <span className="back-wrap"><button className="btn small back" onClick={() => onOpen(null)}><ChevronIcon />{t("app.store.back")}</button></span>
       </div>
       <div className="mcol">
         <div className="mid">
           {m.icon ? <Zoom path={m.icon} className="mid-ico"><ModIcon m={m} size="xl" /></Zoom> : <ModIcon m={m} size="xl" />}
-          <div className="mid-t"><h1>{m.name}</h1><Early m={m} /></div>
+          <div className="mid-t">
+            <div className="mid-name"><h1>{m.name}</h1><Verified m={m} /><Early m={m} /></div>
+            {!!m.authors?.length && <span className="mby">{t("app.store.by", m.authors.join(", "))}</span>}
+          </div>
           <InstallButton m={m} mark={k} size="big" onInstall={() => onInstall(m)} />
+          {k === "installed" && (
+            <button className="btn icon danger uninst" onClick={() => setAsk(true)} aria-label={t("app.store.uninstall")} data-tip={t("app.store.uninstall")}><TrashIcon /></button>
+          )}
         </div>
+        {ask && (
+          <Confirm title={t("app.drawer.removeTitle", m.name)} text={t("app.drawer.removeText")} confirm={t("app.drawer.remove")}
+            onCancel={() => setAsk(false)} onConfirm={() => { setAsk(false); run("remove_mods", { ids: [m.id] }); }} />
+        )}
         {m.summary && <p className="msum">{m.summary}</p>}
         <dl className="mfacts">
           <div><dt>{t("app.store.factScope")}</dt><dd><ScopeTag scope={m.scope} />{t(`app.scope.${m.scope}`)}</dd></div>
@@ -329,7 +348,7 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
         <div className="mcols">
           <section className="store-box mdesc"><Markdown tokens={desc} /></section>
           <div className="mside">
-            <Panel title={t("app.store.versions")} count={m.versions.length}
+            <Panel title={t("app.store.versions")}
               tools={<button className="btn small icon gh" onClick={() => openUrl(url).catch(() => {})} aria-label="GitHub" data-tip={url}><GitHubIcon /></button>}>
               <ol className="mod-log-list">
                 {m.versions.map((v, i) => {

@@ -35,7 +35,7 @@ const snap = (mods: ModRow[]): Snapshot => ({
 
 const INDEX = [
   entry("api", { kit: true, scope: "library" }),
-  entry("hud", { added: "2026-03-01", released: "2026-10-01" }),
+  entry("hud", { added: "2026-03-01", released: "2026-10-01", verified: true, authors: ["Ann", "Bo"] }),
   entry("arcade", { scope: "expansion", requires: ["api", "hud"], added: "2026-06-01", released: "2026-09-01", early: true, version: "0.4.0",
     banner: "C:\\store\\arcade.jpg", options: 3, option_groups: [{ id: "shop", label: "Shop" }],
     option_list: [{ label: "Lives", description: "Lives per mission", group: null }, { label: "Life", description: "Price of a life", group: "shop" }, { label: "Armor", description: "Price of armor", group: "shop" }] }),
@@ -94,6 +94,12 @@ describe("StorePage", () => {
     expect(plain.querySelector(".mico")).toBeNull();
     const hud = [...host.querySelectorAll(".card")].find((c) => c.textContent?.includes("HUD"))!;
     expect(hud.querySelector(".c-flag.inst")).not.toBeNull();
+    // Obsidian Verified comes first of the tags, only where the index says so.
+    expect(hud.querySelector(".c-tags > :first-child")?.className).toBe("store-verified");
+    const cross = [...host.querySelectorAll(".card")].find((c) => c.textContent?.includes("CROSSHAIR"))!;
+    expect(cross.querySelector(".store-verified")).toBeNull();
+    // A Kit card: the scope before the name.
+    expect([...host.querySelector(".kit-card .kc-text")!.children].map((e) => e.className)).toEqual(["store-scope library", ""]);
 
     const chip = [...host.querySelectorAll(".chip")].find((b) => b.textContent === t("app.scope.expansion"))!;
     await act(async () => (chip as HTMLElement).click());
@@ -124,11 +130,14 @@ describe("StorePage", () => {
     expect([...host.querySelectorAll(".mfacts dt")].map((d) => d.textContent)).toEqual(
       [t("app.store.factScope"), t("app.store.factVersion"), t("app.store.factReleased"), t("app.store.factUpdated")]);
     expect(host.querySelectorAll(".mfacts dd")[1].textContent).toBe("0.4.0");
-    // The side panels in order, each with a count: Versions, Options, Requires.
+    // The side panels in order, folded, each but Versions with a count; GitHub shows while Versions is folded.
     const panels = [...host.querySelectorAll(".mside .mpanel")];
-    expect(panels.map((p) => p.querySelector(".mp-h h2")?.textContent)).toEqual([t("app.store.versions"), t("app.store.options"), t("app.store.requires")]);
-    expect(panels.map((p) => p.querySelector(".mp-h i")?.textContent)).toEqual(["1", "3", "2"]);
+    expect(panels.map((p) => p.querySelector(".mp-tog span")?.textContent)).toEqual([t("app.store.versions"), t("app.store.options"), t("app.store.requires")]);
+    expect(panels.map((p) => p.querySelector(".mp-h i")?.textContent ?? null)).toEqual([null, "3", "2"]);
+    expect(panels.map((p) => p.querySelector(".mp-tog")?.getAttribute("aria-expanded"))).toEqual(["false", "false", "false"]);
     expect(panels[0].querySelector(".mp-h .gh")).not.toBeNull();
+    expect(host.querySelector(".mod-log-list")).toBeNull();
+    for (const p of panels) await act(async () => (p.querySelector(".mp-tog") as HTMLElement).click());
     expect(host.querySelector(".mod-log-entry.open .upd-body")?.textContent).toContain("Fixed a thing");
     const reqs = [...panels[2].querySelectorAll(".req .rq-state")].map((s) => s.textContent);
     expect(reqs).toEqual([t("app.store.installed"), t("app.store.notInstalled")]);
@@ -142,9 +151,22 @@ describe("StorePage", () => {
     await act(async () => (host.querySelector(".mband .mb-zoom") as HTMLElement).click());
     expect(document.querySelector(".image-view img")).not.toBeNull();
     await act(async () => (document.querySelector(".image-view") as HTMLElement).click());
-    await act(async () => (host.querySelector(".mband > .back") as HTMLElement).click());
+    await act(async () => (host.querySelector(".mband .back") as HTMLElement).click());
     expect(host.querySelector(".store-mod")).toBeNull();
     expect(names(host).length).toBe(3);
+  });
+
+  it("shows the authors and Verified on the page, and uninstalls after asking", async () => {
+    const host = await show([row("hud", "1.2.0")]);
+    const card = [...host.querySelectorAll(".card")].find((c) => c.textContent?.includes("HUD")) as HTMLElement;
+    await act(async () => card.click());
+    expect(host.querySelector(".mby")?.textContent).toBe(t("app.store.by", "Ann, Bo"));
+    expect(host.querySelector(".mid-name .store-verified")).not.toBeNull();
+    invoke.mockClear();
+    await act(async () => (host.querySelector(".mid .uninst") as HTMLElement).click());
+    const yes = [...document.querySelectorAll(".modal button")].find((b) => b.textContent === t("app.drawer.remove")) as HTMLElement;
+    await act(async () => yes.click());
+    expect(invoke).toHaveBeenCalledWith("remove_mods", { ids: ["hud"] });
   });
 
   it("reads the list from the cache with a note when GitHub is out of reach, and offers Try again on a failure", async () => {
