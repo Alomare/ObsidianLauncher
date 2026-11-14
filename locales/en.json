@@ -954,6 +954,7 @@
   "app.store.options": "Options",
   "app.store.factVersion": "Version",
   "app.store.factReleased": "Released",
+  "app.store.factUpdated": "Updated",
   "app.store.factInstalled": "Installed",
   "app.store.requires": "Requires",
   "app.store.neededBy": "Needed by",

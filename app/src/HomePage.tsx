@@ -9,6 +9,7 @@
 import { openUrl } from "./opener";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import logo from "./assets/logo-shaded.png";
+import { ART } from "./homeArt";
 import { ChevronIcon, DiscordIcon, GitHubIcon, KofiIcon, OutboundIcon, SearchIcon, StoreIcon } from "./Icons";
 import { t } from "./i18n";
 import { LINKS } from "./links";
@@ -18,9 +19,6 @@ import { motionOn, systemReducesMotion } from "./theme";
 
 const ART_KEY = "obsidian.homeArt";
 const ART_SECONDS = 30; // how long a picture stays before the next one comes
-const ART = Object.entries(import.meta.glob("./assets/home/*.webp", { eager: true, query: "?url", import: "default" }))
-  .sort(([a], [b]) => a.localeCompare(b))
-  .map(([, url]) => url as string);
 
 /** The picture a launch starts on: the one after the last launch's. */
 function firstPicture() {

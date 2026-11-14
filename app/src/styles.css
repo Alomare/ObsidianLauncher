@@ -1266,7 +1266,9 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .opt-cell > .ed-num, .opt-cell > .ed-stack { flex: 1; min-width: 0; }
 .ed-num { width: 100%; height: 2.3rem; padding: 0 0.75rem; background: var(--row); border: 1px solid var(--ln); color: var(--tx); font-family: "Saira Variable", sans-serif; font-size: var(--fs-base); font-variant-numeric: tabular-nums; outline: 0;
   -webkit-mask: linear-gradient(315deg, transparent var(--cut-sm), #000 calc(var(--cut-sm) + 0.5px)); }
-.ed-num:focus { border-color: var(--gold); }
+/* An input has no ::after, so a line in the background closes the border across the fold. */
+.ed-num { --fold-c: var(--ln); background: linear-gradient(315deg, transparent calc(var(--cut-sm) - 0.5px), var(--fold-c) calc(var(--cut-sm) - 0.5px), var(--fold-c) calc(var(--cut-sm) + 0.9px), transparent calc(var(--cut-sm) + 0.9px)), var(--row); background-origin: border-box; }
+.ed-num:focus { border-color: var(--gold); --fold-c: var(--gold); }
 .ed-num:disabled { opacity: 0.5; }
 .ed-stack { display: flex; flex-direction: column; gap: 0.3rem; }
 .ed-meter { height: 0.3rem; background: var(--row); }
@@ -1577,8 +1579,11 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .c-img > img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 400ms ease; }
 .card:hover .c-img > img { transform: scale(1.04); }
 .c-img:has(> img)::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0, 0, 0, 0.55), transparent 45%); pointer-events: none; }
-.noimg { width: 100%; height: 100%; display: grid; place-items: center; background: var(--row); color: var(--mu); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tx) 38%, transparent); }
-.noimg svg { width: 2.6rem; height: 2.6rem; opacity: 0.6; }
+/* No thumbnail: the icon over a blurred, darkened copy of itself, or the letter over a Home picture */
+.backdrop { position: relative; width: 100%; height: 100%; display: grid; place-items: center; overflow: hidden; background: #0b0c0e; }
+.bd-blur { position: absolute; inset: -30px; background-size: cover; background-position: center; filter: blur(26px) saturate(1.2) brightness(0.42); }
+.backdrop .mico { position: relative; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18), 0 12px 30px rgba(0, 0, 0, 0.5); }
+.backdrop .mico.letter { background: rgba(20, 21, 24, 0.6); color: #ecebe7; }
 .c-quick { position: absolute; right: 0.5rem; bottom: 0.5rem; z-index: 1; opacity: 0; transform: translateY(3px); transition: opacity var(--fast), transform var(--fast); }
 .card:hover .c-quick, .card:focus-within .c-quick, .c-quick:has(.installing) { opacity: 1; transform: none; }
 .c-body { position: relative; flex: 1; display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto 1fr auto; gap: 0 0.7rem; padding: 0.65rem 0.75rem 0.85rem; }
@@ -1599,21 +1604,25 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .btn.inst.done { background: var(--row); box-shadow: inset 0 0 0 1px var(--ln); color: var(--go); }
 .btn.inst.done:hover { background: var(--btn); color: var(--tx); }
 .inst-note { font-size: var(--fs-sm); color: var(--mu); }
+/* Installed and Installing have an outline; a line on the fold closes it, as on the light theme's buttons. */
+.btn.inst.done, .btn.inst.installing { position: relative; }
+.btn.inst.done::after, .btn.inst.installing::after {
+  content: ""; position: absolute; right: calc(var(--cut-sm) * -0.293 - 0.15px); bottom: calc(var(--cut-sm) * 0.707 - 0.15px); width: calc(var(--cut-sm) * 2 + 1px);
+  border-top: 1px solid var(--ln); transform: rotate(-45deg); pointer-events: none; }
+.btn.inst.installing::after { border-top-color: var(--go); }
 
 /* The page of a mod: Back, then a rail with the pictures, Install, the facts, the requirements, the summary
-   and the options, beside the description and the versions. With no thumbnail the picture slot shows the icon. */
-.store-mod { max-width: 82rem; margin: 0 auto; padding: 1rem 1.2rem 2.4rem; display: flex; flex-direction: column; gap: 0.9rem; }
+   and the options, beside the description and the versions. The rail stays in view (useStickyRail), and the
+   description keeps to a reading width. */
+.store-mod { max-width: calc(21rem + 1.8rem + 37rem + 2.4rem); margin: 0 auto; padding: 1rem 1.2rem 2.4rem; display: flex; flex-direction: column; gap: 0.9rem; }
 .store-mod > .back { align-self: flex-start; gap: 0.4rem; padding: 0 1rem 0 0.7rem; }
 .store-mod > .back svg { transform: rotate(90deg); }
-.mcols { display: grid; grid-template-columns: 20rem minmax(0, 1fr); gap: 1.4rem; align-items: start; }
-.mrail { display: flex; flex-direction: column; gap: 0.9rem; min-width: 0; }
+.mcols { display: grid; grid-template-columns: 21rem minmax(0, 37rem); gap: 1.8rem; align-items: start; }
+.mrail { position: sticky; top: 1rem; display: flex; flex-direction: column; gap: 0.9rem; min-width: 0; }
 .zoomable { display: block; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: zoom-in; }
-.mmedia { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background: #0b0c0e; display: grid; place-items: center; box-shadow: inset 0 0 0 1px var(--ln); }
-.mmedia.none { background: linear-gradient(160deg, var(--p1), var(--p2)); }
+.mmedia { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background: #0b0c0e; display: grid; place-items: center; }
 .mmedia > img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 400ms ease; }
 .mmedia:hover > img { transform: scale(1.03); }
-.mm-blur { position: absolute; inset: -30px; background-size: cover; background-position: center; filter: blur(30px) saturate(1.3) brightness(0.55); }
-.mmedia .mico { position: relative; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18), 0 12px 30px rgba(0, 0, 0, 0.5); }
 .mid { display: flex; align-items: center; gap: 0.85rem; min-width: 0; }
 .mid-ico { flex: none; }
 .mid .mico { box-shadow: 0 0 0 1px color-mix(in srgb, var(--tx) 18%, transparent), 0 2px 8px rgba(0, 0, 0, 0.25); }
@@ -1625,18 +1634,18 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .mstats > div { padding: 0.45rem 0.65rem; background: var(--row); display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
 .mstats dt { color: var(--mu); font-family: "Saira Variable", sans-serif; font-size: 0.64rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; }
 .mstats dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
-.mreq { display: flex; flex-direction: column; gap: 0.4rem; }
-.mreq > h3 { margin: 0; font-size: var(--fs-xs); color: var(--mu); }
+/* An odd last box takes the whole row. */
+.mstats > div:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .msum { margin: 0; color: var(--mu); font-size: var(--fs-md); line-height: 1.5; }
-/* Options: a folded list, each group folded inside it */
-.opt-list { background: var(--row); }
-.opt-list summary { list-style: none; display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 0.65rem; cursor: pointer;
+/* Requires, Needed by and Options: folded lists with a count; option groups fold inside Options */
+.fold { background: var(--row); }
+.fold summary { list-style: none; display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 0.65rem; cursor: pointer;
   font-family: "Saira Variable", sans-serif; font-size: var(--fs-xs); font-weight: 650; letter-spacing: 0.1em; text-transform: uppercase; }
-.opt-list summary::-webkit-details-marker { display: none; }
-.opt-list summary:hover { background: var(--row); }
-.opt-list summary svg { width: 0.8rem; height: 0.8rem; flex: none; transform: rotate(-90deg); transition: transform var(--fast); }
-.opt-list details[open] > summary svg, .opt-list[open] > summary svg { transform: none; }
-.opt-list summary i { margin-left: auto; font-style: normal; color: var(--mu); }
+.fold summary::-webkit-details-marker { display: none; }
+.fold summary:hover { background: var(--row); }
+.fold summary svg { width: 0.8rem; height: 0.8rem; flex: none; transform: rotate(-90deg); transition: transform var(--fast); }
+.fold details[open] > summary svg, .fold[open] > summary svg { transform: none; }
+.fold summary i { margin-left: auto; font-style: normal; color: var(--mu); }
 .opt-group { margin: 0 0.45rem 0.45rem; background: var(--row); }
 .opt-group > summary { font-family: inherit; font-size: var(--fs-md); font-weight: 600; letter-spacing: 0; text-transform: none; }
 .opt-rows { list-style: none; margin: 0; padding: 0.1rem 0.65rem 0.6rem 1.95rem; display: flex; flex-direction: column; gap: 0.55rem; }
@@ -1651,6 +1660,7 @@ ol.store-box { margin: 0; padding: 0.4rem 0.5rem; gap: 0.2rem; }
 .store-h h2 { margin: 0; font-family: "Saira Variable", sans-serif; font-size: var(--fs-lg); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
 .store-h .btn.small.icon { width: 2rem; height: 2rem; padding: 0; }
 .req { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.fold > .req { padding: 0 0.45rem 0.45rem; }
 .req-row { width: 100%; display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.5rem; border: 0; background: var(--row); color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background var(--fast); }
 .req-row:hover:not(:disabled) { background: color-mix(in srgb, var(--tx) 9%, transparent); }
 .req-row:disabled { cursor: default; }

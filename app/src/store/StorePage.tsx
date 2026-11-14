@@ -5,7 +5,8 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useLocked } from "../busy";
-import { CheckIcon, ChevronIcon, CloseIcon, GitHubIcon, ImportIcon, NoImageIcon, SearchIcon, UpdateIcon } from "../Icons";
+import { CheckIcon, ChevronIcon, CloseIcon, GitHubIcon, ImportIcon, SearchIcon, UpdateIcon } from "../Icons";
+import { artFor } from "../homeArt";
 import { language, t } from "../i18n";
 import { Markdown, parse } from "../Markdown";
 import { go } from "../nav";
@@ -41,6 +42,18 @@ function ModIcon({ m, size = "" }: { m: StoreMod; size?: string }) {
   return (
     <span className={`mico ${size}${m.icon ? "" : " letter"}`}>
       {m.icon ? <img src={src(m.icon)} alt="" draggable={false} /> : <span aria-hidden="true">{[...m.name.trim()][0]?.toUpperCase() ?? "?"}</span>}
+    </span>
+  );
+}
+
+/** In place of a thumbnail: the icon over a blurred, darkened copy of itself, or the first letter over one
+    of the Home pictures when the mod has no icon either. */
+function Backdrop({ m }: { m: StoreMod }) {
+  const under = m.icon ? src(m.icon) : artFor(m.id);
+  return (
+    <span className="backdrop">
+      {under && <span className="bd-blur" aria-hidden="true" style={{ backgroundImage: `url("${under}")` }} />}
+      <ModIcon m={m} size="xl" />
     </span>
   );
 }
@@ -197,7 +210,7 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
               return (
                 <div key={m.id} className="card" role="link" tabIndex={0} onClick={() => show(m.id)} onKeyDown={keyOpen(() => show(m.id))}>
                   <div className="c-img">
-                    {m.banner ? <img src={src(m.banner)} alt="" draggable={false} loading="lazy" /> : <div className="noimg"><NoImageIcon /></div>}
+                    {m.banner ? <img src={src(m.banner)} alt="" draggable={false} loading="lazy" /> : <Backdrop m={m} />}
                     {k !== "installed" && <div className="c-quick"><InstallButton m={m} mark={k} size="small" onInstall={() => doInstall(m)} /></div>}
                   </div>
                   <Flag mark={k} />
@@ -247,7 +260,7 @@ function OptionList({ m }: { m: StoreMod }) {
     </ul>
   );
   return (
-    <details className="opt-list">
+    <details className="fold opt-list">
       <summary><ChevronIcon />{t("app.store.options")}<i>{opts.length}</i></summary>
       {loose.length > 0 && rows(loose)}
       {(m.option_groups ?? []).map((g) => {
@@ -263,8 +276,28 @@ function OptionList({ m }: { m: StoreMod }) {
   );
 }
 
+/** The rail stays in view while the page scrolls: by its top when it fits in the window, else by its bottom
+    once the end of it is in view, so every part of it can still be reached. */
+function useStickyRail() {
+  const rail = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const el = rail.current;
+    const box = el?.closest(".store");
+    if (!el || !box || typeof ResizeObserver === "undefined") return;
+    const pad = 16;
+    const fit = () => { el.style.top = `${Math.min(pad, box.clientHeight - el.offsetHeight - pad)}px`; };
+    const watch = new ResizeObserver(fit);
+    watch.observe(el);
+    watch.observe(box);
+    fit();
+    return () => watch.disconnect();
+  }, []);
+  return rail;
+}
+
 function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
   const [unfolded, setUnfolded] = useState<Record<string, boolean>>({});
+  const rail = useStickyRail();
   const k = mark(m);
   const row = snap.mods.find((r) => r.id === m.id);
   const desc = useMemo(() => parse(m.description || m.summary).tokens, [m.description, m.summary]);
@@ -280,21 +313,23 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
       </button>
     </li>
   );
-  const picture = m.banner ?? m.icon;
+  const fold = (label: string, list: ReactNode[]) => (
+    <details className="fold">
+      <summary><ChevronIcon />{label}<i>{list.length}</i></summary>
+      <ul className="req">{list}</ul>
+    </details>
+  );
   return (
     <div className="store-mod">
       <button className="btn small back" onClick={() => onOpen(null)}><ChevronIcon />{t("app.store.back")}</button>
       <div className="mcols">
-        <aside className="mrail">
-          {picture ? (
-            <Zoom path={picture} className={m.banner ? "mmedia" : "mmedia none"}>
-              {m.banner ? <img src={src(m.banner)} alt="" draggable={false} /> : <>
-                <span className="mm-blur" aria-hidden="true" style={{ backgroundImage: `url("${src(m.icon!)}")` }} />
-                <ModIcon m={m} size="xl" />
-              </>}
-            </Zoom>
+        <aside className="mrail" ref={rail}>
+          {m.banner ? (
+            <Zoom path={m.banner} className="mmedia"><img src={src(m.banner)} alt="" draggable={false} /></Zoom>
+          ) : m.icon ? (
+            <Zoom path={m.icon} className="mmedia"><Backdrop m={m} /></Zoom>
           ) : (
-            <div className="mmedia none"><ModIcon m={m} size="xl" /></div>
+            <div className="mmedia"><Backdrop m={m} /></div>
           )}
           <div className="mid">
             {m.icon ? <Zoom path={m.icon} className="mid-ico"><ModIcon m={m} /></Zoom> : <ModIcon m={m} />}
@@ -306,21 +341,12 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
           <InstallButton m={m} mark={k} size="big" onInstall={() => onInstall(m)} />
           <dl className="mstats">
             <div><dt>{t("app.store.factVersion")}</dt><dd>{m.version}</dd></div>
-            <div><dt>{t("app.store.factReleased")}</dt><dd>{m.released ? date(m.released) : "-"}</dd></div>
+            {m.added && <div><dt>{t("app.store.factReleased")}</dt><dd>{date(m.added)}</dd></div>}
+            {m.released && <div><dt>{t("app.store.factUpdated")}</dt><dd>{date(m.released)}</dd></div>}
             {row?.version && row.version !== m.version && <div><dt>{t("app.store.factInstalled")}</dt><dd>{row.version}</dd></div>}
           </dl>
-          {needs.length > 0 && (
-            <div className="mreq">
-              <h3 className="cap">{t("app.store.requires")}</h3>
-              <ul className="req">{needs.map((n) => reqRow(n.id, n.entry, n.entry?.name ?? n.id, !!n.row))}</ul>
-            </div>
-          )}
-          {neededBy.length > 0 && (
-            <div className="mreq">
-              <h3 className="cap">{t("app.store.neededBy")}</h3>
-              <ul className="req">{neededBy.map((x) => reqRow(x.id, x, x.name, snap.mods.some((r) => r.id === x.id)))}</ul>
-            </div>
-          )}
+          {needs.length > 0 && fold(t("app.store.requires"), needs.map((n) => reqRow(n.id, n.entry, n.entry?.name ?? n.id, !!n.row)))}
+          {neededBy.length > 0 && fold(t("app.store.neededBy"), neededBy.map((x) => reqRow(x.id, x, x.name, snap.mods.some((r) => r.id === x.id))))}
           {m.summary && <p className="msum">{m.summary}</p>}
           <OptionList m={m} />
         </aside>
