@@ -8,7 +8,7 @@ import { call, errorText, setSnapshot, taskText } from "../api";
 import { withTask } from "../busy";
 import { Confirm } from "../Confirm";
 import { ContextMenu, type MenuItem } from "../ContextMenu";
-import { CheckIcon, CopyIcon, DeployIcon, ExportIcon, ImportIcon, PenIcon, PlusIcon, ResetIcon, SaveIcon, SlidersIcon, TrashIcon, UpdateIcon, WarnIcon } from "../Icons";
+import { CheckIcon, ChevronIcon, CopyIcon, CubeIcon, DeployIcon, ExportIcon, ImportIcon, PenIcon, PlusIcon, ResetIcon, SaveIcon, SlidersIcon, StarIcon, TrashIcon, UpdateIcon, WarnIcon } from "../Icons";
 import { language, t } from "../i18n";
 import { notify } from "../notices";
 import { Prompt } from "../Prompt";
@@ -45,6 +45,7 @@ export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean 
   const [failed, setFailed] = useState<string | null>(null);
   const [sel, setSel] = useState<string | null>(null);
   const [ask, setAsk] = useState<Ask>(null);
+  const [folded, setFolded] = useState<Partial<Record<SaveKind, boolean>>>({});
   const [menu, setMenu] = useState<{ x: number; y: number; row: SaveRow } | null>(null);
   const [addMenu, setAddMenu] = useState<{ x: number; y: number } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
@@ -148,6 +149,7 @@ export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean 
   }
 
   const official = list.saves.filter((s) => s.kind === "official");
+  const fold = (kind: SaveKind) => setFolded((f) => ({ ...f, [kind]: !f[kind] }));
   const sandbox = list.saves.filter((s) => s.kind === "sandbox");
   const active = list.saves.find((s) => s.active);
   const row = list.saves.find((s) => s.id === sel) ?? active ?? list.saves[0] ?? null;
@@ -203,7 +205,6 @@ export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean 
         <button className={sandboxActive && needsDeploy ? "btn icon go head-tool head-deploy" : "btn icon head-tool head-deploy"} disabled={running || !sandboxActive || !snap.gameDir} onClick={() => deployLoader()}
           aria-label={t("app.saves.deployLoader")} data-tip-title={t("app.saves.deployLoader")}
           data-tip={closeFirst ?? (sandboxActive ? t("app.saves.deployLoaderHint") : t("app.saves.deployLoaderOfficial"))}><DeployIcon /></button>
-        <span className="muted saves-account">{t("app.saves.account", list.account)}</span>
       </div>
 
       {running && <div className="banner"><WarnIcon /><span>{t("app.saves.gameRunning")}</span></div>}
@@ -220,11 +221,11 @@ export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean 
               <span className="th-col s-wide" role="columnheader">{t("app.saves.col.played")}</span>
             </div>
             <div className="tbody">
-              <GroupRow title={t("app.saves.official")} hint={t("app.saves.officialHint")} count={official.length} kind="official" />
-              {official.map((r) => <Row key={r.id} row={r} list={list} selected={r === row} onSelect={setSel} onMenu={openMenu} onOpen={() => r.kind === "sandbox" && !running && !r.error && setEditing(r.id)} />)}
-              <GroupRow title={t("app.saves.sandbox")} hint={t("app.saves.sandboxHint")} count={sandbox.length} kind="sandbox" />
-              {sandbox.length === 0 && <p className="muted saves-none">{t("app.saves.noSandbox")}</p>}
-              {sandbox.map((r) => <Row key={r.id} row={r} list={list} selected={r === row} onSelect={setSel} onMenu={openMenu} onOpen={() => !running && !r.error && setEditing(r.id)} />)}
+              <GroupRow title={t("app.saves.official")} hint={t("app.saves.officialHint")} count={official.length} kind="official" folded={!!folded.official} onFold={fold} />
+              {!folded.official && official.map((r) => <Row key={r.id} row={r} list={list} selected={r === row} onSelect={setSel} onMenu={openMenu} onOpen={() => r.kind === "sandbox" && !running && !r.error && setEditing(r.id)} />)}
+              <GroupRow title={t("app.saves.sandbox")} hint={t("app.saves.sandboxHint")} count={sandbox.length} kind="sandbox" folded={!!folded.sandbox} onFold={fold} />
+              {!folded.sandbox && sandbox.length === 0 && <p className="muted saves-none">{t("app.saves.noSandbox")}</p>}
+              {!folded.sandbox && sandbox.map((r) => <Row key={r.id} row={r} list={list} selected={r === row} onSelect={setSel} onMenu={openMenu} onOpen={() => !running && !r.error && setEditing(r.id)} />)}
             </div>
           </div>
         </section>
@@ -274,11 +275,14 @@ export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean 
 
 const switchLabel = (r: SaveRow) => (r.kind === "official" && r.snapshotOf ? t("app.saves.restore") : t("app.saves.switch"));
 
-/** The label over each group: the name and the count, with what the group is in the tooltip. */
-function GroupRow({ title, hint, count, kind }: { title: string; hint: string; count: number; kind: SaveKind }) {
+/** The bar over each group, in the group color with the name cut out of it, and the count; a click folds
+    the group. What the group is shows in the tooltip. */
+function GroupRow({ title, hint, count, kind, folded, onFold }: { title: string; hint: string; count: number; kind: SaveKind; folded: boolean; onFold: (k: SaveKind) => void }) {
   return (
-    <div className={`str sgroup ${kind}`} role="row">
-      <span className="sgroup-name cap" role="rowheader" data-tip-title={title} data-tip={hint}>{title}<span className="sgroup-n">{count}</span></span>
+    <div className={folded ? `str sgroup ${kind} folded` : `str sgroup ${kind}`} role="row">
+      <button className="sgroup-name cap" role="rowheader" aria-expanded={!folded} data-tip-title={title} data-tip={hint} onClick={() => onFold(kind)}>
+        <ChevronIcon />{title}<span className="sgroup-n">{count}</span>
+      </button>
     </div>
   );
 }
@@ -289,10 +293,10 @@ function Row({ row, list, selected, onSelect, onMenu, onOpen }: RowProps) {
   const of = row.snapshotOf ? list.saves.find((s) => s.id === row.snapshotOf)?.name ?? null : null;
   const s = row.stats;
   return (
-    <div className={["str", selected && "sel", row.active && "active"].filter(Boolean).join(" ")} role="row" tabIndex={0} aria-selected={selected}
+    <div className={["str", row.kind === "sandbox" && "sandbox-row", selected && "sel", row.active && "active"].filter(Boolean).join(" ")} role="row" tabIndex={0} aria-selected={selected}
       onClick={() => onSelect(row.id)} onDoubleClick={onOpen} onContextMenu={(e) => onMenu(e, row)}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(row.id); } }}>
-      <span className="s-icon" role="cell"><SaveIcon /></span>
+      <span className="s-icon" role="cell">{row.kind === "official" ? <StarIcon /> : <CubeIcon />}</span>
       <div className="who" role="cell">
         <div className="nm">
           <span className="nm-text">{row.name}</span>

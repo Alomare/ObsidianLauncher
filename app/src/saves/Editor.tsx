@@ -241,7 +241,9 @@ function OverviewTab({ draft, dirty, blocked, onBulk }: { draft: EditorState; di
   const stat = (name: string, value: string) => <div className="rec-st"><div className="rec-lbl cap">{name}</div><div className="rec-v">{value}</div></div>;
   return (
     <div className="rec">
-      <section className="rec-card">
+      <section className="rec-sum">
+        <h3 className="rec-h cap">{t("app.saves.summary")}</h3>
+        <div className="rec-card">
         <div className="rec-id">
           <div className="rec-pic"><Insignia level={draft.rank} /></div>
           <div className="rec-idtext">
@@ -254,6 +256,7 @@ function OverviewTab({ draft, dirty, blocked, onBulk }: { draft: EditorState; di
         {line(t("app.saves.stat.samples"), num(draft.samples))}
         {line(t("app.saves.researchPoints"), num(draft.researchPoints))}
         {line(t("app.saves.stat.played"), playTime(played))}
+        </div>
       </section>
 
       <section className="rec-ladder">
@@ -266,14 +269,11 @@ function OverviewTab({ draft, dirty, blocked, onBulk }: { draft: EditorState; di
           ))}
         </div>
         <div className="rec-xp">
-          <div className="rec-xp-row">
-            <span>{prog.next ? t("app.saves.xpToward", prog.next.level) : t("app.saves.topRank")}</span>
-            {prog.need !== null && <b>{t("app.saves.xpToGo", num(prog.need))}</b>}
-          </div>
+          <div className="rec-xp-row"><b>{prog.next ? `${num(draft.xp)} / ${num(prog.next.requiredXp)}` : num(draft.xp)}</b></div>
           <div className="rec-bar" aria-hidden="true"><i style={{ width: `${prog.fraction * 100}%` }} /></div>
           <div className="rec-ends">
-            <span><Insignia level={draft.rank} />{draft.rank}. {title}</span>
-            {prog.next && <span>{prog.next.level}. {prog.next.title}<Insignia level={prog.next.level} /></span>}
+            <span><Insignia level={draft.rank} />{draft.rank}</span>
+            {prog.next && <span>{prog.next.level}<Insignia level={prog.next.level} /></span>}
           </div>
         </div>
       </section>

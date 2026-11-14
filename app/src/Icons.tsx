@@ -34,6 +34,14 @@ export const SwitchOffIcon = () => <Icon><rect x="2" y="6.5" width="20" height="
 /** A filled square with an arrow leaving it: the link opens outside the app. */
 /** A filled square with an arrow cut out. Each copy has a separate mask: a shared id breaks every copy
     while the first one sits in a hidden element. */
+/** Filled: a star for official saves, a cube for Sandbox saves. */
+export const StarIcon = () => (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M12 2.2l2.9 6.2 6.8.8-5 4.7 1.3 6.7L12 17.3l-6 3.3 1.3-6.7-5-4.7 6.8-.8z" /></svg>
+);
+export const CubeIcon = () => (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M12 2l8.7 5L12 12 3.3 7z" opacity="0.75" /><path d="M2.8 8l8.4 4.9v9.6l-8.4-4.9z" /><path d="M21.2 8v9.6l-8.4 4.9v-9.6z" opacity="0.55" /></svg>
+);
+
 export const OutboundIcon = () => {
   const id = `outbound-${useId().replace(/[^A-Za-z0-9_-]/g, "")}`;
   return (
