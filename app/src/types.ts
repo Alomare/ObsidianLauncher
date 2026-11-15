@@ -16,8 +16,11 @@ export type PartRow = { id: string; scope: "client" | "session"; name: Localized
 export type OptionGroup = { id: string; label: Localized; description: Localized; collapsed: boolean };
 /** An SVG template filled in with the option values (`option_previews`). */
 export type OptionPreview = { id: string; group: string | null; svg: string; width: number; height: number; label: Localized };
+/** How a bind fires, as the loader reads it; press is the default. */
+export const INPUT_MODES = ["tap", "double_tap", "press", "long_press", "release"] as const;
+export type InputMode = (typeof INPUT_MODES)[number];
 /** pad: the choice option with the controller input for the same action, shown in this row instead of under Options. */
-export type KeyRow = { id: string; label: Localized; default: string; key: string | null; clash: string[]; pad: string | null };
+export type KeyRow = { id: string; label: Localized; default: string; key: string | null; clash: string[]; mode: InputMode; pad: string | null };
 export type ImportInfo = { date: string; file: string };
 export type ImageRef = { path: string; v: number };
 /** Every scope a manifest can give, as `Scope::name` in core/src/manifest.rs writes it. */

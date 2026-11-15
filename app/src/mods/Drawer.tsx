@@ -17,9 +17,8 @@ import type { ConflictRow, KeyRow, ModRow, OptionGroup, OptionPreview, OptionRow
 import { previewSrc } from "./preview";
 import { overrides, type Override } from "./conflicts";
 import { dependencies, type Dep } from "./deps";
-import { keyName } from "./keyCapture";
-import { PadGlyphs } from "./PadGlyphs";
-import { padButtons } from "./padButtons";
+import { BindsDialog } from "./BindsDialog";
+import { KeyButton, PadView, modeName, padOption, same } from "./BindControls";
 import type { DrawerView } from "./ModsPage";
 import { clampNumber } from "./optionValue";
 import { openUrl } from "../opener";
@@ -95,7 +94,6 @@ function ModDrawer({ mod, mods, conflicts, names, onOpen, onClose }: { mod: ModR
   );
 }
 
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 /** The options the Options tab lists: all but those a keybind names as its controller input (the Keys tab shows those). */
 function ownOptions(mod: ModRow): OptionRow[] {
@@ -242,93 +240,44 @@ function NumberControl({ o, label, onSet, onDraft }: { o: OptionRow; label: stri
   );
 }
 
-/** Shows a key; a click waits for the next key press, Esc cancels. */
-function KeyButton({ value, label, onSet, clash }: { value: string; label: string; onSet: (k: string) => void; clash?: boolean }) {
-  const [waiting, setWaiting] = useState(false);
-  return (
-    <button className={["key-btn", waiting && "waiting", clash && "clash"].filter(Boolean).join(" ")} aria-label={`${label}: ${value}`}
-      data-tip={waiting ? undefined : t("app.drawer.keyHint")}
-      onClick={() => setWaiting(true)} onBlur={() => setWaiting(false)}
-      onKeyDown={(e) => {
-        if (!waiting) return;
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.key === "Escape") return setWaiting(false);
-        const k = keyName(e.nativeEvent);
-        if (k) {
-          setWaiting(false);
-          if (k !== value) onSet(k);
-        }
-      }}>
-      <span className="key-text">{waiting ? t("app.drawer.pressKey") : value}</span>
-    </button>
-  );
-}
-
-/** One row per action in five columns: the name, the key on the mouse and keyboard and its reset, the
-    controller input when the manifest names one (a keybind's `pad`, a choice option) and its reset. Every
-    row shares the columns of the list, so the inputs line up; a head puts an icon over each input. */
+/** One row per action: the name (and how it fires, when not on press), the key and the controller
+    input, to read. CHANGE BINDS, over the names, opens the binds dialog where they change. */
 function KeysTab({ mod, names }: { mod: ModRow; names: Map<string, string> }) {
+  const [editing, setEditing] = useState(false);
   if (!mod.keybinds.length) return <p className="muted pad">{t("app.drawer.noKeys")}</p>;
-  const options = new Map(mod.options.map((o) => [o.id, o]));
   return (
     <div className="keys">
       <div className="keys-head">
-        <span />
+        <span className="keys-change"><button className="btn small" onClick={() => setEditing(true)}>{t("app.binds.change")}</button></span>
         <span role="img" aria-label={t("app.drawer.keyboard")} data-tip={t("app.drawer.keyboard")}><KeyboardMouseIcon /></span>
-        <span />
         <span role="img" aria-label={t("app.drawer.controller")} data-tip={t("app.drawer.controller")}><GamepadIcon /></span>
-        <span />
       </div>
       <ul className="opts">
         {mod.keybinds.map((k: KeyRow) => {
-          const key = k.key ?? k.default;
           const label = pick(k.label, k.id);
-          const pad = k.pad ? options.get(k.pad) : undefined;
-          const shown = pad?.visible ? pad : undefined;
+          const pad = padOption(mod, k);
           return (
             <li key={k.id} className="opt">
               <div className="opt-text">
-                <div className="l" tabIndex={shown?.deploy ? 0 : undefined} data-tip-note={shown?.deploy ? t("app.drawer.afterDeploy") : undefined}>
-                  {label}{shown?.deploy && <span className="opt-star" aria-hidden="true">*</span>}
+                <div className="l" tabIndex={pad?.deploy ? 0 : undefined} data-tip-note={pad?.deploy ? t("app.drawer.afterDeploy") : undefined}>
+                  {label}{pad?.deploy && <span className="opt-star" aria-hidden="true">*</span>}
                 </div>
+                {k.mode !== "press" && <div className="d">{modeName(k.mode)}</div>}
                 {k.clash.length > 0 && <div className="d warn">{t("app.drawer.keyClash", [pick(mod.name, mod.id), ...k.clash.map((id) => names.get(id) ?? id)].join(", "))}</div>}
               </div>
               <div className="opt-ctl key-col">
-                <KeyButton value={key} label={label} clash={k.clash.length > 0} onSet={(v) => run("set_key", { id: mod.id, keybind: k.id, key: v })} />
-              </div>
-              <div className="opt-ctl reset-col key-reset">
-                <button className="bare" disabled={k.key === null} onClick={() => run("set_key", { id: mod.id, keybind: k.id, key: null })}
-                  aria-label={t("app.drawer.reset")} data-tip={t("app.drawer.resetKey", k.default)}><ResetIcon /></button>
+                <span className={k.clash.length > 0 ? "keycap clash" : "keycap"}>{k.key ?? k.default}</span>
               </div>
               <div className="opt-ctl pad-col">
-                {shown ? <PadControl mod={mod} o={shown} /> : <span className="none" data-tip={t("app.drawer.noController")}>–</span>}
-              </div>
-              <div className="opt-ctl reset-col pad-reset">
-                {shown && (
-                  <button className="bare" disabled={same(shown.value, shown.default)} onClick={() => run("set_option", { id: mod.id, option: shown.id, value: null })}
-                    aria-label={t("app.drawer.reset")} data-tip={t("app.drawer.reset")}><ResetIcon /></button>
-                )}
+                {pad ? <PadView o={pad} /> : <span className="none" data-tip={t("app.drawer.noController")}>–</span>}
               </div>
             </li>
           );
         })}
       </ul>
+      {editing && <BindsDialog mod={mod} names={names} onClose={() => setEditing(false)} />}
     </div>
   );
-}
-
-/** The controller input of a keybind: its choice option, narrowed to the column, the whole choice in a tooltip. */
-function PadControl({ mod, o }: { mod: ModRow; o: OptionRow }) {
-  const label = pick(o.label, o.id);
-  // A choice that names controller buttons is drawn as them; the full name is in the tooltip and the list.
-  const options = o.choices.map((c, i) => {
-    const name = pick(o.choiceLabels[i], c);
-    const buttons = padButtons(name, c);
-    return { value: c, label: name, view: buttons ? <PadGlyphs buttons={buttons} /> : undefined };
-  });
-  const current = options.find((c) => c.value === String(o.value))?.label;
-  return <Select value={String(o.value)} options={options} label={label} tip={current} onChange={(value) => run("set_option", { id: mod.id, option: o.id, value })} />;
 }
 
 function FilesTab({ mod, conflicts, names }: { mod: ModRow; conflicts: ConflictRow[]; names: Map<string, string> }) {

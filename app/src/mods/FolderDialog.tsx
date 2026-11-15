@@ -57,7 +57,7 @@ export function FolderDialog({ title, confirm, name = "", color = FOLDER_COLORS[
           </div>
         </div>
         <div className="modal-foot">
-          <button data-pad-back type="button" className="btn" onClick={onCancel}>{t("app.cancel")}<PadGlyph role="east" /></button>
+          <button data-pad-back type="button" className="btn" onClick={onCancel}><PadGlyph role="east" />{t("app.cancel")}</button>
           <button type="submit" className="btn play" disabled={!v.trim()}>{confirm}</button>
         </div>
       </form>
@@ -91,7 +91,7 @@ export function DeleteFolder({ name, color, count, onDelete, onCancel }: DeleteP
           </button>
         </div>
         <div className="modal-foot">
-          <button data-pad-back className="btn" onClick={onCancel}>{t("app.cancel")}<PadGlyph role="east" /></button>
+          <button data-pad-back className="btn" onClick={onCancel}><PadGlyph role="east" />{t("app.cancel")}</button>
         </div>
       </div>
     </div>

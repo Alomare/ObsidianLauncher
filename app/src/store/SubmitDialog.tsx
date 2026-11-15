@@ -69,7 +69,7 @@ export function SubmitDialog({ onClose }: { onClose: () => void }) {
         <p>{t("app.submit.signInText")}</p>
         {signing && <p className="rf-code">{t("app.report.typeCode")} <b className="mono">{signing.userCode}</b></p>}
         <div className="modal-foot">
-          <button data-pad-back className="btn" onClick={onClose}>{t("app.cancel")}<PadGlyph role="east" /></button>
+          <button data-pad-back className="btn" onClick={onClose}><PadGlyph role="east" />{t("app.cancel")}</button>
           <button className="btn play" onClick={() => signIn()} disabled={!!signing}><GitHubIcon />{signing ? t("app.report.signingIn") : t("app.report.signIn")}</button>
         </div>
       </>
@@ -112,7 +112,7 @@ export function SubmitDialog({ onClose }: { onClose: () => void }) {
           </label>
         )}
         <div className="modal-foot">
-          <button data-pad-back className="btn" onClick={onClose}>{t("app.cancel")}<PadGlyph role="east" /></button>
+          <button data-pad-back className="btn" onClick={onClose}><PadGlyph role="east" />{t("app.cancel")}</button>
           <button className="btn play" onClick={send} disabled={!ok || sending}>{t("app.submit.send")}</button>
         </div>
       </>

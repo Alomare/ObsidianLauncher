@@ -121,6 +121,7 @@ pub fn run() {
             commands::play,
             commands::set_option,
             commands::set_key,
+            commands::set_mode,
             commands::remove_mods,
             commands::restore_starter_pack,
             commands::support_report,

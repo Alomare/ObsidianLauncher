@@ -25,7 +25,7 @@ export function Confirm({ title, text, confirm, cancel, onConfirm, onCancel, ton
         {children}
         <div className="modal-foot">
           {link && <button className="link foot-link" onClick={link.onClick}>{link.label}</button>}
-          <button data-pad-back className="btn" onClick={onCancel}>{cancel ?? t("app.cancel")}<PadGlyph role="east" /></button>
+          <button data-pad-back className="btn" onClick={onCancel}><PadGlyph role="east" />{cancel ?? t("app.cancel")}</button>
           <button className={tone === "go" ? "btn play" : "btn danger"} ref={ok} onClick={onConfirm}>{confirm}</button>
         </div>
       </div>

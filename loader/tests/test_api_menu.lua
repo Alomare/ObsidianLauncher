@@ -41,7 +41,7 @@ local function start_mods(list, opts)
 	end
 	local own = {}
 	for _, id in ipairs(served) do own[id] = "abcdef012345" end
-	local e = E.new({ deploy = E.deploy({ mods = deploy, has_session = session, expansions = own }), mods = mods, lobby = opts.lobby })
+	local e = E.new({ deploy = E.deploy({ mods = deploy, has_session = session, expansions = own }), mods = mods, lobby = opts.lobby, settings = opts.settings })
 	e:boot()
 	e:start_frames()
 	local ui = F.install(e, opts)
@@ -280,6 +280,26 @@ test("a_pads_buttons_pressed_together_open_and_close_the_window", function()
 	menu_of(e).pad_combo = "off"
 	hold("left_thumb", "right_thumb")
 	E.eq(menu().is_open(), false, "off in Obsidian, they do nothing")
+	rawset(_G, "Pads", nil)
+end)
+
+test("the_pad_buttons_follow_the_input_mode_of_the_open_bind", function()
+	local e, ui = start(PAGE, { settings = "mode\tobsidian.api\topen\tlong_press\n" })
+	local t = 0
+	e.loaded["obsidian/loader/settings"].now = function() return t end
+	local held = {}
+	rawset(_G, "Pads", { { active = function() return true end, button_index = function(name) return name end,
+		button = function(name) return held[name] and 1 or 0 end } })
+	local function frames(n) for _ = 1, n do t = t + 0.1; ui.frame() end end
+	held = { left_thumb = true, right_thumb = true }
+	frames(3)
+	E.eq(menu().is_open(), false, "long press: not yet")
+	frames(3)
+	E.eq(menu().is_open(), true, "long press: held long enough")
+	E.eq(menu_of(e).device, "pad")
+	held = {}
+	frames(1)
+	E.eq(menu().is_open(), true, "letting go leaves it open")
 	rawset(_G, "Pads", nil)
 end)
 

@@ -32,7 +32,7 @@ export function Prompt({ title, label, initial = "", confirm, onConfirm, onCance
           <input ref={input} value={v} maxLength={40} onChange={(e) => setV(e.target.value)} spellCheck={false} />
         </label>
         <div className="modal-foot">
-          <button data-pad-back type="button" className="btn" onClick={onCancel}>{t("app.cancel")}<PadGlyph role="east" /></button>
+          <button data-pad-back type="button" className="btn" onClick={onCancel}><PadGlyph role="east" />{t("app.cancel")}</button>
           <button type="submit" className="btn play" disabled={!v.trim() || busy}>{confirm}</button>
         </div>
       </form>

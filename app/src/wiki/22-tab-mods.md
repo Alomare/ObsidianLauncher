@@ -41,6 +41,6 @@ A click on a mod opens the details at the right:
 | About | The description, the authors and the links |
 | Versions | The releases on GitHub, by channel, and a switch to any of them |
 | Options | The settings of the mod, saved in the profile |
-| Keys | The keys the mod listens to, and a new key for each |
+| Keys | The keys and controller inputs of the mod. **Change Binds** opens a table to set a new key, a controller input and an input mode for each |
 | Files | The files of the mod, and the conflicts with other mods |
 | Dependencies | The mods this one needs, and the mods that need it |

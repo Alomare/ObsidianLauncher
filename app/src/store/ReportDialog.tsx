@@ -138,7 +138,7 @@ export function ReportDialog({ m, onClose }: { m: StoreMod; onClose: () => void 
       <>
         <p>{t("app.report.signInText")}</p>
         <div className="modal-foot">
-          <button data-pad-back className="btn" onClick={onClose}>{t("app.cancel")}<PadGlyph role="east" /></button>
+          <button data-pad-back className="btn" onClick={onClose}><PadGlyph role="east" />{t("app.cancel")}</button>
           <button className="btn play" onClick={() => signIn()} disabled={!!signing}><GitHubIcon />{signing ? t("app.report.signingIn") : t("app.report.signIn")}</button>
         </div>
         {signing && <p className="rf-code">{t("app.report.typeCode")} <b className="mono">{signing.userCode}</b></p>}
@@ -163,7 +163,7 @@ export function ReportDialog({ m, onClose }: { m: StoreMod; onClose: () => void 
             <li><button onClick={() => choose(BLANK)}><b>{t("app.report.blank")}</b><small>{t("app.report.blankHint")}</small><ChevronIcon /></button></li>
           )}
         </ul>
-        <div className="modal-foot"><button data-pad-back className="btn" onClick={onClose}>{t("app.cancel")}<PadGlyph role="east" /></button></div>
+        <div className="modal-foot"><button data-pad-back className="btn" onClick={onClose}><PadGlyph role="east" />{t("app.cancel")}</button></div>
       </>
     );
   } else {
@@ -194,7 +194,7 @@ export function ReportDialog({ m, onClose }: { m: StoreMod; onClose: () => void 
         {tried && (lacking.length > 0 || !titleOk) && <p className="rf-missing">{t("app.report.missing")}</p>}
         <div className="modal-foot">
           {list.templates.length > 0 && <button type="button" className="link foot-link" onClick={() => setPick(null)}>{t("app.report.otherKind")}</button>}
-          <button data-pad-back type="button" className="btn" onClick={onClose}>{t("app.cancel")}<PadGlyph role="east" /></button>
+          <button data-pad-back type="button" className="btn" onClick={onClose}><PadGlyph role="east" />{t("app.cancel")}</button>
           <button type="submit" className="btn play" disabled={sending}>{t("app.report.send")}</button>
         </div>
       </form>

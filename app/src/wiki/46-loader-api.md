@@ -49,7 +49,7 @@ The value of option `id` of this mod: the one the player chose in the app, or th
 
 ### obsidian.keybind(id, fn, opts)
 
-Calls `fn` each time the key bound to `id` goes down. The key comes from the app, or from the default in `obsidian.json`. The keys of a session mod wait for a cleared lobby, and those of an expansion for the content, as the hooks of the mod do. `opts.always` leaves the key alone, as `obsidian.wrap` does a hook, for a key that only acts on the screen of this player. `opts.secondary_scope` puts the key in a [secondary scope](#hybrid-scopes) of the mod.
+Calls `fn(device)` each time the bind `id` fires, by the [input mode](wiki:options-and-keys#input-modes) the player chose (press when none). The key comes from the app, or from the default in `obsidian.json`. `device` is `"key"`, or `"pad"` when `opts.pad`, a function that returns whether the controller input of the bind is held this frame, fired it. The keys of a session mod wait for a cleared lobby, and those of an expansion for the content, as the hooks of the mod do. `opts.always` leaves the key alone, as `obsidian.wrap` does a hook, for a key that only acts on the screen of this player. `opts.secondary_scope` puts the key in a [secondary scope](#hybrid-scopes) of the mod.
 
 ## Multiplayer
 

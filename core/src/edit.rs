@@ -75,6 +75,31 @@ pub fn set_key(lib: &Library, profile: &mut Profile, id: &str, keybind: &str, ke
     Ok(())
 }
 
+/// Sets how a keybind fires (`crate::options::INPUT_MODES`), or back to press when `mode` is `None`.
+pub fn set_mode(lib: &Library, profile: &mut Profile, id: &str, keybind: &str, mode: Option<&str>) -> Result<()> {
+    let m = manifest(lib, id)?;
+    if !parse_keybinds(&m.keybinds)?.iter().any(|k| k.id == keybind) {
+        return Err(ObsidianError::UnknownKeybind { mod_id: id.into(), keybind: keybind.into() });
+    }
+    match mode {
+        Some(x) if !crate::options::INPUT_MODES.contains(&x) => {
+            return Err(ObsidianError::BadOptionValue { option: keybind.into(), value: x.into() });
+        }
+        Some(x) if x != crate::options::INPUT_MODES[0] => {
+            profile.modes.entry(id.to_string()).or_default().insert(keybind.to_string(), x.to_string());
+        }
+        _ => {
+            if let Some(modes) = profile.modes.get_mut(id) {
+                modes.remove(keybind);
+                if modes.is_empty() {
+                    profile.modes.remove(id);
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Writes the profile's consent, guardrails, option values and keys where the loader reads them.
 pub fn write_settings(lib: &Library, profile: &Profile, saves_dir: &Path) -> Result<()> {
     crate::settings::write(&crate::settings::game_side_dir(saves_dir), &crate::loader::settings_for(lib, profile)?)
@@ -122,5 +147,20 @@ mod tests {
         assert!(set_key(&lib, &mut p, "opt", "toggle", Some("Left Shift")).is_err());
         set_key(&lib, &mut p, "opt", "toggle", None).unwrap();
         assert!(p.keys.is_empty());
+    }
+
+    #[test]
+    fn modes_check_the_name_keep_press_out_and_reach_the_loader() {
+        let (_t, lib, mut p) = world();
+        set_mode(&lib, &mut p, "opt", "toggle", Some("long_press")).unwrap();
+        assert_eq!(p.modes["opt"]["toggle"], "long_press");
+        p.mods.iter_mut().for_each(|m| m.enabled = true);
+        let s = crate::loader::settings_for(&lib, &p).unwrap();
+        assert_eq!(s.modes, vec![("opt".to_string(), "toggle".to_string(), "long_press".to_string())]);
+        assert!(crate::settings::render(&s).contains("mode\topt\ttoggle\tlong_press\n"));
+        assert!(matches!(set_mode(&lib, &mut p, "opt", "nope", Some("tap")), Err(ObsidianError::UnknownKeybind { .. })));
+        assert!(set_mode(&lib, &mut p, "opt", "toggle", Some("mash")).is_err());
+        set_mode(&lib, &mut p, "opt", "toggle", Some("press")).unwrap();
+        assert!(p.modes.is_empty(), "press is the default, kept out of the profile");
     }
 }

@@ -111,6 +111,72 @@ test("keybind_default_key_and_unknown_key", function()
 	E.eq(rawget(_G, "PRESSES"), 1, "default key")
 end)
 
+-- The loader's clock, moved by the test: frames 0.1 s apart.
+local function timed(settings, source)
+	local t = 0
+	local e = engine(settings, nil, source or KEY_MOD)
+	e.loaded["obsidian/loader/settings"].now = function() return t end
+	local step = function(n) for _ = 1, n or 1 do t = t + 0.1; e:frames(1) end end
+	return e, step
+end
+
+test("keybind_modes_fire_as_chosen", function()
+	-- release: when the key comes up, not when it goes down
+	local e, step = timed("mode\ta\ttoggle\trelease\n")
+	e.held.f8 = true; step(3)
+	E.eq(rawget(_G, "PRESSES"), 0, "release: held")
+	e.held.f8 = nil; step()
+	E.eq(rawget(_G, "PRESSES"), 1, "release: let go")
+
+	-- tap: a short press only
+	e, step = timed("mode\ta\ttoggle\ttap\n")
+	e.held.f8 = true; step(2)
+	e.held.f8 = nil; step()
+	E.eq(rawget(_G, "PRESSES"), 1, "tap: short")
+	e.held.f8 = true; step(6)
+	e.held.f8 = nil; step()
+	E.eq(rawget(_G, "PRESSES"), 1, "tap: too long")
+
+	-- long_press: once, after half a second
+	e, step = timed("mode\ta\ttoggle\tlong_press\n")
+	e.held.f8 = true; step(4)
+	E.eq(rawget(_G, "PRESSES"), 0, "long_press: not yet")
+	step(5)
+	E.eq(rawget(_G, "PRESSES"), 1, "long_press: once")
+	e.held.f8 = nil; step()
+
+	-- double_tap: a second press soon after the first
+	e, step = timed("mode\ta\ttoggle\tdouble_tap\n")
+	e.held.f8 = true; step(); e.held.f8 = nil; step()
+	E.eq(rawget(_G, "PRESSES"), 0, "double_tap: one press")
+	e.held.f8 = true; step(); e.held.f8 = nil; step()
+	E.eq(rawget(_G, "PRESSES"), 1, "double_tap: two")
+	e.held.f8 = true; step(); e.held.f8 = nil; step(5)
+	e.held.f8 = true; step(); e.held.f8 = nil; step()
+	E.eq(rawget(_G, "PRESSES"), 1, "double_tap: too far apart")
+
+	-- a mode the loader doesn't know is a bad line, and the bind stays on press
+	e, step = timed("mode\ta\ttoggle\tmash\n")
+	E.has(e:log(), "settings: skipped 1 bad lines")
+	e.held.f8 = true; step()
+	E.eq(rawget(_G, "PRESSES"), 1, "press")
+end)
+
+test("keybind_controller_input_takes_the_same_mode", function()
+	local e, step = timed("mode\ta\ttoggle\trelease\n", [[
+		rawset(_G, "GOT", {})
+		obsidian.keybind("toggle", function(device) table.insert(rawget(_G, "GOT"), device) end, { pad = function() return rawget(_G, "PAD_HELD") end })
+		rawset(_G, "MODES", obsidian.capabilities.input_modes)
+	]])
+	E.eq(rawget(_G, "MODES"), true, "capability")
+	rawset(_G, "PAD_HELD", true); step(2)
+	E.eq(#rawget(_G, "GOT"), 0, "held")
+	rawset(_G, "PAD_HELD", false); step()
+	e.held.f8 = true; step(); e.held.f8 = nil; step()
+	E.eq(table.concat(rawget(_G, "GOT"), " "), "pad key", "both, by device")
+	rawset(_G, "PAD_HELD", nil)
+end)
+
 test("session_mod_keybind_waits_for_a_cleared_session", function()
 	local e = engine(nil, { scope = "session" }, KEY_MOD)
 	e:core().deploy.has_session = true

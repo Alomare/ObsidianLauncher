@@ -68,11 +68,11 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
   const playButton = (
     <button className={`btn play${tone}`} onClick={onPlay} disabled={locked} aria-label={label.text} data-tip-title={label.text} data-tip={why ?? t("app.action.playHint")}>
       <PlayIcon />
+      <PadGlyph role="north" swap />
       <span className="play-text">
         <span className="play-word">{label.play}</span>
         {label.war && <span className="play-war">{label.war}</span>}
       </span>
-      <PadGlyph role="north" />
     </button>
   );
   // The glow runs from the end of Play to the end of the first tabs, so it never reaches them.

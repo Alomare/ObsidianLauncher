@@ -5,7 +5,15 @@ local B = require("obsidian/loader/builtins")
 local log = require("obsidian/loader/log")
 local war = require("obsidian/loader/war")
 
-local M = { values = {}, keys = {}, binds = {} }
+local M = { values = {}, keys = {}, modes = {}, binds = {} }
+
+-- How a bind fires, as in Helldivers 2: press (the frame the input goes down, the default), release
+-- (the frame it comes up), tap (comes up within TAP_MAX of going down), double_tap (goes down a second
+-- time within DOUBLE_GAP of the first), long_press (once, after HOLD of holding).
+M.MODES = { press = true, release = true, tap = true, double_tap = true, long_press = true }
+M.TAP_MAX, M.DOUBLE_GAP, M.HOLD = 0.25, 0.3, 0.5
+-- Seconds, for the modes. Tests set it.
+M.now = B.clock
 
 local function fields(line)
 	local out = {}
@@ -112,6 +120,9 @@ function M.load(core, path)
 		elseif x[1] == "key" and #x == 4 and B.match(x[4], "^[a-z0-9_]+$") then
 			M.keys[x[2]] = M.keys[x[2]] or {}
 			M.keys[x[2]][x[3]] = x[4]
+		elseif x[1] == "mode" and #x == 4 and M.MODES[x[4]] then
+			M.modes[x[2]] = M.modes[x[2]] or {}
+			M.modes[x[2]][x[3]] = x[4]
 		else
 			ok = false
 		end
@@ -138,9 +149,12 @@ function M.get(id, mod_id)
 	return v
 end
 
--- Calls fn once each time the key bound to `id` goes down: the key from the app, else the default.
+-- Calls fn(device) each time the key bound to `id` fires by the input mode the player chose for it
+-- (press when none): the key from the app, else the default. device is "key", or "pad" for opts.pad.
 -- opts.always: the session gate leaves it alone, as with obsidian.wrap. opts.secondary_scope: the key
--- belongs to that secondary scope of the mod, and does nothing while it is off.
+-- belongs to that secondary scope of the mod, and does nothing while it is off. opts.pad: a function
+-- that says whether the controller input of the bind is held this frame; the same mode applies to it
+-- (obsidian.capabilities.input_modes says this loader reads it).
 function M.keybind(id, fn, opts)
 	local state = M.core and M.core.current
 	if not state or B.type(fn) ~= "function" then return end
@@ -153,16 +167,51 @@ function M.keybind(id, fn, opts)
 	local scope, part = M.core.session.part_scope(state, opts)
 	if scope == "off" then return end
 	local always = B.type(opts) == "table" and opts.always == true
-	B.insert(M.binds, { state = state, part = part, id = B.tostring(id), key = key, fn = fn, down = false, always = always })
+	local pad = B.type(opts) == "table" and B.type(opts.pad) == "function" and opts.pad or nil
+	local mode = (M.modes[state.id] or {})[B.tostring(id)] or "press"
+	B.insert(M.binds, { state = state, part = part, id = B.tostring(id), key = key, fn = fn, always = always, pad = pad, mode = mode,
+		inputs = { key = { down = false }, pad = { down = false } } })
 end
 
--- From the frame hook. Keyboard.pressed may stay true while a key is held, so a bind fires on the
--- frame the key goes down only. Session mods react only in a cleared session, as their hooks do.
+-- One input of a bind this frame: whether it fires by the mode. s keeps what the input did before.
+function M.step(s, down, mode, now)
+	local fire = false
+	if down and not s.down then
+		s.at, s.held = now, false
+		if mode == "press" then
+			fire = true
+		elseif mode == "double_tap" then
+			if s.first and now - s.first <= M.DOUBLE_GAP then
+				fire, s.first = true, nil
+			else
+				s.first = now
+			end
+		end
+	elseif down then
+		if mode == "long_press" and not s.held and now - s.at >= M.HOLD then fire, s.held = true, true end
+	elseif s.down then
+		fire = mode == "release" or (mode == "tap" and now - s.at <= M.TAP_MAX)
+	end
+	s.down = down
+	return fire
+end
+
+local function fire(b, device)
+	local session = M.core.session
+	local gated = not b.always and session and session.gated(b.state, b.part)
+	if not b.state.off and not (gated and session and not session.allows(b.state, b.part)) then
+		M.core.call(b.state, "keybind " .. b.id, b.fn, device)
+	end
+end
+
+-- From the frame hook. Keyboard.pressed stays true while a key is held, so each input is followed
+-- from frame to frame and the mode says when it fires. Session mods react only in a cleared session,
+-- as their hooks do.
 function M.tick()
 	if #M.binds == 0 then return end
 	local kb = B.rawget(B.G, "Keyboard")
 	if B.type(kb) ~= "table" or B.type(kb.button_index) ~= "function" then return end
-	local session = M.core.session
+	local now = M.now()
 	for _, b in B.ipairs(M.binds) do
 		if b.index == nil then
 			local ok, i = B.pcall(kb.button_index, b.key)
@@ -171,14 +220,11 @@ function M.tick()
 		end
 		if b.index then
 			local ok, down = B.pcall(kb.pressed, b.index)
-			down = ok and down and true or false
-			if down and not b.down then
-				local gated = not b.always and session and session.gated(b.state, b.part)
-				if not b.state.off and not (gated and session and not session.allows(b.state, b.part)) then
-					M.core.call(b.state, "keybind " .. b.id, b.fn)
-				end
-			end
-			b.down = down
+			if M.step(b.inputs.key, ok and down and true or false, b.mode, now) then fire(b, "key") end
+		end
+		if b.pad then
+			local ok, down = B.pcall(b.pad)
+			if M.step(b.inputs.pad, ok and down and true or false, b.mode, now) then fire(b, "pad") end
 		end
 	end
 end

@@ -58,7 +58,7 @@ export function DeleteOfficial({ row, onDelete, onCancel }: Props) {
             onChange={(e) => setTyped(e.target.value)} onPaste={(e) => e.preventDefault()} onDrop={(e) => e.preventDefault()} />
         </label>
         <div className="modal-foot">
-          <button data-pad-back type="button" className="btn" onClick={onCancel} disabled={busy}>{t("app.cancel")}<PadGlyph role="east" /></button>
+          <button data-pad-back type="button" className="btn" onClick={onCancel} disabled={busy}><PadGlyph role="east" />{t("app.cancel")}</button>
           <button type="button" className="btn danger" disabled={!ready} onClick={go}>
             {left > 0 ? t("app.saves.deleteWait", left) : t("app.saves.delete")}
           </button>

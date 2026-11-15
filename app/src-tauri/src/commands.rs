@@ -676,6 +676,13 @@ pub async fn set_key(ctx: State<'_, Ctx>, id: String, keybind: String, key: Opti
     live_edit(&ctx, |lib, p| obsidian_core::edit::set_key(lib, p, &id, &keybind, key.as_deref()))
 }
 
+/// Sets how a keybind fires (tap, double tap, press, long press, release), or press again with `None`.
+#[tauri::command]
+pub async fn set_mode(ctx: State<'_, Ctx>, id: String, keybind: String, mode: Option<String>) -> CmdResult<Snapshot> {
+    let _turn = ctx.turn();
+    live_edit(&ctx, |lib, p| obsidian_core::edit::set_mode(lib, p, &id, &keybind, mode.as_deref()))
+}
+
 /// Deletes mods from the library; they leave every profile.
 #[tauri::command]
 pub async fn remove_mods(ctx: State<'_, Ctx>, ids: Vec<String>) -> CmdResult<Snapshot> {

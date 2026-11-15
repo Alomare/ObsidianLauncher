@@ -117,6 +117,9 @@ pub fn parse_options(raw: &[Value]) -> Result<Vec<OptionSpec>> {
     Ok(out)
 }
 
+/// How a keybind fires, as the loader reads them (`settings.lua`). Press, the first, is the default.
+pub const INPUT_MODES: [&str; 5] = ["press", "release", "tap", "double_tap", "long_press"];
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct KeybindSpec {
     pub id: String,

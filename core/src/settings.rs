@@ -31,6 +31,8 @@ pub struct Settings {
     pub options: Vec<(String, String, String, String)>,
     /// (mod id, keybind id, key name)
     pub keys: Vec<(String, String, String)>,
+    /// (mod id, keybind id, input mode), for binds that don't fire on press
+    pub modes: Vec<(String, String, String)>,
 }
 
 /// `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher`, beside the game's own save folder. Folders
@@ -116,6 +118,10 @@ pub fn render(s: &Settings) -> String {
     for (m, k, key) in &s.keys {
         out.push_str(&format!("key\t{}\t{}\t{}\n", field(m), field(k), field(key)));
     }
+    // A loader older than input modes counts these as bad lines and keeps every bind on press.
+    for (m, k, mode) in &s.modes {
+        out.push_str(&format!("mode\t{}\t{}\t{}\n", field(m), field(k), field(mode)));
+    }
     out
 }
 
@@ -137,6 +143,7 @@ pub fn parse(text: &str) -> Settings {
             ["hide_client_mods", v] => s.hide_client_mods = *v == "1",
             ["option", m, o, t, v] => s.options.push((m.to_string(), o.to_string(), t.to_string(), v.to_string())),
             ["key", m, k, key] => s.keys.push((m.to_string(), k.to_string(), key.to_string())),
+            ["mode", m, k, mode] => s.modes.push((m.to_string(), k.to_string(), mode.to_string())),
             _ => {}
         }
     }
@@ -239,6 +246,7 @@ mod tests {
             hide_client_mods: true,
             options: vec![("a.b".into(), "d".into(), "number".into(), "2.5".into())],
             keys: vec![("a.b".into(), "toggle".into(), "f8".into())],
+            modes: vec![("a.b".into(), "toggle".into(), "double_tap".into())],
         };
         let t = crate::testutil::spaced_tempdir();
         write(t.path(), &s).unwrap();

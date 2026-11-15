@@ -438,7 +438,7 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
       <div className="mband">
         {band && <span className="mb-pic" aria-hidden="true" style={{ backgroundImage: `url("${band}")` }} />}
         {m.banner && <Zoom path={m.banner} className="mb-zoom">{null}</Zoom>}
-        <span className="back-wrap"><button data-pad-back className="btn small back" onClick={() => onOpen(null)}><ChevronIcon />{t("app.store.back")}<PadGlyph role="east" /></button></span>
+        <span className="back-wrap"><button data-pad-back className="btn small back" onClick={() => onOpen(null)}><ChevronIcon /><PadGlyph role="east" swap />{t("app.store.back")}</button></span>
       </div>
       <div className="mcol">
         <div className="mid">

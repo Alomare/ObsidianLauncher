@@ -9,6 +9,7 @@ obsidian.capabilities.guardrails boolean
 obsidian.capabilities.hook boolean
 obsidian.capabilities.import boolean
 obsidian.capabilities.info boolean
+obsidian.capabilities.input_modes boolean
 obsidian.capabilities.keybind boolean
 obsidian.capabilities.language boolean
 obsidian.capabilities.log boolean

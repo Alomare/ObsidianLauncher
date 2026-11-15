@@ -293,8 +293,8 @@ export function SavesPage({ snap, visible, home = 0 }: { snap: Snapshot; visible
           <div className="table saves-table" role="table">
             <div className="sth cap" role="row">
               <span className="s-check">{shown.length > 0 && <Check state={allState} label={t("app.mods.checkAll")} onChange={() => setChecked((c) => checkAll(shown, c))} />}</span>
-              <span aria-hidden="true" />
-              <span className="th-col left" role="columnheader">{t("app.saves.col.save")}</span>
+              {/* Over the icons and the names, from the icon column, as the group titles are. */}
+              <span className="th-col left s-name-head" role="columnheader">{t("app.saves.col.save")}</span>
               <span className="th-col" role="columnheader">{t("app.saves.stat.rank")}</span>
               <span className="th-col s-wide" role="columnheader">{t("app.saves.stat.samples")}</span>
               <span className="th-col s-wide" role="columnheader">{t("app.saves.col.played")}</span>

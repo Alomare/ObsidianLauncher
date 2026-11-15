@@ -1139,5 +1139,20 @@
   "app.github.signedIn": "Signed in to GitHub as %s",
   "app.github.denied": "The GitHub sign-in was refused.",
   "app.github.expired": "The GitHub code expired. Start the sign-in again.",
-  "app.github.codeCopied": "Code copied"
+  "app.github.codeCopied": "Code copied",
+  "app.binds.change": "Change binds",
+  "app.binds.title": "Binds: %s",
+  "app.binds.action": "Action",
+  "app.binds.mode": "Input mode",
+  "app.binds.mode.tap": "Tap",
+  "app.binds.mode.double_tap": "Double tap",
+  "app.binds.mode.press": "Press",
+  "app.binds.mode.long_press": "Long press",
+  "app.binds.mode.release": "Release",
+  "app.binds.modeHint.tap": "Fires on a short press, when the button comes back up.",
+  "app.binds.modeHint.double_tap": "Fires on the second of two quick presses.",
+  "app.binds.modeHint.press": "Fires as soon as the button goes down.",
+  "app.binds.modeHint.long_press": "Fires once the button has been held for half a second.",
+  "app.binds.modeHint.release": "Fires when the button comes back up.",
+  "app.binds.note": "Changes apply at the next game launch. The input mode applies to the key and to the controller input."
 }

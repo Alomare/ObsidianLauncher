@@ -142,7 +142,7 @@ export function SortDialog({ plan, name, off, onApply, onClose }: Props) {
         <div className="modal-foot">
           {n > 0 ? (
             <>
-              <button data-pad-back className="btn" onClick={onClose}>{t("app.cancel")}<PadGlyph role="east" /></button>
+              <button data-pad-back className="btn" onClick={onClose}><PadGlyph role="east" />{t("app.cancel")}</button>
               <button className="btn play" ref={main} onClick={onApply}>{t("app.sort.apply")}</button>
             </>
           ) : (

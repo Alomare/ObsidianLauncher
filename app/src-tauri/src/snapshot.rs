@@ -100,6 +100,8 @@ pub struct KeyRow {
     pub key: Option<String>,
     /// Other enabled mods using the same key.
     pub clash: Vec<String>,
+    /// How the bind fires (obsidian_core::options::INPUT_MODES), press when the player set none.
+    pub mode: String,
     /// The choice option with the controller input for the same action: the Keys tab shows it in this
     /// row, and the Options tab leaves it out.
     pub pad: Option<String>,
@@ -408,7 +410,8 @@ pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Re
                 let key = profile.keys.get(&m.id).and_then(|s| s.get(&k.id)).cloned();
                 let effective = key.clone().unwrap_or_else(|| k.default.clone());
                 let clash = if e.enabled { used.get(&effective).into_iter().flatten().filter(|id| **id != m.id).cloned().collect() } else { Vec::new() };
-                KeyRow { id: k.id, label: localized(raw.get("label")), default: k.default, key, clash, pad: k.pad }
+                let mode = profile.modes.get(&m.id).and_then(|s| s.get(&k.id)).cloned().unwrap_or_else(|| obsidian_core::options::INPUT_MODES[0].to_string());
+                KeyRow { id: k.id, label: localized(raw.get("label")), default: k.default, key, clash, mode, pad: k.pad }
             })
             .collect();
         // An imported legacy mod has no version number unless the Nexus file name gave one.

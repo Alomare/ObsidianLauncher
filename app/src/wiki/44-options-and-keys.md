@@ -129,7 +129,21 @@ obsidian.keybind("toggle", function()
 end)
 ```
 
-The function runs once each time the key goes down. Players rebind keys in the app, which is where clashes between mods get sorted out. Key names are the ones the game uses, in lower case: `f8`, `k`, `insert`.
+The function runs once each time the bind fires. Players rebind keys in the app, which is where clashes between mods get sorted out. Key names are the ones the game uses, in lower case: `f8`, `k`, `insert`.
+
+### Input modes
+
+Players also choose how each bind fires, in **Change Binds** on the Keys tab:
+
+| Mode | Fires |
+|---|---|
+| Press (the default) | The frame the key goes down |
+| Release | The frame the key comes back up |
+| Tap | When the key comes back up within a quarter of a second |
+| Double tap | On the second press, within 0.3 seconds of the first |
+| Long press | Once, after half a second of holding |
+
+The loader applies the mode, so the mod needs no code for it.
 
 ### Controller input
 
@@ -141,4 +155,4 @@ The Keys tab has a column for the mouse and keyboard and one for a controller. W
 "keybinds": [ { "id": "toggle", "default": "f8", "pad": "pad_toggle", "label": { "en": "Turn the compass on or off" } } ]
 ```
 
-The app then shows the option in the row of the keybind, under the controller column, and leaves it out of the Options tab. The mod reads the option like any other and watches the pad itself. A keybind with no `pad` shows a dash in that column. Obsidian versions without the controller column ignore `pad` and list the option under Options.
+The app then shows the option in the row of the keybind, under the controller column, and leaves it out of the Options tab. The mod reads the option like any other. To have the input mode apply to the controller too, give `obsidian.keybind` a function that says whether the controller input is held, as `opts.pad`; the loader then calls `fn` with `"pad"` when it fires (`obsidian.capabilities.input_modes` is `true` in a loader that does this). Otherwise the mod watches the pad itself. A keybind with no `pad` shows a dash in that column. Obsidian versions without the controller column ignore `pad` and list the option under Options.
