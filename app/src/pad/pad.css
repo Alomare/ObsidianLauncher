@@ -6,10 +6,9 @@
 .pad-cursor path { fill: #fff; stroke: #111; stroke-width: 1.4; stroke-linejoin: round; }
 :root.gamepad, :root.gamepad * { cursor: none !important; }
 
-/* A picture is a mask over the text colour, so it follows the theme. */
+/* The pictures as Kenney drew them, colours included. */
 .gp-glyph, [data-pad-tabs]::before, [data-pad-tabs]::after {
-  flex: none; width: 1.3em; height: 1.3em; background: currentColor;
-  -webkit-mask: var(--pad-g) center / contain no-repeat; mask: var(--pad-g) center / contain no-repeat;
+  flex: none; width: 1.3em; height: 1.3em; background: var(--pad-g) center / contain no-repeat;
 }
 .gp-glyph { display: none; vertical-align: middle; }
 :root.gamepad .gp-glyph { display: inline-block; }
@@ -28,16 +27,19 @@
 /* The tab row the bumpers move along gets the bumpers at its ends. */
 /* The bumpers take room from the tabs, never from outside the row: the tabs give up padding first, then clip. */
 :root.gamepad [data-pad-tabs] { align-items: center; min-width: 0; }
-:root.gamepad [data-pad-tabs]::before, :root.gamepad [data-pad-tabs]::after { content: ""; display: inline-block; width: 1.15rem; height: 1.15rem; color: var(--mu); opacity: 0.9; }
+:root.gamepad [data-pad-tabs]::before, :root.gamepad [data-pad-tabs]::after { content: ""; display: inline-block; width: 1.15rem; height: 1.15rem; }
 :root.gamepad [data-pad-tabs]::before { --pad-g: var(--pad-lb); margin-right: 0.25rem; }
 :root.gamepad [data-pad-tabs]::after { --pad-g: var(--pad-rb); margin-left: 0.25rem; }
 :root.gamepad [data-pad-tabs] > button { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 :root.gamepad .subtabs[data-pad-tabs] > button { padding-inline: 0.45rem; }
-:root.gamepad .wiki-books[data-pad-tabs] > button { padding-inline: 0.2rem; }
+/* The wiki sidebar is narrow: tabs as wide as their names, set a little tighter, and smaller bumpers. */
+:root.gamepad .wiki-books[data-pad-tabs] > button { flex: 1 1 auto; padding-inline: 0.15rem; letter-spacing: 0.06em; }
+:root.gamepad .wiki-books[data-pad-tabs]::before, :root.gamepad .wiki-books[data-pad-tabs]::after { width: 1rem; height: 1rem; }
 
 /* Before the main tabs: ‹ LT RT ›, the triggers that go through them. */
 .gp-tabs { display: none; }
-:root.gamepad .gp-tabs { display: inline-flex; align-self: center; align-items: center; gap: 0.15rem; margin: 0 0.5rem 0 0.3rem; color: var(--mu); }
+/* The same room on both sides: to the window edge and to Home. */
+:root.gamepad .gp-tabs { display: inline-flex; align-self: center; align-items: center; gap: 0.15rem; margin: 0 0 0 1rem; color: var(--mu); }
 .gp-tabs::before { content: "\2039"; }
 .gp-tabs::after { content: "\203A"; }
 .gp-tabs::before, .gp-tabs::after { font-size: 1.3rem; line-height: 1; margin-top: -0.12rem; }
