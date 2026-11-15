@@ -26,10 +26,14 @@
 .gp-glyph[data-role="rstick"] { --pad-g: var(--pad-rstick); }
 
 /* The tab row the bumpers move along gets the bumpers at its ends. */
-:root.gamepad [data-pad-tabs] { align-items: center; }
-:root.gamepad [data-pad-tabs]::before, :root.gamepad [data-pad-tabs]::after { content: ""; display: inline-block; color: var(--mu); opacity: 0.9; }
-:root.gamepad [data-pad-tabs]::before { --pad-g: var(--pad-lb); margin-right: 0.35rem; }
-:root.gamepad [data-pad-tabs]::after { --pad-g: var(--pad-rb); margin-left: 0.35rem; }
+/* The bumpers take room from the tabs, never from outside the row: the tabs give up padding first, then clip. */
+:root.gamepad [data-pad-tabs] { align-items: center; min-width: 0; }
+:root.gamepad [data-pad-tabs]::before, :root.gamepad [data-pad-tabs]::after { content: ""; display: inline-block; width: 1.15rem; height: 1.15rem; color: var(--mu); opacity: 0.9; }
+:root.gamepad [data-pad-tabs]::before { --pad-g: var(--pad-lb); margin-right: 0.25rem; }
+:root.gamepad [data-pad-tabs]::after { --pad-g: var(--pad-rb); margin-left: 0.25rem; }
+:root.gamepad [data-pad-tabs] > button { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:root.gamepad .subtabs[data-pad-tabs] > button { padding-inline: 0.45rem; }
+:root.gamepad .wiki-books[data-pad-tabs] > button { padding-inline: 0.2rem; }
 
 /* Before the main tabs: ‹ LT RT ›, the triggers that go through them. */
 .gp-tabs { display: none; }
@@ -40,6 +44,9 @@
 .gp-tabs .gp-glyph { width: 1.5rem; height: 1.5rem; }
 /* On buttons: after the label, a little apart. */
 .btn .gp-glyph, .bare .gp-glyph { margin-left: 0.45em; }
+/* On a button that is only an icon (close, back): the picture takes the place of the icon, in the same room. */
+:root.gamepad :is(button.bare, .btn.icon) > svg:has(+ .gp-glyph) { display: none; }
+:root.gamepad :is(button.bare, .btn.icon) > svg + .gp-glyph { width: 1.25rem; height: 1.25rem; margin: -0.07rem; }
 .btn.play .gp-glyph { width: 1.45em; height: 1.45em; }
 /* The narrow play choice button: the Start picture in place of the menu icon. */
 :root.gamepad .play-more > svg { display: none; }
