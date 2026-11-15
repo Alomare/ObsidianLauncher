@@ -10,7 +10,7 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSPr
 import { ContextMenu } from "../ContextMenu";
 import { CheckIcon, ChevronIcon, LockIcon, UnlockIcon, UpArrowIcon, WarnIcon } from "../Icons";
 import { go } from "../nav";
-import { language, pick, t } from "../i18n";
+import { language, t } from "../i18n";
 import { Thumb } from "../Thumb";
 import { offered } from "./modUpdates";
 import type { ConflictRow, ImageRef, ModRow } from "../types";
@@ -92,7 +92,7 @@ type Handlers = {
   update: (id: string) => void;
 };
 type RowProps = {
-  id: string; folder: string | null; color: string | null; name: string; description: string; version: string | null; update: string | null;
+  id: string; folder: string | null; color: string | null; name: string; version: string | null; update: string | null;
   scope: string; on: boolean; imagePath: string | null; imageV: number; num: number; pinned: boolean; selected: boolean; checked: boolean;
   lifted: boolean; leaving: boolean; tips: string | null; lose: boolean; h: MutableRefObject<Handlers>;
   /** Bytes of the mod's folder, and what the last deploy put in the game: null when not deployed. */
@@ -102,7 +102,7 @@ type RowProps = {
 };
 
 /** One mod. Every prop is a plain value, so a click elsewhere in a long list leaves this row alone. */
-const ModLine = memo(function ModLine({ id, folder, color, name, description, version, update, scope, on, imagePath, imageV, num, pinned: fixed, selected, checked, lifted, leaving, tips, lose, h, size, deployed, deployedSize }: RowProps) {
+const ModLine = memo(function ModLine({ id, folder, color, name, version, update, scope, on, imagePath, imageV, num, pinned: fixed, selected, checked, lifted, leaving, tips, lose, h, size, deployed, deployedSize }: RowProps) {
   const line: Line = { kind: "mod", id, folder };
   const image: ImageRef | null = useMemo(() => (imagePath ? { path: imagePath, v: imageV } : null), [imagePath, imageV]);
   const cls = ["tr", folder && "in", fixed && "pinned", selected && "sel", checked && "checked", lifted && "lifted", leaving && "leaving"].filter(Boolean).join(" ");
@@ -115,7 +115,7 @@ const ModLine = memo(function ModLine({ id, folder, color, name, description, ve
       <button role="switch" aria-checked={on} aria-label={name} className={["sw", on && "on", deployed && "dep"].filter(Boolean).join(" ")}
         data-tip={t(on ? "app.mods.turnOff" : "app.mods.turnOn", name)} data-tip-note={deployed ? t("app.mods.inGame") : undefined}
         {...stop} onClick={() => h.current.toggle(id, !on)} />
-      <div className="mod-cell" data-tip-title={description ? name : undefined} data-tip={description || undefined}>
+      <div className="mod-cell">
         <Thumb image={image} name={name} />
         <div className="who">
           <div className="nm">
@@ -426,7 +426,7 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
           const folder = line.folder ? folders.get(line.folder) : undefined;
           return (
             <ModLine key={m.id} id={m.id} folder={line.folder} color={folder?.kind === "folder" ? folder.folder.color : null} name={names.get(m.id) ?? m.id}
-              description={pick(m.description)} version={m.version} update={offered(updates, m)} scope={m.scope} on={flips[m.id]?.on ?? m.on} imagePath={m.image?.path ?? null} imageV={m.image?.v ?? 0} num={position.get(m.id) ?? 0}
+              version={m.version} update={offered(updates, m)} scope={m.scope} on={flips[m.id]?.on ?? m.on} imagePath={m.image?.path ?? null} imageV={m.image?.v ?? 0} num={position.get(m.id) ?? 0}
               pinned={!!folder && folder.kind === "folder" && folder.folder.locked} selected={selected === m.id} checked={checked.has(m.id)}
               lifted={draggingKeys.has(m.id)} leaving={leaving !== null && line.folder === leaving} tips={conflict?.tips ?? null} lose={conflict?.lose ?? false}
               h={h} lang={language()} size={m.size} deployed={m.deployed} deployedSize={m.deployedSize} />
@@ -438,7 +438,7 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
         <ContextMenu x={colMenu.x} y={colMenu.y} label={t("app.mods.columns")} onClose={() => setColMenu(null)}
           items={COLUMNS.map((c) => {
             const on = !hidden.includes(c);
-            return { label: colLabel[c], checked: on, icon: <span className={on ? "ck on" : "ck"}>{on && <CheckIcon />}</span>, run: () => showColumn(c, !on) };
+            return { label: colLabel[c], checked: on, icon: <span className={on ? "ck on" : "ck"}>{on && <CheckIcon />}</span>, keep: true, run: () => showColumn(c, !on) };
           })} />
       )}
       {marker && <div className="drag-ghost" style={{ left: marker.x + 14, top: marker.py + 10 }} aria-hidden="true">{marker.label}</div>}

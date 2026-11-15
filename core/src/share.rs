@@ -1,9 +1,9 @@
-//! Profiles on GitHub Gists: a link to share one profile, and a private gist that keeps the profiles,
-//! the appearance settings and the reports in step between PCs.
+//! Sync on GitHub Gists: a private gist that keeps the profiles, the appearance settings and the
+//! reports in step between PCs.
 //!
 //! A gist holds text only, so mods travel as their id, version and the repository they update from,
 //! and install from that repository's newest release on the other side. A mod with no repository
-//! can't come along; the import names it.
+//! can't come along; the download names it.
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -17,7 +17,6 @@ use crate::manifest::load_manifest;
 use crate::updates::{GitHub, github_repo, source_of, stage_new};
 use crate::{ObsidianError, Result};
 
-const SHARE_FILE: &str = "obsidian-profile.json";
 const SYNC_FILE: &str = "obsidian-sync.json";
 
 /// A mod as a gist names it.
@@ -30,15 +29,6 @@ pub struct ModRef {
     /// `https://github.com/<owner>/<repo>`, or None for a mod that names no repository.
     #[serde(default)]
     pub source: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Shared {
-    obsidian_profile: u32,
-    name: String,
-    profile: Profile,
-    mods: Vec<ModRef>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -91,63 +81,6 @@ fn fetch_mods(lib: &Library, releases: &GitHub, want: &[ModRef]) -> (Vec<String>
         }
     }
     (installed, kept, missing)
-}
-
-/// Shares profile `name` as a gist, public (listed on the player's GitHub page) or secret (only
-/// those with the link). Disabled mods stay home, as with a profile ZIP. Returns the link.
-pub fn share_profile(data: &Path, c: &Client, name: &str, public: bool) -> Result<String> {
-    let lib = Library::open(data)?;
-    let mut profile = Profile::load_named(data, name)?;
-    profile.sync(&lib)?;
-    profile.mods.retain(|m| m.enabled);
-    profile.options.retain(|id, _| profile.mods.iter().any(|m| &m.id == id));
-    profile.keys.retain(|id, _| profile.mods.iter().any(|m| &m.id == id));
-    profile.block_public = false;
-    let ids: Vec<String> = profile.mods.iter().map(|m| m.id.clone()).collect();
-    let shared = Shared { obsidian_profile: 1, name: name.to_string(), mods: refs(&lib, &ids)?, profile };
-    let mut files = BTreeMap::new();
-    files.insert(SHARE_FILE.to_string(), serde_json::to_string_pretty(&shared)? + "\n");
-    let (_, url) = github::create_gist(c, &format!("Obsidian Launcher profile: {name}"), public, &files)?;
-    Ok(url)
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SharedImport {
-    pub name: String,
-    pub installed: Vec<String>,
-    pub kept: Vec<String>,
-    /// Mods the profile names that couldn't be installed, by name.
-    pub missing: Vec<String>,
-    pub guardrails: Vec<String>,
-}
-
-/// Adds the profile behind a gist link as a new profile, installing its mods from their
-/// repositories. Works signed out too, since a shared gist is readable by anyone with the link.
-pub fn import_shared(data: &Path, c: &Client, releases: &GitHub, link: &str) -> Result<SharedImport> {
-    let id = github::gist_id(link).ok_or_else(|| ObsidianError::NothingToImport(link.to_string()))?;
-    let (files, _) = github::read_gist(c, &id)?.ok_or_else(|| ObsidianError::NothingToImport(link.to_string()))?;
-    let text = files.get(SHARE_FILE).ok_or_else(|| ObsidianError::NothingToImport(link.to_string()))?;
-    let shared: Shared = serde_json::from_str(text)?;
-    let lib = Library::open(data)?;
-    let (installed, kept, missing) = fetch_mods(&lib, releases, &shared.mods);
-    let taken = crate::profiles::list(data)?;
-    let base = if crate::profiles::check_name(&shared.name).is_ok() { shared.name.clone() } else { "Shared".to_string() };
-    let free = |n: &str| !taken.iter().any(|t| t.to_lowercase() == n.to_lowercase());
-    let name = (1..).map(|i| if i == 1 { base.clone() } else { format!("{base} ({i})") }).find(|n| free(n) && n.chars().count() <= 40).unwrap_or_else(|| "Shared".into());
-    crate::profiles::create(data, &name, None)?;
-    let mut profile = shared.profile;
-    profile.sync(&lib)?;
-    profile.block_public = false;
-    let mut guardrails = Vec::new();
-    if profile.block_achievements {
-        guardrails.push("block_achievements".to_string());
-    }
-    if profile.freeze_progress {
-        guardrails.push("freeze_progress".to_string());
-    }
-    profile.save_named(data, &name)?;
-    Ok(SharedImport { name, installed, kept, missing, guardrails })
 }
 
 /// Where sync stands: the gist's link and when it last changed, if there is one.

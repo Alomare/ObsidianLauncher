@@ -54,12 +54,19 @@ export function Tooltip() {
       target = el;
       timer = window.setTimeout(() => show(el), e.type === "focusin" ? 0 : WAIT_MS);
     };
+    // The pointer left the page (to another window over this one, or off the edge): no tooltip waits for
+    // it, since nothing here would take it away until the pointer came back.
+    const out = (e: PointerEvent) => {
+      if (!e.relatedTarget && target && !target.matches(":focus-visible")) hide();
+    };
     document.addEventListener("pointerover", over);
+    document.addEventListener("pointerout", out);
     document.addEventListener("focusin", over);
     document.addEventListener("pointerdown", hide, true);
     document.addEventListener("keydown", hide, true);
     window.addEventListener("blur", hide);
     return () => {
+      document.removeEventListener("pointerout", out);
       document.removeEventListener("pointerover", over);
       document.removeEventListener("focusin", over);
       document.removeEventListener("pointerdown", hide, true);

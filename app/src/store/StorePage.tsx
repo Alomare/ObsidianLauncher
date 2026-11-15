@@ -78,14 +78,14 @@ const Verified = ({ m }: { m: StoreMod }) =>
     </svg>
   ) : null;
 
-/** A corner over the top right of a card: green with a check when installed, yellow with an arrow when the
+/** A corner over the top right of a card: plain green when installed, yellow with an arrow when the
     Store has a newer version. */
 function Flag({ mark, small }: { mark: StoreMark; small?: boolean }) {
   if (mark !== "installed" && mark !== "update") return null;
   const label = mark === "installed" ? t("app.store.installed") : t("app.store.updateFlag");
   return (
     <span className={`c-flag ${mark === "installed" ? "inst" : "upd"}${small ? " sm" : ""}`} role="img" aria-label={label} data-tip={label}>
-      {mark === "installed" ? <CheckIcon /> : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" /></svg>}
+      {mark === "installed" ? null : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" /></svg>}
     </span>
   );
 }
@@ -248,7 +248,10 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
                     <div className="c-tags">
                       <ScopeTag scope={m.scope} /><Early m={m} />
                       {k !== "installed" && <span className="c-quick"><InstallButton m={m} mark={k} size="small" onInstall={() => doInstall(m)} /></span>}
-                      <Stars m={m} on={isStarred(m, store.starred)} />
+                      <span className="c-stats">
+                        <Downloads m={m} />
+                        <Stars m={m} on={isStarred(m, store.starred)} />
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -259,7 +262,7 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
           <div className="store-empty"><h2>{t("app.store.noMatch")}</h2><p>{t("app.store.noMatchHint")}</p></div>
         )}
         <div className="store-foot">
-          <button className="btn small" onClick={() => setSubmitting(true)} aria-haspopup="dialog" data-tip={t("app.submit.hint")}>{t("app.submit.button")}</button>
+          <button className="btn submit-btn" onClick={() => setSubmitting(true)} aria-haspopup="dialog" data-tip={t("app.submit.hint")}>{t("app.submit.button")}</button>
         </div>
         {submitting && <SubmitDialog onClose={() => setSubmitting(false)} />}
       </div>
@@ -329,9 +332,19 @@ function OptionPanel({ m }: { m: StoreMod }) {
   );
 }
 
-/** The star count on a card, at the right; yellow when the player starred the mod. */
+/** A count as a card shows it: 1234 as 1.2K. */
+const compact = (n: number) => new Intl.NumberFormat(language(), { notation: "compact", maximumFractionDigits: 1 }).format(n);
+
+/** The downloads of every release, on a card. Early access entries have none to count. */
+function Downloads({ m }: { m: StoreMod }) {
+  if (m.private) return null;
+  const n = m.downloads ?? 0;
+  const tip = t(n === 1 ? "app.store.downloadsOne" : "app.store.downloadsCount", n.toLocaleString(language()));
+  return <span className="c-stars c-dl" aria-label={tip} data-tip={tip}><ImportIcon />{compact(n)}</span>;
+}
+
+/** The star count on a card; yellow when the player starred the mod. */
 function Stars({ m, on }: { m: StoreMod; on: boolean }) {
-  if (!m.stars && !on) return null;
   const tip = t("app.store.starsCount", m.stars ?? 0);
   return <span className={on ? "c-stars on" : "c-stars"} aria-label={tip} data-tip={on ? `${tip}. ${t("app.store.starredByYou")}` : tip}><StarIcon />{m.stars ?? 0}</span>;
 }
@@ -457,6 +470,7 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
           {m.added && <div><dt>{t("app.store.factReleased")}</dt><dd>{date(m.added)}</dd></div>}
           {m.released && <div><dt>{t("app.store.factUpdated")}</dt><dd>{date(m.released)}</dd></div>}
           {row?.version && row.version !== m.version && <div><dt>{t("app.store.factInstalled")}</dt><dd>{row.version}</dd></div>}
+          {!m.private && <div><dt>{t("app.store.factDownloads")}</dt><dd>{(m.downloads ?? 0).toLocaleString(language())}</dd></div>}
         </dl>
         <div className="mcols">
           <section className="store-box mdesc"><Markdown tokens={desc} /></section>

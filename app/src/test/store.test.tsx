@@ -127,9 +127,9 @@ describe("StorePage", () => {
     expect(host.querySelector(".mid h1")?.textContent).toBe("ARCADE");
     expect(host.querySelector(".store-mod .md")?.textContent).toContain("Long text");
     expect(host.querySelector(".msum")?.textContent).toBe("About arcade");
-    // One row of facts: scope, version, first release, newest release.
+    // One row of facts: scope, version, first release, newest release, downloads.
     expect([...host.querySelectorAll(".mfacts dt")].map((d) => d.textContent)).toEqual(
-      [t("app.store.factScope"), t("app.store.factVersion"), t("app.store.factReleased"), t("app.store.factUpdated")]);
+      [t("app.store.factScope"), t("app.store.factVersion"), t("app.store.factReleased"), t("app.store.factUpdated"), t("app.store.factDownloads")]);
     expect(host.querySelectorAll(".mfacts dd")[1].textContent).toBe("0.4.0");
     // The side panels in order, folded, each but Versions with a count; GitHub shows while Versions is folded.
     const panels = [...host.querySelectorAll(".mside .mpanel")];

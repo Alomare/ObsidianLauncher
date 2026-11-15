@@ -25,7 +25,7 @@ const API: &str = "https://api.github.com";
 const WEB: &str = "https://github.com";
 /// What reporting, stars and the Store submission need.
 pub const BASE_SCOPES: &[&str] = &["public_repo"];
-/// Shared profiles and sync.
+/// Sync between PCs.
 pub const GIST: &str = "gist";
 /// Early access: private repositories, which GitHub only grants with read and write to all of them.
 pub const PRIVATE: &str = "repo";
@@ -705,14 +705,6 @@ pub fn open_issues(c: &Client, repo: &str) -> Result<Vec<OpenIssue>> {
 
 // ---- Gists ----
 
-/// The id in a gist address (`https://gist.github.com/<user>/<id>`, or the id alone).
-pub fn gist_id(s: &str) -> Option<String> {
-    let s = s.trim().trim_end_matches('/');
-    let last = s.rsplit('/').next()?;
-    let last = last.split(['#', '?']).next()?;
-    (last.len() >= 20 && last.len() <= 40 && last.bytes().all(|b| b.is_ascii_hexdigit())).then(|| last.to_lowercase())
-}
-
 /// A new gist with `files` (name to text). Returns the id and the address.
 pub fn create_gist(c: &Client, description: &str, public: bool, files: &BTreeMap<String, String>) -> Result<(String, String)> {
     c.need_token()?;
@@ -911,14 +903,6 @@ mod tests {
         for bad in ["a", "a/b/c", "../b", "a/..", "a/b c", "a/b?x=1", "", "https://gitlab.com/a/b"] {
             assert_eq!(repo_name(bad), None, "{bad}");
         }
-    }
-
-    #[test]
-    fn gist_ids_come_from_links_or_alone() {
-        assert_eq!(gist_id("https://gist.github.com/someone/0123456789abcdef0123456789abcdef").as_deref(), Some("0123456789abcdef0123456789abcdef"));
-        assert_eq!(gist_id("0123456789ABCDEF01234567").as_deref(), Some("0123456789abcdef01234567"));
-        assert_eq!(gist_id("https://gist.github.com/someone/not-an-id"), None);
-        assert_eq!(gist_id("../../etc"), None);
     }
 
     #[test]

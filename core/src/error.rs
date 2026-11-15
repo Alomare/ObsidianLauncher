@@ -126,6 +126,8 @@ pub enum ObsidianError {
     SandboxSave { op: String },
     #[error("this save is in use: activate another save first")]
     SaveInUse,
+    #[error("the name typed does not match the save name, so nothing was deleted")]
+    SaveNameMismatch,
     #[error("{0:?} can't be a save name: use 1 to 40 characters and no line breaks")]
     SaveName(String),
     #[error("{0} is a save export from a newer version of Obsidian")]

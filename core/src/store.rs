@@ -94,6 +94,9 @@ pub struct StoreMod {
     /// Stars of the repository on GitHub when the index was built.
     #[serde(default)]
     pub stars: u64,
+    /// Downloads of every asset of every release, when the index was built.
+    #[serde(default)]
+    pub downloads: u64,
     /// Early access: a private repository, shown only to players GitHub lets read it.
     #[serde(default)]
     pub private: bool,
@@ -118,7 +121,7 @@ impl From<PrivateEntry> for StoreMod {
         StoreMod {
             id: p.id, name: p.name, summary: p.summary, description: String::new(), version: String::new(), early: true, scope: p.scope,
             requires: Vec::new(), options: 0, option_list: Vec::new(), option_groups: Vec::new(), repo: p.repo, kit: false, icon: None,
-            banner: None, released: None, added: None, versions: Vec::new(), authors: Vec::new(), verified: p.verified, stars: 0, private: true,
+            banner: None, released: None, added: None, versions: Vec::new(), authors: Vec::new(), verified: p.verified, stars: 0, downloads: 0, private: true,
         }
     }
 }
@@ -365,11 +368,12 @@ mod tests {
 
     #[test]
     fn stars_and_early_access_read() {
-        let text = r#"{"format":1,"mods":[{"id":"a.mod","name":"A","version":"1.0.0","repo":"o/a","stars":7}],
+        let text = r#"{"format":1,"mods":[{"id":"a.mod","name":"A","version":"1.0.0","repo":"o/a","stars":7,"downloads":1234}],
             "private":[{"repo":"o/secret","id":"s.mod","name":"Secret","summary":"Soon","scope":"client"},{"repo":"o/dup","id":"a.mod","name":"Dup"}]}"#;
         let mods = parse(text).unwrap();
         assert_eq!(mods.len(), 2, "a private entry with a public id is dropped");
         assert_eq!(mods[0].stars, 7);
+        assert_eq!(mods[0].downloads, 1234);
         assert!(mods[1].private && mods[1].early && mods[1].version.is_empty());
         let mut index = StoreIndex { mods, offline: false };
         keep_readable(&mut index, &GitHub::at("http://127.0.0.1:9"), |_| false);

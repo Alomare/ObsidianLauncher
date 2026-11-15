@@ -33,7 +33,7 @@ export function AboutDialog({ version, onClose }: { version: string; onClose: ()
             <b className="cap">Obsidian</b>
             <span>v{version}</span>
           </div>
-          <button className="bare" onClick={onClose} aria-label={t("app.close")}><CloseIcon /></button>
+          <button className="bare close" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /></button>
         </div>
         <p className="muted">{t("app.about.blurb")}</p>
         <div className="row-btns">

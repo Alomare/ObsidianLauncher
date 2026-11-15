@@ -1,4 +1,5 @@
-// A right-click menu, and the menu of a button. Items run and close it; an item with `sub` opens a menu to
+// A right-click menu, and the menu of a button. Items run and close it (one with `keep` runs and leaves it
+// open, for a set of switches); an item with `sub` opens a menu to
 // the side on hover or Enter, and `colors` is a row of swatches to pick from, ending in one for a custom
 // color. `checked` makes an item one of a set of choices, with the chosen one marked, and `extra` adds icons
 // at the end of its row. Arrows, Home and End move; Esc, Tab, a click outside, a scroll or leaving the
@@ -11,7 +12,7 @@ import { ChevronIcon } from "./Icons";
 import { CustomSwatch } from "./mods/FolderDialog";
 
 export type MenuItem =
-  | { label: string; icon?: ReactNode; danger?: boolean; disabled?: boolean; hint?: string; run?: () => void; sub?: MenuItem[]; swatch?: string; checked?: boolean; extra?: ReactNode }
+  | { label: string; icon?: ReactNode; danger?: boolean; disabled?: boolean; hint?: string; run?: () => void; sub?: MenuItem[]; swatch?: string; checked?: boolean; extra?: ReactNode; keep?: boolean }
   | { colors: string[]; current: string | null; pick: (color: string) => void }
   | "sep";
 
@@ -105,14 +106,14 @@ function Menu({ x, y, up, items, onClose, root, keys, label }: { x: number; y: n
               <CustomSwatch role="menuitemradio" current={it.current} presets={it.colors} onOpen={onClose} onPick={it.pick} />
             </div>
           ) : (
-            <button key={i} role={it.checked === undefined ? "menuitem" : "menuitemradio"} aria-checked={it.checked} className={it.danger ? "danger" : undefined}
+            <button key={i} role={it.checked === undefined ? "menuitem" : it.keep ? "menuitemcheckbox" : "menuitemradio"} aria-checked={it.checked} className={it.danger ? "danger" : undefined}
               disabled={it.disabled} aria-haspopup={it.sub ? "menu" : undefined}
               aria-expanded={it.sub ? open?.i === i : undefined}
               onPointerEnter={(e) => (it.sub ? openSub(i, e.currentTarget) : setOpen(null))}
               onKeyDown={(e) => it.sub && (e.key === "ArrowRight" || e.key === "Enter") && (e.preventDefault(), openSub(i, e.currentTarget, true))}
               onClick={(e) => {
                 if (it.sub) return openSub(i, e.currentTarget);
-                onClose();
+                if (!it.keep) onClose();
                 it.run?.();
               }}>
               <span className="ctx-ico">{it.swatch ? <i className="ctx-swatch" style={{ background: it.swatch }} /> : it.icon}</span>

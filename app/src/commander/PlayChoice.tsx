@@ -2,13 +2,13 @@
 // play. The official war comes first, then the custom wars this PC hosts (running or paused) and the
 // LAN wars it joined; beside them, the saves the chosen war can boot. The official war boots any save.
 // A custom war boots any Sandbox save, or only the one made for it when the war says so; with none
-// picked, the war gets that save on first use. Select makes it what Play starts.
-import { useCallback, useEffect, useMemo, useState } from "react";
+// picked, the war gets that save on first use. Apply makes it what Play starts.
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { call, errorText, setSnapshot } from "../api";
 import { withTask } from "../busy";
 import { Confirm } from "../Confirm";
-import { CheckIcon } from "../Icons";
+import { CheckIcon, CubeIcon, StarIcon } from "../Icons";
 import { t } from "../i18n";
 import { notify } from "../notices";
 import type { SaveList, SaveRow } from "../saves/types";
@@ -107,13 +107,10 @@ export function PlayChoice({ snap, choices, onClose }: { snap: Snapshot; choices
   ].filter(Boolean).join("  ·  ");
 
   const hasOwn = !!chosen && saves.some((s) => s.id === chosen.save);
-  // One list for every war, in two groups as on the Saves tab. A custom war never shows the Official group.
-  const officialRows = saves.filter((s) => s.kind === "official");
-  const sandboxRows = saves.filter((s) => s.kind === "sandbox");
-  const saveMeta = (s: SaveRow) => [
-    chosen && s.id === chosen.save ? t("app.play.warSave") : null,
-    s.stats ? t("app.saves.rankN", s.stats.rank) : null,
-  ].filter(Boolean).join("  ·  ");
+  // One list for every war, each save marked by the icon of the kind as on the Saves tab: a star for
+  // Official, a cube for Sandbox. A custom war never lists an Official save.
+  const saveMeta = (s: SaveRow) => (chosen && s.id === chosen.save ? t("app.play.warSave") : "");
+  const kindIcon = (s: SaveRow) => (s.kind === "official" ? <StarIcon /> : <CubeIcon />);
 
   return createPortal(
     <div className="modal-back" onPointerDown={(e) => e.target === e.currentTarget && !ask && onClose()}>
@@ -122,9 +119,9 @@ export function PlayChoice({ snap, choices, onClose }: { snap: Snapshot; choices
           <section className="pc-col">
             <h3 className="pc-h">{t("app.play.wars")}</h3>
             <div className="pc-list" role="radiogroup" aria-label={t("app.play.wars")}>
-              <PickRow on={war === null} now={current === null} title={t("app.play.vanillaGame")} meta="" onPick={() => setWar(null)} />
+              <PickRow on={war === null} title={t("app.play.vanillaGame")} meta="" onPick={() => setWar(null)} />
               {choices.wars.map((w) => (
-                <PickRow key={`${w.host}:${w.id}`} on={war === w.id} now={current === w.id} title={w.name} meta={warMeta(w)} onPick={() => setWar(w.id)} />
+                <PickRow key={`${w.host}:${w.id}`} on={war === w.id} title={w.name} meta={warMeta(w)} onPick={() => setWar(w.id)} />
               ))}
             </div>
           </section>
@@ -132,16 +129,12 @@ export function PlayChoice({ snap, choices, onClose }: { snap: Snapshot; choices
             <h3 className="pc-h">{t("app.play.saves")}</h3>
             <div className="pc-list" role="radiogroup" aria-label={t("app.play.saves")}>
               {!list && <div className="pc-empty">{failed ?? t("app.play.loadingSaves")}</div>}
-              {list && officialRows.length > 0 && <GroupLabel kind="official" count={officialRows.length} />}
-              {list && officialRows.map((s) => (
-                <PickRow key={s.id} on={save === s.id} now={list.active === s.id} title={s.name} meta={saveMeta(s)} onPick={() => setSave(s.id)} />
-              ))}
-              {list && (sandboxRows.length > 0 || (chosen && !hasOwn)) && <GroupLabel kind="sandbox" count={sandboxRows.length} />}
               {list && chosen && !hasOwn && (
-                <PickRow on={save === null} now={false} title={t("app.play.warSaveNewTitle")} meta={t("app.play.warSaveNew")} onPick={() => setSave(null)} />
+                <PickRow on={save === null} icon={<CubeIcon />} kind="sandbox" title={t("app.play.warSaveNewTitle")} meta={t("app.play.warSaveNew")} onPick={() => setSave(null)} />
               )}
-              {list && sandboxRows.map((s) => (
-                <PickRow key={s.id} on={save === s.id} now={list.active === s.id} title={s.name} meta={saveMeta(s)} onPick={() => setSave(s.id)} />
+              {list && saves.map((s) => (
+                <PickRow key={s.id} on={save === s.id} icon={kindIcon(s)} kind={s.kind} title={s.name} meta={saveMeta(s)}
+                  side={s.stats ? t("app.saves.rankN", s.stats.rank) : undefined} onPick={() => setSave(s.id)} />
               ))}
               {list && !chosen && saves.length === 0 && <div className="pc-empty">{t("app.play.noSaves")}</div>}
             </div>
@@ -160,26 +153,18 @@ export function PlayChoice({ snap, choices, onClose }: { snap: Snapshot; choices
   );
 }
 
-/** The small coloured label over a group of saves: gold for Official, green for Sandbox, as on the Saves tab. */
-function GroupLabel({ kind, count }: { kind: "official" | "sandbox"; count: number }) {
-  return (
-    <div className={`pc-group ${kind}`}>
-      <span className="pc-group-name">{t(kind === "official" ? "app.saves.official" : "app.saves.sandbox")}</span>
-      <span className="pc-group-n">{count}</span>
-    </div>
-  );
-}
-
-/** One line of the dialog: a war or a save. `now` marks what Play starts today. */
-function PickRow({ on, now, title, meta, onPick }: { on: boolean; now: boolean; title: string; meta: string; onPick: () => void }) {
+/** One line of the dialog: a war or a save. A save has the icon of the kind before the name (gold star
+ *  for Official, green cube for Sandbox) and the rank on the right. */
+type PickProps = { on: boolean; title: string; meta: string; icon?: ReactNode; kind?: "official" | "sandbox"; side?: string; onPick: () => void };
+function PickRow({ on, title, meta, icon, kind, side, onPick }: PickProps) {
   return (
     <button role="radio" aria-checked={on} className={`pc-row${on ? " on" : ""}`} onClick={onPick}>
       <span className="pc-mark" aria-hidden="true">{on && <CheckIcon />}</span>
       <span className="pc-text">
-        <span className="pc-title">{title}</span>
+        <span className="pc-title">{icon && <span className={`pc-icon ${kind ?? ""}`}>{icon}</span>}<span className="pc-name">{title}</span></span>
         {meta && <span className="pc-meta">{meta}</span>}
       </span>
-      {now && <span className="pc-now">{t("app.play.current")}</span>}
+      {side && <span className="pc-side">{side}</span>}
     </button>
   );
 }

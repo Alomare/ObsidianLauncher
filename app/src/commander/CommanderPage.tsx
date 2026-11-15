@@ -20,7 +20,6 @@ import { reloadChoices, useChoices } from "./choices";
 import { FirewallDialog, useFirewall } from "./firewall";
 import { PackageIcon, ThisPcIcon, WallIcon } from "./icons";
 import "./commander.css";
-import logo from "../assets/logo-shaded.png";
 
 /** What Commander keeps on this PC, for Remove All Commander Data (`commander_footprint`). */
 type Footprint = { package: string | null; hosted: number; joined: number; saves: { id: string; name: string }[]; namesFile: boolean; firewallRules: number; bytes: number };
@@ -469,10 +468,7 @@ function Intro({ onInstall, onInstallFile, onJoin, leftovers, onWipe }: { onInst
       <div className="cmd-hero">
         <GalaxyArt />
         <div className="cmd-hero-text">
-          <div className="cmd-title">
-            <img src={logo} alt="" draggable={false} />
-            <h1>OBSIDIAN COMMANDER</h1>
-          </div>
+          <h1 className="cmd-title">OBSIDIAN COMMANDER</h1>
           <p className="cmd-lead">{t("app.commander.lead")}</p>
           <div className="cmd-actions">
             <button className="btn play" onClick={onInstall} data-tip={t("app.commander.installNote")}>{t("app.commander.install")}</button>
@@ -552,38 +548,52 @@ function JoinDialog({ blocked, onAllow, onClose, onJoin }: { blocked: boolean; o
       <div className="modal cmd-join-dialog" role="dialog" aria-modal="true" aria-label={t("app.commander.joinLan")}>
         <div className="head">
           <h2 className="cap">{t("app.commander.joinLan")}</h2>
-          <button className="close" aria-label={t("app.close")} onClick={onClose}><CloseIcon /></button>
+          <button className="bare close" aria-label={t("app.close")} data-tip={t("app.close")} onClick={onClose}><CloseIcon /></button>
         </div>
-        <p className="lead">{t("app.commander.joinLead")}</p>
-        <div className="cmd-found">
-          {scanning && <div className="cmd-found-empty">{t("app.commander.scanning")}</div>}
+        <p className="muted lead">{t("app.commander.joinLead")}</p>
+        <div className="cmd-found" role="list" aria-label={t("app.commander.thisNetwork")} aria-busy={scanning}>
+          <div className="cmd-found-head">
+            <span>{t("app.commander.thisNetwork")}</span>
+            <button className="btn small" disabled={scanning} onClick={scan}>{t("app.commander.scanAgain")}</button>
+          </div>
+          {scanning && <p className="cmd-found-empty"><span className="upd-spin" aria-hidden="true" />{t("app.commander.scanning")}</p>}
           {!scanning && found?.length === 0 && (
-            <div className="cmd-found-empty">
-              {t("app.commander.noneFound")}
-              {blocked && <> {t("app.commander.firewallJoinHint")} <button className="link" onClick={onAllow}>{t("app.commander.firewallAllow")}</button></>}
-            </div>
+            <p className="cmd-found-empty">
+              <span>
+                {t("app.commander.noneFound")}
+                {blocked && <> {t("app.commander.firewallJoinHint")} <button className="link" onClick={onAllow}>{t("app.commander.firewallAllow")}</button></>}
+              </span>
+            </p>
           )}
           {!scanning && found?.map((f) => (
-            <div key={`${f.war}@${f.base}`} className="cmd-found-row">
+            <div key={`${f.war}@${f.base}`} className="cmd-found-row" role="listitem">
               <div className="cmd-found-text">
-                <strong>{f.name}</strong>
-                <span>{t("app.commander.foundLine", f.computer || f.base, f.season, f.players)}</span>
+                <b>{f.name}</b>
+                <small>{t("app.commander.foundLine", f.computer || f.base, f.season, f.players)}</small>
               </div>
-              <button className="btn go" onClick={() => onJoin(f)}>{t("app.commander.join")}</button>
+              <button className="btn small play" onClick={() => onJoin(f)}>{t("app.commander.join")}</button>
             </div>
           ))}
         </div>
         <form className="cmd-join-address" onSubmit={(e) => { e.preventDefault(); ask(); }}>
-          <label htmlFor="cmd-join-address">{t("app.commander.joinAddress")}</label>
-          <input id="cmd-join-address" type="text" value={address} maxLength={120} spellCheck={false} autoComplete="off"
-            placeholder={t("app.commander.addressHint")} onChange={(e) => setAddress(e.target.value)} />
-          <input className="cmd-join-invite" type="text" value={invite} maxLength={32} spellCheck={false} autoComplete="off" aria-label={t("app.commander.inviteCode")}
-            placeholder={t("app.commander.inviteCode")} data-tip={t("app.commander.inviteHint")} onChange={(e) => setInvite(e.target.value)} />
-          <button className="btn" type="submit" disabled={asking || !address.trim()}>{t("app.commander.addressFind")}</button>
+          <h3>{t("app.commander.otherNetwork")}</h3>
+          <div className="cmd-join-fields">
+            <label className="cmd-join-field">
+              <span>{t("app.commander.joinAddress")}</span>
+              <input type="text" value={address} maxLength={120} spellCheck={false} autoComplete="off"
+                placeholder={t("app.commander.addressHint")} onChange={(e) => setAddress(e.target.value)} />
+            </label>
+            <label className="cmd-join-field">
+              <span>{t("app.commander.inviteCode")}</span>
+              <input className="cmd-join-invite" type="text" value={invite} maxLength={32} spellCheck={false} autoComplete="off"
+                data-tip={t("app.commander.inviteHint")} onChange={(e) => setInvite(e.target.value)} />
+            </label>
+          </div>
+          <div className="modal-foot">
+            <button type="button" className="btn" onClick={onClose}>{t("app.close")}</button>
+            <button type="submit" className="btn play" disabled={asking || !address.trim()}>{asking && <span className="upd-spin" aria-hidden="true" />}{t("app.commander.addressFind")}</button>
+          </div>
         </form>
-        <div className="modal-foot">
-          <button className="btn" disabled={scanning} onClick={scan}>{t("app.commander.scanAgain")}</button>
-        </div>
       </div>
     </div>,
     document.body,

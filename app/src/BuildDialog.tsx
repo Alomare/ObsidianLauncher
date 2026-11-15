@@ -63,7 +63,7 @@ export function BuildDialog({ snap, onClose }: { snap: Snapshot; onClose: () => 
           <li>{t("app.build.fix3")}</li>
         </ol>
         <p className="muted note">{t("app.build.note")}</p>
-        <div className="foot">
+        <div className="modal-foot">
           {snap.gameDir && <button className="btn small" onClick={openGame}><FolderIcon />{t("app.settings.openFolder")}</button>}
           <button className="btn small" onClick={check} disabled={checking}>{t("app.settings.checkAgain")}</button>
         </div>

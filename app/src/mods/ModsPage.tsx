@@ -9,7 +9,7 @@ import { notify } from "../notices";
 import { SortDialog, SortIcon, type SortPlan } from "./SortDialog";
 import { Confirm } from "../Confirm";
 import { ContextMenu, type MenuItem } from "../ContextMenu";
-import { ChevronIcon, CloseIcon, DeployIcon, ExternalIcon, FolderAddIcon, FolderIcon, ImportIcon, LockIcon, PlusIcon, ProfilesIcon, PurgeIcon, SearchIcon, SlidersIcon, StoreIcon, SwitchOffIcon, SwitchOnIcon, TrashIcon, UnlockIcon, UpdateIcon } from "../Icons";
+import { ChevronIcon, CloseIcon, DeployIcon, ExternalIcon, FolderAddIcon, FolderIcon, ImportIcon, LockIcon, PlusIcon, ProfilesIcon, PurgeIcon, SearchIcon, SlidersIcon, StoreIcon, SwitchOffIcon, SwitchOnIcon, TrashIcon, UnlockIcon, UpArrowIcon, UpdateIcon } from "../Icons";
 import { language, pick, t } from "../i18n";
 import { go, useNav } from "../nav";
 import { ProfileGuards, ProfilesDialog } from "../ProfilesDialog";
@@ -286,7 +286,7 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
         {waiting.length > 0 && (
           <button className="btn play head-update" onClick={() => updateMods(waiting, names)}
             aria-label={t("app.mods.updateAll", waiting.length)} data-tip-title={t("app.mods.updateAll", waiting.length)} data-tip={t("app.mods.updateAllHint")}>
-            <UpdateIcon /><span>{waiting.length}</span>
+            <UpArrowIcon /><span>{waiting.length}</span>
           </button>
         )}
         <label className="search">

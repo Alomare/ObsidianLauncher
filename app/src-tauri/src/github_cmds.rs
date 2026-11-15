@@ -1,7 +1,7 @@
 //! Commands for the GitHub sign-in and what it enables (obsidian_core::github, share, submit).
 
 use obsidian_core::github::{self, Account, Client, DeviceCode, Message, OpenIssue, Poll, RepoInfo, Report, Templates};
-use obsidian_core::share::{self, Downloaded, SharedImport, SyncState};
+use obsidian_core::share::{self, Downloaded, SyncState};
 use obsidian_core::submit::{self, Checked};
 use obsidian_core::updates::GitHub;
 use serde::Serialize;
@@ -119,25 +119,6 @@ pub async fn github_reply(ctx: State<'_, Ctx>, repo: String, number: u64, body: 
 #[tauri::command]
 pub async fn github_open_issues(repo: String) -> CmdResult<Vec<OpenIssue>> {
     Ok(github::open_issues(&Client::new(), &repo)?)
-}
-
-#[tauri::command]
-pub async fn share_profile(ctx: State<'_, Ctx>, name: String, public: bool) -> CmdResult<String> {
-    let _turn = ctx.turn();
-    Ok(share::share_profile(&ctx.data, &Client::new(), &name, public)?)
-}
-
-#[derive(Serialize)]
-pub struct SharedImported {
-    snapshot: Snapshot,
-    imported: SharedImport,
-}
-
-#[tauri::command]
-pub async fn import_shared(ctx: State<'_, Ctx>, link: String) -> CmdResult<SharedImported> {
-    let _turn = ctx.turn();
-    let imported = share::import_shared(&ctx.data, &Client::new(), &GitHub::default(), &link)?;
-    Ok(SharedImported { snapshot: fresh(&ctx)?, imported })
 }
 
 #[tauri::command]

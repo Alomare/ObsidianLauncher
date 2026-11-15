@@ -1,5 +1,5 @@
 // The Account tab: the GitHub sign-in and the access it holds, the reports filed from this PC with
-// their replies, and sync of profiles and appearance between PCs (plus shared profile links).
+// their replies, and sync of profiles and appearance between PCs.
 // Built from the Settings parts: groups under headings, a status card per group with the buttons under it,
 // the reports as a table like the Other patches table, and a report as boxes like a Store mod page.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -10,7 +10,7 @@ import {
   cancelSignIn, copyCode, ensureScope, hasScope, refreshReports, setReports, signIn, signOut, unread, useGitHub,
   type Message, type Report, type SyncState,
 } from "../github";
-import { CheckIcon, ChevronIcon, CopyIcon, GitHubIcon, OutboundIcon } from "../Icons";
+import { CheckIcon, ChevronIcon, CopyIcon, ExportIcon, GitHubIcon, ImportIcon, OutboundIcon } from "../Icons";
 import { language, t } from "../i18n";
 import { Markdown, parse } from "../Markdown";
 import { notify } from "../notices";
@@ -109,7 +109,7 @@ function GitHubTab() {
   ];
   return (
     <div className="set-page">
-      <Group title={t("app.account.github")}>
+      <section className="set-sec">
         {signing ? <Signing /> : account ? (
           <>
             <Card tone="ok" lead={<Avatar key={account.avatar} url={account.avatar} login={account.login} />}
@@ -131,7 +131,7 @@ function GitHubTab() {
             </div>
           </>
         )}
-      </Group>
+      </section>
       <Group title={t("app.account.access")}>
         <div className="patch-table acc-access" role="table" aria-label={t("app.account.access")}>
           {rows.map((r) => {
@@ -298,14 +298,12 @@ function MessageRow({ m }: { m: Message }) {
 }
 
 type SyncDownloaded = { snapshot: Snapshot; downloaded: { profiles: string[]; installed: string[]; missing: string[]; updated: string }; settings: AppSettings };
-type SharedImported = { snapshot: Snapshot; imported: { name: string; installed: string[]; kept: string[]; missing: string[]; guardrails: string[] } };
 
 function SyncTab() {
   const { account, signing } = useGitHub();
   const gist = hasScope(account, "gist");
   const [sync, setSync] = useState<SyncState | null>(null);
   const [asking, setAsking] = useState(false);
-  const [link, setLink] = useState("");
   useEffect(() => {
     if (!gist) return;
     let live = true;
@@ -333,27 +331,10 @@ function SyncTab() {
       notify("error", errorText(e));
     }
   };
-  const importLink = async () => {
-    const value = link.trim();
-    if (!value) return;
-    try {
-      const r = await withTask(taskText("import_shared"), () => call<SharedImported>("import_shared", { link: value }), true);
-      setSnapshot(r.snapshot);
-      setLink("");
-      const n = r.imported.installed.length;
-      notify("info", n === 1 ? t("app.profiles.importedOne", r.imported.name) : t("app.profiles.imported", r.imported.name, n));
-      if (r.imported.missing.length) notify("error", t("app.account.missing", r.imported.missing.join(", ")));
-      // The guardrails come along with a profile, as with a ZIP.
-      const guards = r.imported.guardrails.map((g) => t(g === "freeze_progress" ? "app.guardrails.freeze" : "app.guardrails.achievements"));
-      if (guards.length > 0) notify("info", t("app.profiles.importedGuardrails", r.imported.name, guards.join(", ")));
-    } catch (e) {
-      notify("error", errorText(e));
-    }
-  };
   const dot = <span className="game-dot" aria-hidden="true" />;
   return (
     <div className="set-page">
-      <Group title={t("app.account.syncTitle")}>
+      <section className="set-sec">
         {signing ? <Signing /> : !gist ? (
           <>
             <Card lead={dot} title={t("app.account.syncOff")}><small>{t("app.account.syncNeedsGist")}</small></Card>
@@ -368,20 +349,13 @@ function SyncTab() {
               <small>{t("app.account.syncLead")}</small>
             </Card>
             <div className="set-btns">
-              <button className="btn small" onClick={upload}>{t("app.account.upload")}</button>
-              <button className="btn small" onClick={() => setAsking(true)} disabled={!sync?.url}>{t("app.account.download")}</button>
+              <button className="btn small" onClick={upload}><ExportIcon />{t("app.account.upload")}</button>
+              <button className="btn small" onClick={() => setAsking(true)} disabled={!sync?.url}><ImportIcon />{t("app.account.download")}</button>
               {sync?.url && <button className="btn small" onClick={() => open(sync.url!)}><OutboundIcon />{t("app.account.syncOpen")}</button>}
             </div>
           </>
         )}
-      </Group>
-      <Group title={t("app.account.importTitle")}>
-        <form className="acc-import" onSubmit={(e) => { e.preventDefault(); importLink(); }}>
-          <input value={link} onChange={(e) => setLink(e.target.value)} placeholder={t("app.account.importPlaceholder")} aria-label={t("app.account.importPlaceholder")} spellCheck={false} />
-          <button className="btn small" type="submit" disabled={!link.trim()}>{t("app.account.import")}</button>
-        </form>
-        <p className="set-note">{t("app.account.importNote")}</p>
-      </Group>
+      </section>
       {asking && (
         <Confirm title={t("app.account.downloadTitle")} text={t("app.account.downloadText")} confirm={t("app.account.download")}
           onCancel={() => setAsking(false)} onConfirm={download} />

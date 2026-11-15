@@ -1,6 +1,7 @@
 // The Saves tab: one table of the saves of the active Steam account, Official then Sandbox, with the one the
 // game boots next marked, and the panel of the selected save beside it, as the Mods tab lays out the mod list
-// and drawer. Official saves only switch, snapshot and copy to a Sandbox; everything else is for Sandbox saves.
+// and drawer. Official saves only switch, snapshot, copy to a Sandbox and delete (behind a typed-name dialog,
+// DeleteOfficial.tsx); everything else is for Sandbox saves.
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { useCallback, useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { deployLoader } from "../actions";
@@ -14,13 +15,14 @@ import { notify } from "../notices";
 import { Prompt } from "../Prompt";
 import { Help } from "../SettingRow";
 import type { Snapshot } from "../types";
+import { DeleteOfficial } from "./DeleteOfficial";
 import { SaveEditor } from "./Editor";
 import { fileSafe, playTime } from "./logic";
 import type { SaveImported, SaveKind, SaveList, SaveRow, SavesDone } from "./types";
 
 type Ask =
   | { kind: "new"; save: SaveKind }
-  | { kind: "snapshot" | "duplicate" | "activate" | "delete"; row: SaveRow }
+  | { kind: "snapshot" | "duplicate" | "activate" | "delete" | "deleteOfficial"; row: SaveRow }
   | null;
 
 /** One thing a save can have done to it: an icon button in the panel and a line in the right-click menu.
@@ -40,7 +42,7 @@ const savedWidth = () => {
   }
 };
 
-export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean }) {
+export function SavesPage({ snap, visible, home = 0 }: { snap: Snapshot; visible: boolean; home?: number }) {
   const [list, setList] = useState<SaveList | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [sel, setSel] = useState<string | null>(null);
@@ -130,7 +132,7 @@ export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean 
   };
 
   if (editing && list?.saves.some((s) => s.id === editing)) {
-    return <SaveEditor id={editing} snap={snap} startRename={renameFirst} onClose={() => { setEditing(null); setRenameFirst(false); load(); }} />;
+    return <SaveEditor id={editing} snap={snap} startRename={renameFirst} home={home} onClose={() => { setEditing(null); setRenameFirst(false); load(); }} />;
   }
 
   if (!list) {
@@ -174,6 +176,10 @@ export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean 
       out.push({ id: "rename", label: t("app.saves.rename"), icon: <PenIcon />, tip: closeFirst, disabled: running || !!r.error, menuOnly: true, run: () => { setRenameFirst(true); setEditing(r.id); } });
       out.push({ id: "export", label: t("app.saves.export"), icon: <ExportIcon />, tip: closeFirst ?? t("app.saves.exportHint"), disabled: running, run: () => exportSave(r) });
       out.push({ id: "delete", label: t("app.saves.delete"), icon: <TrashIcon />, tip: r.active ? t("app.saves.deleteActive") : closeFirst, tone: "danger", disabled: running || r.active, run: () => setAsk({ kind: "delete", row: r }) });
+    } else {
+      // Only one at a time, from the panel or the right-click menu, behind the typed-name dialog.
+      out.push({ id: "delete", label: t("app.saves.delete"), icon: <TrashIcon />, tip: closeFirst ?? t(r.live ? "app.saves.deleteLiveHint" : "app.saves.deleteOfficialHint"),
+        tone: "danger", disabled: running, run: () => setAsk({ kind: "deleteOfficial", row: r }) });
     }
     return out;
   };
@@ -269,6 +275,10 @@ export function SavesPage({ snap, visible }: { snap: Snapshot; visible: boolean 
         <Confirm title={t("app.saves.deleteTitle", ask.row.name)} text={t("app.saves.deleteText")} confirm={t("app.saves.delete")} onCancel={close}
           onConfirm={() => { const id = ask.row.id; setAsk(null); mutate("saves_delete", { id }, t("app.saves.deleted")); }} />
       )}
+      {ask?.kind === "deleteOfficial" && (
+        <DeleteOfficial row={ask.row} onCancel={close}
+          onDelete={async (name) => { const ok = await mutate("saves_delete_official", { id: ask.row.id, name }, t("app.saves.deleted")); if (ok) close(); return ok; }} />
+      )}
     </div>
   );
 }
@@ -281,7 +291,7 @@ function GroupRow({ title, hint, count, kind, folded, onFold }: { title: string;
   return (
     <div className={folded ? `str sgroup ${kind} folded` : `str sgroup ${kind}`} role="row">
       <button className="sgroup-name cap" role="rowheader" aria-expanded={!folded} data-tip-title={title} data-tip={hint} onClick={() => onFold(kind)}>
-        <ChevronIcon /><span className="sgroup-n">{count}</span>{title}
+        <ChevronIcon /><span>{title}</span><span className="sgroup-n">{count}</span>
       </button>
     </div>
   );
@@ -293,7 +303,7 @@ function Row({ row, list, selected, onSelect, onMenu, onOpen }: RowProps) {
   const of = row.snapshotOf ? list.saves.find((s) => s.id === row.snapshotOf)?.name ?? null : null;
   const s = row.stats;
   return (
-    <div className={["str", row.kind === "sandbox" && "sandbox-row", selected && "sel", row.active && "active"].filter(Boolean).join(" ")} role="row" tabIndex={0} aria-selected={selected}
+    <div className={["str in", row.kind === "sandbox" && "sandbox-row", selected && "sel", row.active && "active"].filter(Boolean).join(" ")} role="row" tabIndex={0} aria-selected={selected}
       onClick={() => onSelect(row.id)} onDoubleClick={onOpen} onContextMenu={(e) => onMenu(e, row)}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(row.id); } }}>
       <span className="s-icon" role="cell">{row.kind === "official" ? <StarIcon /> : <CubeIcon />}</span>

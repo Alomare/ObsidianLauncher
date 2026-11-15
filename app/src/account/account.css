@@ -4,9 +4,9 @@
 
 /* Nav: a small green check on the bottom right of the person while signed in, measured from the middle of the tab. */
 .tab.tab-account { position: relative; }
-.tab-check { position: absolute; top: calc(50% + 0.12rem); left: calc(50% + 0.28rem); display: grid; place-items: center; width: 0.82rem; height: 0.82rem;
-  border-radius: 50%; background: var(--go); color: var(--on); box-shadow: 0 0 0 2px var(--bg2); }
-.tab .tab-check svg { width: 0.58rem; height: 0.58rem; stroke-width: 3.4; }
+.tab-check { position: absolute; top: calc(50% + 0.05rem); left: calc(50% + 0.3rem); display: grid; place-items: center; width: 0.85rem; height: 0.85rem;
+  color: var(--go); filter: drop-shadow(0 0 1px var(--bg2)) drop-shadow(0 0 1px var(--bg2)); }
+.tab .tab-check svg { width: 0.85rem; height: 0.85rem; stroke-width: 3.6; }
 
 /* The status card: the picture (or the dot, or the spinner) in the place of the Game card dot. */
 .acc-card { align-items: center; }

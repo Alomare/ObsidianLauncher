@@ -29,7 +29,7 @@ const modText = (v: ModText, fallback: string) => (typeof v === "string" ? v : p
 /** What a row needs for the undo button: the waiting edits, and how to drop the ones of that row. */
 type Undo = { pending: Map<string, Edit>; revert: (keys: string[]) => void };
 
-export function SaveEditor({ id, snap, onClose, startRename = false }: { id: string; snap: Snapshot; onClose: () => void; startRename?: boolean }) {
+export function SaveEditor({ id, snap, onClose, startRename = false, home = 0 }: { id: string; snap: Snapshot; onClose: () => void; startRename?: boolean; home?: number }) {
   const [base, setBase] = useState<EditorState | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [pending, setPending] = useState<Map<string, Edit>>(new Map());
@@ -85,6 +85,13 @@ export function SaveEditor({ id, snap, onClose, startRename = false }: { id: str
 
   const count = pending.size;
   const back = () => (count ? setLeaving(true) : onClose());
+  // A click on the SAVES tab while a save is open goes back to the list, as the back button does.
+  const seenHome = useRef(home);
+  useEffect(() => {
+    if (home === seenHome.current) return;
+    seenHome.current = home;
+    back();
+  }, [home]); // eslint-disable-line react-hooks/exhaustive-deps
   const backBtn = (
     <button className="btn icon head-tool ed-back" onClick={back} aria-label={t("app.saves.backToList")} data-tip={t("app.saves.backToList")}><ArrowIcon /></button>
   );

@@ -867,6 +867,16 @@ pub async fn saves_delete(ctx: State<'_, Ctx>, id: String) -> CmdResult<SavesDon
     saves_done(&ctx, &s)
 }
 
+/// Deletes an Official save. `name` is what the player typed; the core compares it with the save
+/// name again and refuses on any difference, and refuses while the game runs.
+#[tauri::command]
+pub async fn saves_delete_official(ctx: State<'_, Ctx>, id: String, name: String) -> CmdResult<SavesDone> {
+    let _turn = ctx.turn();
+    let s = saves_of(&ctx)?;
+    s.delete_official(&id, &name)?;
+    saves_done(&ctx, &s)
+}
+
 #[tauri::command]
 pub async fn saves_export(ctx: State<'_, Ctx>, id: String, dest: PathBuf) -> CmdResult<()> {
     let _turn = ctx.turn();

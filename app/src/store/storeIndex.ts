@@ -19,7 +19,7 @@ export type StoreMod = {
   /** Missing from indexes built before 2026-11-14. */
   authors?: string[]; verified?: boolean;
   /** Missing from indexes built before 2026-11-15. `private`: early access, from a private repository. */
-  stars?: number; private?: boolean;
+  stars?: number; downloads?: number; private?: boolean;
 };
 export type StoreState = { mods: StoreMod[] | null; offline: boolean; loading: boolean; error: string | null; installing: string[]; starred: string[] | null };
 

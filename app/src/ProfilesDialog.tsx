@@ -2,33 +2,18 @@
 // holds, and New, Import, Duplicate, Rename, Export, Delete and Use. A profile keeps the load order, which mods are
 // on, option values, keys and guardrails.
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { call, errorText, run, taskText } from "./api";
-import { withTask } from "./busy";
+import { run } from "./api";
 import { Confirm } from "./Confirm";
-import { CloseIcon, CopyIcon, ExportIcon, ImportIcon, LinkIcon, ModdersIcon, PaletteIcon, PenIcon, PlusIcon, ShieldIcon, TrashIcon } from "./Icons";
+import { CloseIcon, CopyIcon, ExportIcon, ImportIcon, ModdersIcon, PaletteIcon, PenIcon, PlusIcon, ShieldIcon, TrashIcon } from "./Icons";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { FOLDER_COLORS } from "./mods/FolderDialog";
-import { ensureScope } from "./github";
 import { t } from "./i18n";
-import { notify } from "./notices";
 import { exportProfile, importProfile } from "./profileZip";
 import { Prompt } from "./Prompt";
 import { Thumb } from "./Thumb";
 import type { ProfileRow, Snapshot } from "./types";
 
-type Ask = { kind: "new" } | { kind: "duplicate" | "rename" | "delete" | "share"; name: string } | null;
-
-/** Uploads the profile to a gist on the GitHub account (asking for gist access first) and copies the link. */
-async function shareProfile(name: string, isPublic: boolean) {
-  if (!(await ensureScope("gist"))) return;
-  try {
-    const url = await withTask(taskText("share_profile"), () => call<string>("share_profile", { name, public: isPublic }));
-    await navigator.clipboard.writeText(url).catch(() => {});
-    notify("info", t("app.profiles.shared", name));
-  } catch (e) {
-    notify("error", errorText(e));
-  }
-}
+type Ask = { kind: "new" } | { kind: "duplicate" | "rename" | "delete"; name: string } | null;
 
 /** A profile's guardrails as two icons, lit while on: other players' session mods blocked, and the account guarded. */
 export function ProfileGuards({ p }: { p: ProfileRow }) {
@@ -44,7 +29,6 @@ export function ProfileGuards({ p }: { p: ProfileRow }) {
 
 export function ProfilesDialog({ snap, onClose }: { snap: Snapshot; onClose: () => void }) {
   const [ask, setAsk] = useState<Ask>(null);
-  const [publicShare, setPublicShare] = useState(false);
   const [colors, setColors] = useState<{ x: number; y: number; name: string; color: string | null } | null>(null);
   const box = useRef<HTMLDivElement>(null);
   const close = () => setAsk(null);
@@ -101,8 +85,6 @@ export function ProfilesDialog({ snap, onClose }: { snap: Snapshot; onClose: () 
                   data-tip={t("app.profiles.rename")}><PenIcon /></button>
                 <button className="btn small icon" onClick={() => exportProfile(p.name)} aria-label={t("app.profiles.export")}
                   data-tip-title={t("app.profiles.export")} data-tip={t("app.profiles.exportHint")}><ExportIcon /></button>
-                <button className="btn small icon" onClick={() => { setPublicShare(false); setAsk({ kind: "share", name: p.name }); }} aria-label={t("app.profiles.share")}
-                  data-tip-title={t("app.profiles.share")} data-tip={t("app.profiles.shareHint")}><LinkIcon /></button>
                 <button className="btn small icon danger" disabled={last} aria-label={t("app.profiles.delete")}
                   data-tip-title={t("app.profiles.delete")} data-tip={last ? t("app.error.LastProfile") : undefined}
                   onClick={() => setAsk({ kind: "delete", name: p.name })}><TrashIcon /></button>
@@ -125,17 +107,6 @@ export function ProfilesDialog({ snap, onClose }: { snap: Snapshot; onClose: () 
       {ask?.kind === "rename" && (
         <Prompt title={t("app.profiles.renameTitle", ask.name)} label={t("app.profiles.name")} initial={ask.name} confirm={t("app.profiles.rename")}
           onCancel={close} onConfirm={async (to) => { const ok = to === ask.name || (await run("rename_profile", { from: ask.name, to })); if (ok) close(); return ok; }} />
-      )}
-      {ask?.kind === "share" && (
-        <Confirm title={t("app.profiles.shareTitle", ask.name)} text={t("app.profiles.shareHint")} confirm={t("app.profiles.share")} tone="go"
-          onCancel={close} onConfirm={() => { close(); shareProfile(ask.name, publicShare); }}>
-          <div className="seg share-seg" role="radiogroup" aria-label={t("app.profiles.share")}>
-            {([[false, t("app.profiles.shareSecret")], [true, t("app.profiles.sharePublic")]] as const).map(([v, label]) => (
-              <button key={String(v)} role="radio" aria-checked={publicShare === v} className={publicShare === v ? "on" : undefined} onClick={() => setPublicShare(v)}>{label}</button>
-            ))}
-          </div>
-          <p className="set-note">{t(publicShare ? "app.profiles.sharePublicHint" : "app.profiles.shareSecretHint")}</p>
-        </Confirm>
       )}
       {ask?.kind === "delete" && (
         <Confirm title={t("app.profiles.deleteTitle", ask.name)} text={t("app.profiles.deleteText")} confirm={t("app.profiles.delete")}

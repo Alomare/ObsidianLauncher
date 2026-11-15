@@ -694,6 +694,66 @@ impl Saves {
         self.save_index(&idx)
     }
 
+    /// Deletes an Official save. `confirm` must be the name of the save exactly as stored, checked here
+    /// again whatever the caller checked. A backup comes first and the delete stops if it fails: a save
+    /// in the library goes to the backups folder by itself, the game files and the Cloud folder of the
+    /// live one as for a switch. The live save can't just be removed (Steam downloads tracked files
+    /// removed outside the game again), so the game files get a blank Official save in place of it,
+    /// written to the Cloud pair as well when Steam tracks it, with the server counters carried over.
+    /// The blank save becomes the live Official save of the library, named as a first adoption is.
+    pub fn delete_official(&self, id: &str, confirm: &str) -> Result<()> {
+        self.closed()?;
+        let mut idx = self.ensure()?;
+        let entry = self.entry(&idx, id)?.clone();
+        if entry.kind != SaveKind::Official {
+            return Err(ObsidianError::SandboxSave { op: "delete official".to_string() });
+        }
+        if confirm != entry.name {
+            return Err(ObsidianError::SaveNameMismatch);
+        }
+        let backups = self.data.join("backups");
+        let live = idx.active_official.as_deref() == Some(id);
+        // The library slot: the save itself when it rests in the library, an older copy when it is live.
+        let slot = self.dir.join(id);
+        let mut sources = Vec::new();
+        if slot.is_dir() {
+            sources.push((format!("library-{}-{id}", self.account), slot.clone()));
+        }
+        if live {
+            if crate::backup::backup_game_saves(&self.game, &backups, KEEP_BACKUPS)?.is_none() {
+                return Err(ObsidianError::BadSave("no backup of the game files could be made, so nothing was deleted".to_string()));
+            }
+        } else if sources.is_empty() {
+            return Err(ObsidianError::BadSave("the save files are missing from the library, so nothing was deleted".to_string()));
+        }
+        if !sources.is_empty() && crate::backup::backup_saves(&sources, &backups, KEEP_BACKUPS)?.is_none() {
+            return Err(ObsidianError::BadSave("no backup of the save could be made, so nothing was deleted".to_string()));
+        }
+        if live {
+            let mut blank = blank_pair();
+            if let Some(outgoing) = self.capture_live() {
+                carry_counters(&mut blank.user.root, &outgoing.user.root);
+            }
+            self.write_live(&blank)?;
+            match std::fs::remove_file(self.official_mod()) {
+                Ok(()) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => return Err(e.into()),
+            }
+        }
+        if slot.is_dir() {
+            std::fs::remove_dir_all(&slot)?;
+        }
+        idx.saves.retain(|e| e.id != id);
+        if live {
+            // The live save is read from the game files, so the new entry needs no library slot.
+            let fresh = self.new_id(&idx);
+            idx.saves.push(SaveEntry { id: fresh.clone(), name: "Main".to_string(), kind: SaveKind::Official, created: now(), snapshot_of: None });
+            idx.active_official = Some(fresh);
+        }
+        self.save_index(&idx)
+    }
+
     /// Writes a Sandbox to one zip.
     pub fn export(&self, id: &str, dest: &Path) -> Result<()> {
         use std::io::Write;
@@ -995,6 +1055,51 @@ mod tests {
         s.delete(&id).unwrap();
         assert!(!s.sandbox_common(&id).exists());
         assert!(matches!(s.rename("nope", "x"), Err(ObsidianError::SaveMissing(_))));
+    }
+
+    #[test]
+    fn deleting_an_official_save_needs_the_exact_name_and_a_closed_game() {
+        let w = world();
+        let s = w.saves();
+        s.list().unwrap();
+        let snap = s.create_official("Old War").unwrap();
+        let busy = Saves::for_account(&w.data, &w.game, ACCOUNT, || true);
+        assert!(matches!(busy.delete_official(&snap, "Old War"), Err(ObsidianError::GameRunning)));
+        for wrong in ["", "old war", "Old War ", " Old War", "Old"] {
+            assert!(matches!(s.delete_official(&snap, wrong), Err(ObsidianError::SaveNameMismatch)), "{wrong:?}");
+        }
+        assert!(s.dir.join(&snap).is_dir(), "a refused delete touches nothing");
+        let sandbox = s.create_sandbox("Box").unwrap();
+        assert!(matches!(s.delete_official(&sandbox, "Box"), Err(ObsidianError::SandboxSave { .. })));
+        assert!(matches!(s.delete_official("nope", "x"), Err(ObsidianError::SaveMissing(_))));
+
+        s.delete_official(&snap, "Old War").unwrap();
+        assert!(!s.dir.join(&snap).exists());
+        assert!(s.list().unwrap().saves.iter().all(|r| r.id != snap));
+        let backup = &crate::backup::list_backups(&w.data.join("backups"))[0];
+        assert!(backup.join(format!("library-{ACCOUNT}-{snap}")).join("common.sav").is_file(), "backed up first");
+    }
+
+    #[test]
+    fn deleting_the_live_official_save_leaves_a_blank_one_in_the_game_and_the_cloud() {
+        let w = world();
+        track(&w);
+        let s = w.saves();
+        let live = s.list().unwrap().saves[0].id.clone();
+        s.delete_official(&live, "Main").unwrap();
+        let list = s.list().unwrap();
+        assert_eq!(list.saves.len(), 1);
+        let row = &list.saves[0];
+        assert!(row.id != live && row.live && row.active && row.kind == SaveKind::Official);
+        let user = read_file(&w.local_user()).unwrap();
+        assert_eq!(user.root.number("player_xp"), blank_pair().user.root.number("player_xp"), "the progress is gone");
+        assert_eq!(user.root.number("backend_planet_index_win32"), Some(5.0), "the server counters stay");
+        assert!(decode_file(&std::fs::read(w.remote.join(format!("helldivers_save{UID}"))).unwrap()).is_ok(), "the Cloud pair is the blank save too");
+        let backed = crate::backup::list_backups(&w.data.join("backups"))
+            .iter()
+            .filter_map(|b| read_file(&b.join(format!("helldivers_steam_{UID}_user.sav"))).ok())
+            .any(|f| f.root.number("player_xp") == Some(1000.0));
+        assert!(backed, "the game files were backed up first");
     }
 
     #[test]
