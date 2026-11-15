@@ -8,7 +8,7 @@ local SANDBOX = "sandbox\t" .. ID .. "\n"
 local TEXTS = { en = { sandbox_failed = "SANDBOX FAILED", lobby_sandbox_public = "Sandbox Public",
 	lobby_uses_sandbox = "This lobby uses Sandbox saves.", lobby_uses_official = "This lobby uses Official saves.",
 	lobby_modded_mark = "MODDED", lobby_mods_heading = "Mods here", lobby_more_mods = "+%d more", lobby_tab_public = "Public", lobby_tab_modded = "Modded", lobby_mods_range = "%d to %d of %d",
-	lobby_filter_hide_modded = "Hide modded", campaign_not_uploaded_sandbox = "Sandbox line" } }
+	campaign_not_uploaded_sandbox = "Sandbox line" } }
 
 local function fake_save()
 	local sm = { calls = {}, saved = 0, backup = 0 }
@@ -406,19 +406,57 @@ test("the_room_row_shows_the_mark_only_for_modded_rooms", function()
 	E.eq(drawn["1"], "Host name")
 end)
 
-test("the_hide_modded_filter_is_added_once_and_decides_by_the_mark", function()
+test("the_terminal_adds_no_filter_and_the_game_filters_still_decide", function()
 	local screen = terminal(nil)
+	local game = { name = "filter_full", default_value = false, filter_func = function(room, on) return on and room.full end }
+	rawget(_G, "GameSettings").multiplayer_filters = { game }
 	screen:on_enter()
 	screen:on_enter()
 	local filters = rawget(_G, "GameSettings").multiplayer_filters
-	E.eq(#filters, 1, "added once; the Modded tab replaced Modded only")
-	local hide = filters[1]
-	E.eq(hide.name, "filter_hide_modded")
-	local modded, plain = { obsidian = { modded = true } }, { obsidian = { modded = false } }
-	E.eq(hide.filter_func(modded, true), true, "dropped")
-	E.eq(not hide.filter_func(plain, true), true, "kept")
-	E.eq(hide.filter_func(modded, false), false, "off")
-	E.eq(rawget(_G, "LocalizationManager"):string("filter_hide_modded"), "Hide modded")
+	E.eq(#filters, 1, "only the game's filter")
+	E.eq(filters[1], game)
+	E.eq(rawget(_G, "LocalizationManager"):string("filter_hide_modded"), "game:filter_hide_modded", "the old text is gone")
+	-- A save from before still holds the old filter: the game reads only the names it lists.
+	local saved = { filter_hide_modded = true, filter_full = true }
+	local options = {}
+	for _, f in ipairs(filters) do
+		local on = saved[f.name]
+		if on == nil then on = f.default_value end
+		options[#options + 1] = { name = f.name, enabled = on, filter_func = f.filter_func }
+	end
+	E.eq(#options, 1)
+	local function listed(room)
+		for _, o in ipairs(options) do if o.filter_func(room, o.enabled) then return false end end
+		return true
+	end
+	E.eq(listed({ obsidian = { modded = true } }), true, "modded rooms stay on Public")
+	E.eq(listed({ full = true }), false, "the game's filter still drops")
+end)
+
+test("every_tab_label_shows_in_capitals_and_the_modded_title_does_not", function()
+	local _, _, e = terminal(nil)
+	local lm = rawget(_G, "LocalizationManager")
+	E.eq(lm:string("obsidian_lobby_public"), "PUBLIC")
+	E.eq(lm:string("obsidian_lobby_modded"), "MODDED")
+	E.eq(lm:string("obsidian_lobby_friends"), "GAME:FRIENDS", "the game's Friends words, in capitals")
+	E.eq(lm:string("obsidian_lobby_modded_title"), "Modded", "the panel title as written")
+	E.eq(lm:string("friends"), "game:friends", "the game's own key is left alone")
+	E.eq(lm:string("lobby_tab_public"), "game:lobby_tab_public", "only the tab keys")
+	local game_text = e.loaded["obsidian/loader/game_text"]
+	E.eq(game_text.upper("Ab\195\169c"), "AB\195\169C", "without Utf8 only a to z change")
+	rawset(_G, "Utf8", { upper = function(s) return (s:gsub("\195\169", "\195\137"):upper()) end })
+	E.eq(lm:string("obsidian_lobby_modded"), "MODDED")
+	E.eq(game_text.upper("\195\169t\195\169"), "\195\137T\195\137", "the engine's Utf8.upper when there")
+	rawset(_G, "Utf8", { upper = function() error("bad") end })
+	E.eq(game_text.upper("abc"), "ABC", "a failing Utf8.upper falls back")
+	rawset(_G, "Utf8", nil)
+end)
+
+test("a_sandbox_public_tab_shows_in_capitals", function()
+	terminal(SANDBOX)
+	local lm = rawget(_G, "LocalizationManager")
+	E.eq(lm:string("obsidian_lobby_public"), "SANDBOX PUBLIC")
+	E.eq(lm:string("campaign_public"), "Sandbox Public", "the panel title as written")
 end)
 
 test("the_terminal_gets_a_modded_tab_between_public_and_friends", function()
@@ -431,13 +469,11 @@ test("the_terminal_gets_a_modded_tab_between_public_and_friends", function()
 	E.eq(#out, 3)
 	E.eq(out[1].name, "obsidian_lobby_public") E.eq(out[1].params.filter, "public")
 	E.eq(out[2].name, "obsidian_lobby_modded") E.eq(out[2].params.filter, "modded") E.eq(out[2].state, state, "the same screen")
-	E.eq(out[3].name, "friends")
+	E.eq(out[3].name, "obsidian_lobby_friends") E.eq(out[3].id, "friends") E.eq(out[3].params.filter, "friends")
+	E.eq(list[3], nil) E.eq(list[2].name, "friends", "the game's list is not changed")
 	E.eq(index, 3, "Friends asked for is still Friends")
 	E.eq(select(2, lobby.tabs(list, 1)), 1)
 	E.eq(#lobby.tabs(out, 1), 3, "never twice")
-	local lm = rawget(_G, "LocalizationManager")
-	E.eq(lm:string("obsidian_lobby_public"), "Public")
-	E.eq(lm:string("obsidian_lobby_modded"), "Modded")
 end)
 
 test("the_main_screen_registers_the_three_tabs", function()
@@ -464,6 +500,7 @@ test("the_modded_tab_lists_only_modded_rooms", function()
 	screen:init()
 	E.eq(screen.filters.modded.name, "public", "the game's public search")
 	E.eq(screen.filters.modded.obsidian_modded, true)
+	E.eq(screen.filters.modded.title, "obsidian_lobby_modded_title")
 	screen.filter = screen.filters.modded
 	screen:add_room({ name = "plain", obsidian = { modded = false } })
 	screen:add_room({ name = "bare" })

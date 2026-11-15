@@ -128,6 +128,8 @@ pub enum ObsidianError {
     SaveInUse,
     #[error("the name typed does not match the save name, so nothing was deleted")]
     SaveNameMismatch,
+    #[error("this Official save is active: switch to another Official save first")]
+    ActiveOfficialSave,
     #[error("{0:?} can't be a save name: use 1 to 40 characters and no line breaks")]
     SaveName(String),
     #[error("{0} is a save export from a newer version of Obsidian")]

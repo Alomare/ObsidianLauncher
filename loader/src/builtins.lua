@@ -7,7 +7,7 @@ local B = {
 	setmetatable = setmetatable, getmetatable = getmetatable,
 	require = require, unpack = unpack,
 	format = string.format, sub = string.sub, gsub = string.gsub, match = string.match,
-	find = string.find, gmatch = string.gmatch, len = string.len, lower = string.lower, rep = string.rep,
+	find = string.find, gmatch = string.gmatch, len = string.len, lower = string.lower, upper = string.upper, rep = string.rep,
 	abs = math.abs, floor = math.floor, min = math.min, max = math.max,
 	insert = table.insert, remove = table.remove, concat = table.concat, sort = table.sort,
 	open = io.open, getenv = os.getenv, date = os.date, clock = os.clock, time = os.time, rename = os.rename, delete = os.remove,

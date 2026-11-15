@@ -19,9 +19,11 @@ import { winners } from "./conflicts";
 import { CrashBanner } from "./CrashBanner";
 import { Problems } from "./Problems";
 import { Drawer } from "./Drawer";
-import { pickAndImport } from "./dropImport";
+import { copyText, pastedMods, pastedPaths } from "./clipboard";
+import { importPaths, pickAndImport } from "./dropImport";
+import { useListKeys } from "../shortcuts";
 import { DeleteFolder, FOLDER_COLORS, FolderDialog } from "./FolderDialog";
-import { changes, flatten, moveMods, nudge, pinned, toEnd, toTree, type Node } from "./layout";
+import { changes, flatten, lines, moveMods, nudge, pinned, toEnd, toTree, type Node } from "./layout";
 import { ModTable, type MenuTarget } from "./ModTable";
 import { changelogUrl, checkModUpdates, offered, updateMod, updateMods, useModUpdates } from "./modUpdates";
 import { filterMods } from "./rows";
@@ -156,6 +158,31 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
   const inOrder = (ids: string[]) => order.filter((id) => ids.includes(id));
   const folderOf = (id: string) => snap.folders.find((f) => f.id === id);
   const membersOf = (id: string) => snap.mods.filter((m) => m.folder === id).map((m) => m.id);
+
+  // Ctrl+A checks the mods the list shows (the search applies, closed folders keep theirs), or unchecks
+  // them when all are checked, as the box in the header does. Ctrl+C copies the checked mods (or the
+  // open one) as names and versions; Ctrl+V checks the mods a pasted list names, or imports pasted paths.
+  const clipMod = (id: string) => ({ id, name: names.get(id) ?? id, version: byId.get(id)?.version ?? null });
+  useListKeys(tab === "mods", {
+    selectAll: () => {
+      const shown = searching ? rows.map((r) => r.id) : lines(tree).flatMap((l) => (l.kind === "mod" ? [l.id] : []));
+      if (shown.length) check(shown, !shown.every((id) => checked.has(id)));
+    },
+    copy: () => {
+      const ids = checked.size ? inOrder([...checked]) : view?.kind === "mod" && byId.has(view.id) ? [view.id] : [];
+      if (!ids.length) return null;
+      notify("info", ids.length === 1 ? t("app.mods.copiedOne") : t("app.mods.copied", ids.length));
+      return copyText(ids.map(clipMod));
+    },
+    paste: (text) => {
+      const paths = pastedPaths(text);
+      if (paths) return void importPaths(paths);
+      const ids = pastedMods(text, order.map(clipMod));
+      if (!ids.length) return notify("info", t("app.mods.pasteNone"));
+      check(ids, true);
+      notify("info", ids.length === 1 ? t("app.mods.pasteCheckedOne") : t("app.mods.pasteChecked", ids.length));
+    },
+  });
 
   /** The actions for some mods: the menu of a row, or of every checked mod on a right click (or the Menu key) on one of them. */
   const modItems = (ids: string[]): MenuItem[] => {
@@ -305,7 +332,6 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
           </button>
         </div>
       </div>
-      <CrashBanner snap={snap} />
       <Problems snap={snap} />
       <div className="mods-body" ref={body} style={width ? { ["--drawer-w" as string]: `${width}px` } : undefined}>
         <section className={sel.length ? "list batched" : "list"}>
@@ -367,6 +393,8 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
           </>
         )}
       </div>
+      {/* Under the list: a word about the last launch, out of the way of the tools and the mods. */}
+      <CrashBanner snap={snap} />
       {profiles && <ProfilesDialog snap={snap} onClose={() => setProfiles(false)} />}
       {sortPlan && (
         <SortDialog plan={sortPlan} name={(id) => names.get(id) ?? id} off={new Set(snap.mods.filter((m) => !m.on).map((m) => m.id))}

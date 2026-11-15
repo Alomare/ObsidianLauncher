@@ -16,8 +16,9 @@ An Official save is the progress the game and Steam know about. The first time t
 - **New** starts a blank Official save, kept in the library until it is switched to.
 - **Snapshot** keeps a copy of the save to come back to.
 - **Duplicate as Sandbox** copies the progress into a new Sandbox and leaves the Official save as it is.
+- **Delete** removes an Official save kept in the library, one at a time, after a backup and after typing the save name. The Official save in the game files can't be deleted: switch to another Official save first.
 
-Official saves can't be renamed, deleted, exported or edited.
+Official saves can't be renamed, exported or edited.
 
 ### Steam Cloud
 

@@ -14,7 +14,17 @@ Each row has a check box, the place in the load order, a switch, the mod, the si
 - Rows drag to a new place in the [load order](wiki:load-order), and folders group them.
 - A warning icon beside a name means the mod changes the same files as another mod; a click shows which.
 - A gold version means a newer one was found; a click installs it.
-- Checked mods get a bar at the bottom to turn them on or off, check them for updates or remove them.
+- Checked mods get a bar at the bottom to turn them on or off, check them for updates or remove them. The switch of a checked mod turns every checked mod on or off.
+
+Keys on the list, outside the search box and with no dialog or menu open:
+
+| Key | What it does |
+|---|---|
+| Ctrl+A | Checks every mod the list shows, with the search applied; again, unchecks them |
+| Ctrl+C | Copies the checked mods, or the open one, as a list of names and versions |
+| Ctrl+V | Checks the mods a pasted list names, by name or id; pasted file paths import those mods |
+| Ctrl+F | Goes to the search box |
+| Alt+Up, Alt+Down | Move the focused mod or folder |
 
 A right click on a row or a folder opens a menu with everything else.
 

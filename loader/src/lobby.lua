@@ -16,14 +16,11 @@ local MAX_ITEMS = 64
 local MAX_TEXT = 48
 local SHOWN = 8
 
--- The Modded tab lists the modded lobbies, so the Public tab keeps one filter: hiding them.
-local FILTERS = {
-	{ name = "filter_hide_modded", text = "lobby_filter_hide_modded", hide = function(room) return room.obsidian ~= nil and room.obsidian.modded end },
-}
-
 -- The terminal's tabs: the game's Public and Friends, with Modded between them. The tab names are
--- text keys; these two are the loader's.
-local TAB_PUBLIC, TAB_MODDED = "obsidian_lobby_public", "obsidian_lobby_modded"
+-- text keys, all the loader's, so every tab label shows in capitals; Friends keeps the game's words.
+-- The Modded search has a title key of its own, which stays as written.
+local TAB_PUBLIC, TAB_MODDED, TAB_FRIENDS = "obsidian_lobby_public", "obsidian_lobby_modded", "obsidian_lobby_friends"
+local TITLE_MODDED = "obsidian_lobby_modded_title"
 -- A pad has no wheel: the list moves on by a line this often instead.
 local PAD_STEP = 1.5
 
@@ -149,26 +146,17 @@ function M.refused_text(l)
 	return nil
 end
 
--- The filters are added to the game's list when the terminal opens: the game's settings file isn't
--- loaded when the loader starts.
-local function add_filters()
-	local settings = B.rawget(B.G, "GameSettings")
-	local filters = B.type(settings) == "table" and settings.multiplayer_filters or nil
-	if B.type(filters) ~= "table" then return end
-	for _, f in B.ipairs(FILTERS) do
-		local have = false
-		for _, g in B.ipairs(filters) do have = have or g.name == f.name end
-		if not have then
-			B.insert(filters, { name = f.name, default_value = false, filter_func = function(room, on)
-				return on and f.hide(room)
-			end })
-		end
-	end
+-- A copy of a tab under another name.
+local function renamed(tab, name)
+	local out = {}
+	for k, v in B.pairs(tab) do out[k] = v end
+	out.name = name
+	return out
 end
 
--- The terminal's tab list with Modded put in after Public, and the Public tab under the loader's name.
--- index: the tab to open, which moves one on past Public. Answers the list and the index; a list that
--- already has the tab, or has no Public tab, comes back as it was.
+-- The terminal's tab list with Modded put in after Public, and Public and Friends under the loader's
+-- names. index: the tab to open, which moves one on past Public. Answers the list and the index; a
+-- list that already has the tab, or has no Public tab, comes back as it was.
 function M.tabs(list, index)
 	if B.type(list) ~= "table" then return list, index end
 	local at = nil
@@ -181,11 +169,10 @@ function M.tabs(list, index)
 	local out = {}
 	for i, tab in B.ipairs(list) do
 		if i == at then
-			local public = {}
-			for k, v in B.pairs(tab) do public[k] = v end
-			public.name = TAB_PUBLIC
-			B.insert(out, public)
+			B.insert(out, renamed(tab, TAB_PUBLIC))
 			B.insert(out, { id = "modded", name = TAB_MODDED, state = tab.state, params = { filter = "modded" } })
+		elseif tab.id == "friends" and tab.name == "friends" then
+			B.insert(out, renamed(tab, TAB_FRIENDS))
 		else
 			B.insert(out, tab)
 		end
@@ -264,10 +251,13 @@ end
 function M.setup(core, hooks, session)
 	M.core, M.session = core, session
 	hooks.on_frame(M.tick)
-	for _, f in B.ipairs(FILTERS) do game_text.replace(core, hooks, f.name, f.text) end
 	if core.sandboxed() then game_text.replace(core, hooks, "campaign_public", "lobby_sandbox_public") end
 	game_text.replace(core, hooks, TAB_PUBLIC, core.sandboxed() and "lobby_sandbox_public" or "lobby_tab_public")
 	game_text.replace(core, hooks, TAB_MODDED, "lobby_tab_modded")
+	game_text.replace(core, hooks, TITLE_MODDED, "lobby_tab_modded")
+	game_text.capitals(core, hooks, TAB_PUBLIC)
+	game_text.capitals(core, hooks, TAB_MODDED)
+	game_text.capitals(core, hooks, TAB_FRIENDS, "friends")
 	local class = "MenuScreenCampaignMultiplayer"
 
 	-- The tabs: the terminal's main screen hands its list to MenuScreenBase.register_substates while it
@@ -294,7 +284,7 @@ function M.setup(core, hooks, session)
 	hooks.loader_hook(class, "init", function(original, self, ...)
 		local r = { original(self, ...) }
 		if B.type(self.filters) == "table" and not self.filters.modded then
-			self.filters.modded = { name = "public", title = TAB_MODDED, obsidian_modded = true }
+			self.filters.modded = { name = "public", title = TITLE_MODDED, obsidian_modded = true }
 		end
 		return B.unpack(r)
 	end)
@@ -305,10 +295,6 @@ function M.setup(core, hooks, session)
 			return
 		end
 		return original(self, room, ...)
-	end)
-	hooks.loader_hook(class, "on_enter", function(original, self, ...)
-		B.pcall(add_filters)
-		return original(self, ...)
 	end)
 	hooks.loader_hook(class, "extract_room_info", function(original, self, ...)
 		local room = original(self, ...)

@@ -11,6 +11,8 @@ The [Saves](app:saves) tab lists the saves of the Steam account in two groups, w
 
 The save the game loads next carries the **Active** tag. A click on a save shows the numbers on the right, with buttons to switch to it, snapshot or duplicate it, edit, export or delete it.
 
+Sandbox saves have a check box. Checked saves get a bar at the bottom to export them, a zip each into one folder, or delete them; the active save stays. **Ctrl+A** checks every Sandbox save shown, and again unchecks them. Official saves have no check box and are deleted one at a time, after typing the name.
+
 **New** creates a blank save or imports a Sandbox from a zip. A Sandbox needs Obsidian Loader in the game: **Deploy Loader** puts it there without any mod.
 
 [Saves](wiki:saves) explains how the two kinds of save work, the backups and the save editor.

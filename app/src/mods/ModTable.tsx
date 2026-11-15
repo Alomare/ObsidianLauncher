@@ -1,6 +1,7 @@
 // The mod table in load order (spec 4.1), with folders. Mods and folders drag to a new place: a
 // line shows where they land, and a folder's name lights up when they would go in at the end of that folder.
-// Dragging a checked mod takes every checked mod. After a move the rows slide to their places.
+// Dragging a checked mod takes every checked mod, and the switch of a checked mod switches them all.
+// After a move the rows slide to their places.
 // Alt+Up and Alt+Down move the focused mod or folder from the keyboard. A warning icon marks
 // mods in a conflict and opens the conflicts; a right click opens the menu. A mod with a newer version
 // found shows it in gold in the Version column. Checked mods are checked for updates from the bar under the list.
@@ -54,7 +55,7 @@ const keyOf = (l: Line) => (l.kind === "folder" ? `folder:${l.folder.id}` : l.id
 /** Clicks on these do their own thing and never start a drag. */
 const stop = { onPointerDown: (e: PointerEvent) => e.stopPropagation(), onKeyDown: (e: KeyboardEvent) => e.stopPropagation() };
 
-function Check({ state, label, onChange }: { state: boolean | "mixed"; label: string; onChange: (on: boolean, shift: boolean) => void }) {
+export function Check({ state, label, onChange }: { state: boolean | "mixed"; label: string; onChange: (on: boolean, shift: boolean) => void }) {
   return (
     <button role="checkbox" aria-checked={state} aria-label={label} className={state ? "ck on" : "ck"} {...stop}
       onClick={(e) => onChange(state !== true, e.shiftKey)}>
@@ -374,7 +375,8 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
     return out;
   }, [conflicts, names]);
   const h = useRef<Handlers>(null!);
-  h.current = { down, move, up, key, menu, check, toggle: (id, on) => toggle([id], on), conflicts: onConflicts, update: onUpdate };
+  // The switch of a checked mod switches every checked mod, as a drag of one takes them all.
+  h.current = { down, move, up, key, menu, check, toggle: (id, on) => toggle(checked.has(id) ? order.filter((x) => checked.has(x)) : [id], on), conflicts: onConflicts, update: onUpdate };
   const allState = visibleMods.length && visibleMods.every((id) => checked.has(id)) ? true : visibleMods.some((id) => checked.has(id)) ? "mixed" : false;
   const draggingKeys = new Set(drag.current?.moved ? (drag.current.folder ? [drag.current.key] : drag.current.ids) : []);
 

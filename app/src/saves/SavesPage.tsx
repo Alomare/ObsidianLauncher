@@ -1,7 +1,9 @@
 // The Saves tab: one table of the saves of the active Steam account, Official then Sandbox, with the one the
 // game boots next marked, and the panel of the selected save beside it, as the Mods tab lays out the mod list
 // and drawer. Official saves only switch, snapshot, copy to a Sandbox and delete (behind a typed-name dialog,
-// DeleteOfficial.tsx); everything else is for Sandbox saves.
+// DeleteOfficial.tsx, never for the save in the game files); everything else is for Sandbox saves.
+// Sandbox saves take a check, as mods do, and the checked ones get a bar to export or delete them
+// together; Ctrl+A checks every Sandbox save shown. Official saves never take a check.
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { useCallback, useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { deployLoader } from "../actions";
@@ -9,12 +11,15 @@ import { call, errorText, setSnapshot, taskText } from "../api";
 import { withTask } from "../busy";
 import { Confirm } from "../Confirm";
 import { ContextMenu, type MenuItem } from "../ContextMenu";
-import { CheckIcon, ChevronIcon, CopyIcon, CubeIcon, DeployIcon, ExportIcon, ImportIcon, PenIcon, PlusIcon, ResetIcon, SaveIcon, SlidersIcon, StarIcon, TrashIcon, UpdateIcon, WarnIcon } from "../Icons";
+import { CheckIcon, ChevronIcon, CloseIcon, CopyIcon, CubeIcon, DeployIcon, ExportIcon, ImportIcon, PenIcon, PlusIcon, ResetIcon, SaveIcon, SlidersIcon, StarIcon, TrashIcon, UpdateIcon, WarnIcon } from "../Icons";
 import { language, t } from "../i18n";
 import { notify } from "../notices";
 import { Prompt } from "../Prompt";
 import { Help } from "../SettingRow";
+import { Check } from "../mods/ModTable";
+import { useListKeys } from "../shortcuts";
 import type { Snapshot } from "../types";
+import { checkable, checkAll, checkedRows, deletable, inFolder, zipNames } from "./bulk";
 import { DeleteOfficial } from "./DeleteOfficial";
 import { SaveEditor } from "./Editor";
 import { fileSafe, playTime } from "./logic";
@@ -23,6 +28,7 @@ import type { SaveImported, SaveKind, SaveList, SaveRow, SavesDone } from "./typ
 type Ask =
   | { kind: "new"; save: SaveKind }
   | { kind: "snapshot" | "duplicate" | "activate" | "delete" | "deleteOfficial"; row: SaveRow }
+  | { kind: "deleteMany"; rows: SaveRow[]; keeps: boolean }
   | null;
 
 /** One thing a save can have done to it: an icon button in the panel and a line in the right-click menu.
@@ -54,8 +60,34 @@ export function SavesPage({ snap, visible, home = 0 }: { snap: Snapshot; visible
   // Rename in the right-click menu opens the editor with the name already in a box.
   const [renameFirst, setRenameFirst] = useState(false);
   const [width, setWidth] = useState(savedWidth);
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const lastCheck = useRef<string | null>(null);
   const body = useRef<HTMLDivElement>(null);
   const running = snap.game === "running";
+
+  // Checks go with saves that leave the list.
+  useEffect(() => {
+    if (!list) return;
+    setChecked((c) => {
+      const ids = new Set(checkedRows(list.saves, c).map((r) => r.id));
+      return ids.size === c.size ? c : ids;
+    });
+  }, [list]);
+  const shownChecks = () => (list ? checkable(list.saves, !!folded.sandbox) : []);
+  /** Checks one save; with Shift, every Sandbox save between it and the one checked last. */
+  const check = (id: string, on: boolean, shift: boolean) => {
+    const shown = shownChecks();
+    const a = lastCheck.current ? shown.indexOf(lastCheck.current) : -1;
+    const b = shown.indexOf(id);
+    lastCheck.current = id;
+    const ids = shift && a >= 0 && b >= 0 ? shown.slice(Math.min(a, b), Math.max(a, b) + 1) : [id];
+    setChecked((c) => {
+      const n = new Set(c);
+      for (const x of ids) if (on) n.add(x); else n.delete(x);
+      return n;
+    });
+  };
+  useListKeys(visible && !editing, { selectAll: () => setChecked((c) => checkAll(shownChecks(), c)) });
 
   const load = useCallback(async () => {
     try {
@@ -113,6 +145,41 @@ export function SavesPage({ snap, visible, home = 0 }: { snap: Snapshot; visible
     }
   };
 
+  /** Exports Sandbox saves into one folder, a zip each, named after the saves. */
+  const exportMany = async (rows: SaveRow[]) => {
+    const dir = await open({ directory: true });
+    if (typeof dir !== "string") return;
+    const names = zipNames(rows);
+    try {
+      await withTask(taskText("saves_export"), async () => {
+        for (const [i, r] of rows.entries()) await call("saves_export", { id: r.id, dest: inFolder(dir, names[i]) });
+      }, true);
+      notify("info", t("app.saves.exportedMany", rows.length));
+    } catch (e) {
+      notify("error", errorText(e));
+    }
+  };
+  /** Deletes Sandbox saves one after the other; the list shows what is left even when one fails. */
+  const deleteMany = async (rows: SaveRow[]) => {
+    setAsk(null);
+    try {
+      const done = await withTask(taskText("saves_delete"), async () => {
+        let last: SavesDone | null = null;
+        for (const r of rows) last = await call<SavesDone>("saves_delete", { id: r.id });
+        return last;
+      }, true);
+      if (done) {
+        setSnapshot(done.snapshot);
+        setList(done.saves);
+      }
+      notify("info", t("app.saves.deletedMany", rows.length));
+      setChecked(new Set());
+    } catch (e) {
+      notify("error", errorText(e));
+      load();
+    }
+  };
+
   // The resize handle, as on the Mods tab: the width is kept between visits, a double-click resets it.
   const resize = (e: PointerEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
@@ -159,6 +226,10 @@ export function SavesPage({ snap, visible, home = 0 }: { snap: Snapshot; visible
   const needsDeploy = !snap.loader;
   const sandboxActive = active?.kind === "sandbox";
   const closeFirst = running ? t("app.action.closeGameFirst") : undefined;
+  const shown = shownChecks();
+  const allState = shown.length && shown.every((id) => checked.has(id)) ? true : shown.some((id) => checked.has(id)) ? "mixed" : false;
+  const picked = checkedRows(list.saves, checked);
+  const removable = deletable(picked);
 
   /** What can be done to one save, in the order the panel shows the buttons. */
   const actions = (r: SaveRow): Action[] => {
@@ -177,9 +248,10 @@ export function SavesPage({ snap, visible, home = 0 }: { snap: Snapshot; visible
       out.push({ id: "export", label: t("app.saves.export"), icon: <ExportIcon />, tip: closeFirst ?? t("app.saves.exportHint"), disabled: running, run: () => exportSave(r) });
       out.push({ id: "delete", label: t("app.saves.delete"), icon: <TrashIcon />, tip: r.active ? t("app.saves.deleteActive") : closeFirst, tone: "danger", disabled: running || r.active, run: () => setAsk({ kind: "delete", row: r }) });
     } else {
-      // Only one at a time, from the panel or the right-click menu, behind the typed-name dialog.
-      out.push({ id: "delete", label: t("app.saves.delete"), icon: <TrashIcon />, tip: closeFirst ?? t(r.live ? "app.saves.deleteLiveHint" : "app.saves.deleteOfficialHint"),
-        tone: "danger", disabled: running, run: () => setAsk({ kind: "deleteOfficial", row: r }) });
+      // Only one at a time, from the panel or the right-click menu, behind the typed-name dialog; never
+      // the save in the game files, which the backend refuses too.
+      out.push({ id: "delete", label: t("app.saves.delete"), icon: <TrashIcon />, tip: r.live ? t("app.saves.deleteLiveOff") : closeFirst ?? t("app.saves.deleteOfficialHint"),
+        tone: "danger", disabled: running || r.live, run: () => setAsk({ kind: "deleteOfficial", row: r }) });
     }
     return out;
   };
@@ -220,6 +292,7 @@ export function SavesPage({ snap, visible, home = 0 }: { snap: Snapshot; visible
         <section className="list saves-list" aria-label={t("app.nav.saves")}>
           <div className="table saves-table" role="table">
             <div className="sth cap" role="row">
+              <span className="s-check">{shown.length > 0 && <Check state={allState} label={t("app.mods.checkAll")} onChange={() => setChecked((c) => checkAll(shown, c))} />}</span>
               <span aria-hidden="true" />
               <span className="th-col left" role="columnheader">{t("app.saves.col.save")}</span>
               <span className="th-col" role="columnheader">{t("app.saves.stat.rank")}</span>
@@ -228,12 +301,27 @@ export function SavesPage({ snap, visible, home = 0 }: { snap: Snapshot; visible
             </div>
             <div className="tbody">
               <GroupRow title={t("app.saves.official")} hint={t("app.saves.officialHint")} count={official.length} kind="official" folded={!!folded.official} onFold={fold} />
-              {!folded.official && official.map((r) => <Row key={r.id} row={r} list={list} selected={r === row} onSelect={setSel} onMenu={openMenu} onOpen={() => r.kind === "sandbox" && !running && !r.error && setEditing(r.id)} />)}
+              {!folded.official && official.map((r) => <Row key={r.id} row={r} list={list} selected={r === row} checked={false} onCheck={check} onSelect={setSel} onMenu={openMenu} onOpen={() => r.kind === "sandbox" && !running && !r.error && setEditing(r.id)} />)}
               <GroupRow title={t("app.saves.sandbox")} hint={t("app.saves.sandboxHint")} count={sandbox.length} kind="sandbox" folded={!!folded.sandbox} onFold={fold} />
               {!folded.sandbox && sandbox.length === 0 && <p className="muted saves-none">{t("app.saves.noSandbox")}</p>}
-              {!folded.sandbox && sandbox.map((r) => <Row key={r.id} row={r} list={list} selected={r === row} onSelect={setSel} onMenu={openMenu} onOpen={() => !running && !r.error && setEditing(r.id)} />)}
+              {!folded.sandbox && sandbox.map((r) => <Row key={r.id} row={r} list={list} selected={r === row} checked={checked.has(r.id)} onCheck={check} onSelect={setSel} onMenu={openMenu} onOpen={() => !running && !r.error && setEditing(r.id)} />)}
             </div>
           </div>
+          {picked.length > 0 && (
+            <div className="batch-dock">
+              <div className="batch" role="toolbar" aria-label={t("app.saves.checkedSaves")}>
+                <span className="batch-n">{t("app.mods.nChecked", picked.length)}</span>
+                <span className="batch-sep" aria-hidden="true" />
+                <button className="btn small icon" disabled={running} onClick={() => exportMany(picked)}
+                  aria-label={t("app.saves.exportMany")} data-tip-title={t("app.saves.exportMany")} data-tip={closeFirst ?? t("app.saves.exportManyHint")}><ExportIcon /></button>
+                <span className="batch-sep" aria-hidden="true" />
+                <button className="btn small icon danger" disabled={running || !removable.length}
+                  onClick={() => setAsk({ kind: "deleteMany", rows: removable, keeps: removable.length < picked.length })}
+                  aria-label={t("app.saves.deleteMany")} data-tip-title={t("app.saves.deleteMany")} data-tip={closeFirst ?? (removable.length ? undefined : t("app.saves.deleteActive"))}><TrashIcon /></button>
+                <button className="bare batch-x" onClick={() => setChecked(new Set())} aria-label={t("app.mods.uncheck")} data-tip={t("app.mods.uncheck")}><CloseIcon /></button>
+              </div>
+            </div>
+          )}
         </section>
 
         {row && (
@@ -275,6 +363,10 @@ export function SavesPage({ snap, visible, home = 0 }: { snap: Snapshot; visible
         <Confirm title={t("app.saves.deleteTitle", ask.row.name)} text={t("app.saves.deleteText")} confirm={t("app.saves.delete")} onCancel={close}
           onConfirm={() => { const id = ask.row.id; setAsk(null); mutate("saves_delete", { id }, t("app.saves.deleted")); }} />
       )}
+      {ask?.kind === "deleteMany" && (
+        <Confirm title={t("app.saves.deleteManyTitle", ask.rows.length)} text={ask.keeps ? `${t("app.saves.deleteManyText")} ${t("app.saves.deleteManyKeeps")}` : t("app.saves.deleteManyText")}
+          confirm={t("app.saves.delete")} onCancel={close} onConfirm={() => deleteMany(ask.rows)} />
+      )}
       {ask?.kind === "deleteOfficial" && (
         <DeleteOfficial row={ask.row} onCancel={close}
           onDelete={async (name) => { const ok = await mutate("saves_delete_official", { id: ask.row.id, name }, t("app.saves.deleted")); if (ok) close(); return ok; }} />
@@ -297,15 +389,24 @@ function GroupRow({ title, hint, count, kind, folded, onFold }: { title: string;
   );
 }
 
-type RowProps = { row: SaveRow; list: SaveList; selected: boolean; onSelect: (id: string) => void; onMenu: (e: MouseEvent, r: SaveRow) => void; onOpen: () => void };
+type RowProps = {
+  row: SaveRow; list: SaveList; selected: boolean; checked: boolean; onCheck: (id: string, on: boolean, shift: boolean) => void;
+  onSelect: (id: string) => void; onMenu: (e: MouseEvent, r: SaveRow) => void; onOpen: () => void;
+};
 
-function Row({ row, list, selected, onSelect, onMenu, onOpen }: RowProps) {
+/** A click on the check box checks the save and nothing else: no selection, no editor. */
+const keepClick = { onClick: (e: MouseEvent) => e.stopPropagation(), onDoubleClick: (e: MouseEvent) => e.stopPropagation() };
+
+function Row({ row, list, selected, checked, onCheck, onSelect, onMenu, onOpen }: RowProps) {
   const of = row.snapshotOf ? list.saves.find((s) => s.id === row.snapshotOf)?.name ?? null : null;
   const s = row.stats;
   return (
-    <div className={["str in", row.kind === "sandbox" && "sandbox-row", selected && "sel", row.active && "active"].filter(Boolean).join(" ")} role="row" tabIndex={0} aria-selected={selected}
+    <div className={["str in", row.kind === "sandbox" && "sandbox-row", selected && "sel", row.active && "active", checked && "checked"].filter(Boolean).join(" ")} role="row" tabIndex={0} aria-selected={selected}
       onClick={() => onSelect(row.id)} onDoubleClick={onOpen} onContextMenu={(e) => onMenu(e, row)}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(row.id); } }}>
+      {row.kind === "sandbox"
+        ? <span className="s-check" role="cell" {...keepClick}><Check state={checked} label={row.name} onChange={(on, shift) => onCheck(row.id, on, shift)} /></span>
+        : <span className="s-check" role="cell" />}
       <span className="s-icon" role="cell">{row.kind === "official" ? <StarIcon /> : <CubeIcon />}</span>
       <div className="who" role="cell">
         <div className="nm">

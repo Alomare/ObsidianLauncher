@@ -1,6 +1,7 @@
 // The dialog before an Official save is deleted. Nothing in it deletes by accident: the name of the save
 // has to be typed out (pasting does nothing), the Delete button stays off for the first seconds, Enter
-// does nothing anywhere in the dialog, and focus starts in the name box, never on the button. The
+// does nothing anywhere in the dialog, and focus starts in the name box, never on the button. The active
+// Official save never gets here: the panel keeps Delete off for it, and the backend refuses it. The
 // backend compares the typed name with the save again before deleting.
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -48,7 +49,7 @@ export function DeleteOfficial({ row, onDelete, onCancel }: Props) {
     <div className="modal-back" onPointerDown={(e) => e.target === e.currentTarget && !busy && onCancel()}>
       <div className="modal confirm delete-save" role="alertdialog" aria-modal="true" aria-label={t("app.saves.deleteTitle", row.name)}>
         <h2 className="cap">{t("app.saves.deleteTitle", row.name)}</h2>
-        <p>{t(row.live ? "app.saves.deleteLiveText" : "app.saves.deleteOfficialText")}</p>
+        <p>{t("app.saves.deleteOfficialText")}</p>
         <p>{t("app.saves.deleteBackup")}</p>
         <label className="field">
           <span>{t("app.saves.deleteTypeName")} <b className="delete-name">{row.name}</b></span>
