@@ -100,6 +100,7 @@ pub fn run() {
             github_cmds::github_repo,
             github_cmds::github_starred,
             github_cmds::github_star,
+            github_cmds::github_starred_repos,
             github_cmds::github_templates,
             github_cmds::github_diagnostics,
             github_cmds::github_report,

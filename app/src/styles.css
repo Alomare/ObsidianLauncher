@@ -563,6 +563,9 @@ input[type="range"]:disabled::-webkit-slider-thumb { background: var(--mu); }
 input[type="range"]:disabled::-webkit-slider-runnable-track { background: linear-gradient(90deg, var(--mu) var(--pct, 0%), var(--track) var(--pct, 0%)); }
 .num-ctl input[type="number"] { width: 4.2rem; height: 2rem; padding: 0 0.4rem; background: var(--row); border: 1px solid var(--ln); color: var(--tx); font-family: "Saira Variable", sans-serif; }
 .num-ctl input[type="number"]:focus { border-color: var(--gold); outline: 0; }
+/* No up and down arrows in number fields: the slider and typing set the value. */
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }
 .key-btn { min-width: 3.4rem; height: 2rem; padding: 0 0.6rem; background: var(--row); border: 1px solid var(--ln); border-bottom-width: 3px; color: var(--tx); font-family: "Saira Variable", sans-serif; font-weight: 500; font-size: var(--fs-sm); text-transform: uppercase; cursor: pointer; }
 .key-btn:hover { border-color: var(--gold); }
 .key-btn.waiting { border-color: var(--gold); color: var(--goldtx); animation: pulse-border 1s ease-in-out infinite; text-transform: none; letter-spacing: 0; font-weight: 500; }
@@ -1570,7 +1573,7 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .c-flag.sm { width: 1.9rem; height: 1.9rem; }
 .c-flag.sm svg { top: 0.2rem; right: 0.2rem; width: 0.7rem; height: 0.7rem; }
 /* Obsidian Verified: a white circle with a dark check, inline in front of the name, about the height of the capitals. */
-.store-verified { display: inline-block; width: 0.9em; height: 0.9em; margin-right: 0.35em; vertical-align: -0.1em; }
+.store-verified { display: inline-block; width: 0.9em; height: 0.9em; margin-left: 0.35em; vertical-align: -0.1em; }
 :root[data-theme="light"] .store-verified circle { stroke: rgba(0, 0, 0, 0.35); stroke-width: 1px; r: 7.5px; }
 
 /* Obsidian Kit: icon, then the name over the scope, on plain grey; a soft outline sets the icon off */
@@ -1608,7 +1611,7 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .c-img:has(> img)::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0, 0, 0, 0.55), transparent 45%); pointer-events: none; }
 /* No thumbnail: the icon over a blurred, darkened copy of itself, or the letter over a Home picture */
 .backdrop { position: relative; display: block; width: 100%; height: 100%; overflow: hidden; background: #0b0c0e; }
-.bd-blur { position: absolute; inset: -30px; background-size: cover; background-position: center; filter: blur(26px) saturate(1.2) brightness(0.42); }
+.bd-blur { position: absolute; inset: -30px; background-size: cover; background-position: center; filter: blur(18.2px) saturate(1.2) brightness(0.42); }
 .c-quick { margin-left: auto; opacity: 0; transition: opacity var(--fast); }
 .card:hover .c-quick, .card:focus-within .c-quick, .c-quick:has(.installing) { opacity: 1; }
 .c-body { position: relative; flex: 1; display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto 1fr auto; gap: 0 0.7rem; padding: 0.65rem 0.75rem 0.85rem; }
@@ -1645,7 +1648,7 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .store-mod { --mcol: 60rem; padding-bottom: 2.4rem; }
 .mband { position: relative; height: 12rem; overflow: hidden;
   -webkit-mask: linear-gradient(180deg, #000 35%, transparent 100%); mask: linear-gradient(180deg, #000 35%, transparent 100%); }
-.mb-pic { position: absolute; inset: -22px; background-size: cover; background-position: center 35%; filter: blur(7.2px) brightness(0.7); }
+.mb-pic { position: absolute; inset: -22px; background-size: cover; background-position: center 35%; filter: blur(10.8px) brightness(0.7); }
 .mb-zoom { position: absolute; inset: 0; z-index: 1; }
 .mband > .back-wrap { position: absolute; z-index: 2; top: 1rem; left: max(1.2rem, calc((100% - var(--mcol)) / 2)); filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.65)); }
 .back-wrap > .back { gap: 0.4rem; padding: 0 1rem 0 0.7rem; }

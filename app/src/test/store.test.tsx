@@ -95,14 +95,14 @@ describe("StorePage", () => {
     const hud = [...host.querySelectorAll(".card")].find((c) => c.textContent?.includes("HUD"))!;
     expect(hud.querySelector(".c-flag.inst")).not.toBeNull();
     // Obsidian Verified sits in front of the name, only where the index says so, and not among the tags.
-    expect(hud.querySelector(".c-body > b > :first-child")?.getAttribute("class")).toBe("store-verified");
+    expect(hud.querySelector(".c-body > b > :last-child")?.getAttribute("class")).toBe("store-verified");
     expect(hud.querySelector(".c-tags .store-verified")).toBeNull();
     const cross = [...host.querySelectorAll(".card")].find((c) => c.textContent?.includes("CROSSHAIR"))!;
     expect(cross.querySelector(".store-verified")).toBeNull();
     // A Kit card: the scope before the name.
     expect([...host.querySelector(".kit-card .kc-text")!.children].map((e) => e.className)).toEqual(["store-scope library", ""]);
 
-    const chip = [...host.querySelectorAll(".chip")].find((b) => b.textContent === t("app.scope.expansion"))!;
+    const chip = [...host.querySelectorAll(".chip")].find((b) => b.getAttribute("aria-label") === t("app.scope.expansion"))!;
     await act(async () => (chip as HTMLElement).click());
     expect(names(host)).toEqual(["ARCADE"]);
     await act(async () => (chip as HTMLElement).click());
@@ -162,7 +162,7 @@ describe("StorePage", () => {
     const card = [...host.querySelectorAll(".card")].find((c) => c.textContent?.includes("HUD")) as HTMLElement;
     await act(async () => card.click());
     expect(host.querySelector(".mby")?.textContent).toBe(t("app.store.by", "Ann, Bo"));
-    expect(host.querySelector(".mid-name h1 > .store-verified:first-child")).not.toBeNull();
+    expect(host.querySelector(".mid-name h1 > .store-verified:last-child")).not.toBeNull();
     invoke.mockClear();
     await act(async () => (host.querySelector(".mid .uninst") as HTMLElement).click());
     const yes = [...document.querySelectorAll(".modal button")].find((b) => b.textContent === t("app.drawer.remove")) as HTMLElement;

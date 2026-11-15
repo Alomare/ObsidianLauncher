@@ -53,13 +53,25 @@
 .sub-preview small { font-weight: 400; color: var(--mu); font-size: var(--fs-sm); }
 .sub-preview p { margin: 0.3rem 0 0; font-size: var(--fs-sm); color: var(--mu); line-height: 1.45; }
 
-/* Stars: the count on a card, and the button on a mod page. */
-.c-stars { display: inline-flex; align-items: center; gap: 0.2rem; color: var(--mu); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
-.c-stars svg { width: 0.75rem; height: 0.75rem; }
-.btn.star-btn { gap: 0.35rem; font-variant-numeric: tabular-nums; }
-.btn.star-btn svg { width: 1rem; height: 1rem; }
+/* Stars: the count at the right of a card, and the button on a mod page; yellow once starred. */
+.c-stars { margin-left: auto; display: inline-flex; align-items: center; gap: 0.3rem; color: var(--mu); font-size: var(--fs-md); font-weight: 600; font-variant-numeric: tabular-nums; }
+.c-quick + .c-stars { margin-left: 0.5rem; }
+.c-stars svg { width: 1rem; height: 1rem; }
+.c-stars.on svg { color: var(--gold); }
+/* The star and report buttons sit in the row of Install, at the same height. */
+.mid-tools { flex: none; display: flex; gap: 0.6rem; align-items: center; }
+.mid-tools .btn { height: 2.9rem; }
+.btn.star-btn { gap: 0.45rem; padding: 0 1rem; font-size: var(--fs-md); font-variant-numeric: tabular-nums; }
+.btn.star-btn svg { width: 1.05rem; height: 1.05rem; }
 .btn.star-btn.on svg { color: var(--gold); }
-.mid-tools { display: flex; gap: 0.4rem; align-items: center; }
+.btn.icon.report-btn { width: 2.9rem; }
+.btn.icon.report-btn svg { width: 1.2rem; height: 1.2rem; }
+
+/* Scope filters as icons alone, named in the tooltip. */
+.chip.icon-chip { width: 2.3rem; padding: 0; }
+
+/* Submit a mod, at the end of the list. */
+.store-foot { display: flex; justify-content: flex-end; padding: 0.4rem 0 0.2rem; }
 
 /* The authors' Issues panel. */
 .iss-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
@@ -73,5 +85,3 @@
 .iss-list small { grid-column: 1; color: var(--mu); font-size: var(--fs-xs); }
 .iss-list i { grid-row: 1 / 3; grid-column: 2; align-self: center; font-style: normal; color: var(--mu); font-size: var(--fs-xs); }
 .iss-empty { margin: 0; color: var(--mu); font-size: var(--fs-sm); }
-
-.fbar .submit-btn { margin-left: 0.4rem; }

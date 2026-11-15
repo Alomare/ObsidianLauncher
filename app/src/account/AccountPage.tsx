@@ -1,6 +1,8 @@
 // The Account tab: the GitHub sign-in and the access it holds, the reports filed from this PC with
 // their replies, and sync of profiles and appearance between PCs (plus shared profile links).
-import { useEffect, useMemo, useState } from "react";
+// Built from the Settings parts: groups under headings, a status card per group with the buttons under it,
+// the reports as a table like the Other patches table, and a report as boxes like a Store mod page.
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { call, errorText, setSnapshot, taskText } from "../api";
 import { withTask } from "../busy";
 import { Confirm } from "../Confirm";
@@ -8,7 +10,7 @@ import {
   cancelSignIn, copyCode, ensureScope, hasScope, refreshReports, setReports, signIn, signOut, unread, useGitHub,
   type Message, type Report, type SyncState,
 } from "../github";
-import { CheckIcon, CopyIcon, GitHubIcon, OutboundIcon } from "../Icons";
+import { CheckIcon, ChevronIcon, CopyIcon, GitHubIcon, OutboundIcon } from "../Icons";
 import { language, t } from "../i18n";
 import { Markdown, parse } from "../Markdown";
 import { notify } from "../notices";
@@ -45,77 +47,111 @@ export function AccountPage({ tab, onTab }: { tab: AccountTab; onTab: (t: Accoun
   );
 }
 
+/** GitHub serves avatars at any size through `s`; ask for twice the shown size, for sharp edges. */
+function sized(url: string, px: number) {
+  try {
+    const u = new URL(url);
+    if (u.hostname === "avatars.githubusercontent.com") u.searchParams.set("s", String(px * 2));
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+/** The GitHub picture in a circle, or the first letter of the login when there is none or it fails to load. */
+function Avatar({ url, login, small }: { url: string | null; login: string; small?: boolean }) {
+  const [failed, setFailed] = useState(false);
+  const cls = small ? "acc-avatar small" : "acc-avatar";
+  if (!url || failed) return <span className={`${cls} letter`} aria-hidden="true">{[...login.trim()][0]?.toUpperCase() ?? "?"}</span>;
+  return <img className={cls} src={sized(url, small ? 24 : 48)} alt="" draggable={false} onError={() => setFailed(true)} />;
+}
+
+/** The status card of a group (the shape of the Game card in Settings): a lead at the left, a title, a line under it. */
+function Card({ tone, lead, title, children }: { tone?: "ok" | "busy"; lead: ReactNode; title: ReactNode; children?: ReactNode }) {
+  return (
+    <div className={tone ? `game-card acc-card ${tone}` : "game-card acc-card"}>
+      {lead}
+      <div className="game-text">
+        <b>{title}</b>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 /** The code to type at github.com/login/device while a sign-in waits. */
 function Signing() {
   const { signing } = useGitHub();
   if (!signing) return null;
   return (
-    <section className="set-sec acc-signing">
-      <p className="set-note">{t("app.account.codeLead")}</p>
-      <output className="acc-code" aria-label={t("app.account.code")}>{signing.userCode}</output>
+    <>
+      <Card tone="busy" lead={<span className="acc-avatar acc-spin" role="status" aria-label={t("app.account.waiting")}><span className="upd-spin" /></span>}
+        title={<output className="acc-code" aria-label={t("app.account.code")}>{signing.userCode}</output>}>
+        <small>{t("app.account.codeLead")}</small>
+      </Card>
       <div className="set-btns">
         <button className="btn small" onClick={() => copyCode(signing.userCode)}><CopyIcon />{t("app.account.copy")}</button>
         <button className="btn small" onClick={() => open(signing.verificationUri)}><OutboundIcon />{t("app.account.openPage")}</button>
         <button className="btn small" onClick={cancelSignIn}>{t("app.cancel")}</button>
       </div>
-      <p className="acc-wait"><span className="upd-spin" aria-hidden="true" />{t("app.account.waiting")}</p>
-    </section>
+    </>
   );
 }
 
 function GitHubTab() {
   const { account, signing } = useGitHub();
   const [leaving, setLeaving] = useState(false);
-  if (signing) return <div className="set-page"><Signing /></div>;
-  if (!account) {
-    return (
-      <div className="set-page">
-        <section className="set-sec acc-out">
-          <p className="set-note">{t("app.account.signedOutLead")}</p>
-          <div className="set-btns">
-            <button className="btn play acc-signin" onClick={() => signIn()}><GitHubIcon />{t("app.account.signIn")}</button>
-          </div>
-        </section>
-      </div>
-    );
-  }
-  const rows: { scope: string; extra?: "gist" | "repo"; label: string; note?: string }[] = [
-    { scope: "public_repo", label: t("app.account.scopePublic") },
-    { scope: "gist", extra: "gist", label: t("app.account.scopeGist") },
+  const revoke = () => call<string>("github_revoke_url").then(open, (e) => notify("error", errorText(e)));
+  const rows: { scope: string; extra?: "gist" | "repo"; label: string; note: string }[] = [
+    { scope: "public_repo", label: t("app.account.scopePublic"), note: t("app.account.scopePublicNote") },
+    { scope: "gist", extra: "gist", label: t("app.account.scopeGist"), note: t("app.account.scopeGistNote") },
     { scope: "repo", extra: "repo", label: t("app.account.scopeRepo"), note: t("app.account.scopeRepoNote") },
   ];
-  const revoke = () => call<string>("github_revoke_url").then(open, (e) => notify("error", errorText(e)));
   return (
     <div className="set-page">
-      <section className="set-sec acc-who">
-        {account.avatar ? <img className="acc-avatar" src={account.avatar} alt="" /> : <span className="acc-avatar" aria-hidden="true" />}
-        <button className="link acc-login" onClick={() => open(`https://github.com/${account.login}`)}>{account.login}</button>
-      </section>
+      <Group title={t("app.account.github")}>
+        {signing ? <Signing /> : account ? (
+          <>
+            <Card tone="ok" lead={<Avatar key={account.avatar} url={account.avatar} login={account.login} />}
+              title={<button className="link acc-login" onClick={() => open(`https://github.com/${account.login}`)}>{account.login}</button>}>
+              <small>{t("app.account.revokeNote")}</small>
+            </Card>
+            <div className="set-btns">
+              <button className="btn small" onClick={() => setLeaving(true)}>{t("app.account.signOut")}</button>
+              <button className="btn small" onClick={revoke}><OutboundIcon />{t("app.account.revoke")}</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <Card lead={<span className="acc-avatar letter" aria-hidden="true"><GitHubIcon /></span>} title={t("app.account.signedOut")}>
+              <small>{t("app.account.signedOutLead")}</small>
+            </Card>
+            <div className="set-btns">
+              <button className="btn small play" onClick={() => signIn()}><GitHubIcon />{t("app.account.signIn")}</button>
+            </div>
+          </>
+        )}
+      </Group>
       <Group title={t("app.account.access")}>
-        <ul className="acc-access">
+        <div className="patch-table acc-access" role="table" aria-label={t("app.account.access")}>
           {rows.map((r) => {
             const granted = hasScope(account, r.scope);
             return (
-              <li key={r.scope}>
-                <span className="acc-access-text">
+              <div key={r.scope} className="pt-row" role="row">
+                <span className="acc-access-text" role="cell">
                   <b>{r.label}</b>
-                  {r.note && <small>{r.note}</small>}
+                  <small>{r.note}</small>
                 </span>
-                {granted
-                  ? <span className="acc-granted" role="img" aria-label={t("app.account.granted")} data-tip={t("app.account.granted")}><CheckIcon /></span>
-                  : <button className="btn small" onClick={() => ensureScope(r.extra!)}>{t("app.account.allow")}</button>}
-              </li>
+                <span className="acc-access-ctl" role="cell">
+                  {granted
+                    ? <span className="acc-granted"><CheckIcon />{t("app.account.granted")}</span>
+                    : <button className="btn small" disabled={!account || !!signing} onClick={() => ensureScope(r.extra!)}>{t("app.account.allow")}</button>}
+                </span>
+              </div>
             );
           })}
-        </ul>
-      </Group>
-      <section className="set-sec">
-        <div className="set-btns">
-          <button className="btn small" onClick={() => setLeaving(true)}>{t("app.account.signOut")}</button>
-          <button className="btn small" onClick={revoke}><OutboundIcon />{t("app.account.revoke")}</button>
         </div>
-        <p className="set-note">{t("app.account.revokeNote")}</p>
-      </section>
+      </Group>
       {leaving && (
         <Confirm title={t("app.account.signOutTitle")} text={t("app.account.signOutText")} confirm={t("app.account.signOut")}
           onCancel={() => setLeaving(false)} onConfirm={() => { setLeaving(false); signOut(); }} />
@@ -138,34 +174,43 @@ function ReportsTab() {
     const fresh = reports.find((r) => r.repo === current.repo && r.number === current.number) ?? current;
     return <Thread report={fresh} onBack={() => setCurrent(null)} />;
   }
-  if (!reports.length) return <div className="set-page"><p className="set-note acc-empty">{t("app.account.reportsEmpty")}</p></div>;
   return (
-    <ul className="acc-reports">
-      {reports.map((r) => {
-        const n = unread(r);
-        return (
-          <li key={`${r.repo}#${r.number}`}>
-            <button className={n ? "acc-report new" : "acc-report"} onClick={() => setCurrent(r)}>
-              <span className="acc-report-text">
-                <small>{r.modName || r.repo}</small>
-                <b>{r.title}</b>
-              </span>
-              {n > 0 && <span className="acc-unread" aria-label={n === 1 ? t("app.account.unreadOne") : t("app.account.unread", n)}
-                data-tip={n === 1 ? t("app.account.unreadOne") : t("app.account.unread", n)}>{n}</span>}
-              <StateBadge state={r.state} />
-              <span className="acc-date">{day(r.created)}</span>
-            </button>
-          </li>
-        );
-      })}
-    </ul>
+    <div className="set-page">
+      <section className="set-sec">
+        {!reports.length ? <p className="set-note">{t("app.account.reportsEmpty")}</p> : (
+          <div className="patch-table acc-reports" role="table" aria-label={t("app.account.reports")}>
+            <div className="pt-row pt-head" role="row">
+              <span role="columnheader">{t("app.account.col.report")}</span>
+              <span role="columnheader">{t("app.account.col.mod")}</span>
+              <span role="columnheader">{t("app.account.col.state")}</span>
+              <span role="columnheader">{t("app.account.col.opened")}</span>
+            </div>
+            {reports.map((r) => {
+              const n = unread(r);
+              const tip = n === 1 ? t("app.account.unreadOne") : t("app.account.unread", n);
+              return (
+                <button key={`${r.repo}#${r.number}`} className={n ? "pt-row acc-report new" : "pt-row acc-report"} role="row" onClick={() => setCurrent(r)}>
+                  <span className="acc-report-title" role="cell">
+                    <b>{r.title}</b>
+                    {n > 0 && <span className="acc-unread" aria-label={tip} data-tip={tip}>{n}</span>}
+                  </span>
+                  <span className="acc-report-mod" role="cell">{r.modName || r.repo}</span>
+                  <span role="cell"><StateBadge state={r.state} /></span>
+                  <span role="cell">{day(r.created)}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
 
 const AUTHORS = ["OWNER", "MEMBER", "COLLABORATOR"];
 
 function Thread({ report, onBack }: { report: Report; onBack: () => void }) {
-  const { account } = useGitHub();
+  const { account, signing } = useGitHub();
   const [messages, setMessages] = useState<Message[] | null>(null);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -204,10 +249,12 @@ function Thread({ report, onBack }: { report: Report; onBack: () => void }) {
   return (
     <div className="acc-thread">
       <div className="acc-thread-head">
-        <button className="link small acc-back" onClick={onBack}>{t("app.account.back")}</button>
-        <h2>{report.title}</h2>
-        <StateBadge state={report.state} />
-        <span className="acc-date">{report.modName || report.repo}</span>
+        <button className="btn small acc-back" onClick={onBack}><ChevronIcon />{t("app.account.back")}</button>
+        <div className="acc-thread-title">
+          <h2>{report.title}</h2>
+          <StateBadge state={report.state} />
+        </div>
+        <span className="acc-meta">{[report.modName || report.repo, day(report.created)].filter(Boolean).join(" · ")}</span>
       </div>
       {!messages && <p className="acc-wait"><span className="upd-spin" aria-hidden="true" />{t("app.account.loading")}</p>}
       {messages && (
@@ -215,26 +262,22 @@ function Thread({ report, onBack }: { report: Report; onBack: () => void }) {
           {messages.map((m, i) => <MessageRow key={i} m={m} />)}
         </ol>
       )}
-      {account ? (
-        <div className="acc-reply">
+      <section className="store-box acc-reply">
+        {signing ? <Signing /> : account ? (
           <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder={t("app.account.replyPlaceholder")} aria-label={t("app.account.replyPlaceholder")} rows={4} />
-          <div className="set-btns">
-            <button className="btn small play" onClick={send} disabled={sending || !text.trim()}>{t("app.account.send")}</button>
-            <button className="btn small" onClick={() => open(report.url)}><OutboundIcon />{t("app.account.openOnGitHub")}</button>
-            <button className="btn small" onClick={forget}>{t("app.account.forget")}</button>
-          </div>
-        </div>
-      ) : (
-        <div className="acc-reply">
+        ) : (
           <p className="set-note">{t("app.account.replySignIn")}</p>
+        )}
+        {!signing && (
           <div className="set-btns">
-            <button className="btn small play" onClick={() => signIn()}>{t("app.account.signIn")}</button>
+            {account
+              ? <button className="btn small play" onClick={send} disabled={sending || !text.trim()}>{t("app.account.send")}</button>
+              : <button className="btn small play" onClick={() => signIn()}><GitHubIcon />{t("app.account.signIn")}</button>}
             <button className="btn small" onClick={() => open(report.url)}><OutboundIcon />{t("app.account.openOnGitHub")}</button>
             <button className="btn small" onClick={forget}>{t("app.account.forget")}</button>
           </div>
-        </div>
-      )}
-      <Signing />
+        )}
+      </section>
     </div>
   );
 }
@@ -242,12 +285,12 @@ function Thread({ report, onBack }: { report: Report; onBack: () => void }) {
 function MessageRow({ m }: { m: Message }) {
   const doc = useMemo(() => parse(m.body), [m.body]);
   return (
-    <li className="acc-message">
+    <li className="store-box acc-message">
       <div className="acc-message-head">
-        {m.avatar ? <img className="acc-avatar small" src={m.avatar} alt="" /> : <span className="acc-avatar small" aria-hidden="true" />}
+        <Avatar key={m.avatar} url={m.avatar} login={m.author} small />
         <b>{m.author}</b>
         {AUTHORS.includes(m.association) && <span className="acc-author">{t("app.account.author")}</span>}
-        <span className="acc-date">{when(m.created)}</span>
+        <span className="acc-meta">{when(m.created)}</span>
       </div>
       <div className="acc-message-body"><Markdown tokens={doc.tokens} /></div>
     </li>
@@ -307,31 +350,31 @@ function SyncTab() {
       notify("error", errorText(e));
     }
   };
+  const dot = <span className="game-dot" aria-hidden="true" />;
   return (
     <div className="set-page">
-      {signing ? <Signing /> : (
-        <Group title={t("app.account.syncTitle")}>
-          {!gist ? (
-            <>
-              <p className="set-note">{t("app.account.syncNeedsGist")}</p>
-              <div className="set-btns">
-                <button className="btn small play" onClick={() => ensureScope("gist")}>{account ? t("app.account.allow") : t("app.account.signIn")}</button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="set-note acc-sync-state">
-                {sync?.updated ? t("app.account.syncLast", when(sync.updated)) : sync ? t("app.account.syncNone") : t("app.account.loading")}
-                {sync?.url && <button className="link small acc-inline" onClick={() => open(sync.url!)}>{t("app.account.syncOpen")}</button>}
-              </p>
-              <div className="set-btns">
-                <button className="btn small" onClick={upload}>{t("app.account.upload")}</button>
-                <button className="btn small" onClick={() => setAsking(true)} disabled={!sync?.url}>{t("app.account.download")}</button>
-              </div>
-            </>
-          )}
-        </Group>
-      )}
+      <Group title={t("app.account.syncTitle")}>
+        {signing ? <Signing /> : !gist ? (
+          <>
+            <Card lead={dot} title={t("app.account.syncOff")}><small>{t("app.account.syncNeedsGist")}</small></Card>
+            <div className="set-btns">
+              <button className="btn small play" onClick={() => ensureScope("gist")}>{account ? t("app.account.allow") : t("app.account.signIn")}</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <Card tone={sync?.updated ? "ok" : undefined} lead={dot}
+              title={sync?.updated ? t("app.account.syncLast", when(sync.updated)) : sync ? t("app.account.syncNone") : t("app.account.loading")}>
+              <small>{t("app.account.syncLead")}</small>
+            </Card>
+            <div className="set-btns">
+              <button className="btn small" onClick={upload}>{t("app.account.upload")}</button>
+              <button className="btn small" onClick={() => setAsking(true)} disabled={!sync?.url}>{t("app.account.download")}</button>
+              {sync?.url && <button className="btn small" onClick={() => open(sync.url!)}><OutboundIcon />{t("app.account.syncOpen")}</button>}
+            </div>
+          </>
+        )}
+      </Group>
       <Group title={t("app.account.importTitle")}>
         <form className="acc-import" onSubmit={(e) => { e.preventDefault(); importLink(); }}>
           <input value={link} onChange={(e) => setLink(e.target.value)} placeholder={t("app.account.importPlaceholder")} aria-label={t("app.account.importPlaceholder")} spellCheck={false} />

@@ -442,6 +442,21 @@ pub fn starred(c: &Client, repo: &str) -> Result<bool> {
     }
 }
 
+/// Every repository the player starred, as `owner/name` in lower case (up to 1,000).
+pub fn starred_repos(c: &Client) -> Result<Vec<String>> {
+    c.need_token()?;
+    let mut out = Vec::new();
+    for page in 1..=10 {
+        let list = c.get(&format!("/user/starred?per_page=100&page={page}"))?;
+        let items = list.as_array().cloned().unwrap_or_default();
+        out.extend(items.iter().filter_map(|r| r["full_name"].as_str().map(str::to_lowercase)));
+        if items.len() < 100 {
+            break;
+        }
+    }
+    Ok(out)
+}
+
 pub fn set_star(c: &Client, repo: &str, on: bool) -> Result<()> {
     c.need_token()?;
     let r = repo_name(repo).ok_or_else(|| ObsidianError::GitHub(repo.to_string()))?;

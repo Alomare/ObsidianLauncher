@@ -63,6 +63,11 @@ pub async fn github_starred(repo: String) -> CmdResult<bool> {
 }
 
 #[tauri::command]
+pub async fn github_starred_repos() -> CmdResult<Vec<String>> {
+    Ok(github::starred_repos(&Client::new())?)
+}
+
+#[tauri::command]
 pub async fn github_star(repo: String, on: bool) -> CmdResult<()> {
     Ok(github::set_star(&Client::new(), &repo, on)?)
 }

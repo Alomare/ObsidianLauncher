@@ -20,7 +20,7 @@ import { openUrl } from "../opener";
 import { Select } from "../Select";
 import { ImageViewer } from "../Thumb";
 import type { Scope, Snapshot } from "../types";
-import { install, loadStore, markOf, setStars, useStore, type StoreMark, type StoreMod, type StoreOption } from "./storeIndex";
+import { install, isStarred, loadStarred, loadStore, markOf, toggleStar, useStore, type StoreMark, type StoreMod, type StoreOption } from "./storeIndex";
 
 const FILTER_SCOPES: Scope[] = ["library", "client", "session", "expansion"];
 type Sort = "az" | "za" | "scope" | "new" | "updated" | "stars" | "random";
@@ -133,6 +133,9 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
   const frontTop = useRef(0);
   useEffect(() => { loadStore(); }, []);
   // Early access mods depend on the access granted: read the list again when that changes.
+  const signedIn = !!useGitHub().account;
+  const [starredOnly, setStarredOnly] = useState(false);
+  useEffect(() => { loadStarred(signedIn); if (!signedIn) setStarredOnly(false); }, [signedIn]);
   const access = useGitHub().account?.scopes.join(",") ?? "";
   const lastAccess = useRef(access);
   useEffect(() => {
@@ -159,8 +162,9 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
     return sortMods(all.filter((m) => !m.kit), sort, order)
       .filter((m) => !q || `${m.name} ${m.summary}`.toLowerCase().includes(q))
       .filter((m) => !scopes.length || scopes.includes(m.scope))
-      .filter((m) => !installedOnly || snap.mods.some((r) => r.id === m.id));
-  }, [all, text, scopes, installedOnly, sort, order, snap.mods]);
+      .filter((m) => !installedOnly || snap.mods.some((r) => r.id === m.id))
+      .filter((m) => !starredOnly || isStarred(m, store.starred));
+  }, [all, text, scopes, installedOnly, starredOnly, store.starred, sort, order, snap.mods]);
 
   const mod = open ? all.find((m) => m.id === open) : undefined;
   let body;
@@ -177,7 +181,7 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
   } else if (mod) {
     body = <ModPage m={mod} all={all} snap={snap} mark={mark} onOpen={show} onInstall={doInstall} />;
   } else {
-    const filtered = !!(text || scopes.length || installedOnly);
+    const filtered = !!(text || scopes.length || installedOnly || starredOnly);
     body = (
       <div className="store-in">
         {store.offline && (
@@ -200,8 +204,9 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
             {FILTER_SCOPES.map((s) => {
               const on = scopes.includes(s);
               return (
-                <button key={s} className={on ? "chip on" : "chip"} aria-pressed={on} onClick={() => setScopes(on ? scopes.filter((x) => x !== s) : [...scopes, s])}>
-                  <span className={`scope ${s}`}><i /></span><span>{t(`app.scope.${s}`)}</span>
+                <button key={s} className={on ? "chip icon-chip on" : "chip icon-chip"} aria-pressed={on} aria-label={t(`app.scope.${s}`)}
+                  data-tip-title={t(`app.scope.${s}`)} data-tip={t(`app.scope.${s}Hint`)} onClick={() => setScopes(on ? scopes.filter((x) => x !== s) : [...scopes, s])}>
+                  <span className={`scope ${s}`}><i /></span>
                 </button>
               );
             })}
@@ -212,16 +217,19 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
             <button role="checkbox" aria-checked={installedOnly} className="check-line" onClick={() => setInstalledOnly(!installedOnly)}>
               <span className={installedOnly ? "ck on" : "ck"}>{installedOnly && <CheckIcon />}</span>{t("app.store.installed")}
             </button>
+            {signedIn && (
+              <button role="checkbox" aria-checked={starredOnly} className="check-line" onClick={() => setStarredOnly(!starredOnly)}>
+                <span className={starredOnly ? "ck on" : "ck"}>{starredOnly && <CheckIcon />}</span>{t("app.store.starred")}
+              </button>
+            )}
             {filtered && (
-              <button className="chip clear" onClick={() => { setText(""); setScopes([]); setInstalledOnly(false); }}><CloseIcon />{t("app.store.clear")}</button>
+              <button className="chip clear" onClick={() => { setText(""); setScopes([]); setInstalledOnly(false); setStarredOnly(false); }}><CloseIcon />{t("app.store.clear")}</button>
             )}
           </div>
           <label className="search">
             <SearchIcon />
             <input type="search" value={text} onChange={(e) => setText(e.target.value)} placeholder={t("app.store.search")} aria-label={t("app.store.search")} />
           </label>
-          <button className="btn small submit-btn" onClick={() => setSubmitting(true)} aria-haspopup="dialog" data-tip={t("app.submit.hint")}>{t("app.submit.button")}</button>
-          {submitting && <SubmitDialog onClose={() => setSubmitting(false)} />}
         </div>
         {list.length ? (
           <div className="grid-cards">
@@ -235,12 +243,12 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
                   <Flag mark={k} />
                   <div className="c-body">
                     <ModIcon m={m} />
-                    <b><Verified m={m} />{m.name}</b>
+                    <b>{m.name}<Verified m={m} /></b>
                     <p className="c-desc">{m.summary}</p>
                     <div className="c-tags">
                       <ScopeTag scope={m.scope} /><Early m={m} />
-                      {!!m.stars && <span className="c-stars" aria-label={t("app.store.starsCount", m.stars)} data-tip={t("app.store.starsCount", m.stars)}><StarIcon />{m.stars}</span>}
                       {k !== "installed" && <span className="c-quick"><InstallButton m={m} mark={k} size="small" onInstall={() => doInstall(m)} /></span>}
+                      <Stars m={m} on={isStarred(m, store.starred)} />
                     </div>
                   </div>
                 </div>
@@ -250,6 +258,10 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
         ) : (
           <div className="store-empty"><h2>{t("app.store.noMatch")}</h2><p>{t("app.store.noMatchHint")}</p></div>
         )}
+        <div className="store-foot">
+          <button className="btn small" onClick={() => setSubmitting(true)} aria-haspopup="dialog" data-tip={t("app.submit.hint")}>{t("app.submit.button")}</button>
+        </div>
+        {submitting && <SubmitDialog onClose={() => setSubmitting(false)} />}
       </div>
     );
   }
@@ -317,18 +329,25 @@ function OptionPanel({ m }: { m: StoreMod }) {
   );
 }
 
+/** The star count on a card, at the right; yellow when the player starred the mod. */
+function Stars({ m, on }: { m: StoreMod; on: boolean }) {
+  if (!m.stars && !on) return null;
+  const tip = t("app.store.starsCount", m.stars ?? 0);
+  return <span className={on ? "c-stars on" : "c-stars"} aria-label={tip} data-tip={on ? `${tip}. ${t("app.store.starredByYou")}` : tip}><StarIcon />{m.stars ?? 0}</span>;
+}
+
 /** The star of a mod: the count from the index, and a toggle once signed in (a sign-in otherwise). */
-function StarButton({ m, starred, onChange }: { m: StoreMod; starred: boolean | null; onChange: (on: boolean) => void }) {
+function StarButton({ m }: { m: StoreMod }) {
   const { account } = useGitHub();
+  const { starred: list } = useStore();
+  const starred = account && list ? isStarred(m, list) : null;
   const [busy, setBusy] = useState(false);
   const toggle = async () => {
     if (!account) { signIn(); return; }
     if (starred === null || busy) return;
     setBusy(true);
     try {
-      await call("github_star", { repo: m.repo, on: !starred });
-      setStars(m.id, (m.stars ?? 0) + (starred ? -1 : 1));
-      onChange(!starred);
+      await toggleStar(m);
     } catch (e) {
       notify("error", errorText(e));
     }
@@ -336,7 +355,7 @@ function StarButton({ m, starred, onChange }: { m: StoreMod; starred: boolean | 
   };
   const tip = !account ? t("app.store.starSignIn") : starred ? t("app.store.unstar") : t("app.store.star");
   return (
-    <button className={starred ? "btn small star-btn on" : "btn small star-btn"} onClick={toggle} disabled={busy} aria-pressed={!!starred} aria-label={tip} data-tip={tip}>
+    <button className={starred ? "btn star-btn on" : "btn star-btn"} onClick={toggle} disabled={busy} aria-pressed={!!starred} aria-label={tip} data-tip={tip}>
       <StarIcon />{m.stars ?? 0}
     </button>
   );
@@ -376,15 +395,12 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
   const [reporting, setReporting] = useState(false);
   const { account } = useGitHub();
   const [info, setInfo] = useState<RepoInfo | null>(null);
-  const [starred, setStarred] = useState<boolean | null>(null);
-  // Signed in: whether the player starred the mod, and whether they are one of its authors.
+  // Signed in: whether the player is one of the authors.
   useEffect(() => {
     setInfo(null);
-    setStarred(null);
     if (!account) return;
     let live = true;
     call<RepoInfo | null>("github_repo", { repo: m.repo }).then((i) => live && setInfo(i)).catch(() => {});
-    call<boolean>("github_starred", { repo: m.repo }).then((s) => live && setStarred(s)).catch(() => {});
     return () => { live = false; };
   }, [account, m.repo]);
   const k = mark(m);
@@ -414,12 +430,15 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
         <div className="mid">
           {m.icon ? <Zoom path={m.icon} className="mid-ico"><ModIcon m={m} size="xl" /></Zoom> : <ModIcon m={m} size="xl" />}
           <div className="mid-t">
-            <div className="mid-name"><h1><Verified m={m} />{m.name}</h1><Early m={m} /></div>
+            <div className="mid-name"><h1>{m.name}<Verified m={m} /></h1><Early m={m} /></div>
             {!!m.authors?.length && <span className="mby">{t("app.store.by", m.authors.join(", "))}</span>}
           </div>
           <div className="mid-tools">
-            <StarButton m={m} starred={starred} onChange={setStarred} />
-            <button className="btn small" onClick={() => setReporting(true)} aria-haspopup="dialog" data-tip={t("app.report.hint")}>{t("app.report.button")}</button>
+            <StarButton m={m} />
+            <button className="btn icon report-btn" onClick={() => setReporting(true)} aria-haspopup="dialog" aria-label={t("app.report.button")}
+              data-tip-title={t("app.report.button")} data-tip={t("app.report.hint")}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /><circle cx="12" cy="19.5" r="1.8" fill="currentColor" /></svg>
+            </button>
           </div>
           <InstallButton m={m} mark={k} size="big" onInstall={() => onInstall(m)} />
           {reporting && <ReportDialog m={m} onClose={() => setReporting(false)} />}

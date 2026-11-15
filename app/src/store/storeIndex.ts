@@ -21,9 +21,9 @@ export type StoreMod = {
   /** Missing from indexes built before 2026-11-15. `private`: early access, from a private repository. */
   stars?: number; private?: boolean;
 };
-export type StoreState = { mods: StoreMod[] | null; offline: boolean; loading: boolean; error: string | null; installing: string[] };
+export type StoreState = { mods: StoreMod[] | null; offline: boolean; loading: boolean; error: string | null; installing: string[]; starred: string[] | null };
 
-let state: StoreState = { mods: null, offline: false, loading: false, error: null, installing: [] };
+let state: StoreState = { mods: null, offline: false, loading: false, error: null, installing: [], starred: null };
 const listeners = new Set<() => void>();
 const set = (patch: Partial<StoreState>) => {
   state = { ...state, ...patch };
@@ -34,7 +34,7 @@ export const useStore = () =>
   useSyncExternalStore((f) => { listeners.add(f); return () => { listeners.delete(f); }; }, () => state);
 
 /** Forgets the list, as at launch. For tests. */
-export const forgetStore = () => set({ mods: null, offline: false, loading: false, error: null, installing: [] });
+export const forgetStore = () => set({ mods: null, offline: false, loading: false, error: null, installing: [], starred: null });
 
 /** Reads the list, unless it is on the way or already read (`again` reads it anyway). A failed read
  *  keeps the list already shown. */
@@ -52,6 +52,27 @@ export async function loadStore(again = false) {
 /** The star count of a mod after the player starred or unstarred it, until the index catches up. */
 export function setStars(id: string, stars: number) {
   if (state.mods) set({ mods: state.mods.map((m) => (m.id === id ? { ...m, stars: Math.max(0, stars) } : m)) });
+}
+
+/** The repositories the signed-in player starred (lower case), or null signed out or not read yet. */
+export async function loadStarred(signedIn: boolean) {
+  if (!signedIn) { set({ starred: null }); return; }
+  try {
+    set({ starred: await call<string[]>("github_starred_repos") });
+  } catch {
+    set({ starred: null });
+  }
+}
+
+export const isStarred = (m: StoreMod, starred: string[] | null) => !!starred?.includes(m.repo.toLowerCase());
+
+/** Stars or unstars `m` on GitHub, and counts it here at once. */
+export async function toggleStar(m: StoreMod) {
+  const on = !isStarred(m, state.starred);
+  await call("github_star", { repo: m.repo, on });
+  const repo = m.repo.toLowerCase();
+  set({ starred: on ? [...(state.starred ?? []), repo] : (state.starred ?? []).filter((r) => r !== repo) });
+  setStars(m.id, (m.stars ?? 0) + (on ? 1 : -1));
 }
 
 export type StoreMark = "none" | "installed" | "update" | "installing";

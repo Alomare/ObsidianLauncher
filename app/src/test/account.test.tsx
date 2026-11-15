@@ -41,6 +41,7 @@ describe("Account", () => {
     invoke.mockResolvedValue(undefined);
     const host = await mount(<AccountPage tab="github" onTab={() => {}} />);
     expect([...host.querySelectorAll("button")].some((b) => b.textContent === "Sign in with GitHub")).toBe(true);
+    expect(host.querySelector(".game-card b")?.textContent).toBe("Not signed in");
     act(() => root!.unmount());
     const bar = await mount(nav());
     expect(bar.querySelector(".tab-account")?.getAttribute("aria-label")).toBe("GitHub account");
@@ -57,6 +58,8 @@ describe("Account", () => {
     const host = await mount(<AccountPage tab="github" onTab={() => {}} />);
     expect(host.querySelector(".acc-login")?.textContent).toBe("octo");
     expect(host.querySelectorAll(".acc-granted").length).toBe(1);
+    expect([...host.querySelectorAll(".acc-access-text b")].map((b) => b.textContent)).toEqual(["Public repository access", "Gist access", "Private repository access"]);
+    expect(host.querySelector(".acc-avatar.letter")?.textContent).toBe("O");
     expect([...host.querySelectorAll("button")].filter((b) => b.textContent === "Allow").length).toBe(2);
     act(() => root!.unmount());
 
@@ -66,8 +69,26 @@ describe("Account", () => {
     act(() => root!.unmount());
 
     const list = await mount(<AccountPage tab="reports" onTab={() => {}} />);
-    expect(list.querySelector(".acc-report b")?.textContent).toBe("Crash on start");
+    expect(list.querySelector(".acc-report .acc-report-title b")?.textContent).toBe("Crash on start");
+    expect(list.querySelector(".acc-report-mod")?.textContent).toBe("Better HUD");
+    expect(list.querySelector(".acc-report.new")).not.toBeNull();
     expect(list.querySelector(".acc-unread")?.textContent).toBe("2");
     expect(list.querySelector(".acc-state")?.textContent).toBe("Open");
+  });
+
+  it("asks GitHub for a sized avatar and falls back to the first letter when it fails to load", async () => {
+    const withPic = { ...ACCOUNT, avatar: "https://avatars.githubusercontent.com/u/1?v=4" };
+    invoke.mockImplementation(async (cmd: string) => {
+      if (cmd === "github_account" || cmd === "github_verify") return withPic;
+      if (cmd === "github_reports" || cmd === "github_reports_refresh") return [];
+      return undefined;
+    });
+    await act(async () => { await startGitHub(); });
+    const host = await mount(<AccountPage tab="github" onTab={() => {}} />);
+    const img = host.querySelector<HTMLImageElement>("img.acc-avatar")!;
+    expect(new URL(img.src).searchParams.get("s")).toBe("96");
+    await act(async () => { img.dispatchEvent(new Event("error")); });
+    expect(host.querySelector("img.acc-avatar")).toBeNull();
+    expect(host.querySelector(".acc-avatar.letter")?.textContent).toBe("O");
   });
 });
