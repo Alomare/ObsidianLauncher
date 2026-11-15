@@ -17,6 +17,7 @@ import { updateSettings, useAppSettings } from "./settings";
 import { motionOn, systemReducesMotion } from "./theme";
 import type { AppSettings, Snapshot } from "./types";
 import { UpdatesTab } from "./UpdatesTab";
+import { usePad } from "./pad/pad";
 
 type OtherPatch = { name: string; bundle: string; size: number; modified: number | null };
 type SystemInfo = {
@@ -187,6 +188,8 @@ function SystemTab({ snap }: { snap: Snapshot }) {
         </Rows>
       </Group>
 
+      <ControllerGroup settings={settings} />
+
       <Group title={t("app.settings.data")} help="how-obsidian-works#where-your-files-are">
         <div className="game-card set-data">
           <FolderIcon />
@@ -228,6 +231,26 @@ function SystemTab({ snap }: { snap: Snapshot }) {
           onCancel={() => setRemoving(false)} onConfirm={removeOthers} />
       )}
     </div>
+  );
+}
+
+/** The controller: which button pictures show, and how fast the left stick moves the cursor. */
+function ControllerGroup({ settings }: { settings: AppSettings }) {
+  const pad = usePad();
+  return (
+    <Group title={t("app.settings.controller")} help="tab-settings#controller">
+      <Rows label={t("app.settings.controller")}>
+        <Row title={t("app.settings.padGlyphs")} note={pad.name ? t("app.settings.padFound", pad.name) : t("app.settings.padNone")}>
+          <Segmented<AppSettings["padGlyphs"]> value={settings.padGlyphs} label={t("app.settings.padGlyphs")}
+            options={(["auto", "xbox", "playstation", "nintendo"] as const).map((v) => [v, t(`app.settings.padGlyphs.${v}`)])}
+            onChange={(padGlyphs) => updateSettings({ padGlyphs })} />
+        </Row>
+        <Row title={t("app.settings.padSpeed")} note={t("app.settings.padSpeedHint")}>
+          <Segmented label={t("app.settings.padSpeed")} value={settings.padSpeed} onChange={(padSpeed) => updateSettings({ padSpeed })}
+            options={([50, 75, 100, 150, 200] as const).map((v) => [v, `${v} %`])} />
+        </Row>
+      </Rows>
+    </Group>
   );
 }
 

@@ -1,4 +1,4 @@
-//! The app's own settings (appearance, language, updates, game folder) in `<data>/app.json`.
+//! The app's own settings (appearance, language, updates, game folder, controller) in `<data>/app.json`.
 //! They belong to the app, not to a profile. Window size and position are kept by the
 //! window-state plugin.
 
@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 
 const FILE: &str = "app.json";
 pub const SCALES: [u32; 4] = [90, 100, 110, 125];
+/// Controller cursor speed in percent of the normal speed.
+pub const PAD_SPEED: std::ops::RangeInclusive<u32> = 25..=300;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -38,6 +40,19 @@ pub enum UpdateMode {
     Auto,
 }
 
+/// The button pictures shown for a controller: picked from the controller found, or set by hand (a pad
+/// that reaches the app as another kind, through Steam Input for one, shows the wrong ones otherwise).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PadGlyphs {
+    Xbox,
+    PlayStation,
+    Nintendo,
+    #[default]
+    #[serde(other)]
+    Auto,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AppSettings {
@@ -54,6 +69,9 @@ pub struct AppSettings {
     pub game_dir: Option<PathBuf>,
     /// Play asks first when no mods are deployed, as the game would start vanilla.
     pub ask_vanilla_play: bool,
+    /// Controller: the button pictures, and the speed of the cursor the left stick moves.
+    pub pad_glyphs: PadGlyphs,
+    pub pad_speed: u32,
 }
 
 impl Default for AppSettings {
@@ -67,6 +85,8 @@ impl Default for AppSettings {
             updates: UpdateMode::Prompt,
             game_dir: None,
             ask_vanilla_play: true,
+            pad_glyphs: PadGlyphs::Auto,
+            pad_speed: 100,
         }
     }
 }
@@ -78,6 +98,7 @@ impl AppSettings {
         if !SCALES.contains(&s.scale) {
             s.scale = 100;
         }
+        s.pad_speed = s.pad_speed.clamp(*PAD_SPEED.start(), *PAD_SPEED.end());
         s
     }
 
@@ -119,6 +140,19 @@ mod tests {
         std::fs::write(t.path().join(FILE), r#"{"theme":"dark","scale":125,"language":"pt-BR"}"#).unwrap();
         let s = AppSettings::load(t.path());
         assert_eq!((s.theme, s.scale, s.language.as_deref()), (Theme::Default, 125, Some("pt-BR")));
+    }
+
+    #[test]
+    fn controller_settings_default_and_stay_in_range() {
+        let t = tempfile::tempdir().unwrap();
+        let d = AppSettings::load(t.path());
+        assert_eq!((d.pad_glyphs, d.pad_speed), (PadGlyphs::Auto, 100));
+        std::fs::write(t.path().join(FILE), r#"{"padGlyphs":"playstation","padSpeed":9000}"#).unwrap();
+        let s = AppSettings::load(t.path());
+        assert_eq!((s.pad_glyphs, s.pad_speed), (PadGlyphs::PlayStation, 300));
+        std::fs::write(t.path().join(FILE), r#"{"padGlyphs":"sega","padSpeed":0}"#).unwrap();
+        let s = AppSettings::load(t.path());
+        assert_eq!((s.pad_glyphs, s.pad_speed), (PadGlyphs::Auto, 25), "an unknown kind is Auto, a slow speed the slowest");
     }
 
     #[test]

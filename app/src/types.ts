@@ -52,6 +52,8 @@ export type AppSettings = {
   updates: "manual" | "prompt" | "auto"; gameDir: string | null;
   /** Play asks first when no mods are deployed (PlayPrompt.tsx). */
   askVanillaPlay: boolean;
+  /** Controller: the button pictures, and the cursor speed in percent (25 to 300). */
+  padGlyphs: "auto" | "xbox" | "playstation" | "nintendo"; padSpeed: number;
 };
 
 export type CmdError = { code: string; message: string };

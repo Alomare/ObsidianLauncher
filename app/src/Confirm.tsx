@@ -4,6 +4,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { t } from "./i18n";
+import { PadGlyph } from "./pad/PadGlyph";
 
 /** `link` is a way elsewhere, set apart on the left as a text link so the two buttons stay the answer. */
 type Props = { title: string; text: string; confirm: string; cancel?: string; onConfirm: () => void; onCancel: () => void; tone?: "warn" | "go"; children?: ReactNode; link?: { label: string; onClick: () => void } };
@@ -24,7 +25,7 @@ export function Confirm({ title, text, confirm, cancel, onConfirm, onCancel, ton
         {children}
         <div className="modal-foot">
           {link && <button className="link foot-link" onClick={link.onClick}>{link.label}</button>}
-          <button className="btn" onClick={onCancel}>{cancel ?? t("app.cancel")}</button>
+          <button data-pad-back className="btn" onClick={onCancel}>{cancel ?? t("app.cancel")}<PadGlyph role="east" /></button>
           <button className={tone === "go" ? "btn play" : "btn danger"} ref={ok} onClick={onConfirm}>{confirm}</button>
         </div>
       </div>

@@ -8,6 +8,7 @@ import { run } from "./api";
 import { CloseIcon, ShieldIcon } from "./Icons";
 import { t } from "./i18n";
 import type { Snapshot } from "./types";
+import { PadGlyph } from "./pad/PadGlyph";
 
 type Row = { key: "blockPublic" | "blockAchievements" | "freezeProgress" | "hideClientMods"; command: string; text: string };
 
@@ -39,7 +40,7 @@ export function GuardrailsDialog({ snap, onClose }: { snap: Snapshot; onClose: (
       <div className="modal guardrails" role="dialog" aria-modal="true" aria-label={t("app.guardrails.title")}>
         <div className="head">
           <h2 className="cap"><ShieldIcon filled={guardsOn(snap) > 0} />{t("app.guardrails.title")}</h2>
-          <button className="bare close" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /></button>
+          <button data-pad-back className="bare close" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /><PadGlyph role="east" /></button>
         </div>
         <p className="muted lead">{t("app.guardrails.lead")}</p>
         <ul className="guard-list">

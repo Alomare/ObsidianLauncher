@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { t } from "../i18n";
 import type { SaveRow } from "./types";
+import { PadGlyph } from "../pad/PadGlyph";
 
 /** How long the Delete button stays off after the dialog opens. */
 export const DELETE_WAIT_S = 5;
@@ -57,7 +58,7 @@ export function DeleteOfficial({ row, onDelete, onCancel }: Props) {
             onChange={(e) => setTyped(e.target.value)} onPaste={(e) => e.preventDefault()} onDrop={(e) => e.preventDefault()} />
         </label>
         <div className="modal-foot">
-          <button type="button" className="btn" onClick={onCancel} disabled={busy}>{t("app.cancel")}</button>
+          <button data-pad-back type="button" className="btn" onClick={onCancel} disabled={busy}>{t("app.cancel")}<PadGlyph role="east" /></button>
           <button type="button" className="btn danger" disabled={!ready} onClick={go}>
             {left > 0 ? t("app.saves.deleteWait", left) : t("app.saves.delete")}
           </button>

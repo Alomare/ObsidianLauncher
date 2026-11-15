@@ -19,6 +19,7 @@ import { Group } from "../SettingRow";
 import { applySettings } from "../settings";
 import type { AppSettings, Snapshot } from "../types";
 import "./account.css";
+import { PadGlyph } from "../pad/PadGlyph";
 
 export type AccountTab = "github" | "reports" | "sync";
 const TABS: AccountTab[] = ["github", "reports", "sync"];
@@ -92,7 +93,7 @@ function Signing() {
       <div className="set-btns">
         <button className="btn small" onClick={() => copyCode(signing.userCode)}><CopyIcon />{t("app.account.copy")}</button>
         <button className="btn small" onClick={() => open(signing.verificationUri)}><OutboundIcon />{t("app.account.openPage")}</button>
-        <button className="btn small" onClick={cancelSignIn}>{t("app.cancel")}</button>
+        <button data-pad-back className="btn small" onClick={cancelSignIn}>{t("app.cancel")}<PadGlyph role="east" /></button>
       </div>
     </>
   );
@@ -249,7 +250,7 @@ function Thread({ report, onBack }: { report: Report; onBack: () => void }) {
   return (
     <div className="acc-thread">
       <div className="acc-thread-head">
-        <button className="btn small acc-back" onClick={onBack}><ChevronIcon />{t("app.account.back")}</button>
+        <button data-pad-back className="btn small acc-back" onClick={onBack}><ChevronIcon />{t("app.account.back")}<PadGlyph role="east" /></button>
         <div className="acc-thread-title">
           <h2>{report.title}</h2>
           <StateBadge state={report.state} />

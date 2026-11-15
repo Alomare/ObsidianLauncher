@@ -11,6 +11,7 @@ import { t } from "../i18n";
 import { notify } from "../notices";
 import { openUrl } from "../opener";
 import "./github.css";
+import { PadGlyph } from "../pad/PadGlyph";
 
 type Problem = { code: string; detail: string };
 type Checked = { repo: string; problems: Problem[]; preview: { id: string; name: string; summary: string; version: string; scope: string; authors: string[] } | null };
@@ -68,7 +69,7 @@ export function SubmitDialog({ onClose }: { onClose: () => void }) {
         <p>{t("app.submit.signInText")}</p>
         {signing && <p className="rf-code">{t("app.report.typeCode")} <b className="mono">{signing.userCode}</b></p>}
         <div className="modal-foot">
-          <button className="btn" onClick={onClose}>{t("app.cancel")}</button>
+          <button data-pad-back className="btn" onClick={onClose}>{t("app.cancel")}<PadGlyph role="east" /></button>
           <button className="btn play" onClick={() => signIn()} disabled={!!signing}><GitHubIcon />{signing ? t("app.report.signingIn") : t("app.report.signIn")}</button>
         </div>
       </>
@@ -111,7 +112,7 @@ export function SubmitDialog({ onClose }: { onClose: () => void }) {
           </label>
         )}
         <div className="modal-foot">
-          <button className="btn" onClick={onClose}>{t("app.cancel")}</button>
+          <button data-pad-back className="btn" onClick={onClose}>{t("app.cancel")}<PadGlyph role="east" /></button>
           <button className="btn play" onClick={send} disabled={!ok || sending}>{t("app.submit.send")}</button>
         </div>
       </>

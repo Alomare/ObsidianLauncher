@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { applyAppearance, motionOn } from "../theme";
 import type { AppSettings } from "../types";
 
-const base: AppSettings = { theme: "light", scale: 125, text: "large", motion: null, language: null, updates: "prompt", gameDir: null, askVanillaPlay: true };
+const base: AppSettings = { theme: "light", scale: 125, text: "large", motion: null, language: null, updates: "prompt", gameDir: null, askVanillaPlay: true, padGlyphs: "auto", padSpeed: 100 };
 
 describe("applyAppearance", () => {
   it("sets_attributes_and_scale", () => {

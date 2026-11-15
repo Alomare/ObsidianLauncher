@@ -8,6 +8,7 @@ import { CloseIcon, FolderIcon, WarnIcon } from "./Icons";
 import { t } from "./i18n";
 import { notify } from "./notices";
 import type { Snapshot } from "./types";
+import { PadGlyph } from "./pad/PadGlyph";
 
 const KINDS: Record<string, string> = {
   "binaries/x64/helldivers.exe": "exe",
@@ -39,7 +40,7 @@ export function BuildDialog({ snap, onClose }: { snap: Snapshot; onClose: () => 
       <div className="modal build" role="dialog" aria-modal="true" aria-label={t("app.build.title")}>
         <div className="head">
           <h2 className="cap"><WarnIcon />{t("app.build.title")}</h2>
-          <button className="bare close" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /></button>
+          <button data-pad-back className="bare close" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /><PadGlyph role="east" /></button>
         </div>
         <p className="lead">{t("app.build.lead")}</p>
         {changes.length > 0 && (

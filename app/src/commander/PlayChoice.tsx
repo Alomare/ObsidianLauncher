@@ -15,6 +15,7 @@ import type { SaveList, SaveRow } from "../saves/types";
 import type { Snapshot } from "../types";
 import { reloadChoices, type Choices, type WarChoice } from "./choices";
 import "./play.css";
+import { PadGlyph } from "../pad/PadGlyph";
 
 type Done = { snapshot: Snapshot };
 
@@ -143,7 +144,7 @@ export function PlayChoice({ snap, choices, onClose }: { snap: Snapshot; choices
         </div>
         <div className="modal-foot">
           {running && <span className="pc-warn">{t("app.commander.gameRunning")}</span>}
-          <button className="btn" onClick={onClose}>{t("app.cancel")}</button>
+          <button data-pad-back className="btn" onClick={onClose}>{t("app.cancel")}<PadGlyph role="east" /></button>
           <button className="btn play" disabled={busy || running || !list || (!chosen && !save)} onClick={select}>{t("app.play.select")}</button>
         </div>
       </div>

@@ -16,6 +16,7 @@ import { ArsenalTab } from "./ArsenalTab";
 import { rankArt } from "./art";
 import { choiceId, draftOf, fieldEnabled, ladderState, parseWhole, playTime, rankProgress, slotChoices, stage, topXp } from "./logic";
 import { COSMETIC_SLOTS, type CosmeticSlot, type Edit, type EditorState, type ModChoice, type ModFieldState, type ModSection, type ModText, type SavesDone } from "./types";
+import { PadGlyph } from "../pad/PadGlyph";
 
 type Tab = "overview" | "character" | "arsenal" | "mods";
 const TABS: Tab[] = ["overview", "character", "arsenal", "mods"];
@@ -93,7 +94,7 @@ export function SaveEditor({ id, snap, onClose, startRename = false, home = 0 }:
     back();
   }, [home]); // eslint-disable-line react-hooks/exhaustive-deps
   const backBtn = (
-    <button className="btn icon head-tool ed-back" onClick={back} aria-label={t("app.saves.backToList")} data-tip={t("app.saves.backToList")}><ArrowIcon /></button>
+    <button data-pad-back className="btn icon head-tool ed-back" onClick={back} aria-label={t("app.saves.backToList")} data-tip={t("app.saves.backToList")}><ArrowIcon /><PadGlyph role="east" /></button>
   );
 
   if (!draft) {

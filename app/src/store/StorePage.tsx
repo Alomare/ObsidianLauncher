@@ -21,6 +21,7 @@ import { Select } from "../Select";
 import { ImageViewer } from "../Thumb";
 import type { Scope, Snapshot } from "../types";
 import { install, isStarred, loadStarred, loadStore, markOf, toggleStar, useStore, type StoreMark, type StoreMod, type StoreOption } from "./storeIndex";
+import { PadGlyph } from "../pad/PadGlyph";
 
 const FILTER_SCOPES: Scope[] = ["library", "client", "session", "expansion"];
 type Sort = "az" | "za" | "scope" | "new" | "updated" | "stars" | "random";
@@ -437,7 +438,7 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
       <div className="mband">
         {band && <span className="mb-pic" aria-hidden="true" style={{ backgroundImage: `url("${band}")` }} />}
         {m.banner && <Zoom path={m.banner} className="mb-zoom">{null}</Zoom>}
-        <span className="back-wrap"><button className="btn small back" onClick={() => onOpen(null)}><ChevronIcon />{t("app.store.back")}</button></span>
+        <span className="back-wrap"><button data-pad-back className="btn small back" onClick={() => onOpen(null)}><ChevronIcon />{t("app.store.back")}<PadGlyph role="east" /></button></span>
       </div>
       <div className="mcol">
         <div className="mid">

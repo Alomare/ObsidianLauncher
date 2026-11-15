@@ -20,6 +20,7 @@ import { reloadChoices, useChoices } from "./choices";
 import { FirewallDialog, useFirewall } from "./firewall";
 import { PackageIcon, ThisPcIcon, WallIcon } from "./icons";
 import "./commander.css";
+import { PadGlyph } from "../pad/PadGlyph";
 
 /** What Commander keeps on this PC, for Remove All Commander Data (`commander_footprint`). */
 type Footprint = { package: string | null; hosted: number; joined: number; saves: { id: string; name: string }[]; namesFile: boolean; firewallRules: number; bytes: number };
@@ -548,7 +549,7 @@ function JoinDialog({ blocked, onAllow, onClose, onJoin }: { blocked: boolean; o
       <div className="modal cmd-join-dialog" role="dialog" aria-modal="true" aria-label={t("app.commander.joinLan")}>
         <div className="head">
           <h2 className="cap">{t("app.commander.joinLan")}</h2>
-          <button className="bare close" aria-label={t("app.close")} data-tip={t("app.close")} onClick={onClose}><CloseIcon /></button>
+          <button data-pad-back className="bare close" aria-label={t("app.close")} data-tip={t("app.close")} onClick={onClose}><CloseIcon /><PadGlyph role="east" /></button>
         </div>
         <p className="muted lead">{t("app.commander.joinLead")}</p>
         <div className="cmd-found" role="list" aria-label={t("app.commander.thisNetwork")} aria-busy={scanning}>

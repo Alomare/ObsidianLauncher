@@ -5,6 +5,7 @@ import logo from "./assets/logo.png";
 import { CloseIcon, DiscordIcon, ExternalIcon, KofiIcon } from "./Icons";
 import { t } from "./i18n";
 import { LINKS } from "./links";
+import { PadGlyph } from "./pad/PadGlyph";
 
 const CREDITS: { name: string; by: string; url: string; license: string; what: string }[] = [
   { name: "LuaJIT", by: "Mike Pall", url: "https://luajit.org", license: "MIT", what: "app.about.forLuajit" },
@@ -33,7 +34,7 @@ export function AboutDialog({ version, onClose }: { version: string; onClose: ()
             <b className="cap">Obsidian</b>
             <span>v{version}</span>
           </div>
-          <button className="bare close" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /></button>
+          <button data-pad-back className="bare close" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /><PadGlyph role="east" /></button>
         </div>
         <p className="muted">{t("app.about.blurb")}</p>
         <div className="row-btns">

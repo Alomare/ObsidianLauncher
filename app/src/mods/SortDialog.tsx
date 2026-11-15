@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { CloseIcon } from "../Icons";
 import { t } from "../i18n";
+import { PadGlyph } from "../pad/PadGlyph";
 
 export type RuleKind = "before" | "after" | "before_patches" | "after_patches" | "first" | "last";
 export type SortRule = { mod: string; kind: RuleKind; other?: string };
@@ -93,7 +94,7 @@ export function SortDialog({ plan, name, off, onApply, onClose }: Props) {
       <div className="modal sort" role="dialog" aria-modal="true" aria-label={t("app.sort.title")}>
         <div className="head">
           <h2 className="cap">{t("app.sort.title")}</h2>
-          <button className="bare close" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /></button>
+          <button data-pad-back className="bare close" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /><PadGlyph role="east" /></button>
         </div>
         {lead && <p className="lead">{lead}</p>}
         {n > 0 && (
@@ -141,7 +142,7 @@ export function SortDialog({ plan, name, off, onApply, onClose }: Props) {
         <div className="modal-foot">
           {n > 0 ? (
             <>
-              <button className="btn" onClick={onClose}>{t("app.cancel")}</button>
+              <button data-pad-back className="btn" onClick={onClose}>{t("app.cancel")}<PadGlyph role="east" /></button>
               <button className="btn play" ref={main} onClick={onApply}>{t("app.sort.apply")}</button>
             </>
           ) : (

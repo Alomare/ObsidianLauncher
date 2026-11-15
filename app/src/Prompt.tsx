@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { t } from "./i18n";
+import { PadGlyph } from "./pad/PadGlyph";
 
 type Props = { title: string; label: string; initial?: string; confirm: string; onConfirm: (v: string) => Promise<boolean>; onCancel: () => void };
 
@@ -31,7 +32,7 @@ export function Prompt({ title, label, initial = "", confirm, onConfirm, onCance
           <input ref={input} value={v} maxLength={40} onChange={(e) => setV(e.target.value)} spellCheck={false} />
         </label>
         <div className="modal-foot">
-          <button type="button" className="btn" onClick={onCancel}>{t("app.cancel")}</button>
+          <button data-pad-back type="button" className="btn" onClick={onCancel}>{t("app.cancel")}<PadGlyph role="east" /></button>
           <button type="submit" className="btn play" disabled={!v.trim() || busy}>{confirm}</button>
         </div>
       </form>

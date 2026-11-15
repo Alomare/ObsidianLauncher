@@ -1,5 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { deploy, play, purge } from "./actions";
 import { loadSnapshot, refresh, useSnapshot } from "./api";
 import { useLocked } from "./busy";
@@ -18,6 +18,8 @@ import { WikiPage } from "./WikiPage";
 import { SettingsPage, type SettingsTab } from "./SettingsPage";
 import { AccountPage, type AccountTab } from "./account/AccountPage";
 import { startGitHub } from "./github";
+import { onPadAction, startPad } from "./pad/pad";
+import type { Tab } from "./nav";
 import { Notices } from "./NoticeList";
 import { asksBeforePlay, PlayPrompt } from "./PlayPrompt";
 import { SavesPage } from "./saves/SavesPage";
@@ -43,6 +45,26 @@ export default function App() {
   const cancelPlay = useCallback(() => setAskPlay(false), []);
   const [askDeploy, setAskDeploy] = useState(false);
   const cancelDeploy = useCallback(() => setAskDeploy(false), []);
+  // A tab clicked again goes back to the start of it (the Store list, the Saves list, the WARS home).
+  const openTab = (to: Tab) => {
+    if (to === "settings" && update.phase === "found") setSettingsTab("updates");
+    if (to === "commander" && tab === "commander") setCommanderHome((n) => n + 1);
+    if (to === "store" && tab === "store") setStoreHome((n) => n + 1);
+    if (to === "saves" && tab === "saves") setSavesHome((n) => n + 1);
+    setTab(to);
+  };
+  // The controller triggers go through the tabs in the order of the bar, round at the ends.
+  const openTabRef = useRef(openTab);
+  openTabRef.current = openTab;
+  useEffect(() => {
+    const order: Tab[] = ["home", "store", "mods", "saves", "commander", "wiki", "account", "settings"];
+    const step = (dir: number) => () => {
+      const at = order.indexOf(tab);
+      openTabRef.current(order[(at + dir + order.length) % order.length]);
+    };
+    const offs = [onPadAction("tabPrev", step(-1)), onPadAction("tabNext", step(1))];
+    return () => offs.forEach((f) => f());
+  }, [tab]);
   // The Saves tab reads the save files, so it waits for the first visit, and then stays mounted to keep edits under way.
   const [savesOpened, setSavesOpened] = useState(false);
   useEffect(() => { if (tab === "saves") setSavesOpened(true); }, [tab]);
@@ -88,6 +110,7 @@ export default function App() {
     loadSettings();
     loadSnapshot();
     startGitHub();
+    startPad();
     // The browser menu (Back, Reload, Inspect) has no place in the app; text fields keep theirs.
     const menu = (e: MouseEvent) => !(e.target as Element).closest?.("input, textarea") && e.preventDefault();
     document.addEventListener("contextmenu", menu);
@@ -105,7 +128,7 @@ export default function App() {
   if (!settings) return null;
   return (
     <div className="app">
-      <NavBar tab={tab} onTab={(to) => { if (to === "settings" && update.phase === "found") setSettingsTab("updates"); if (to === "commander" && tab === "commander") setCommanderHome((n) => n + 1); if (to === "store" && tab === "store") setStoreHome((n) => n + 1); if (to === "saves" && tab === "saves") setSavesHome((n) => n + 1); setTab(to); }} snap={snap} busy={busy} updateFound={update.phase === "found"} wave={wave} onWaveEnd={() => setWave(null)}
+      <NavBar tab={tab} onTab={openTab} snap={snap} busy={busy} updateFound={update.phase === "found"} wave={wave} onWaveEnd={() => setWave(null)}
         onPlay={() => (snap && asksBeforePlay(snap, settings) ? setAskPlay(true) : startPlay())} />
       <main className={tab === "home" || tab === "store" || tab === "wiki" || tab === "commander" ? "page bleed" : "page"}>
         {tab === "home" && <div className="view" key="home"><HomePage /></div>}

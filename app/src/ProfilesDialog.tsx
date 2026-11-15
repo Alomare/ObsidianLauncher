@@ -12,6 +12,7 @@ import { exportProfile, importProfile } from "./profileZip";
 import { Prompt } from "./Prompt";
 import { Thumb } from "./Thumb";
 import type { ProfileRow, Snapshot } from "./types";
+import { PadGlyph } from "./pad/PadGlyph";
 
 type Ask = { kind: "new" } | { kind: "duplicate" | "rename" | "delete"; name: string } | null;
 
@@ -56,7 +57,7 @@ export function ProfilesDialog({ snap, onClose }: { snap: Snapshot; onClose: () 
           <button className="btn small" onClick={() => setAsk({ kind: "new" })}><PlusIcon />{t("app.profiles.new")}</button>
           <button className="btn small" onClick={importProfile} data-tip={t("app.profiles.importHint")}><ImportIcon />{t("app.profiles.import")}</button>
         </div>
-        <button className="bare close" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /></button>
+        <button data-pad-back className="bare close" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /><PadGlyph role="east" /></button>
       </div>
       <p className="muted lead">{t("app.profiles.lead")}</p>
       <ul className="profile-list">

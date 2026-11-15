@@ -23,6 +23,7 @@ import { padButtons } from "./padButtons";
 import type { DrawerView } from "./ModsPage";
 import { clampNumber } from "./optionValue";
 import { openUrl } from "../opener";
+import { PadGlyph } from "../pad/PadGlyph";
 
 type Props = {
   view: DrawerView;
@@ -63,7 +64,7 @@ function ModDrawer({ mod, mods, conflicts, names, onOpen, onClose }: { mod: ModR
           </div>
         </div>
         <div className="dh-end">
-          <button className="bare" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /></button>
+          <button data-pad-back className="bare" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /><PadGlyph role="east" /></button>
           <button className="bare dh-remove" onClick={() => setAsk(true)} aria-label={t("app.drawer.remove")} data-tip={t("app.drawer.remove")}><TrashIcon /></button>
         </div>
       </div>
@@ -560,7 +561,7 @@ function ConflictsView({ conflicts, order, names, focus, onClose }: { conflicts:
           <h2 className="cap">{t("app.drawer.conflicts")}</h2>
           <div className="meta">{t("app.drawer.conflictsMeta")}</div>
         </div>
-        <button className="bare" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /></button>
+        <button data-pad-back className="bare" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /><PadGlyph role="east" /></button>
       </div>
       <div className="dbody">
         {list.length === 0 && <p className="muted pad">{t("app.drawer.noConflicts")}</p>}

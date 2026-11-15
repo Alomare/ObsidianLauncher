@@ -5,6 +5,8 @@ import { type ComponentType, useEffect, useLayoutEffect, useRef, useState } from
 import { playingWar, playLabel, reloadChoices, useChoices } from "./commander/choices";
 import { CommanderIcon, MenuIcon } from "./commander/icons";
 import { PlayChoice } from "./commander/PlayChoice";
+import { onPadAction } from "./pad/pad";
+import { PadGlyph } from "./pad/PadGlyph";
 import { BuildDialog } from "./BuildDialog";
 import { GuardrailsDialog, guardrailsSummary, guardsOn } from "./GuardrailsDialog";
 import { BookIcon, CheckIcon, CogIcon, HomeIcon, ModsIcon, PlayIcon, SaveIcon, ShieldIcon, StoreIcon, UserIcon, WarnIcon } from "./Icons";
@@ -48,10 +50,19 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
   const accountTip = account ? t("app.account.navIn", account.login) : t("app.account.navOut");
   const [choosing, setChoosing] = useState(false);
   useEffect(() => { reloadChoices(); }, [snap]);
+  // The controller: the north button plays, Start opens the choice of war and save.
+  const padPlay = useRef(() => {});
+  padPlay.current = () => { if (!locked) onPlay(); };
+  const padChoose = useRef(() => {});
+  useEffect(() => {
+    const offs = [onPadAction("play", () => padPlay.current()), onPadAction("options", () => padChoose.current())];
+    return () => offs.forEach((f) => f());
+  }, []);
   const war = playingWar(choices);
   const label = playLabel(war?.name ?? null, !!snap?.modded);
   // The choice opens whenever there is something to choose: a custom war beside the official one, or a second save.
   const split = (choices?.wars.length ?? 0) > 0 || (choices?.saves ?? 0) > 1;
+  padChoose.current = () => { if (split && snap && !missing) setChoosing(true); };
   // Yellow with no mods deployed, green with mods: the color says it, the tooltip says it in words.
   const tone = snap?.modded ? " modded" : "";
   const playButton = (
@@ -61,6 +72,7 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
         <span className="play-word">{label.play}</span>
         {label.war && <span className="play-war">{label.war}</span>}
       </span>
+      <PadGlyph role="north" />
     </button>
   );
   // The glow runs from the end of Play to the end of the first tabs, so it never reaches them.
@@ -78,6 +90,7 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
     <nav className="nav">
       {wave && <span key={wave.n} ref={waveRef} className={`nav-wave ${wave.tone}`} aria-hidden="true" onAnimationEnd={onWaveEnd} />}
       <div className="tabs" role="tablist" ref={tabsRef}>
+        <PadGlyph role="lt" />
         {TABS.map(([id, Icon]) => (
           <button key={id} role="tab" aria-selected={tab === id} aria-label={t(`app.nav.${id}`)} data-tip={t(`app.nav.${id}`)} className={tab === id ? "tab cur" : "tab"} onClick={() => onTab(id)}>
             <Icon />
@@ -113,6 +126,7 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
               <button className={`btn play play-more${tone}`} onClick={() => setChoosing(true)} disabled={!snap || missing} aria-haspopup="dialog" aria-expanded={choosing}
                 aria-label={t("app.play.choose")} data-tip={t("app.play.choose")}>
                 <MenuIcon />
+                <PadGlyph role="start" />
               </button>
             </div>
           ) : playButton}
@@ -134,6 +148,7 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
           <CogIcon />
           {updateFound && <i className="tab-dot" aria-hidden="true" />}
         </button>
+        <PadGlyph role="rt" />
       </div>
     </nav>
   );
