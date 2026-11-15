@@ -7,7 +7,8 @@ import { CommanderIcon, MenuIcon } from "./commander/icons";
 import { PlayChoice } from "./commander/PlayChoice";
 import { BuildDialog } from "./BuildDialog";
 import { GuardrailsDialog, guardrailsSummary, guardsOn } from "./GuardrailsDialog";
-import { BookIcon, CogIcon, HomeIcon, ModsIcon, PlayIcon, SaveIcon, ShieldIcon, StoreIcon, WarnIcon } from "./Icons";
+import { BookIcon, CheckIcon, CogIcon, HomeIcon, ModsIcon, PlayIcon, SaveIcon, ShieldIcon, StoreIcon, UserIcon, WarnIcon } from "./Icons";
+import { useGitHub } from "./github";
 import { t } from "./i18n";
 import type { Tab } from "./nav";
 import type { Snapshot } from "./types";
@@ -43,6 +44,8 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
   // What Play starts: the war and whether the last deploy put mods in. With wars or saves to choose from,
   // Play splits, and the narrow part opens the Play choice.
   const choices = useChoices();
+  const account = useGitHub().account;
+  const accountTip = account ? t("app.account.navIn", account.login) : t("app.account.navOut");
   const [choosing, setChoosing] = useState(false);
   useEffect(() => { reloadChoices(); }, [snap]);
   const war = playingWar(choices);
@@ -119,6 +122,11 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
       <div className="tabs end-tabs" role="tablist">
         <button role="tab" aria-selected={tab === "wiki"} aria-label={t("app.nav.wiki")} data-tip={t("app.nav.wiki")} className={tab === "wiki" ? "tab cur" : "tab"} onClick={() => onTab("wiki")}>
           <BookIcon />
+        </button>
+        <button role="tab" aria-selected={tab === "account"} aria-label={accountTip} data-tip={accountTip}
+          className={`tab tab-account${tab === "account" ? " cur" : ""}`} onClick={() => onTab("account")}>
+          <UserIcon />
+          {account && <i className="tab-check" aria-hidden="true"><CheckIcon /></i>}
         </button>
         <button role="tab" aria-selected={tab === "settings"} aria-label={updateFound ? `${t("app.nav.settings")}: ${t("app.status.updateFound")}` : t("app.nav.settings")}
           className={`tab tab-settings${tab === "settings" ? " cur" : ""}${updateFound ? " lit" : ""}`} onClick={() => onTab("settings")}

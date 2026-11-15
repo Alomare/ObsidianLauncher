@@ -18,6 +18,8 @@ export type StoreMod = {
   icon: string | null; banner: string | null; released: string | null; added: string | null; versions: StoreVersion[];
   /** Missing from indexes built before 2026-11-14. */
   authors?: string[]; verified?: boolean;
+  /** Missing from indexes built before 2026-11-15. `private`: early access, from a private repository. */
+  stars?: number; private?: boolean;
 };
 export type StoreState = { mods: StoreMod[] | null; offline: boolean; loading: boolean; error: string | null; installing: string[] };
 
@@ -45,6 +47,11 @@ export async function loadStore(again = false) {
   } catch (e) {
     set({ loading: false, error: errorText(e) });
   }
+}
+
+/** The star count of a mod after the player starred or unstarred it, until the index catches up. */
+export function setStars(id: string, stars: number) {
+  if (state.mods) set({ mods: state.mods.map((m) => (m.id === id ? { ...m, stars: Math.max(0, stars) } : m)) });
 }
 
 export type StoreMark = "none" | "installed" | "update" | "installing";

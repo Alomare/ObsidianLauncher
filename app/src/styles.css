@@ -1179,10 +1179,15 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .saves .head :is(.btn.go):focus-visible { outline-color: #1b1b1b; outline-offset: -2px; }
 .saves-body { flex: 1; min-height: 0; display: flex; }
 .saves-list { min-width: 0; container-type: inline-size; }
-.saves-table { flex: 1 1 auto; }
+/* The header and the rows scroll together in one box, so they always have the same width: the titles sit over
+   their columns and the rows reach both sides of the list (no gutter kept for a scrollbar that is not there). */
+.saves-table { flex: 1 1 auto; overflow: auto; }
+.saves-table > .tbody { overflow: visible; scrollbar-gutter: auto; }
 .sth, .str { display: grid; grid-template-columns: 1.3rem minmax(0, 1fr) 4.5rem 6rem 7.5rem; gap: 0.5rem; align-items: center; padding: 0 0.8rem; }
-.sth { overflow: hidden; scrollbar-gutter: stable; padding-top: 0.35rem; padding-bottom: 0.35rem; font-size: var(--fs-xs); color: var(--mu); border-bottom: 1px solid var(--ln); background: color-mix(in srgb, #000 16%, transparent); }
+.sth { position: sticky; top: 0; z-index: 1; padding-top: 0.35rem; padding-bottom: 0.35rem; font-size: var(--fs-xs); color: var(--mu); border-bottom: 1px solid var(--ln); background: color-mix(in srgb, #000 16%, var(--p1)); }
 .sth .th-col { justify-content: flex-end; }
+/* The capitals end in letter spacing; take it back so a right-aligned title ends where the numbers end. */
+.sth .th-col:not(.left) { margin-right: -0.14em; }
 .sth .th-col.left { justify-content: flex-start; }
 .str { min-height: 3rem; border-bottom: 1px solid var(--ln); cursor: pointer; outline-offset: -2px; transition: background var(--fast); }
 .str:hover, .str.sel { background: var(--row); }
@@ -1204,7 +1209,7 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .sgroup-name { width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.8rem; border: 0; background: none; font: inherit; font-size: var(--fs-xs); font-weight: 700; color: var(--p1); text-align: left; cursor: pointer; }
 .sgroup-name svg { width: 0.9rem; height: 0.9rem; flex: none; transition: transform var(--fast); }
 .sgroup.folded .sgroup-name svg { transform: rotate(-90deg); }
-.sgroup-n { margin-left: auto; font-family: "Saira Variable", sans-serif; font-size: var(--fs-xs); letter-spacing: 0; color: var(--p1); }
+.sgroup-n { min-width: 1.3rem; padding: 0 0.3rem; font-family: "Saira Variable", sans-serif; font-size: var(--fs-xs); font-weight: 800; letter-spacing: 0; text-align: center; font-variant-numeric: tabular-nums; color: var(--p1); background: color-mix(in srgb, var(--p1) 8%, transparent); }
 .saves-none { margin: 0; padding: 0.7rem 0.8rem 0.7rem 2.6rem; font-size: var(--fs-md); border-bottom: 1px solid var(--ln); }
 @container (max-width: 30rem) {
   .sth, .str { grid-template-columns: 1.3rem minmax(0, 1fr) 4.5rem; }
@@ -1564,10 +1569,9 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .c-flag svg { position: absolute; top: 0.3rem; right: 0.3rem; width: 0.95rem; height: 0.95rem; }
 .c-flag.sm { width: 1.9rem; height: 1.9rem; }
 .c-flag.sm svg { top: 0.2rem; right: 0.2rem; width: 0.7rem; height: 0.7rem; }
-/* Obsidian Verified: a silver square with the Obsidian logo cut out of it. */
-.store-verified { flex: none; display: inline-block; width: 1.35rem; height: 1.35rem; background: linear-gradient(160deg, #f3f5f7, #a9afb7);
-  -webkit-mask: url("./assets/logo.png") center / 92% no-repeat, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
-  mask: url("./assets/logo.png") center / 92% no-repeat exclude, linear-gradient(#000 0 0); }
+/* Obsidian Verified: a white circle with a dark check, inline in front of the name, about the height of the capitals. */
+.store-verified { display: inline-block; width: 0.9em; height: 0.9em; margin-right: 0.35em; vertical-align: -0.1em; }
+:root[data-theme="light"] .store-verified circle { stroke: rgba(0, 0, 0, 0.35); stroke-width: 1px; r: 7.5px; }
 
 /* Obsidian Kit: icon, then the name over the scope, on plain grey; a soft outline sets the icon off */
 .kit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.9rem; }
@@ -1654,7 +1658,6 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 /* The name sits at the foot of the icon; a long name wraps upward. */
 .mid-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.3rem; }
 .mid-name { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 0.4rem 0.75rem; }
-.mid-name .store-verified { width: 1.6rem; height: 1.6rem; margin-bottom: 0.1rem; }
 .mby { color: var(--mu); font-size: var(--fs-sm); }
 .mid h1 { margin: 0; font-family: "Saira Variable", sans-serif; font-weight: 770; font-size: 2rem; line-height: 1.02; letter-spacing: 0.03em; text-transform: uppercase; overflow-wrap: anywhere; }
 .mid-name .store-tag { margin-bottom: 0.15rem; }

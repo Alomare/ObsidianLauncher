@@ -612,7 +612,14 @@ pub async fn update_mod(ctx: State<'_, Ctx>, id: String) -> CmdResult<ImportBatc
 /// GitHub is out of reach. Touches nothing in the library, so it takes no turn.
 #[tauri::command]
 pub async fn store_index(ctx: State<'_, Ctx>) -> CmdResult<obsidian_core::store::StoreIndex> {
-    Ok(obsidian_core::store::fetch(&ctx.data)?)
+    let mut index = obsidian_core::store::fetch(&ctx.data)?;
+    // Early access mods: only those GitHub lets the signed-in player read, and only with that access granted.
+    let private = obsidian_core::github::has_scope(&ctx.data, obsidian_core::github::PRIVATE);
+    let client = obsidian_core::github::Client::new();
+    obsidian_core::store::keep_readable(&mut index, &GitHub::default(), |repo| {
+        private && matches!(obsidian_core::github::repo(&client, repo), Ok(Some(_)))
+    });
+    Ok(index)
 }
 
 /// Installs the newest release of a mod in the Store, or replaces the copy in the library with it.

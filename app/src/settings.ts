@@ -39,6 +39,8 @@ export async function updateSettings(patch: Partial<AppSettings>) {
 }
 
 export const currentSettings = () => current;
+/** Takes settings the Rust side already saved (a sync download). */
+export const applySettings = (s: AppSettings) => apply(s);
 
 export const useAppSettings = () =>
   useSyncExternalStore((f) => { listeners.add(f); return () => { listeners.delete(f); }; }, () => current);

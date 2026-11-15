@@ -16,6 +16,8 @@ import { NavBar, type Wave } from "./NavBar";
 import { go as setTab, useNav } from "./nav";
 import { WikiPage } from "./WikiPage";
 import { SettingsPage, type SettingsTab } from "./SettingsPage";
+import { AccountPage, type AccountTab } from "./account/AccountPage";
+import { startGitHub } from "./github";
 import { Notices } from "./NoticeList";
 import { asksBeforePlay, PlayPrompt } from "./PlayPrompt";
 import { SavesPage } from "./saves/SavesPage";
@@ -34,6 +36,7 @@ export default function App() {
   const { tab } = useNav();
   const [dropping, setDropping] = useState<DropState>(null);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("system");
+  const [accountTab, setAccountTab] = useState<AccountTab>("github");
   const [askUpdate, setAskUpdate] = useState(false);
   const [askPlay, setAskPlay] = useState(false);
   // The same function on every render: the dialog puts the focus back on Yes when it gets a new one.
@@ -83,6 +86,7 @@ export default function App() {
   useEffect(() => {
     loadSettings();
     loadSnapshot();
+    startGitHub();
     // The browser menu (Back, Reload, Inspect) has no place in the app; text fields keep theirs.
     const menu = (e: MouseEvent) => !(e.target as Element).closest?.("input, textarea") && e.preventDefault();
     document.addEventListener("contextmenu", menu);
@@ -111,8 +115,9 @@ export default function App() {
         {snap && (tab === "commander" || commanderOpened) && <div className="view" hidden={tab !== "commander"}><CommanderPage snap={snap} visible={tab === "commander"} onPlay={startPlay} home={commanderHome} /></div>}
         {tab === "wiki" && <div className="view" key="wiki"><WikiPage /></div>}
         {snap && tab === "settings" && <div className="view" key="settings"><SettingsPage snap={snap} tab={settingsTab} onTab={setSettingsTab} /></div>}
+        {tab === "account" && <div className="view" key="account"><AccountPage tab={accountTab} onTab={setAccountTab} /></div>}
         {/* The first read of the library can take a few seconds: the tabs that need it wait on this. */}
-        {!snap && tab !== "home" && tab !== "wiki" && <div className="view" key="wait"><div className="store-empty app-wait"><p><span className="upd-spin" aria-hidden="true" />{t("app.loadingLibrary")}</p></div></div>}
+        {!snap && tab !== "home" && tab !== "wiki" && tab !== "account" &&<div className="view" key="wait"><div className="store-empty app-wait"><p><span className="upd-spin" aria-hidden="true" />{t("app.loadingLibrary")}</p></div></div>}
       </main>
       <StatusBar version={snap?.version ?? null} updateFound={update.phase === "found"} onUpdates={() => { setSettingsTab("updates"); setTab("settings"); }} />
       {dropping && (

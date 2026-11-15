@@ -91,12 +91,44 @@ pub struct StoreMod {
     /// authors above are written by the mod and never count.
     #[serde(default)]
     pub verified: bool,
+    /// Stars of the repository on GitHub when the index was built.
+    #[serde(default)]
+    pub stars: u64,
+    /// Early access: a private repository, shown only to players GitHub lets read it.
+    #[serde(default)]
+    pub private: bool,
+}
+
+/// An early access mod as the index lists it: written by hand, since the build can't read it.
+#[derive(Debug, Clone, Deserialize)]
+struct PrivateEntry {
+    repo: String,
+    id: String,
+    name: String,
+    #[serde(default)]
+    summary: String,
+    #[serde(default)]
+    scope: String,
+    #[serde(default)]
+    verified: bool,
+}
+
+impl From<PrivateEntry> for StoreMod {
+    fn from(p: PrivateEntry) -> Self {
+        StoreMod {
+            id: p.id, name: p.name, summary: p.summary, description: String::new(), version: String::new(), early: true, scope: p.scope,
+            requires: Vec::new(), options: 0, option_list: Vec::new(), option_groups: Vec::new(), repo: p.repo, kit: false, icon: None,
+            banner: None, released: None, added: None, versions: Vec::new(), authors: Vec::new(), verified: p.verified, stars: 0, private: true,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
 struct RawIndex {
     format: u32,
     mods: Vec<StoreMod>,
+    #[serde(default)]
+    private: Vec<PrivateEntry>,
 }
 
 /// The Store as the UI shows it. `offline`: GitHub couldn't be reached, and this is the last list read.
@@ -104,6 +136,26 @@ struct RawIndex {
 pub struct StoreIndex {
     pub mods: Vec<StoreMod>,
     pub offline: bool,
+}
+
+/// Keeps the early access mods the signed-in player can read, with the version of the newest release
+/// filled in; the others leave the list. Signed out, none stay.
+pub fn keep_readable(index: &mut StoreIndex, github: &GitHub, can_read: impl Fn(&str) -> bool) {
+    index.mods.retain_mut(|m| {
+        if !m.private {
+            return true;
+        }
+        if !can_read(&m.repo) {
+            return false;
+        }
+        if let Some(repo) = github_repo(&format!("https://github.com/{}", m.repo))
+            && let Ok(v) = github.newest_version(&repo)
+        {
+            m.version = v.to_string();
+            m.early = v.major == 0 || m.early;
+        }
+        true
+    });
 }
 
 /// A picture path the index may name: `img/<name>.jpg`, the name in lower case letters, digits and dashes.
@@ -118,7 +170,13 @@ fn parse(text: &str) -> Result<Vec<StoreMod>> {
     if raw.format > FORMAT {
         return Err(ObsidianError::StoreFormat);
     }
-    Ok(raw.mods)
+    let mut mods = raw.mods;
+    for p in raw.private {
+        if !mods.iter().any(|m| m.id == p.id) {
+            mods.push(p.into());
+        }
+    }
+    Ok(mods)
 }
 
 /// The base address, from `OBSIDIAN_STORE_URL` when set.
@@ -303,6 +361,19 @@ mod tests {
         let m = &parse(text).unwrap()[0];
         assert_eq!(m.authors, vec!["Ann".to_string()]);
         assert!(m.verified);
+    }
+
+    #[test]
+    fn stars_and_early_access_read() {
+        let text = r#"{"format":1,"mods":[{"id":"a.mod","name":"A","version":"1.0.0","repo":"o/a","stars":7}],
+            "private":[{"repo":"o/secret","id":"s.mod","name":"Secret","summary":"Soon","scope":"client"},{"repo":"o/dup","id":"a.mod","name":"Dup"}]}"#;
+        let mods = parse(text).unwrap();
+        assert_eq!(mods.len(), 2, "a private entry with a public id is dropped");
+        assert_eq!(mods[0].stars, 7);
+        assert!(mods[1].private && mods[1].early && mods[1].version.is_empty());
+        let mut index = StoreIndex { mods, offline: false };
+        keep_readable(&mut index, &GitHub::at("http://127.0.0.1:9"), |_| false);
+        assert_eq!(index.mods.len(), 1, "signed out, early access mods stay hidden");
     }
 
     #[test]

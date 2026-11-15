@@ -110,6 +110,10 @@ pub enum ObsidianError {
     StoreFormat,
     #[error("{0} is not in the Store")]
     StoreUnknown(String),
+    #[error("sign in to GitHub first, or again: GitHub didn't accept the sign-in")]
+    GitHubSignIn,
+    #[error("GitHub refused: {0}")]
+    GitHub(String),
     #[error("this save can't be read: {0}")]
     BadSave(String),
     #[error("there is no save with the id {0}")]

@@ -54,6 +54,9 @@ pub fn source_of(m: &Manifest) -> Option<Repo> {
 struct Asset {
     name: String,
     browser_download_url: String,
+    /// The API address of the file, which a private repository needs (with the token).
+    #[serde(default)]
+    url: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -119,6 +122,9 @@ pub struct GitHub {
     agent: ureq::Agent,
     /// The same, but it hands back a redirect instead of following it.
     pages: ureq::Agent,
+    /// The signed-in player's token (github.rs), sent only to the real api.github.com: 5,000 calls an
+    /// hour instead of 60, and the private repositories the player can read.
+    token: Option<String>,
 }
 
 impl Default for GitHub {
@@ -185,7 +191,17 @@ impl GitHub {
                 .build()
                 .into()
         };
-        GitHub { api: api.into(), web: web.into(), agent: agent(10), pages: agent(0) }
+        let api: String = api.into();
+        let token = if api == "https://api.github.com" { crate::github::token() } else { None };
+        GitHub { api, web: web.into(), agent: agent(10), pages: agent(0), token }
+    }
+
+    fn api_get(&self, url: &str, accept: &str) -> std::result::Result<ureq::http::Response<ureq::Body>, ureq::Error> {
+        let req = self.agent.get(url).header("Accept", accept);
+        match &self.token {
+            Some(t) => req.header("Authorization", format!("Bearer {t}")).call(),
+            None => req.call(),
+        }
     }
 
     /// The newest release of `repo`, with its files. GitHub leaves out drafts and prereleases.
@@ -200,6 +216,10 @@ impl GitHub {
     /// latest-release page, which costs no API call; the API is asked only when the page answers in
     /// a way this doesn't know, and only while `api` allows it.
     fn latest_version(&self, repo: &Repo, api: bool) -> Result<Version> {
+        // Signed in, the API has calls to spare and also sees private repositories, which the page doesn't.
+        if self.token.is_some() && api {
+            return Ok(self.latest(repo)?.version);
+        }
         match self.latest_tag_from_page(repo)? {
             Some(tag) => version_of(&tag).ok_or_else(|| ObsidianError::NoRelease(repo.to_string())),
             None if api => Ok(self.latest(repo)?.version),
@@ -310,7 +330,7 @@ impl GitHub {
 
     fn release_json(&self, repo: &Repo, which: &str) -> Result<String> {
         let url = format!("{}/repos/{repo}/releases{which}", self.api);
-        let mut res = self.agent.get(&url).header("Accept", "application/vnd.github+json").call().map_err(network)?;
+        let mut res = self.api_get(&url, "application/vnd.github+json").map_err(network)?;
         match res.status().as_u16() {
             200 => {}
             404 => return Err(ObsidianError::NoRelease(repo.to_string())),
@@ -343,7 +363,7 @@ impl GitHub {
                 n.starts_with(&prefix) && n.ends_with(".zip")
             })
             .ok_or_else(|| ObsidianError::NoUpdateAsset(repo.to_string()))?;
-        self.download(&asset.browser_download_url, to)?;
+        self.download_asset(asset, to)?;
         let sig_name = format!("{}.sig", asset.name.to_lowercase());
         let sig = match release.assets.iter().find(|a| a.name.to_lowercase() == sig_name) {
             Some(a) => {
@@ -356,6 +376,21 @@ impl GitHub {
             None => None,
         };
         Ok((release.version, sig))
+    }
+
+    /// A file of a release. Signed in, it comes through the API, which private repositories need; the
+    /// token never follows the redirect to the file host (ureq drops it on a redirect).
+    fn download_asset(&self, asset: &Asset, to: &Path) -> Result<()> {
+        if self.token.is_some() && asset.url.starts_with("https://api.github.com/") {
+            let mut res = self.api_get(&asset.url, "application/octet-stream").map_err(network)?;
+            if !res.status().is_success() {
+                return Err(network(format!("GitHub answered {}", res.status().as_u16())));
+            }
+            let mut body = res.body_mut().with_config().limit(MAX_DOWNLOAD).reader();
+            std::io::copy(&mut body, &mut std::fs::File::create(to)?).map_err(network)?;
+            return Ok(());
+        }
+        self.download(&asset.browser_download_url, to)
     }
 
     fn download(&self, url: &str, to: &Path) -> Result<()> {
@@ -518,12 +553,20 @@ pub fn stage_new(github: &GitHub, repo: &Repo, id: &str) -> Result<Staged> {
     Ok(staged)
 }
 
+/// The newest release of `repo`, whatever mod it holds, for a Store submission to check. Its version
+/// comes with it, to compare with the manifest.
+pub fn stage_latest(github: &GitHub, repo: &Repo) -> Result<(Staged, Version)> {
+    let release = github.latest(repo)?;
+    let staged = unpack(github, repo, &release, "\u{0}")?;
+    Ok((staged, release.version))
+}
+
 /// The mod ZIP of a release, downloaded and unpacked into a temporary folder.
 fn unpack(github: &GitHub, repo: &Repo, release: &Release, id: &str) -> Result<Staged> {
     let asset = pick_zip(&release.assets, id).ok_or_else(|| ObsidianError::NoUpdateAsset(repo.to_string()))?;
     let dir = tempfile::tempdir()?;
     let (zip, unpacked) = (dir.path().join("update.zip"), dir.path().join("mod"));
-    github.download(&asset.browser_download_url, &zip)?;
+    github.download_asset(asset, &zip)?;
     crate::import::unzip(&zip, &unpacked)?;
     let root = crate::import::mod_folder(&unpacked)?.ok_or_else(|| ObsidianError::NoUpdateAsset(repo.to_string()))?;
     let manifest = load_manifest(&root)?;

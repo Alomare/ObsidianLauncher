@@ -94,8 +94,9 @@ describe("StorePage", () => {
     expect(plain.querySelector(".mico")).toBeNull();
     const hud = [...host.querySelectorAll(".card")].find((c) => c.textContent?.includes("HUD"))!;
     expect(hud.querySelector(".c-flag.inst")).not.toBeNull();
-    // Obsidian Verified comes first of the tags, only where the index says so.
-    expect(hud.querySelector(".c-tags > :first-child")?.className).toBe("store-verified");
+    // Obsidian Verified sits in front of the name, only where the index says so, and not among the tags.
+    expect(hud.querySelector(".c-body > b > :first-child")?.getAttribute("class")).toBe("store-verified");
+    expect(hud.querySelector(".c-tags .store-verified")).toBeNull();
     const cross = [...host.querySelectorAll(".card")].find((c) => c.textContent?.includes("CROSSHAIR"))!;
     expect(cross.querySelector(".store-verified")).toBeNull();
     // A Kit card: the scope before the name.
@@ -161,7 +162,7 @@ describe("StorePage", () => {
     const card = [...host.querySelectorAll(".card")].find((c) => c.textContent?.includes("HUD")) as HTMLElement;
     await act(async () => card.click());
     expect(host.querySelector(".mby")?.textContent).toBe(t("app.store.by", "Ann, Bo"));
-    expect(host.querySelector(".mid-name .store-verified")).not.toBeNull();
+    expect(host.querySelector(".mid-name h1 > .store-verified:first-child")).not.toBeNull();
     invoke.mockClear();
     await act(async () => (host.querySelector(".mid .uninst") as HTMLElement).click());
     const yes = [...document.querySelectorAll(".modal button")].find((b) => b.textContent === t("app.drawer.remove")) as HTMLElement;

@@ -4,10 +4,14 @@
 // github.com/Alomare/ObsidianStoreIndex (storeIndex.ts); installing downloads the newest release.
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { run } from "../api";
+import { call, errorText, run } from "../api";
+import { signIn, useGitHub, type OpenIssue, type RepoInfo } from "../github";
+import { notify } from "../notices";
+import { ReportDialog } from "./ReportDialog";
+import { SubmitDialog } from "./SubmitDialog";
 import { useLocked } from "../busy";
 import { Confirm } from "../Confirm";
-import { CheckIcon, ChevronIcon, CloseIcon, GitHubIcon, ImportIcon, SearchIcon, TrashIcon, UpdateIcon } from "../Icons";
+import { CheckIcon, ChevronIcon, CloseIcon, GitHubIcon, ImportIcon, SearchIcon, StarIcon, TrashIcon, UpdateIcon } from "../Icons";
 import { artFor } from "../homeArt";
 import { language, t } from "../i18n";
 import { Markdown, parse } from "../Markdown";
@@ -16,11 +20,11 @@ import { openUrl } from "../opener";
 import { Select } from "../Select";
 import { ImageViewer } from "../Thumb";
 import type { Scope, Snapshot } from "../types";
-import { install, loadStore, markOf, useStore, type StoreMark, type StoreMod, type StoreOption } from "./storeIndex";
+import { install, loadStore, markOf, setStars, useStore, type StoreMark, type StoreMod, type StoreOption } from "./storeIndex";
 
 const FILTER_SCOPES: Scope[] = ["library", "client", "session", "expansion"];
-type Sort = "az" | "za" | "scope" | "new" | "updated" | "random";
-const SORTS: Sort[] = ["new", "updated", "az", "za", "scope", "random"];
+type Sort = "az" | "za" | "scope" | "new" | "updated" | "stars" | "random";
+const SORTS: Sort[] = ["new", "updated", "stars", "az", "za", "scope", "random"];
 const later = (a: string | null, b: string | null) => ((a ?? "") < (b ?? "") ? 1 : (a ?? "") > (b ?? "") ? -1 : 0);
 const byName = (a: StoreMod, b: StoreMod) => a.name.localeCompare(b.name);
 
@@ -32,6 +36,7 @@ export function sortMods(list: StoreMod[], sort: Sort, order: string[]): StoreMo
     case "scope": return out.sort((a, b) => FILTER_SCOPES.indexOf(a.scope) - FILTER_SCOPES.indexOf(b.scope) || byName(a, b));
     case "new": return out.sort((a, b) => later(a.added, b.added) || byName(a, b));
     case "updated": return out.sort((a, b) => later(a.released, b.released) || byName(a, b));
+    case "stars": return out.sort((a, b) => (b.stars ?? 0) - (a.stars ?? 0) || byName(a, b));
     case "random": return out.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
   }
 }
@@ -64,9 +69,14 @@ function ScopeTag({ scope }: { scope: Scope }) {
 const Early = ({ m }: { m: StoreMod }) =>
   m.early ? <span className="store-tag early" data-tip={t("app.store.earlyHint", m.version)}>{t("app.store.early")}</span> : null;
 
-/** Obsidian Verified, first of the tags: a silver square with the Obsidian logo cut out of it. */
+/** Obsidian Verified, in front of the name: a white circle with a dark check. */
 const Verified = ({ m }: { m: StoreMod }) =>
-  m.verified ? <span className="store-verified" role="img" aria-label={t("app.store.verified")} data-tip-title={t("app.store.verified")} data-tip={t("app.store.verifiedHint")} /> : null;
+  m.verified ? (
+    <svg className="store-verified" viewBox="0 0 16 16" role="img" aria-label={t("app.store.verified")} data-tip-title={t("app.store.verified")} data-tip={t("app.store.verifiedHint")}>
+      <circle cx="8" cy="8" r="8" fill="#fff" />
+      <path d="M4.6 8.3l2.3 2.3 4.5-4.8" fill="none" stroke="#1b1b1b" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ) : null;
 
 /** A corner over the top right of a card: green with a check when installed, yellow with an arrow when the
     Store has a newer version. */
@@ -118,9 +128,18 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
   const [installedOnly, setInstalledOnly] = useState(false);
   const [sort, setSort] = useState<Sort>("new");
   const [order, setOrder] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const frontTop = useRef(0);
   useEffect(() => { loadStore(); }, []);
+  // Early access mods depend on the access granted: read the list again when that changes.
+  const access = useGitHub().account?.scopes.join(",") ?? "";
+  const lastAccess = useRef(access);
+  useEffect(() => {
+    if (lastAccess.current === access) return;
+    lastAccess.current = access;
+    loadStore(true);
+  }, [access]);
   // A click on the Store tab while it shows a mod goes back to the list.
   useEffect(() => { if (home) setOpen(null); }, [home]);
   const all = store.mods ?? [];
@@ -172,7 +191,7 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
             <div key={m.id} className="kit-card" role="link" tabIndex={0} onClick={() => show(m.id)} onKeyDown={keyOpen(() => show(m.id))}>
               <Flag mark={mark(m)} small />
               <ModIcon m={m} />
-              <div className="kc-text"><Verified m={m} /><ScopeTag scope={m.scope} /><b>{m.name}</b><Early m={m} /></div>
+              <div className="kc-text"><ScopeTag scope={m.scope} /><b>{m.name}</b><Early m={m} /></div>
             </div>
           ))}
         </div>
@@ -201,6 +220,8 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
             <SearchIcon />
             <input type="search" value={text} onChange={(e) => setText(e.target.value)} placeholder={t("app.store.search")} aria-label={t("app.store.search")} />
           </label>
+          <button className="btn small submit-btn" onClick={() => setSubmitting(true)} aria-haspopup="dialog" data-tip={t("app.submit.hint")}>{t("app.submit.button")}</button>
+          {submitting && <SubmitDialog onClose={() => setSubmitting(false)} />}
         </div>
         {list.length ? (
           <div className="grid-cards">
@@ -214,10 +235,11 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
                   <Flag mark={k} />
                   <div className="c-body">
                     <ModIcon m={m} />
-                    <b>{m.name}</b>
+                    <b><Verified m={m} />{m.name}</b>
                     <p className="c-desc">{m.summary}</p>
                     <div className="c-tags">
-                      <Verified m={m} /><ScopeTag scope={m.scope} /><Early m={m} />
+                      <ScopeTag scope={m.scope} /><Early m={m} />
+                      {!!m.stars && <span className="c-stars" aria-label={t("app.store.starsCount", m.stars)} data-tip={t("app.store.starsCount", m.stars)}><StarIcon />{m.stars}</span>}
                       {k !== "installed" && <span className="c-quick"><InstallButton m={m} mark={k} size="small" onInstall={() => doInstall(m)} /></span>}
                     </div>
                   </div>
@@ -295,9 +317,76 @@ function OptionPanel({ m }: { m: StoreMod }) {
   );
 }
 
+/** The star of a mod: the count from the index, and a toggle once signed in (a sign-in otherwise). */
+function StarButton({ m, starred, onChange }: { m: StoreMod; starred: boolean | null; onChange: (on: boolean) => void }) {
+  const { account } = useGitHub();
+  const [busy, setBusy] = useState(false);
+  const toggle = async () => {
+    if (!account) { signIn(); return; }
+    if (starred === null || busy) return;
+    setBusy(true);
+    try {
+      await call("github_star", { repo: m.repo, on: !starred });
+      setStars(m.id, (m.stars ?? 0) + (starred ? -1 : 1));
+      onChange(!starred);
+    } catch (e) {
+      notify("error", errorText(e));
+    }
+    setBusy(false);
+  };
+  const tip = !account ? t("app.store.starSignIn") : starred ? t("app.store.unstar") : t("app.store.star");
+  return (
+    <button className={starred ? "btn small star-btn on" : "btn small star-btn"} onClick={toggle} disabled={busy} aria-pressed={!!starred} aria-label={tip} data-tip={tip}>
+      <StarIcon />{m.stars ?? 0}
+    </button>
+  );
+}
+
+/** For the authors of a mod: the open issues of the repository, newest first. */
+function IssuesPanel({ repo, count }: { repo: string; count: number }) {
+  const [list, setList] = useState<OpenIssue[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    call<OpenIssue[]>("github_open_issues", { repo }).then((l) => live && setList(l)).catch(() => live && setList([]));
+    return () => { live = false; };
+  }, [repo]);
+  return (
+    <Panel title={t("app.store.issues")} count={list?.length ?? count}>
+      {list && !list.length && <p className="iss-empty">{t("app.store.issuesNone")}</p>}
+      {list && list.length > 0 && (
+        <ul className="iss-list">
+          {list.map((i) => (
+            <li key={i.number}>
+              <button onClick={() => openUrl(i.url).catch(() => {})} data-tip={i.url}>
+                <b>{i.title}</b>
+                <small>#{i.number} · {i.author} · {date(i.created)}</small>
+                {i.comments > 0 && <i>{t("app.store.issueReplies", i.comments)}</i>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
+  );
+}
+
 function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
   const [unfolded, setUnfolded] = useState<Record<string, boolean>>({});
   const [ask, setAsk] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  const { account } = useGitHub();
+  const [info, setInfo] = useState<RepoInfo | null>(null);
+  const [starred, setStarred] = useState<boolean | null>(null);
+  // Signed in: whether the player starred the mod, and whether they are one of its authors.
+  useEffect(() => {
+    setInfo(null);
+    setStarred(null);
+    if (!account) return;
+    let live = true;
+    call<RepoInfo | null>("github_repo", { repo: m.repo }).then((i) => live && setInfo(i)).catch(() => {});
+    call<boolean>("github_starred", { repo: m.repo }).then((s) => live && setStarred(s)).catch(() => {});
+    return () => { live = false; };
+  }, [account, m.repo]);
   const k = mark(m);
   const row = snap.mods.find((r) => r.id === m.id);
   const desc = useMemo(() => parse(m.description || m.summary).tokens, [m.description, m.summary]);
@@ -325,10 +414,15 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
         <div className="mid">
           {m.icon ? <Zoom path={m.icon} className="mid-ico"><ModIcon m={m} size="xl" /></Zoom> : <ModIcon m={m} size="xl" />}
           <div className="mid-t">
-            <div className="mid-name"><h1>{m.name}</h1><Verified m={m} /><Early m={m} /></div>
+            <div className="mid-name"><h1><Verified m={m} />{m.name}</h1><Early m={m} /></div>
             {!!m.authors?.length && <span className="mby">{t("app.store.by", m.authors.join(", "))}</span>}
           </div>
+          <div className="mid-tools">
+            <StarButton m={m} starred={starred} onChange={setStarred} />
+            <button className="btn small" onClick={() => setReporting(true)} aria-haspopup="dialog" data-tip={t("app.report.hint")}>{t("app.report.button")}</button>
+          </div>
           <InstallButton m={m} mark={k} size="big" onInstall={() => onInstall(m)} />
+          {reporting && <ReportDialog m={m} onClose={() => setReporting(false)} />}
           {k === "installed" && (
             <button className="btn icon danger uninst" onClick={() => setAsk(true)} aria-label={t("app.store.uninstall")} data-tip={t("app.store.uninstall")}><TrashIcon /></button>
           )}
@@ -372,6 +466,7 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
                 })}
               </ol>
             </Panel>
+            {info?.push && <IssuesPanel repo={m.repo} count={info.openIssues} />}
             <OptionPanel m={m} />
             {needs.length > 0 && (
               <Panel title={t("app.store.requires")} count={needs.length}>

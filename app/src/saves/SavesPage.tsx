@@ -281,7 +281,7 @@ function GroupRow({ title, hint, count, kind, folded, onFold }: { title: string;
   return (
     <div className={folded ? `str sgroup ${kind} folded` : `str sgroup ${kind}`} role="row">
       <button className="sgroup-name cap" role="rowheader" aria-expanded={!folded} data-tip-title={title} data-tip={hint} onClick={() => onFold(kind)}>
-        <ChevronIcon />{title}<span className="sgroup-n">{count}</span>
+        <ChevronIcon /><span className="sgroup-n">{count}</span>{title}
       </button>
     </div>
   );

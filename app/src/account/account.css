@@ -1,0 +1,83 @@
+/* The Account tab, and the account icon in the navigation bar. */
+
+/* Nav: a small green check on the bottom right of the person while signed in, measured from the middle of the tab. */
+.tab.tab-account { position: relative; }
+.tab-check { position: absolute; top: calc(50% + 0.12rem); left: calc(50% + 0.28rem); display: grid; place-items: center; width: 0.82rem; height: 0.82rem;
+  border-radius: 50%; background: var(--go); color: var(--on); box-shadow: 0 0 0 2px var(--bg2); }
+.tab .tab-check svg { width: 0.58rem; height: 0.58rem; stroke-width: 3.4; }
+
+.account .set-sec { gap: 0.7rem; }
+
+/* Signed out */
+.acc-signin { min-width: 0; gap: 0.55rem; }
+.acc-signin svg { width: 1rem; height: 1rem; }
+
+/* The code to type at GitHub */
+.acc-code { display: block; font-family: Consolas, "Cascadia Mono", monospace; font-size: var(--fs-display); font-weight: 700; letter-spacing: 0.18em; color: var(--tx); user-select: all; }
+.acc-wait { display: flex; align-items: center; gap: 0.6rem; margin: 0; font-size: var(--fs-md); color: var(--mu); }
+
+/* Who is signed in */
+.acc-who { flex-direction: row; align-items: center; gap: 0.8rem; }
+.acc-avatar { flex: none; width: 3rem; height: 3rem; border-radius: 50%; background: var(--row); object-fit: cover; box-shadow: 0 0 0 1px var(--ln); }
+.acc-avatar.small { width: 1.5rem; height: 1.5rem; }
+button.link.acc-login { font-size: var(--fs-xl); font-weight: 600; color: var(--tx); text-decoration: none; }
+button.link.acc-login:hover { color: var(--goldtx); filter: none; }
+
+/* Access rows */
+.acc-access { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.acc-access li { display: flex; align-items: center; gap: 1rem; min-height: 2.6rem; padding: 0.35rem 0; }
+.acc-access li + li { border-top: 1px solid var(--ln); }
+.acc-access-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.acc-access-text b { font-weight: 600; font-size: var(--fs-base); }
+.acc-access-text small { max-width: 40rem; font-size: var(--fs-sm); line-height: 1.45; color: var(--mu); }
+.acc-granted { display: grid; place-items: center; width: 2rem; color: var(--go); }
+.acc-granted svg { width: 1.1rem; height: 1.1rem; }
+
+/* Reports */
+.acc-empty { padding: 0.4rem 0.2rem; }
+.acc-reports { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.acc-reports li + li { border-top: 1px solid var(--ln); }
+.acc-report { display: flex; align-items: center; gap: 0.8rem; width: 100%; padding: 0.6rem 0.5rem; background: none; border: 0; border-left: 3px solid transparent;
+  color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background var(--fast); }
+.acc-report:hover { background: var(--row); }
+.acc-report.new { border-left-color: var(--go); }
+.acc-report-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
+.acc-report-text small { font-size: var(--fs-sm); color: var(--mu); }
+.acc-report-text b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acc-date { flex: none; font-size: var(--fs-sm); color: var(--mu); }
+.acc-unread { flex: none; display: grid; place-items: center; min-width: 1.35rem; height: 1.35rem; padding: 0 0.35rem; border-radius: 0.7rem;
+  background: var(--go); color: var(--on); font-size: var(--fs-xs); font-weight: 700; }
+.acc-state { flex: none; padding: 0.05rem 0.45rem; font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--mu); box-shadow: inset 0 0 0 1px var(--ln); }
+.acc-state.open { color: var(--goldtx); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gold) 55%, transparent); }
+.acc-state.fixed { color: var(--on); background: var(--go); box-shadow: none; }
+.acc-state.deleted { color: var(--danger-hi); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 60%, transparent); }
+
+/* One report */
+.acc-thread { display: flex; flex-direction: column; gap: 0.9rem; }
+.acc-thread-head { display: flex; align-items: center; flex-wrap: wrap; gap: 0.6rem; }
+.acc-thread-head h2 { margin: 0; font-size: var(--fs-lg); font-weight: 600; }
+button.link.acc-back { margin: 0; flex-basis: 100%; text-align: left; justify-self: start; width: max-content; }
+.acc-messages { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.acc-message { padding: 0.7rem 0; }
+.acc-message + .acc-message { border-top: 1px solid var(--ln); }
+.acc-message-head { display: flex; align-items: center; gap: 0.5rem; }
+.acc-message-head b { font-weight: 600; }
+.acc-message-head .acc-date { margin-left: auto; }
+.acc-author { padding: 0.05rem 0.4rem; font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--on); background: var(--gold); }
+.acc-message-body { padding: 0.35rem 0 0 2rem; font-size: var(--fs-base); user-select: text; overflow-wrap: anywhere; }
+.acc-message-body .md > :first-child { margin-top: 0; }
+.acc-message-body .md > :last-child { margin-bottom: 0; }
+.acc-reply { display: flex; flex-direction: column; gap: 0.5rem; padding-top: 0.6rem; border-top: 1px solid var(--ln); }
+.acc-reply textarea { width: 100%; min-height: 6rem; resize: vertical; padding: 0.55rem 0.7rem; background: var(--row); border: 1px solid var(--ln); border-radius: 0;
+  color: var(--tx); font: inherit; font-size: var(--fs-base); line-height: 1.45; outline: 0; box-sizing: border-box; }
+.acc-reply textarea:focus { border-color: var(--gold); }
+.acc-reply textarea::placeholder, .acc-import input::placeholder { color: var(--mu); opacity: 0.8; }
+
+/* Sync and shared links */
+.acc-sync-state { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.8rem; }
+button.link.small.acc-inline { margin: 0; }
+.acc-import { display: flex; gap: 0.4rem; max-width: 40rem; }
+.acc-import input { flex: 1; min-width: 0; height: 2rem; padding: 0 0.7rem; background: var(--row); border: 1px solid var(--ln); color: var(--tx); font-size: var(--fs-md); outline: 0; }
+.acc-import input:focus { border-color: var(--gold); }
+.confirm .share-seg { width: max-content; min-width: 16rem; margin-top: 0.3rem; }
+.confirm .share-seg + .set-note { margin-top: 0.5rem; }

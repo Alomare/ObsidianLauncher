@@ -3,6 +3,7 @@
 mod app_settings;
 mod commander;
 mod commands;
+mod github_cmds;
 pub mod perf_library;
 mod snapshot;
 
@@ -62,6 +63,8 @@ pub fn run() {
             // Mod and profile images load straight from the data folder, and only from there.
             let data = app.state::<commands::Ctx>().data.clone();
             app.asset_protocol_scope().allow_directory(&data, true)?;
+            // The GitHub token, for every API call from here on.
+            obsidian_core::github::load(&data);
             watch_game(app.handle().clone());
             // A war selected last time gets its relay and server back, off the window's thread.
             let handle = app.handle().clone();
@@ -88,6 +91,31 @@ pub fn run() {
             commands::update_mod,
             commands::store_index,
             commands::store_install,
+            github_cmds::github_account,
+            github_cmds::github_verify,
+            github_cmds::github_sign_in_start,
+            github_cmds::github_sign_in_poll,
+            github_cmds::github_sign_out,
+            github_cmds::github_revoke_url,
+            github_cmds::github_repo,
+            github_cmds::github_starred,
+            github_cmds::github_star,
+            github_cmds::github_templates,
+            github_cmds::github_diagnostics,
+            github_cmds::github_report,
+            github_cmds::github_reports,
+            github_cmds::github_reports_refresh,
+            github_cmds::github_report_forget,
+            github_cmds::github_thread,
+            github_cmds::github_reply,
+            github_cmds::github_open_issues,
+            github_cmds::share_profile,
+            github_cmds::import_shared,
+            github_cmds::sync_state,
+            github_cmds::sync_upload,
+            github_cmds::sync_download,
+            github_cmds::submit_check,
+            github_cmds::submit_send,
             commands::deploy,
             commands::deploy_loader,
             commands::purge,

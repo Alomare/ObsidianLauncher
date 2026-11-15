@@ -70,7 +70,7 @@ pub(crate) fn same_name(a: &str, b: &str) -> bool {
     a.to_lowercase() == b.to_lowercase()
 }
 
-fn find(data: &Path, name: &str) -> Result<Option<String>> {
+pub(crate) fn find(data: &Path, name: &str) -> Result<Option<String>> {
     Ok(list(data)?.into_iter().find(|n| same_name(n, name)))
 }
 
@@ -94,7 +94,7 @@ pub fn use_profile(data: &Path, name: &str) -> Result<()> {
 }
 
 /// A name Windows accepts as a file name, 1 to 40 characters.
-fn check_name(name: &str) -> Result<()> {
+pub(crate) fn check_name(name: &str) -> Result<()> {
     const DEVICES: [&str; 4] = ["con", "prn", "aux", "nul"];
     let lower = name.to_lowercase();
     let device = DEVICES.contains(&lower.as_str())
