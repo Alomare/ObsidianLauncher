@@ -90,7 +90,7 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
     <nav className="nav">
       {wave && <span key={wave.n} ref={waveRef} className={`nav-wave ${wave.tone}`} aria-hidden="true" onAnimationEnd={onWaveEnd} />}
       <div className="tabs" role="tablist" ref={tabsRef}>
-        <PadGlyph role="lt" />
+        <span className="gp-tabs" aria-hidden="true"><PadGlyph role="lt" /><PadGlyph role="rt" /></span>
         {TABS.map(([id, Icon]) => (
           <button key={id} role="tab" aria-selected={tab === id} aria-label={t(`app.nav.${id}`)} data-tip={t(`app.nav.${id}`)} className={tab === id ? "tab cur" : "tab"} onClick={() => onTab(id)}>
             <Icon />
@@ -148,7 +148,6 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
           <CogIcon />
           {updateFound && <i className="tab-dot" aria-hidden="true" />}
         </button>
-        <PadGlyph role="rt" />
       </div>
     </nav>
   );

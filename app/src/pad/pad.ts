@@ -1,5 +1,5 @@
 // Controller support. The left stick moves a cursor of its own over the window, and the face button at
-// the bottom (A, Cross) clicks what it points at: the page gets the same pointer and mouse events a mouse
+// the bottom (A, Cross) clicks what it points at, and held down drags it (a mod row, a divider): the page gets the same pointer and mouse events a mouse
 // would send, so every control works without knowing about controllers. The right stick scrolls what the
 // cursor is over. The east button (B, Circle) backs out: the Back button of a page, else Esc on a menu or
 // dialog. The north button (Y, Triangle) plays, Start opens the play choice, the triggers go through the
@@ -100,7 +100,7 @@ function set(patch: Partial<PadState>) {
   if (next.active === state.active && next.found === state.found && next.name === state.name && next.kind === state.kind) return;
   if (next.kind !== state.kind || !document.documentElement.style.getPropertyValue("--pad-south")) glyphVars(next.kind);
   state = next;
-  document.documentElement.classList.toggle("pad", state.active);
+  document.documentElement.classList.toggle("gamepad", state.active);
   listeners.forEach((f) => f());
 }
 
@@ -159,10 +159,41 @@ function deactivate() {
   if (mirror) mirror.disabled = true;
 }
 
+/** The id of the cursor pointer. Not 1, the real mouse: capturing that one would take the mouse away. */
+export const PAD_POINTER = 4097;
+/** What took the cursor pointer with setPointerCapture: while the button is held it gets the moves and the release. */
+let captured: Element | null = null;
+
 function fire(el: Element, type: string, init: MouseEventInit = {}) {
   const opts: PointerEventInit = { bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, button: 0, ...init };
-  const pointer = type.startsWith("pointer") && typeof PointerEvent !== "undefined";
-  return el.dispatchEvent(pointer ? new PointerEvent(type, { pointerId: 1, pointerType: "mouse", isPrimary: true, ...opts }) : new MouseEvent(type, opts));
+  const pointer = /^(pointer|gotpointer|lostpointer)/.test(type) && typeof PointerEvent !== "undefined";
+  return el.dispatchEvent(pointer ? new PointerEvent(type, { pointerId: PAD_POINTER, pointerType: "mouse", isPrimary: true, ...opts }) : new MouseEvent(type, opts));
+}
+
+/** Pointer capture for the cursor pointer, which the browser doesn't know: dragging a row or a divider holds on to it. */
+function patchCapture() {
+  const proto = Element.prototype as Element & Record<string, unknown>;
+  const real = { set: proto.setPointerCapture, release: proto.releasePointerCapture, has: proto.hasPointerCapture };
+  proto.setPointerCapture = function (this: Element, id: number) {
+    if (id !== PAD_POINTER) return real.set?.call(this, id);
+    if (captured === this) return;
+    if (captured) loseCapture();
+    captured = this;
+    fire(this, "gotpointercapture");
+  };
+  proto.releasePointerCapture = function (this: Element, id: number) {
+    if (id !== PAD_POINTER) return real.release?.call(this, id);
+    if (captured === this) loseCapture();
+  };
+  proto.hasPointerCapture = function (this: Element, id: number) {
+    return id === PAD_POINTER ? captured === this : (real.has?.call(this, id) ?? false);
+  };
+}
+
+function loseCapture() {
+  const el = captured;
+  captured = null;
+  if (el?.isConnected) fire(el, "lostpointercapture");
 }
 
 function chainOf(el: Element | null) {
@@ -196,11 +227,12 @@ function hover(el: Element | null) {
 
 function hoverAt() {
   const el = document.elementFromPoint(x, y);
-  hover(el);
-  if (el) {
-    fire(el, "pointermove", { buttons: pressed ? 1 : 0 });
-    fire(el, "mousemove", { buttons: pressed ? 1 : 0 });
-  }
+  const buttons = pressed ? 1 : 0;
+  // While held, what captured the pointer gets the moves and keeps the hover, as with a mouse.
+  const to = captured?.isConnected ? captured : el;
+  hover(to);
+  if (to) fire(to, "pointermove", { buttons });
+  if (el) fire(el, "mousemove", { buttons });
 }
 
 const TYPING = "input, textarea, select, [contenteditable=''], [contenteditable='true']";
@@ -229,12 +261,15 @@ function release(click: boolean) {
   pressed = null;
   activeChain.forEach((e) => e.classList.remove("pad-active"));
   activeChain = [];
-  if (!down) return;
-  const el = document.elementFromPoint(x, y) ?? down;
+  if (!down) { loseCapture(); return; }
+  const at = document.elementFromPoint(x, y) ?? down;
+  const el = captured?.isConnected ? captured : at;
   fire(el, "pointerup");
-  fire(el, "mouseup");
+  loseCapture();
+  fire(at, "mouseup");
   const target = down.isConnected ? common(down, el) : null;
   if (click && target) fire(target, "click", { detail: 1 });
+  if (state.active) hoverAt();
 }
 
 const visible = (el: Element) => (el as HTMLElement).offsetParent !== null || el.getClientRects().length > 0;
@@ -363,6 +398,7 @@ export function startPad() {
   x = innerWidth / 2;
   y = innerHeight / 2;
   glyphVars(state.kind);
+  patchCapture();
   window.addEventListener("gamepadconnected", wake);
   // The cursor starts where the mouse was, and a real mouse takes over again.
   window.addEventListener("pointermove", (e) => {

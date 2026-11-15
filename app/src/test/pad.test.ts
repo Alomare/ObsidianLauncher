@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { glyphUrl, kindOf, shownKind } from "../pad/glyphs";
-import { BUTTON, curve, mirrorRules, onPadAction, padSelector, padState, startPad, wrap } from "../pad/pad";
+import { BUTTON, PAD_POINTER, curve, mirrorRules, onPadAction, padSelector, padState, startPad, wrap } from "../pad/pad";
 
 describe("controller kinds", () => {
   it("reads the vendor from the id, then words in the name", () => {
@@ -98,7 +98,7 @@ describe("the controller on the page", () => {
     hold(BUTTON.south, true);
     hold(BUTTON.south, false);
     expect(padState().active).toBe(true);
-    expect(document.documentElement.classList.contains("pad")).toBe(true);
+    expect(document.documentElement.classList.contains("gamepad")).toBe(true);
     expect(click).not.toHaveBeenCalled();
 
     hold(BUTTON.south, true);
@@ -149,6 +149,34 @@ describe("the controller on the page", () => {
     hold(BUTTON.north, true); hold(BUTTON.north, false);
     expect(play).toHaveBeenCalledOnce();
     offs.forEach((f) => f());
+  });
+
+  it("drags while the button is held: the element that captured the pointer gets the moves and the release", () => {
+    const row = document.createElement("div");
+    const other = document.createElement("div");
+    document.body.append(row, other);
+    document.elementFromPoint = () => row;
+    const log: string[] = [];
+    // jsdom has no PointerEvent, so its events carry no pointerId; the browser gives PAD_POINTER.
+    row.addEventListener("pointerdown", (e) => row.setPointerCapture((e as PointerEvent).pointerId ?? PAD_POINTER));
+    row.addEventListener("pointermove", (e) => log.push(`move ${e.buttons} ${e.clientX > 0}`));
+    row.addEventListener("pointerup", () => log.push("up"));
+    other.addEventListener("pointermove", () => log.push("other"));
+    hold(BUTTON.south, true); hold(BUTTON.south, false);
+    log.length = 0;
+
+    hold(BUTTON.south, true);
+    expect(row.hasPointerCapture(PAD_POINTER)).toBe(true);
+    document.elementFromPoint = () => other;
+    axes[0] = 1;
+    tick();
+    axes[0] = 0;
+    hold(BUTTON.south, false);
+    const held = log.slice(0, log.indexOf("up") + 1);
+    expect(held).toContain("move 1 true");
+    expect(held).not.toContain("other");
+    expect(held.at(-1)).toBe("up");
+    expect(row.hasPointerCapture(PAD_POINTER)).toBe(false);
   });
 
   it("gives the mouse back when a real mouse moves", () => {
