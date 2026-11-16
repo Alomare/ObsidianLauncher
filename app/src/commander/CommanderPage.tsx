@@ -67,11 +67,21 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
   const [newer, setNewer] = useState<string | null>(null);
   const choices = useChoices();
   const [starting, setStarting] = useState(false);
-  const [joining, setJoining] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number; opener: HTMLElement } | null>(null);
-  const [ask, setAsk] = useState<null | "remove" | "wipe">(null);
+  // One dialog at a time: the question to uninstall or wipe, the LAN join, or the firewall. Only the
+  // join dialog opens the firewall one over itself (the Allow button), and closing that one goes back.
+  type Overlay = { kind: "remove" } | { kind: "wipe" } | { kind: "join"; firewall: boolean } | { kind: "firewall" } | null;
+  const [overlay, setOverlay] = useState<Overlay>(null);
+  const ask = overlay?.kind === "remove" || overlay?.kind === "wipe" ? overlay.kind : null;
+  const joining = overlay?.kind === "join";
+  const askFirewall = overlay?.kind === "firewall" || (overlay?.kind === "join" && overlay.firewall);
+  const setAsk = (v: "remove" | "wipe" | null) => setOverlay((o) => (v ? { kind: v } : o?.kind === "remove" || o?.kind === "wipe" ? null : o));
+  const setJoining = (on: boolean) => setOverlay((o) => (on ? { kind: "join", firewall: false } : o?.kind === "join" ? null : o));
+  const setAskFirewall = (on: boolean) => setOverlay((o) => {
+    if (o?.kind === "join") return { ...o, firewall: on };
+    return on ? { kind: "firewall" } : o?.kind === "firewall" ? null : o;
+  });
   const { fw, refresh: refreshFirewall, blocked } = useFirewall();
-  const [askFirewall, setAskFirewall] = useState(false);
   const [footprint, setFootprint] = useState<Footprint | null>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const running = snap.game === "running";
@@ -123,7 +133,8 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
       .then((s) => { if (live) setFrameUrl(`http://127.0.0.1:${s.port}/?token=${s.token}`); })
       .catch((e) => notify("error", errorText(e)))
       .finally(() => live && setStarting(false));
-    return () => { live = false; };
+    // A source changed while the server started: this start no longer shows, and neither does its wait.
+    return () => { live = false; setStarting(false); };
   }, [source, installed]);
 
   const frameOrigin = frameUrl ? new URL(frameUrl).origin : null;

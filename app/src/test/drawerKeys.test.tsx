@@ -124,6 +124,19 @@ describe("the binds dialog", () => {
     expect(resets[1].disabled, "no controller input set by the player").toBe(true);
   });
 
+  it("waits for one input at a time: a key, then a controller input, stops the key", () => {
+    const rows = [...open().querySelectorAll(".binds-row:not(.binds-head)")];
+    const key = rows[0].querySelector<HTMLButtonElement>(".key-btn")!;
+    const pad = rows[1].querySelector<HTMLButtonElement>(".pad-btn-in")!;
+    act(() => key.click());
+    expect(key.classList.contains("waiting")).toBe(true);
+    act(() => pad.click());
+    expect(key.classList.contains("waiting"), "the key no longer waits").toBe(false);
+    expect(pad.textContent).toBe("Hold buttons...");
+    act(() => key.click());
+    expect(recorded, "the controller recording stopped").toBe(null);
+  });
+
   it("takes a mouse button other than the left one as the key", () => {
     const key = open().querySelector<HTMLButtonElement>(".binds-row:not(.binds-head) .key-btn")!;
     act(() => key.click());

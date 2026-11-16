@@ -1,25 +1,39 @@
 // The parts of a keybind row, shared by the Keys tab of the drawer (read only) and the binds dialog
 // (where they change): the key, the controller input and how the bind fires.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef } from "react";
 import { run } from "../api";
+import { createStore } from "../store";
 import { pick, t } from "../i18n";
 import type { KeyRow, ModRow, OptionRow } from "../types";
 import { keyName } from "./keyCapture";
-import { PadGlyphs } from "./PadGlyphs";
+import { PadGlyphs, padWord } from "./PadGlyphs";
 import { padButtons, type PadButton } from "./padButtons";
-import { recordPad, type EngineButton } from "../pad/pad";
+import { padState, recordPad, type EngineButton } from "../pad/pad";
 
 export const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 /** The mouse buttons a bind can take, by MouseEvent.button. The left button stays for clicking. */
 const MOUSE: Record<number, string> = { 1: "mouse_middle", 2: "mouse_right", 3: "mouse_extra_1", 4: "mouse_extra_2" };
 
+/** The one input waiting for a key or controller buttons, by the id of its button, or none. Starting
+ *  another stops the one before, so a key and a controller capture never wait at once. */
+const capture = createStore<string | null>(null);
+
+/** Whether the button `id` waits, and the way to start or stop it. */
+function useCapture(id: string): [boolean, (on: boolean) => void] {
+  const waiting = capture.use((c) => c === id);
+  const set = (on: boolean) => capture.set((c) => (on ? id : c === id ? null : c));
+  // A button that goes (the dialog closed) stops waiting with it.
+  useEffect(() => () => capture.set((c) => (c === id ? null : c)), [id]);
+  return [waiting, set];
+}
+
 /** A key as the Keys tab shows it: the name, or the mouse button in words. */
 export const keyLabel = (k: string) => (k.startsWith("mouse_") ? t(`app.binds.${k}`) : k);
 
 /** Shows a key; a click waits for the next key or mouse button (not the left one), Esc cancels. */
 export function KeyButton({ value, label, onSet, clash }: { value: string; label: string; onSet: (k: string) => void; clash?: boolean }) {
-  const [waiting, setWaiting] = useState(false);
+  const [waiting, setWaiting] = useCapture(useId());
   const take = (k: string) => {
     setWaiting(false);
     if (k !== value) onSet(k);
@@ -62,15 +76,12 @@ const GLYPH: Record<EngineButton, PadButton> = {
   a: "a", b: "b", x: "x", y: "y", left_shoulder: "lb", right_shoulder: "rb", left_trigger: "lt", right_trigger: "rt",
   back: "back", start: "start", left_thumb: "l3", right_thumb: "r3", d_up: "dpad_up", d_down: "dpad_down", d_left: "dpad_left", d_right: "dpad_right",
 };
-const WORD: Record<PadButton, string> = {
-  a: "A", b: "B", x: "X", y: "Y", lb: "LB", rb: "RB", lt: "LT", rt: "RT", l3: "L3", r3: "R3", back: "Back", start: "Start",
-  dpad: "D-pad", dpad_up: "D-pad Up", dpad_down: "D-pad Down", dpad_left: "D-pad Left", dpad_right: "D-pad Right",
-};
-
-/** A combination as the loader reads it ("left_shoulder+d_up") as glyphs, with its name in words. */
+/** A combination as the loader reads it ("left_shoulder+d_up") as glyphs, with its name in words on the
+ *  controller shown (Settings, or the one found). */
 function comboView(combo: string) {
   const buttons = combo.split("+").map((b) => GLYPH[b as EngineButton]).filter(Boolean);
-  return { label: buttons.map((b) => WORD[b]).join(" + "), view: <PadGlyphs buttons={buttons} /> };
+  const kind = padState().kind;
+  return { label: buttons.map((b) => padWord(b, kind)).join(" + "), view: <PadGlyphs buttons={buttons} /> };
 }
 
 /** The controller input of a bind in effect: the one the player set, else the mod's own option. */
@@ -91,7 +102,7 @@ export function PadView({ mod, k }: { mod: ModRow; k: KeyRow }) {
  *  set once all are let go. Esc, B alone, or a press elsewhere cancels: a controller click doesn't move the
  *  focus, so a press outside is watched for itself rather than through blur. */
 export function PadButtonInput({ mod, k, label }: { mod: ModRow; k: KeyRow; label: string }) {
-  const [waiting, setWaiting] = useState(false);
+  const [waiting, setWaiting] = useCapture(useId());
   const self = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!waiting) return;

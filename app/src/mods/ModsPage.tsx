@@ -10,6 +10,7 @@ import { SortDialog, SortIcon, type SortPlan } from "./SortDialog";
 import { Confirm } from "../Confirm";
 import { ContextMenu, type MenuItem } from "../ContextMenu";
 import { ChevronIcon, CloseIcon, DeployIcon, ExternalIcon, FolderAddIcon, FolderIcon, ImportIcon, LockIcon, PlusIcon, ProfilesIcon, PurgeIcon, SearchIcon, SlidersIcon, StoreIcon, SwitchOffIcon, SwitchOnIcon, TrashIcon, UnlockIcon, UpArrowIcon, UpdateIcon } from "../Icons";
+import { dragResize, keepWidth } from "../dragResize";
 import { language, pick, t } from "../i18n";
 import { go, useNav } from "../nav";
 import { ProfileGuards, ProfilesDialog } from "../ProfilesDialog";
@@ -62,9 +63,18 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
   const [view, setView] = useState<DrawerView>(null);
   const [profiles, setProfiles] = useState(false);
   const [checked, setChecked] = useState<Set<string>>(new Set());
-  const [menu, setMenu] = useState<{ x: number; y: number; up?: boolean; target: MenuTarget } | null>(null);
-  const [addMenu, setAddMenu] = useState<{ x: number; y: number } | null>(null);
-  const [profileMenu, setProfileMenu] = useState<{ x: number; y: number; opener: HTMLElement } | null>(null);
+  // One menu open at most: the row menu, the Add menu or the profile menu. Opening one closes another,
+  // and each closes only itself.
+  type RowMenu = { x: number; y: number; up?: boolean; target: MenuTarget };
+  type AddMenu = { x: number; y: number };
+  type ProfileMenu = { x: number; y: number; opener: HTMLElement };
+  const [shownMenu, setShownMenu] = useState<({ kind: "row" } & RowMenu) | ({ kind: "add" } & AddMenu) | ({ kind: "profile" } & ProfileMenu) | null>(null);
+  const menu = shownMenu?.kind === "row" ? shownMenu : null;
+  const addMenu = shownMenu?.kind === "add" ? shownMenu : null;
+  const profileMenu = shownMenu?.kind === "profile" ? shownMenu : null;
+  const setMenu = (v: RowMenu | null) => setShownMenu((o) => (v ? { kind: "row", ...v } : o?.kind === "row" ? null : o));
+  const setAddMenu = (v: AddMenu | null) => setShownMenu((o) => (v ? { kind: "add", ...v } : o?.kind === "add" ? null : o));
+  const setProfileMenu = (v: ProfileMenu | null) => setShownMenu((o) => (v ? { kind: "profile", ...v } : o?.kind === "profile" ? null : o));
   const [ask, setAsk] = useState<Ask>(null);
   const [width, setWidth] = useState(savedWidth);
   const [sortPlan, setSortPlan] = useState<SortPlan | null>(null);
@@ -120,11 +130,15 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
     return () => window.removeEventListener("keydown", key);
   }, [tab]);
 
+  // Each change of order is numbered: the end of one that a newer one followed leaves the newer
+  // order on screen, instead of the saved order of the older one until the newer lands.
+  const arranging = useRef(0);
   const arrange = async (next: Node[]) => {
     const { ids, moves } = changes(saved, next);
+    const n = ++arranging.current;
     setPending(next);
     await run("set_order", { ids, moves });
-    setPending(null);
+    if (n === arranging.current) setPending(null);
   };
 
   // Sort Mods: the preview first, then the order it showed; Undo puts the tree from before back.
@@ -250,21 +264,8 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
 
   // The resize handle: the drawer width is kept between visits.
   const resize = (e: PointerEvent<HTMLDivElement>) => {
-    const el = e.currentTarget;
-    el.setPointerCapture(e.pointerId);
     const box = body.current!.getBoundingClientRect();
-    const moveTo = (x: number) => setWidth(Math.round(Math.max(DRAWER_MIN_PX, Math.min(box.right - x, box.width - LIST_MIN_PX))));
-    const onMove = (ev: globalThis.PointerEvent) => moveTo(ev.clientX);
-    const onUp = () => {
-      el.removeEventListener("pointermove", onMove);
-      el.removeEventListener("pointerup", onUp);
-      setWidth((w) => {
-        try { localStorage.setItem(DRAWER_KEY, String(w)); } catch { /* the width is a convenience */ }
-        return w;
-      });
-    };
-    el.addEventListener("pointermove", onMove);
-    el.addEventListener("pointerup", onUp);
+    dragResize(e, (x) => Math.round(Math.max(DRAWER_MIN_PX, Math.min(box.right - x, box.width - LIST_MIN_PX))), setWidth, (w) => keepWidth(DRAWER_KEY, w));
   };
 
   const sel = inOrder([...checked]);

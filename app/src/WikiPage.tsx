@@ -4,6 +4,7 @@
 // Pages are Markdown files in src/wiki (see wiki.ts).
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type RefObject } from "react";
 import { ChevronIcon, SearchIcon } from "./Icons";
+import { dragResize, keepWidth } from "./dragResize";
 import { language, t } from "./i18n";
 import { Markdown } from "./Markdown";
 import { go, landed, useNav } from "./nav";
@@ -111,15 +112,7 @@ export function WikiPage() {
   const resize = (e: PointerEvent<HTMLDivElement>) => {
     const startX = e.clientX;
     const start = (e.currentTarget.previousElementSibling as HTMLElement).offsetWidth;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    const move = (m: globalThis.PointerEvent) => setWidth(Math.max(180, Math.min(480, start + m.clientX - startX)));
-    const up = (u: globalThis.PointerEvent) => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      try { localStorage.setItem(WIDTH_KEY, String(Math.max(180, Math.min(480, start + u.clientX - startX)))); } catch { /* this visit only */ }
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+    dragResize(e, (x) => Math.max(180, Math.min(480, start + x - startX)), setWidth, (w) => keepWidth(WIDTH_KEY, w));
   };
   const prev = steps[index - 1];
   const next = index >= 0 ? steps[index + 1] : undefined;

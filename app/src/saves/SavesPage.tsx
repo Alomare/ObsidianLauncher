@@ -12,6 +12,7 @@ import { isLocked, withTask } from "../busy";
 import { Confirm } from "../Confirm";
 import { ContextMenu, type MenuItem } from "../ContextMenu";
 import { CheckIcon, ChevronIcon, CloseIcon, CopyIcon, CubeIcon, DeployIcon, ExportIcon, ImportIcon, PenIcon, PlusIcon, ResetIcon, SaveIcon, SlidersIcon, StarIcon, TrashIcon, UpdateIcon, WarnIcon } from "../Icons";
+import { dragResize, keepWidth } from "../dragResize";
 import { language, t } from "../i18n";
 import { notify } from "../notices";
 import { Prompt } from "../Prompt";
@@ -55,8 +56,14 @@ export function SavesPage({ snap, visible, home = 0 }: { snap: Snapshot; visible
   const [sel, setSel] = useState<string | null>(null);
   const [ask, setAsk] = useState<Ask>(null);
   const [folded, setFolded] = useState<Partial<Record<SaveKind, boolean>>>({});
-  const [menu, setMenu] = useState<{ x: number; y: number; row: SaveRow } | null>(null);
-  const [addMenu, setAddMenu] = useState<{ x: number; y: number } | null>(null);
+  // One menu open at most, the row menu or the New menu; each closes only itself.
+  type RowMenu = { x: number; y: number; row: SaveRow };
+  type AddMenu = { x: number; y: number };
+  const [shownMenu, setShownMenu] = useState<({ kind: "row" } & RowMenu) | ({ kind: "add" } & AddMenu) | null>(null);
+  const menu = shownMenu?.kind === "row" ? shownMenu : null;
+  const addMenu = shownMenu?.kind === "add" ? shownMenu : null;
+  const setMenu = (v: RowMenu | null) => setShownMenu((o) => (v ? { kind: "row", ...v } : o?.kind === "row" ? null : o));
+  const setAddMenu = (v: AddMenu | null) => setShownMenu((o) => (v ? { kind: "add", ...v } : o?.kind === "add" ? null : o));
   const [editing, setEditing] = useState<string | null>(null);
   // Rename in the right-click menu opens the editor with the name already in a box.
   const [renameFirst, setRenameFirst] = useState(false);
@@ -193,20 +200,8 @@ export function SavesPage({ snap, visible, home = 0 }: { snap: Snapshot; visible
 
   // The resize handle, as on the Mods tab: the width is kept between visits, a double-click resets it.
   const resize = (e: PointerEvent<HTMLDivElement>) => {
-    const el = e.currentTarget;
-    el.setPointerCapture(e.pointerId);
     const box = body.current!.getBoundingClientRect();
-    const onMove = (ev: globalThis.PointerEvent) => setWidth(Math.round(Math.max(DRAWER_MIN_PX, Math.min(box.right - ev.clientX, box.width - LIST_MIN_PX))));
-    const onUp = () => {
-      el.removeEventListener("pointermove", onMove);
-      el.removeEventListener("pointerup", onUp);
-      setWidth((w) => {
-        try { localStorage.setItem(DRAWER_KEY, String(w)); } catch { /* the width is a convenience */ }
-        return w;
-      });
-    };
-    el.addEventListener("pointermove", onMove);
-    el.addEventListener("pointerup", onUp);
+    dragResize(e, (x) => Math.round(Math.max(DRAWER_MIN_PX, Math.min(box.right - x, box.width - LIST_MIN_PX))), setWidth, (w) => keepWidth(DRAWER_KEY, w));
   };
 
   if (editing && list?.saves.some((s) => s.id === editing)) {
