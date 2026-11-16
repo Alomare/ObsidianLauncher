@@ -4,28 +4,23 @@ group: Jogar online
 summary: Contra o que o Obsidian protege, e o que nenhum gerenciador de mods consegue impedir.
 ---
 
-As proteções impedem que mods bem-comportados prejudiquem outros jogadores por acidente, e fazem da configuração segura o padrão. Elas não são um anti-cheat.
+As proteções impedem que mods bem-comportados prejudiquem outros jogadores por acidente, e fazem da configuração segura a padrão. Elas não são um anticheat.
 
 ## O que elas cobrem {#what-they-cover}
 
-- Um jogador sem mods não encontra lobbies com mods no matchmaking.
-- Mods de sessão que usam o loader se desligam sozinhos num lobby público que não os permitiu.
-- Missões jogadas com conteúdo de sessão não são enviadas para a Guerra Galáctica.
-- Suas conquistas e a progressão da sua conta ficam como estavam quando você pede isso em [Proteções](wiki:guardrails), seja o que for que os mods façam.
-- Um mod que falha sem parar é desligado, e um travamento na abertura do jogo aponta o mod que estava iniciando.
+- Um jogador vanilla num lobby público nunca joga sob mods de sessão: eles desligam, e conteúdo que não pode desligar mantém jogadores vanilla fora daquele lobby.
+- Mods de sessão que usam o carregador desligam sozinhos num lobby público que não os permitiu.
+- Missões jogadas com conteúdo de sessão não são enviadas à Guerra Galáctica.
+- Conquistas e progressão da conta ficam como estavam sempre que as [Proteções](wiki:guardrails) pedem, não importa o que os mods façam.
+- Um mod que falha repetidamente é desligado, e um travamento na inicialização cita o mod que estava começando.
 
 ## O que elas não cobrem {#what-they-can-t-cover}
 
-Tudo roda no seu próprio PC, então quem quiser trapacear pode escrever um script que ignora o loader por completo. Nenhum gerenciador de mods consegue impedir isso.
+Tudo roda no PC do jogador, então uma pessoa que quer trapacear pode escrever um script que ignora o carregador por completo. Nenhum gerenciador de mods impede isso. Um mod também pode quebrar as regras por engano ou de propósito, dizendo-se mod de cliente enquanto muda o jogo compartilhado, ou mudando o código do jogo diretamente, sem os ganchos do carregador, de modo que o carregador não consegue desligar a mudança.
 
-Um mod também pode quebrar as regras por engano ou de propósito:
+Quando um mod começa, o carregador compara o jogo antes e depois e escreve uma linha por mod no log do carregador, listando o que o mod adicionou ou substituiu fora do carregador. Essa linha é onde olhar quando um mod se comporta mal.
 
-- dizendo que é de cliente enquanto muda o jogo compartilhado;
-- mudando o código do jogo diretamente, sem os hooks do loader, e aí o loader não consegue desligar a mudança.
-
-Quando um mod inicia, o loader compara o jogo antes e depois e grava no `loader.log` uma linha por mod com o que ele adicionou ou substituiu fora do loader. É ali que você olha quando um mod se comporta mal.
-
-Um mod que escrevesse os arquivos de save por conta própria, por fora do código do jogo, poderia passar por cima de **Congelar a progressão da minha conta**. O Obsidian faz backup do save antes de cada aplicação ([Aplicar e limpar](wiki:deploy-and-purge#saves)).
+Um mod que escrevesse os arquivos de save por conta própria, de fora do código do jogo, poderia contornar **Congelar a progressão da conta**. O Obsidian faz backup do save antes de cada aplicação ([Aplicar e limpar](wiki:deploy-and-purge#saves)).
 
 > [!TIP]
-> Instale mods de autores e lugares em que você confia, e leia o que o mod diz que faz. Se um mod de cliente muda coisas que outros jogadores veem, avise o autor ou o pessoal no Discord.
+> Instale mods de autores e lugares confiáveis, e leia o que um mod diz que faz. Um mod de cliente que muda coisas que outros jogadores veem merece um relato ao autor ou no Discord.

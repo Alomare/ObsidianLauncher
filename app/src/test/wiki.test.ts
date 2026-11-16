@@ -2,13 +2,7 @@ import { describe, expect, it } from "vitest";
 import { TABS } from "../Markdown";
 import { wikiPages } from "../wiki";
 
-const LANGS = ["en", "pt-BR", "zh-CN"];
-/** Pages written since the last translation pass: English for now, listed in internal/release/untranslated-keys.txt. */
-const UNTRANSLATED = new Set([
-  "saves", "commander", "commander-wars", "commander-playing", "commander-game-master", "commander-rules",
-  "commander-hosting", "commander-sharing", "commander-joining", "commander-faq", "commander-troubleshooting",
-  "tab-store", "tab-mods", "tab-saves", "tab-wars", "tab-wiki", "tab-settings", "tab-account",
-]);
+const LANGS = ["en", "pt-BR", "ru", "zh-CN"];
 
 describe("wiki", () => {
   it("splits into a Launcher and a Commander subtab, each with the FAQ and Troubleshooting pinned", () => {
@@ -37,11 +31,9 @@ describe("wiki", () => {
       const pages = wikiPages(lang).pages;
       expect(pages.map((p) => p.id)).toEqual(ids);
       if (lang !== "en") {
-        // A translated page differs from the English one; a missing file would show English.
+        // A missing file would show the English page, word for word. Titles can match ("Saves"), the text can't.
         const en = wikiPages("en").pages;
-        pages.forEach((p, i) => {
-          if (!UNTRANSLATED.has(p.id)) expect(p.title, `${lang} ${p.id}`).not.toBe(en[i].title);
-        });
+        pages.forEach((p, i) => expect(p.text, `${lang} ${p.id}`).not.toBe(en[i].text));
       }
     }
   });

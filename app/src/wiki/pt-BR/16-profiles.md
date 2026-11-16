@@ -1,24 +1,24 @@
 ---
 title: Perfis
 group: Primeiros passos
-summary: Conjuntos com nome de mods, ordem, opções, cor e as Proteções, e como compartilhar.
+summary: Conjuntos nomeados de mods, ordem, opções, cor e Proteções, e como compartilhá-los.
 ---
 
-Um perfil lembra quais mods estão ligados, a ordem de carregamento, as pastas, cada valor de opção e tecla, as [Proteções](wiki:guardrails) e uma cor. Trocar de perfil muda tudo isso de uma vez. A biblioteca de mods é a mesma para todos, então cada mod ocupa espaço uma vez só.
+Um perfil guarda quais mods estão ligados, a ordem de carregamento, as pastas, cada valor de opção e tecla, as [Proteções](wiki:guardrails) e uma cor. Trocar de perfil muda tudo isso de uma vez. A biblioteca de mods é compartilhada, então um mod ocupa espaço uma vez só.
 
-Abra os perfis pelo botão **Perfil** no topo da aba [Mods](app:mods). Quando há dois ou mais, o botão lista os perfis com as proteções de cada um: clique num deles para trocar para ele, ou em **Gerenciar perfis** para abrir os perfis. Ali você cria, copia, renomeia ou apaga um perfil, e escolhe uma imagem e uma cor para ele.
+O botão **Perfil** no topo da aba [Mods](app:mods) abre os perfis. Quando há dois ou mais, o botão os lista com as proteções de cada um: um clique num deles troca para ele, e **Gerenciar perfis** abre os perfis. Lá um perfil pode ser criado, copiado, renomeado, apagado, ou receber uma imagem e uma cor.
 
 > [!TIP]
-> Um perfil para jogar com amigos e outro para jogar sozinho é uma combinação comum. O perfil dos amigos pode deixar de fora os mods de sessão, e aí você continua no matchmaking normal.
+> Uma configuração comum é um perfil para jogar com amigos e outro para jogar sozinho. O perfil dos amigos pode deixar de fora todos os mods de sessão, o que mantém o matchmaking normal.
 
 ## Cor {#color}
 
-A cor de um perfil aparece no botão **Perfil** e nos interruptores ligados enquanto o perfil está em uso, então dá para ver de relance com qual você está. **Cor padrão** volta ao dourado.
+A cor de um perfil aparece no botão **Perfil** e nos interruptores ligados enquanto o perfil está em uso, então o perfil ativo fica claro num relance. **Cor padrão** devolve o dourado.
 
 ## Compartilhar um perfil {#sharing-a-profile}
 
-**Exportar** salva o perfil ativo como `.zip`. O arquivo leva as configurações do perfil e uma cópia de cada mod ligado.
+**Exportar** salva o perfil ativo como um `.zip`. O arquivo guarda as configurações do perfil e uma cópia de cada mod ligado.
 
-**Importar** lê um arquivo desses. Cada mod dentro dele é instalado se você não tiver, ou se a cópia do arquivo for mais nova que a sua. O perfil entra com um nome que não conflita com os seus. As proteções da conta vêm junto, e o Obsidian avisa. Bloquear mods de sessão dos outros em lobbies públicos fica desligado, para cada jogador escolher.
+**Importar** lê um arquivo desses. Cada mod do arquivo é instalado quando falta na biblioteca ou quando a cópia do arquivo é mais nova. O perfil é adicionado com um nome que não colide com um existente. As proteções da conta vêm junto, e o Obsidian avisa. Bloquear mods de sessão de outros jogadores em lobbies públicos fica desligado, para cada jogador escolher.
 
-Um perfil compartilhado é o jeito mais fácil de dar aos amigos o mesmo conjunto de mods de sessão, para que os seus mods rodem quando vocês jogarem juntos ([Jogar online](wiki:multiplayer)).
+Um perfil compartilhado é o jeito mais fácil de dar aos amigos o mesmo conjunto de mods de sessão, para que os mods rodem quando o grupo joga junto ([Jogar online](wiki:multiplayer)).

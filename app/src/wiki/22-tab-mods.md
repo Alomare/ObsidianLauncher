@@ -53,6 +53,6 @@ A click on a mod opens the details at the right:
 | About | The description, the authors and the links |
 | Versions | The releases on GitHub, by channel, and a switch to any of them |
 | Options | The settings of the mod, saved in the profile. Some mods also show settings in the game, under **Mods** in the pause menu, and a value changed there comes back to this tab once the game is closed |
-| Keys | The keys and controller inputs of the mod. **Change Binds** opens a table to set a new key or mouse button, a controller input (one to four buttons held together) and an input mode for each |
+| Keys | The keys and controller inputs of the mod. **Change binds** opens a table to set a new key or mouse button, a controller input (one to four buttons held together) and an input mode for each |
 | Files | The files of the mod, and the conflicts with other mods |
 | Dependencies | The mods this one needs, and the mods that need it |

@@ -20,11 +20,11 @@ Only the war data crosses the network: the map state once a minute, a report aft
 
 **Share** on the war screen, then **LAN**. The war server starts listening on the network, on port 17494 or the next free one, and announces the war every few seconds. Obsidian on any PC of the same network lists it under **Join War**, with the host computer name, the season and the player count. Players on the network need no code.
 
-Some networks keep devices from seeing each other, such as guest Wi-Fi and some mesh or office networks. There the announcement doesn't arrive, and players type the local address of the host instead, under **Join by Address**: the IPv4 address that `ipconfig` shows on the host PC, then a colon and the port Share shows, such as `192.168.1.20:17494`.
+Some networks keep devices from seeing each other, such as guest Wi-Fi and some mesh or office networks. There the announcement doesn't arrive, and players type the local address of the host instead, under **On another network** in **Join War**: the IPv4 address that `ipconfig` shows on the host PC, then a colon and the port Share shows, such as `192.168.1.20:17494`.
 
 ## VPN
 
-A VPN like Tailscale or ZeroTier puts the PCs of friends on one private network over the internet. The war server treats players on the common VPN address ranges as local, so **LAN** is enough: no port to forward and no invite code. The announcement doesn't cross most VPNs, so players type the VPN address of the host and the port under **Join by Address**. A VPN is the safer choice for internet play, since only people invited to the VPN can reach the war at all.
+A VPN like Tailscale or ZeroTier puts the PCs of friends on one private network over the internet. The war server treats players on the common VPN address ranges as local, so **LAN** is enough: no port to forward and no invite code. The announcement doesn't cross most VPNs, so players type the VPN address of the host and the port under **On another network** in **Join War**. A VPN is the safer choice for internet play, since only people invited to the VPN can reach the war at all.
 
 ## Internet
 
@@ -34,7 +34,7 @@ A VPN like Tailscale or ZeroTier puts the PCs of friends on one private network 
 2. Finds the public address of the connection, on the router status page or any "what is my IP" site, opened from the host PC.
 3. Sends friends the address with the port, such as `203.0.113.7:17494`, and the invite code from Share.
 
-Friends open **Join War** in Obsidian, type the address and the code under **Join by Address**, press **Find Wars** and join. The code stays with the joined war on that PC, so it is typed once.
+Friends open **Join War** in Obsidian, type the address and the code under **On another network**, press **Find Wars** and join. The code stays with the joined war on that PC, so it is typed once.
 
 Many home connections change the public address from time to time. When that happens, friends join again with the new address. Some providers put many homes behind one shared address (called CGNAT), and then no port forward reaches the host PC. A tunnel or a VPN works there.
 
@@ -46,7 +46,7 @@ A tunnel service gives the war a public address without touching the router. A p
 2. In the tunnel program, create a TCP tunnel to `127.0.0.1` and the port Share shows.
 3. Send friends the address the service gives, such as `example.at.ply.gg:12345`, and the invite code.
 
-Friends type that address and the code under **Join by Address**. Every caller through a tunnel counts as a caller from outside, so the code is required even for a friend on the same network. The tunnel program has to run while the war is played, and with some services the address changes each time the program restarts.
+Friends type that address and the code under **On another network** in **Join War**. Every caller through a tunnel counts as a caller from outside, so the code is required even for a friend on the same network. The tunnel program has to run while the war is played, and with some services the address changes each time the program restarts.
 
 ## The invite code
 

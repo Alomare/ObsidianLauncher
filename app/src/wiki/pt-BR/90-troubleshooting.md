@@ -1,40 +1,38 @@
 ---
-title: Quando algo dá errado
+title: Solução de problemas
 group: Ajuda
-summary: Logs, travamentos na abertura, mods que não carregam e como voltar ao jogo original.
+summary: Logs, travamentos na inicialização, mods que não carregam e voltar ao vanilla.
 ---
 
-## Primeiro, volte ao original {#back-to-vanilla-first}
+## Primeiro, volte ao vanilla {#back-to-vanilla-first}
 
-Quando o jogo se comporta mal, **Limpar** tira do jogo todos os arquivos do Obsidian. Se o problema continuar depois disso, a causa não é o Obsidian; verifique a integridade dos arquivos na Steam.
+Quando o jogo se comporta mal, **Limpar** tira do jogo todos os arquivos do Obsidian. Um problema que continua depois de limpar não vem do Obsidian, e verificar os arquivos do jogo na Steam é o próximo passo.
 
 ## O jogo travou {#the-game-crashed}
 
-O loader escreve uma linha logo antes de iniciar cada mod. Se o jogo parar nesse momento, na próxima vez que você abrir o Obsidian ele aponta o mod que estava iniciando. Desligue esse mod, aplique e avise o autor.
+O carregador escreve uma linha logo antes de iniciar cada mod. Quando o jogo para nesse momento, um aviso na aba Mods cita o mod que estava começando, na próxima vez que o Obsidian abrir. **Desligar**, no aviso, desliga esse mod: aplique e avise o autor.
 
-Se o jogo parar depois disso, o Obsidian avisa que ele não fechou normalmente. Um travamento dentro do motor do jogo costuma não deixar erro no log, então tente desligar os mods que você adicionou por último, um de cada vez.
+Quando o jogo para mais tarde, o Obsidian só diz que o jogo não fechou normalmente. Um travamento dentro do motor costuma não deixar erro no log, então desligue os últimos mods adicionados, um por vez, até o travamento sumir.
 
 ## Um mod não faz nada {#a-mod-does-nothing}
 
-- Confira se o mod está ligado e se você aplicou depois de ligar. Um botão **Aplicar** verde quer dizer que há mudanças esperando.
-- Num mod de sessão, confira o lobby: num lobby público com jogadores sem mods, ou que bloqueiam mods de sessão, os mods de sessão desligam ([Jogar online](wiki:multiplayer)).
-- Leia os logs (abaixo). Um mod que falhou ao iniciar tem uma linha de erro ali.
+- Confira se o mod está ligado e se uma aplicação rodou depois de ligá-lo. Um botão **Aplicar** verde quer dizer que há mudanças pendentes.
+- Para um mod de sessão, confira o lobby: num lobby público com jogadores vanilla, ou com jogadores que bloqueiam mods de sessão, os mods de sessão desligam ([Jogar online](wiki:multiplayer)).
+- Leia os logs abaixo. Um mod que falhou na inicialização deixa uma linha de erro ali.
 
 ## "Arquivos do jogo alterados" {#build-unknown}
 
-Alguns arquivos do jogo não batem com a versão que o Obsidian conhece. Isso acontece quando um mod foi copiado direto para a pasta `contents` do jogo por cima dos arquivos originais. Aplicar e Jogar continuam funcionando, e clicar no aviso lista os arquivos alterados. Use Limpar e depois verifique a integridade dos arquivos na Steam para trazer os originais de volta. Depois, adicione esse mod no Obsidian com **Adicionar**, que o aplica sem mexer nos originais.
-
-Se o próprio jogo disser que a versão é desconhecida, o programa do jogo não é a versão para a qual o Obsidian foi feito, e nenhum mod roda.
+Alguns arquivos do jogo não batem com a versão que o Obsidian conhece. Isso acontece quando um mod foi copiado direto para a pasta `contents` do jogo, por cima dos arquivos originais. Aplicar e Jogar continuam funcionando, e clicar no aviso lista os arquivos alterados. Para recuperar os originais, limpe, depois verifique os arquivos do jogo na Steam, e adicione esse mod no Obsidian com **Adicionar**, que o aplica sem tocar nos originais. Quando o próprio jogo diz que a versão é desconhecida, o programa do jogo não é a versão para a qual o Obsidian foi feito, e nenhum mod roda.
 
 ## Logs {#logs}
 
-Os logs ficam em `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher\logs`:
+Os logs ficam em `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher\logs` no Windows ([Onde ficam os arquivos](wiki:how-obsidian-works#where-your-files-are) tem a pasta no Linux). **Abrir logs**, na aba Sistema das [Configurações](app:settings), abre a pasta.
 
-| Arquivo | O que tem |
+| Arquivo | O que guarda |
 |---|---|
-| `loader.log` | Cada mod iniciando, os hooks entrando, o estado do multijogador e o que cada mod mudou fora do loader |
-| `<id do mod>.log` | As linhas que aquele mod escreveu com `obsidian.log`, e mais nada |
+| `loader.log` | Cada mod começando, ganchos entrando, o estado do multijogador, as linhas da guerra personalizada, e o que cada mod mudou fora do carregador |
+| `<id do mod>.log` | As linhas que aquele mod escreveu com `obsidian.log`, e nada mais |
 
 ## Pedir ajuda {#asking-for-help}
 
-Use **Copiar relatório** em [Configurações](app:settings), na seção Dados. Ele copia as versões, os mods ligados e o fim do `loader.log`, sem o nome da sua conta do Windows. Cole isso, junto com o que aconteceu, no [Discord](https://dsc.gg/hd1modding) ou a uma [issue no GitHub](https://github.com/Alomare/ObsidianLauncher/issues).
+**Copiar relatório**, em **Relatório de problema** na aba Sistema das [Configurações](app:settings), copia as versões, os mods ligados e o fim do `loader.log`, sem o nome da conta do Windows. Cole-o com uma descrição do que aconteceu no [Discord](https://dsc.gg/hd1modding) ou numa [issue no GitHub](https://github.com/Alomare/ObsidianLauncher/issues). Problemas com guerras personalizadas têm uma página separada na Wiki do Commander ([Solução de problemas](wiki:commander-troubleshooting)).

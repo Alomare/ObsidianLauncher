@@ -10,13 +10,13 @@ pin: help
 
 Go through these on the host PC first. **Share** on the war screen shows **LAN** on: the switch turns off whenever Obsidian closes, so it needs switching on after every start. The Windows firewall let the war server through on private networks, and Windows treats the network as private. Both PCs are on the same network, not one on guest Wi-Fi.
 
-When all of that holds and the list stays empty, the network may keep devices from seeing each other. Type the local address of the host under **Join by Address** instead, such as `192.168.1.20:17494`, using the IPv4 address `ipconfig` shows on the host PC and the port Share shows ([LAN](wiki:commander-sharing#lan)).
+When all of that holds and the list stays empty, the network may keep devices from seeing each other. Type the local address of the host under **On another network** in **Join War** instead, such as `192.168.1.20:17494`, using the IPv4 address `ipconfig` shows on the host PC and the port Share shows ([LAN](wiki:commander-sharing#lan)).
 
 A firewall prompt answered with Cancel blocks the war server until the rule changes: in Windows Security, open **Firewall & network protection**, then **Allow an app through firewall**, and tick **Private** for `commander-server.exe`.
 
 ## "No war answered at that address"
 
-**Join by Address** got no war back. On the host side, check that **Internet** is on in Share (it also turns off when Obsidian closes), that the router forwards the TCP port Share shows to the host PC, and that the address is the current public one. On the player side, check the port after the colon and the invite code: after **New Code**, only the new code works.
+**Find Wars**, under **On another network** in **Join War**, got no war back. On the host side, check that **Internet** is on in Share (it also turns off when Obsidian closes), that the router forwards the TCP port Share shows to the host PC, and that the address is the current public one. On the player side, check the port after the colon and the invite code: after **New Code**, only the new code works.
 
 Port forwarding fails without an error when the provider shares one public address between many homes (CGNAT). The public address on the router status page then differs from the one a "what is my IP" site shows. A [tunnel](wiki:commander-sharing#tunnel) or a [VPN](wiki:commander-sharing#vpn) works on such connections. Through a tunnel, check that the tunnel program runs on the host PC, points at `127.0.0.1` and the port Share shows, and still has the address friends typed.
 

@@ -144,7 +144,7 @@ The function runs once each time the bind fires. Players rebind keys in the app,
 
 ### Input modes
 
-Players also choose how each bind fires, in **Change Binds** on the Keys tab:
+Players also choose how each bind fires, in **Change binds** on the Keys tab:
 
 | Mode | Fires |
 |---|---|
@@ -168,4 +168,4 @@ The Keys tab has a column for the mouse and keyboard and one for a controller. W
 
 The app then shows the option in the row of the keybind, under the controller column, and leaves it out of the Options tab. The mod reads the option like any other. To have the input mode apply to the controller too, give `obsidian.keybind` a function that says whether the controller input is held, as `opts.pad`; the loader then calls `fn` with `"pad"` when it fires (`obsidian.capabilities.input_modes` is `true` in a loader that does this). Otherwise the mod watches the pad itself.
 
-Players can give any keybind a controller input in **Change Binds**, with or without a `pad` option: one to four buttons held together. The loader then reads the pad for that bind and calls `fn` with `"pad"`, in place of `opts.pad` (`obsidian.capabilities.pad_binds` is `true` in a loader that does this). The mod needs no code for it. A keybind with no `pad` shows a dash in that column. Obsidian versions without the controller column ignore `pad` and list the option under Options.
+Players can give any keybind a controller input in **Change binds**, with or without a `pad` option: one to four buttons held together. The loader then reads the pad for that bind and calls `fn` with `"pad"`, in place of `opts.pad` (`obsidian.capabilities.pad_binds` is `true` in a loader that does this). The mod needs no code for it. A keybind with no `pad` shows a dash in that column. Obsidian versions without the controller column ignore `pad` and list the option under Options.

@@ -40,7 +40,7 @@ A mod can name a GitHub repository. Obsidian asks GitHub for new versions of tho
 
 A mod with a new version shows it in gold in the Version column, and **Update to** in the details of the mod. A click on either shows the new version and a link to the changelog, then asks to confirm. The gold button with a number, at the top of the Mods tab, installs every waiting update at once. Only stable releases with a higher version are offered, and nothing installs without a click. Deploy afterwards to put the new versions in the game.
 
-The Versions tab in the details of such a mod lists every release, by channel, with what each one changed, and installs any of them, older ones included ([Sharing a mod](wiki:sharing#updates) explains channels).
+The Versions tab in the details of such a mod lists every release, by channel, with what each one changed, and installs any of them, older ones included ([Channels](wiki:sharing#channels)).
 
 ## Removing
 
