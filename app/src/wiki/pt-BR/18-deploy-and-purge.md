@@ -8,7 +8,7 @@ summary: O que uma aplicação faz, o que Limpar remove e por que o Obsidian às
 
 **Aplicar** e **Limpar** são os dois ícones na ponta direita da fileira de cima da aba [Mods](app:mods). Os dois exigem o jogo fechado.
 
-Aplicar coloca no jogo os mods ligados do perfil ativo. O ícone **Aplicar** fica verde enquanto há mudanças que ainda não estão no jogo, inclusive um valor de opção ou uma tecla.
+Aplicar coloca no jogo os mods ligados do perfil ativo. O ícone **Aplicar** fica verde enquanto há mudanças que só uma aplicação põe no jogo: mods ligados ou desligados, a ordem de carregamento, uma atualização e as opções cuja dica diz **Vale depois de Aplicar**. Os outros valores de opção e as teclas chegam ao jogo no próximo início do jogo, sem aplicar ([Opções e teclas](wiki:options-and-keys#reading-options-in-lua)).
 
 Cada aplicação substitui todos os patches da anterior, então não é preciso limpar antes: um mod desligado ou removido sai do jogo na próxima aplicação. Quando só mudaram valores de opção ou teclas, nada é reconstruído e a aplicação leva um instante. Cada aplicação segue estes passos:
 

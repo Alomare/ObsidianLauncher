@@ -8,7 +8,7 @@ summary: What a deploy does, what a purge removes, and why Obsidian sometimes re
 
 **Deploy** and **Purge** are the two icons at the right end of the top row of the [Mods](app:mods) tab. Both need the game closed.
 
-Deploy puts the enabled mods of the active profile into the game. The **Deploy** icon turns green while changes wait that aren't in the game yet, an option value or a key included.
+Deploy puts the enabled mods of the active profile into the game. The **Deploy** icon turns green while changes wait that only a deploy puts in the game: mods switched on or off, the load order, an update, and the options whose tooltip says **Applies after Deploy**. Other option values and keys reach the game at the next launch without a deploy ([Options and keys](wiki:options-and-keys#reading-options-in-lua)).
 
 Every deploy replaces all the patches of the one before, so there's no need to purge first: a mod turned off or removed leaves the game at the next deploy. When only option values or keys changed, nothing is rebuilt and the deploy takes a moment. Each deploy runs these steps:
 

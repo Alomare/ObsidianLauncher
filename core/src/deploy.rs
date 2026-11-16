@@ -343,6 +343,18 @@ pub fn settings_digest(s: &settings::Settings) -> String {
     crate::hash::hex(&Sha256::digest(settings::render(&s).as_bytes()))
 }
 
+/// Records that the settings file holds `s`, written there outside a deploy as option values and keys
+/// are. A change that needs a deploy also changes the fingerprint, so it stays waiting.
+pub fn note_settings(data_dir: &Path, s: &settings::Settings) -> Result<()> {
+    if let Some(state) = load_state(data_dir)? {
+        let digest = settings_digest(s);
+        if state.settings.as_deref() != Some(digest.as_str()) {
+            write_state(data_dir, &DeployState { settings: Some(digest), ..state })?;
+        }
+    }
+    Ok(())
+}
+
 /// `contents` is the game's folder of bundles, to check that the recorded patches are still there.
 pub fn changes_waiting(lib: &Library, profile: &Profile, data_dir: &Path, contents: Option<&Path>) -> Result<ChangesWaiting> {
     let mut profile = profile.clone();
@@ -354,9 +366,9 @@ pub fn changes_waiting(lib: &Library, profile: &Profile, data_dir: &Path, conten
 
 /// `changes_waiting` for a composition already made from `profile`, synced with the library. A deploy
 /// that was cut short, or patches that are gone (a reinstall, another copy of the game), count as
-/// changes waiting: Play would otherwise start the game without the mods. So do option values and
-/// keys changed since the deploy (`settings`, from `settings_digest`), although they reach the
-/// game at the next launch anyway: Deploy says the game has what the profile shows.
+/// changes waiting: Play would otherwise start the game without the mods. So do settings the
+/// settings file doesn't hold yet (`settings`, from `settings_digest`). Option values and keys
+/// written straight to the game (`note_settings`) don't: they need no deploy.
 pub fn changes_waiting_for(comp: &Composition, profile: &Profile, settings: &str, data_dir: &Path, contents: Option<&Path>) -> Result<ChangesWaiting> {
     changes_waiting_in(comp, profile, settings, load_state(data_dir)?.as_ref(), contents)
 }
@@ -1460,6 +1472,26 @@ mod tests {
         assert_eq!(waiting(&w), ChangesWaiting::UpToDate, "back as deployed");
         let r = deploy(&w.game, &w.data, &w.opts).unwrap();
         assert!(r.unchanged && !r.settings_changed);
+    }
+
+    #[test]
+    fn an_option_written_straight_to_the_game_waits_only_when_it_needs_a_deploy() {
+        let w = world();
+        add_option_mod(&w);
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        let lib = Library::open(&w.data).unwrap();
+        let live = |f: &dyn Fn(&mut Profile)| {
+            let mut p = Profile::load(&w.data).unwrap();
+            f(&mut p);
+            p.save(&w.data).unwrap();
+            crate::edit::write_settings(&lib, &p, &w.game.saves_dir).unwrap();
+        };
+        live(&|p| crate::edit::set_option(&lib, p, "opt", "fast", Some(&serde_json::json!(true))).map(|_| ()).unwrap());
+        assert_eq!(waiting(&w), ChangesWaiting::UpToDate, "a live option is in the game already");
+        live(&|p| crate::edit::set_key(&lib, p, "opt", "toggle", Some("f9")).unwrap());
+        assert_eq!(waiting(&w), ChangesWaiting::UpToDate, "so is a key");
+        live(&|p| crate::edit::set_option(&lib, p, "opt", "sky", Some(&serde_json::json!("night"))).map(|_| ()).unwrap());
+        assert_eq!(waiting(&w), ChangesWaiting::Waiting, "an option that picks files needs a deploy");
     }
 
     #[test]

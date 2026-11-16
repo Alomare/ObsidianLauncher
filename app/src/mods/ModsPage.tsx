@@ -350,7 +350,11 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
           {snap.mods.length === 0 && (
             <div className="list-empty">
               <h2 className="cap">{t("app.mods.emptyTitle")}</h2>
-              <p className="muted">{t("app.mods.emptyText")}</p>
+              <p className="muted">{(() => {
+                // The Kit phrase links to the Store tab, which installs the Kit mods again.
+                const [before, after = ""] = t("app.mods.emptyText", "%s").split("%s");
+                return <>{before}<button className="link" onClick={() => go("store")}>{t("app.mods.emptyKit")}</button>{after}</>;
+              })()}</p>
               <div className="row-btns">
                 <button className="btn small" onClick={() => pickAndImport(false)}><ImportIcon />{t("app.mods.importZip")}</button>
                 <button className="btn small" onClick={() => pickAndImport(true)}><FolderIcon />{t("app.mods.importFolder")}</button>

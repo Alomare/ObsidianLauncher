@@ -104,9 +104,12 @@ pub fn set_pad(lib: &Library, profile: &mut Profile, id: &str, keybind: &str, co
     set_bind(lib, &mut profile.pads, id, keybind, combo, crate::options::is_pad_combo)
 }
 
-/// Writes the profile's consent, guardrails, option values and keys where the loader reads them.
+/// Writes the profile's consent, guardrails, option values and keys where the loader reads them, and
+/// notes them in the deploy record: they are in the game now, so they leave no change waiting.
 pub fn write_settings(lib: &Library, profile: &Profile, saves_dir: &Path) -> Result<()> {
-    crate::settings::write(&crate::settings::game_side_dir(saves_dir), &crate::loader::settings_for(lib, profile)?)
+    let settings = crate::loader::settings_for(lib, profile)?;
+    crate::settings::write(&crate::settings::game_side_dir(saves_dir), &settings)?;
+    crate::deploy::note_settings(lib.data_dir(), &settings)
 }
 
 #[cfg(test)]

@@ -105,7 +105,7 @@ pub fn seed(data: &Path) -> Result<()> {
         restore(&lib, &mut p)?;
         p.save(data)?;
     }
-    crate::paths::write_atomic(&seeded, b"The starter pack was set up here. Restore it from Settings.\n")?;
+    crate::paths::write_atomic(&seeded, b"The starter pack was set up here. The Store tab installs its mods again.\n")?;
     Ok(())
 }
 

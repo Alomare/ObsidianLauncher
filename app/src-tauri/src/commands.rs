@@ -765,13 +765,6 @@ pub async fn remove_mods(ctx: State<'_, Ctx>, ids: Vec<String>) -> CmdResult<Sna
     live_edit(&ctx, |_, _| Ok(()))
 }
 
-/// Puts the starter pack back as it came, in the active profile.
-#[tauri::command]
-pub async fn restore_starter_pack(ctx: State<'_, Ctx>) -> CmdResult<Snapshot> {
-    let _turn = ctx.turn();
-    live_edit(&ctx, obsidian_core::starter::restore)
-}
-
 const STEAM_LAUNCH: &str = "steam://rungameid/394510";
 const APP_SOURCE: &str = "https://github.com/Alomare/ObsidianLauncher";
 
