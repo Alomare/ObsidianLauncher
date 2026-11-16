@@ -8,7 +8,7 @@ fn spaced() -> tempfile::TempDir {
 }
 
 fn obsidian(game: &std::path::Path, data: &std::path::Path) -> Command {
-    let mut c = Command::cargo_bin("obsidian").unwrap();
+    let mut c = Command::cargo_bin("obsidian-cli").unwrap();
     c.arg("--game").arg(game).arg("--data-dir").arg(data);
     // Never the player's real saves, and Linux wants no Proton prefix for a throwaway game.
     c.env("OBSIDIAN_APPDATA", data.join("appdata"));
@@ -22,7 +22,7 @@ fn bundle_with(data: &[u8]) -> Bundle {
 
 #[test]
 fn help_lists_every_command() {
-    let out = Command::cargo_bin("obsidian").unwrap().arg("--help").assert().success().get_output().stdout.clone();
+    let out = Command::cargo_bin("obsidian-cli").unwrap().arg("--help").assert().success().get_output().stdout.clone();
     let text = String::from_utf8(out).unwrap();
     for cmd in ["game", "import", "list", "order", "enable", "disable", "conflicts", "deploy", "purge", "status", "updates", "update", "restore-starter"] {
         assert!(text.contains(cmd), "missing {cmd}");
@@ -183,7 +183,7 @@ fn status_names_the_crash_culprit() {
     assert!(text.contains("The last game launch stopped while loading c.d"), "{text}");
 }
 
-/// A deploy that wrote nothing, as after `obsidian deploy` with every mod off.
+/// A deploy that wrote nothing, as after `obsidian-cli deploy` with every mod off.
 fn empty_deploy(data: &std::path::Path) {
     std::fs::create_dir_all(data).unwrap();
     std::fs::write(data.join("deploy-state.json"), r#"{"build":"Steam 6001293","files":[],"mods":[],"time":"t"}"#).unwrap();
@@ -210,5 +210,5 @@ fn a_guardrail_asks_for_a_deploy_when_the_loader_is_not_in_the_game() {
     empty_deploy(&data);
     let out = obsidian(&game, &data).env("OBSIDIAN_APPDATA", t.path().join("appdata")).args(["block-achievements", "on"]).assert().success().get_output().stdout.clone();
     let text = String::from_utf8(out).unwrap();
-    assert!(text.contains("Run obsidian deploy to apply."), "{text}");
+    assert!(text.contains("Run obsidian-cli deploy to apply."), "{text}");
 }

@@ -16,7 +16,7 @@ use obsidian_core::updates::{self, GitHub};
 use obsidian_core::{ObsidianError, Result};
 
 #[derive(Parser)]
-#[command(name = "obsidian", version, about = "Launcher and mod loader for HELLDIVERS (2015)")]
+#[command(name = "obsidian-cli", version, about = "Launcher and mod loader for HELLDIVERS (2015)")]
 struct Cli {
     /// The Helldivers game folder (skips the Steam search)
     #[arg(long, global = true)]
@@ -57,7 +57,7 @@ enum Command {
     BlockAchievements { state: OnOff },
     /// Keep the account's progression as it is (on or off), from the next launch
     FreezeProgress { state: OnOff },
-    /// Set a mod option, for example: obsidian set author.mod distance 7
+    /// Set a mod option, for example: obsidian-cli set author.mod distance 7
     Set { id: String, option: String, value: String },
     /// Delete a mod from the library
     Remove { id: String },
@@ -258,7 +258,7 @@ fn run(cli: Cli) -> Result<()> {
                 let m = mods.iter().find(|m| m.id == *id).ok_or_else(|| ObsidianError::ModMissing(id.clone()))?;
                 let staged = updates::stage(&github, m)?;
                 staged.install(&lib)?;
-                println!("Updated {id} {} -> {} (run obsidian deploy)", m.version, staged.manifest.version);
+                println!("Updated {id} {} -> {} (run obsidian-cli deploy)", m.version, staged.manifest.version);
             }
             profile.sync(&lib)?;
             profile.save(&data)?;
@@ -266,7 +266,7 @@ fn run(cli: Cli) -> Result<()> {
         Command::List => {
             let mods = lib.list()?;
             if profile.mods.is_empty() {
-                println!("The library is empty. Add mods with: obsidian import <folder or .zip>");
+                println!("The library is empty. Add mods with: obsidian-cli import <folder or .zip>");
             }
             for (i, entry) in profile.mods.iter().enumerate() {
                 let Some(m) = mods.iter().find(|m| m.id == entry.id) else { continue };
@@ -346,7 +346,7 @@ fn run(cli: Cli) -> Result<()> {
             }
             // Status must work with a damaged library, so a failure here only skips the line.
             if let Ok(w) = Profile::load(&data).and_then(|p| changes_waiting(&lib, &p, &data, Some(&g.contents()))) {
-                println!("Changes waiting: {}", if w == ChangesWaiting::Waiting { "yes (run obsidian deploy)" } else { "no" });
+                println!("Changes waiting: {}", if w == ChangesWaiting::Waiting { "yes (run obsidian-cli deploy)" } else { "no" });
             }
             if obsidian_core::game::is_running() {
                 println!("The game is running.");
@@ -379,7 +379,7 @@ fn run(cli: Cli) -> Result<()> {
             match obsidian_core::edit::set_option(&lib, &mut profile, &id, &option, Some(&parsed))? {
                 obsidian_core::edit::Applies::AfterDeploy => {
                     profile.save(&data)?;
-                    println!("{id} {option} is now {parsed}. Run obsidian deploy to apply.");
+                    println!("{id} {option} is now {parsed}. Run obsidian-cli deploy to apply.");
                 }
                 obsidian_core::edit::Applies::NextLaunch => live_change(&profile, &data, &lib, &game()?, &format!("{id} {option} is now {parsed}"))?,
             }
@@ -414,7 +414,7 @@ fn run(cli: Cli) -> Result<()> {
             }
             ProfileAction::New { name, copy } => {
                 profiles::create(&data, &name, copy.as_deref())?;
-                println!("Created profile {name}. Switch to it with: obsidian profile use {name}");
+                println!("Created profile {name}. Switch to it with: obsidian-cli profile use {name}");
             }
         },
     }
@@ -598,7 +598,7 @@ fn live_change(profile: &Profile, data: &std::path::Path, lib: &Library, g: &Gam
     if loader_deployed {
         println!("{what}. Applies at the next game launch.");
     } else {
-        println!("{what}. Run obsidian deploy to apply.");
+        println!("{what}. Run obsidian-cli deploy to apply.");
     }
     Ok(())
 }
@@ -616,7 +616,7 @@ fn toggle(profile: &mut Profile, lib: &Library, data: &std::path::Path, id: &str
     let others = profile.switch(lib, id, on)?;
     profile.save(data)?;
     let word = if on { "on" } else { "off" };
-    println!("{id} is now {word}. Run obsidian deploy to apply.");
+    println!("{id} is now {word}. Run obsidian-cli deploy to apply.");
     for other in others {
         println!("{other} is now {word} too, because {} needs it.", if on { id } else { &other });
     }
