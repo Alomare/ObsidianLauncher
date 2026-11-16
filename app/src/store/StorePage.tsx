@@ -69,7 +69,7 @@ function ScopeTag({ scope }: { scope: Scope }) {
 }
 
 const Early = ({ m }: { m: StoreMod }) =>
-  m.early ? <span className="store-tag early" data-tip={t("app.store.earlyHint", m.version)}>{t("app.store.early")}</span> : null;
+  m.early ? <span className="store-tag early" data-tip-title={t("app.store.earlyTitle")} data-tip={t("app.store.earlyHint", m.version)}>{t("app.store.early")}</span> : null;
 
 /** Obsidian Verified, in front of the name: a white circle with a dark check. */
 const Verified = ({ m }: { m: StoreMod }) =>
@@ -456,8 +456,8 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
             {!!m.authors?.length && <span className="mby">{t("app.store.by", m.authors.join(", "))}</span>}
           </div>
           <div className="mid-tools">
-            <StarButton m={m} />
             <InstallButton m={m} mark={k} size="big" onInstall={() => onInstall(m)} />
+            <StarButton m={m} />
             <button className="btn icon report-btn" onClick={() => setReporting(true)} aria-haspopup="dialog" aria-label={t("app.report.button")}
               data-tip-title={t("app.report.button")} data-tip={t("app.report.hint")}>
               <IssueIcon />

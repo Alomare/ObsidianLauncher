@@ -967,6 +967,7 @@
   "app.store.noMatchHint": "Try fewer filters.",
   "app.store.early": "EA",
   "app.store.earlyHint": "Version %s: still in development, and later versions can change a lot.",
+  "app.store.earlyTitle": "Early Access",
   "app.store.updateFlag": "Update",
   "app.store.install": "Install",
   "app.store.update": "Update",

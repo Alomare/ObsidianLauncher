@@ -137,8 +137,8 @@ describe("StorePage", () => {
     expect(host.querySelector(".mfacts dd:last-child .store-tag.early, .mfacts div:nth-child(4) .store-tag.early")?.textContent).toBe("EA");
     expect(host.querySelector(".mid-t .store-tag")).toBeNull();
     expect(host.querySelector(".c-dl")).toBeNull();
-    // Star, Install, Report and Remove in one row, Early access before the authors.
-    expect([...host.querySelectorAll(".mid-tools > *")].map((e) => e.classList[1])).toEqual(["star-btn", "inst", "icon"]);
+    // Install, Star, Report and Remove in one row, Early access before the authors.
+    expect([...host.querySelectorAll(".mid-tools > *")].map((e) => e.classList[1])).toEqual(["inst", "star-btn", "icon"]);
     // The side panels in order, folded, each but Versions with a count; GitHub shows while Versions is folded.
     const panels = [...host.querySelectorAll(".mside .mpanel")];
     expect(panels.map((p) => p.querySelector(".mp-tog span")?.textContent)).toEqual([t("app.store.versions"), t("app.store.options"), t("app.store.requires")]);

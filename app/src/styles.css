@@ -500,7 +500,7 @@ button.link:hover { filter: brightness(1.2); }
 .opt-ctl .bare:disabled, .opt-cell .bare:disabled { opacity: 0.3; cursor: default; }
 /* Three columns without a head, the same width in every row: text, control, reset. Each control starts at
    the left of the cell; those with no natural width (dropdown, key, color, number) fill it. */
-.opt-table .opt { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) 1.4rem; column-gap: 0.4rem; padding-right: 0.3rem; }
+.opt-table .opt { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr) 1.4rem; column-gap: 0.4rem; padding-right: 0.3rem; }
 .opt-cell { display: flex; align-items: center; justify-content: flex-start; min-width: 0; }
 .opt-cell > .select, .opt-cell > .key-btn, .opt-cell > .color-ctl, .opt-cell > .num-ctl { flex: 1; min-width: 0; }
 .opt-cell .num-ctl input[type="range"] { flex: 1; width: auto; min-width: 0; }
@@ -511,7 +511,7 @@ button.link:hover { filter: brightness(1.2); }
    the head's icons stay over them. The key is a small button; the controller choice takes the rest of the column. */
 /* Three columns shared by the head and every row (subgrid): the name fills, the key and the controller
    input take what they need. Nothing here changes a bind: Change Binds, over the names, opens the dialog. */
-.keys { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; }
+.keys { display: grid; grid-template-columns: minmax(0, 1fr) minmax(6rem, auto) minmax(6rem, auto); }
 .keys > .keys-head, .keys > .opts, .keys > .opts > .opt { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: center; column-gap: 0; }
 .keys > .opts > .opt { padding-right: 0.8rem; }
 .keys .opt-ctl { gap: 0; min-width: 0; }
@@ -1221,8 +1221,8 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
    it, and the saves inside on the same tint. Gold for Official, green for Sandbox. */
 .str.sgroup, .str.in, .saves-none { --fc: var(--gold); }
 .str.sgroup.sandbox, .str.in.sandbox-row, .saves-none { --fc: var(--go); }
-.str.sgroup { grid-template-columns: minmax(0, 1fr); min-height: 0; padding: 0; cursor: default; background: color-mix(in srgb, var(--fc) 7.5%, transparent); box-shadow: inset 4px 0 0 var(--fc); }
-.str.sgroup:hover { background: color-mix(in srgb, var(--fc) 10.5%, transparent); }
+.str.sgroup { grid-template-columns: minmax(0, 1fr); min-height: 0; padding: 0; cursor: default; background: color-mix(in srgb, var(--fc) 6%, transparent); box-shadow: inset 4px 0 0 var(--fc); }
+.str.sgroup:hover { background: color-mix(in srgb, var(--fc) 8.4%, transparent); }
 .sgroup-name { width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.42rem 0.8rem; border: 0; background: none; font-family: "Saira Variable", "Exo 2 Variable", sans-serif; font-size: var(--fs-sm); font-weight: 700; letter-spacing: 0.12em; color: var(--tx); text-align: left; cursor: pointer; }
 .sgroup-name svg { width: 1rem; height: 1rem; flex: none; color: var(--mu); transition: transform var(--fast); }
 .sgroup.folded .sgroup-name svg { transform: rotate(-90deg); }
@@ -1594,12 +1594,13 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .store-scope.hybrid::before { background: linear-gradient(to right, var(--client) 50%, var(--session) 50%); }
 .store-tag.early { background: var(--s1); color: var(--goldtx); box-shadow: inset 0 0 0 1px var(--gold); }
 /* Installed or Update: a corner over the top right of a card. */
-.c-flag { position: absolute; top: 0; right: 0; z-index: 2; width: 1.33rem; height: 1.33rem; clip-path: polygon(0 0, 100% 0, 100% 100%); opacity: 0.9; transition: background var(--fast); }
-.c-flag.inst { background: var(--go); }
-.c-flag.upd { background: var(--gold); }
+/* The triangle is a gradient rather than a clip, so the soft shadow under it shows. */
+.c-flag { --cf: var(--go); position: absolute; top: 0; right: 0; z-index: 2; width: 1.33rem; height: 1.33rem; opacity: 0.9;
+  background: linear-gradient(to bottom left, var(--cf) 50%, transparent 50%); filter: drop-shadow(-1px 1px 2px rgba(0, 0, 0, 0.28)); }
+.c-flag.upd { --cf: var(--gold); }
 .c-flag.sm { width: 0.93rem; height: 0.93rem; }
 /* Obsidian Verified: a white circle with a dark check, inline in front of the name, about the height of the capitals. */
-.store-verified { display: inline-block; width: 0.9em; height: 0.9em; margin-left: 0.35em; vertical-align: -0.1em; }
+.store-verified { display: inline-block; flex: none; width: 0.9em; height: 0.9em; margin: 0 1px 0 0.35em; vertical-align: -0.1em; overflow: visible; }
 :root[data-theme="light"] .store-verified circle { stroke: rgba(0, 0, 0, 0.35); stroke-width: 1px; r: 7.5px; }
 
 /* Obsidian Kit: icon, then the name over the scope, on plain grey; a soft outline sets the icon off */
@@ -1608,6 +1609,7 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .kit-card:hover, .kit-card:focus-visible { transform: translateY(-2px); box-shadow: inset 0 0 0 1px var(--ln), inset 0 -3px 0 var(--gold); outline: 0; }
 .kit-card .mico { box-shadow: 0 0 0 1px color-mix(in srgb, var(--tx) 18%, transparent), 0 2px 8px rgba(0, 0, 0, 0.25); }
 .kc-text { min-width: 0; display: flex; align-items: center; gap: 0.5rem; }
+.kc-text .store-scope { width: var(--fs-md); height: var(--fs-md); }
 .kc-inst { flex: none; margin-left: auto; width: 2.1rem; height: 2.1rem; }
 .kc-inst svg { width: 1rem; height: 1rem; }
 .kc-inst.installing { display: inline-grid; place-items: center; background: var(--row); box-shadow: inset 0 0 0 1px var(--go); }
