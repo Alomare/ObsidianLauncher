@@ -73,7 +73,7 @@ pub fn sha256_file(path: &Path) -> Result<String> {
         }
         h.update(&buf[..n]);
     }
-    Ok(h.finalize().iter().map(|b| format!("{b:02x}")).collect())
+    Ok(crate::hash::hex(&h.finalize()))
 }
 
 /// Hashes of the gate files, kept while the size and the time written of each stay the same: the

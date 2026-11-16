@@ -7,7 +7,7 @@ import { openColorPicker } from "../ColorPicker";
 import { Confirm } from "../Confirm";
 import { ArrowIcon, ChevronIcon, CloseIcon, ExternalIcon, FileIcon, GamepadIcon, HistoryIcon, InfoIcon, KeyboardIcon, KeyboardMouseIcon, LinkIcon, ResetIcon, SlidersIcon, TrashIcon } from "../Icons";
 import { language, pick, t } from "../i18n";
-import { Markdown, parse } from "../Markdown";
+import { ReleaseEntry } from "../ReleaseEntry";
 import { Select } from "../Select";
 import { compareVersions, type Release } from "../updates";
 import { loadMore, useModReleases } from "./modReleases";
@@ -438,25 +438,14 @@ function VersionsTab({ mod }: { mod: ModRow }) {
           const unfold = !!unfolded[e.version];
           const w = when(e.version);
           return (
-            <li key={e.version} className={`mod-log-entry ${w}${unfold ? " open" : ""}`}>
-              <button className="upd-head" aria-expanded={unfold} onClick={() => setUnfolded((u) => ({ ...u, [e.version]: !unfold }))}>
-                <ChevronIcon />
-                <b>{e.version}</b>
-                {badge(w)}
-                <span className="date">{e.date ? new Date(e.date).toLocaleDateString(language(), { dateStyle: "medium" }) : ""}</span>
-              </button>
-              {unfold && (
-                <div className="upd-body">
-                  {w !== "installed" && e.tag && (
-                    <button className="btn small versions-switch" onClick={() => install(e)} disabled={busy}>
-                      {t(w === "new" ? "app.drawer.switchUp" : "app.drawer.switchDown", e.version)}
-                    </button>
-                  )}
-                  {e.notes.trim() ? <Markdown tokens={parse(e.notes).tokens} /> : <p className="muted">{t("app.update.noNotes")}</p>}
-                  {e.url && <button className="link small" onClick={() => openUrl(e.url).catch(() => {})}>{t("app.update.onGithub")}</button>}
-                </div>
+            <ReleaseEntry key={e.version} version={e.version} date={e.date} className={`mod-log-entry ${w}`} open={unfold}
+              onToggle={() => setUnfolded((u) => ({ ...u, [e.version]: !unfold }))} badges={badge(w)} notes={e.notes} url={e.url}>
+              {w !== "installed" && e.tag && (
+                <button className="btn small versions-switch" onClick={() => install(e)} disabled={busy}>
+                  {t(w === "new" ? "app.drawer.switchUp" : "app.drawer.switchDown", e.version)}
+                </button>
               )}
-            </li>
+            </ReleaseEntry>
           );
         })}
       </ol>

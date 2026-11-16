@@ -446,7 +446,7 @@ impl Saves {
         use sha2::{Digest, Sha256};
         let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
         (0u32..)
-            .map(|i| Sha256::digest(format!("{nanos}:{i}:{}", self.account)).iter().take(4).map(|b| format!("{b:02x}")).collect::<String>())
+            .map(|i| crate::hash::hex(&Sha256::digest(format!("{nanos}:{i}:{}", self.account))[..4]))
             .find(|id| !idx.saves.iter().any(|s| s.id == *id) && !self.sandbox_common(id).exists() && !self.dir.join(id).exists())
             .expect("a free id")
     }

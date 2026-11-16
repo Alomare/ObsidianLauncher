@@ -443,7 +443,7 @@ pub fn now_secs() -> u64 {
 /// younger than that many seconds stands in for asking. A failed check keeps nothing, so it asks
 /// again next time, and a file that can't be read or written only means asking.
 pub fn check_remembering(github: &GitHub, mods: &[Manifest], file: &Path, trust: Option<u64>, now: u64) -> Vec<Checked> {
-    let mut seen: BTreeMap<String, Seen> = std::fs::read(file).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
+    let mut seen: BTreeMap<String, Seen> = crate::paths::json_file::load(file).unwrap_or_default();
     let before = seen.clone();
     let checked = latest_of(github, mods, &mut seen, trust, now);
     seen.retain(|_, s| s.at > now.saturating_sub(FORGET_SECS));

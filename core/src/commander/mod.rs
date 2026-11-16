@@ -220,8 +220,7 @@ struct WarFile {
 }
 
 fn war_file(data: &Path, id: &str) -> Option<WarFile> {
-    let text = std::fs::read_to_string(server::server_data(data).join("wars").join(id).join("war.json")).ok()?;
-    serde_json::from_str::<WarFile>(&text).ok().filter(|w| w.id == id)
+    crate::paths::json_file::load::<WarFile>(&server::server_data(data).join("wars").join(id).join("war.json")).filter(|w| w.id == id)
 }
 
 /// The settings of a war: from the war file for a war hosted here, else as the host announced
@@ -285,14 +284,14 @@ pub fn playing_now(data: &Path, sandbox: Option<&str>) -> Option<String> {
 pub fn war_pool_tag(id: &str) -> String {
     use sha2::{Digest, Sha256};
     let d = Sha256::digest(format!("obsidian:war:1\n{id}").as_bytes());
-    d.iter().take(6).map(|b| format!("{b:02x}")).collect()
+    crate::hash::hex(&d[..6])
 }
 
 /// A fresh random hex string from the system random source.
 pub fn random_token(bytes: usize) -> String {
     let mut raw = vec![0u8; bytes];
     if getrandom::fill(&mut raw).is_ok() {
-        return raw.iter().map(|b| format!("{b:02x}")).collect();
+        return crate::hash::hex(&raw);
     }
     // The system source failed, which Windows and Linux do not do in practice: hashed bits instead.
     let mut out = String::new();
@@ -580,7 +579,7 @@ pub fn war_choices(data: &Path) -> Vec<WarChoice> {
         && let Ok(rd) = std::fs::read_dir(server::server_data(data).join("wars"))
     {
         for e in rd.flatten() {
-            let Some(w) = std::fs::read_to_string(e.path().join("war.json")).ok().and_then(|t| serde_json::from_str::<WarFile>(&t).ok()) else { continue };
+            let Some(w) = crate::paths::json_file::load::<WarFile>(&e.path().join("war.json")) else { continue };
             let live = matches!(w.state.as_deref(), Some("running" | "paused"));
             let pick = WarRef { id: w.id.clone(), host: WarHost::Local, ..Default::default() };
             if !valid_pick(&pick) || (!live && playing != Some(w.id.as_str())) {

@@ -80,7 +80,7 @@ fn path(data: &Path) -> PathBuf {
 }
 
 pub fn saved(data: &Path) -> Option<Saved> {
-    std::fs::read(path(data)).ok().and_then(|b| serde_json::from_slice::<Saved>(&b).ok()).filter(|s| !s.token.is_empty())
+    crate::paths::json_file::load::<Saved>(&path(data)).filter(|s| !s.token.is_empty())
 }
 
 fn save(data: &Path, s: &Saved) -> Result<()> {
@@ -546,7 +546,7 @@ pub struct Report {
 }
 
 pub fn reports(data: &Path) -> Vec<Report> {
-    std::fs::read(data.join(REPORTS)).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
+    crate::paths::json_file::load(&data.join(REPORTS)).unwrap_or_default()
 }
 
 fn save_reports(data: &Path, list: &[Report]) -> Result<()> {

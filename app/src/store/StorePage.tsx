@@ -13,8 +13,9 @@ import { useLocked } from "../busy";
 import { Confirm } from "../Confirm";
 import { CheckIcon, ChevronIcon, CloseIcon, GitHubIcon, ImportIcon, IssueIcon, SearchIcon, StarIcon, TrashIcon, UpdateIcon } from "../Icons";
 import { artFor } from "../homeArt";
-import { language, t } from "../i18n";
+import { t } from "../i18n";
 import { Markdown, parse } from "../Markdown";
+import { ReleaseEntry, releaseDate } from "../ReleaseEntry";
 import { go } from "../nav";
 import { openUrl } from "../opener";
 import { Select } from "../Select";
@@ -43,7 +44,7 @@ export function sortMods(list: StoreMod[], sort: Sort, order: string[]): StoreMo
 }
 
 const shuffled = (ids: string[]) => ids.map((id) => [Math.random(), id] as const).sort((a, b) => a[0] - b[0]).map(([, id]) => id);
-const date = (d: string | null) => (d ? new Date(d).toLocaleDateString(language(), { dateStyle: "medium" }) : "");
+const date = releaseDate;
 const src = (path: string) => convertFileSrc(path);
 
 function ModIcon({ m, size = "" }: { m: StoreMod; size?: string }) {
@@ -488,20 +489,12 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
                 {m.versions.map((v, i) => {
                   const unfold = unfolded[v.version] ?? i === 0;
                   return (
-                    <li key={v.version} className={unfold ? "mod-log-entry open" : "mod-log-entry"}>
-                      <button className="upd-head" aria-expanded={unfold} onClick={() => setUnfolded((u) => ({ ...u, [v.version]: !unfold }))}>
-                        <ChevronIcon />
-                        <b>{v.version}</b>
+                    <ReleaseEntry key={v.version} version={v.version} date={v.date} className="mod-log-entry" open={unfold}
+                      onToggle={() => setUnfolded((u) => ({ ...u, [v.version]: !unfold }))} notes={v.notes}
+                      badges={<>
                         {v.channel !== "stable" && <span className="upd-badge">{v.channel.length <= 3 ? v.channel.toUpperCase() : v.channel[0].toUpperCase() + v.channel.slice(1)}</span>}
                         {row?.version === v.version && <span className="upd-badge new">{t("app.update.badgeInstalled")}</span>}
-                        <span className="date">{date(v.date)}</span>
-                      </button>
-                      {unfold && (
-                        <div className="upd-body">
-                          {v.notes.trim() ? <Markdown tokens={parse(v.notes).tokens} /> : <p className="muted">{t("app.update.noNotes")}</p>}
-                        </div>
-                      )}
-                    </li>
+                      </>} />
                   );
                 })}
               </ol>

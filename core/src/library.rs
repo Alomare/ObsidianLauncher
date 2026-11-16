@@ -44,17 +44,7 @@ pub enum InstallOutcome {
 
 /// Copies a folder tree.
 pub(crate) fn copy_dir(from: &Path, to: &Path) -> Result<()> {
-    std::fs::create_dir_all(to)?;
-    for e in std::fs::read_dir(from)? {
-        let e = e?;
-        let target = to.join(e.file_name());
-        if e.file_type()?.is_dir() {
-            copy_dir(&e.path(), &target)?;
-        } else {
-            std::fs::copy(e.path(), target)?;
-        }
-    }
-    Ok(())
+    Ok(crate::paths::copy_tree(from, to, false)?)
 }
 
 /// The bytes of every file under `dir`, in all its folders. Links are not followed, and what can't be
@@ -117,8 +107,7 @@ impl Library {
         Ok(outcome)
     }
     pub fn import_info(&self, id: &str) -> Option<ImportInfo> {
-        let text = std::fs::read_to_string(self.mod_dir(id).join(IMPORT_INFO)).ok()?;
-        serde_json::from_str(&text).ok()
+        crate::paths::json_file::load(&self.mod_dir(id).join(IMPORT_INFO))
     }
     /// Deletes a mod from the library. Profiles drop it at their next sync.
     pub fn remove(&self, id: &str) -> Result<()> {

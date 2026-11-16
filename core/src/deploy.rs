@@ -147,8 +147,9 @@ pub struct Status {
     pub crash_culprit: Option<String>,
 }
 
-/// `(bundle, N)` for a file named `<16 hex>.patch_<N>`.
-fn patch_name(name: &str) -> Option<(String, u32)> {
+/// `(bundle, N)` for a file named `<16 hex>.patch_<N>`, the bundle in lower case. Deploy and import
+/// both read patch names with it.
+pub(crate) fn patch_name(name: &str) -> Option<(String, u32)> {
     // NTFS ignores case, so `...AA.patch_0` and `...aa.patch_0` are the same file.
     let lower = name.to_ascii_lowercase();
     let (bundle, n) = lower.split_once(".patch_")?;
@@ -331,7 +332,7 @@ pub fn fingerprint(comp: &Composition, profile: &Profile, loader_dir: &Path) -> 
 ");
         h.update(loader::build_inputs(loader_dir, comp)?);
     }
-    Ok(h.finalize().iter().map(|b| format!("{b:02x}")).collect())
+    Ok(crate::hash::hex(&h.finalize()))
 }
 
 /// One hash of the settings file a deploy writes: option values, keys and the guardrails.
@@ -339,7 +340,7 @@ pub fn settings_digest(s: &settings::Settings) -> String {
     use sha2::{Digest, Sha256};
     // Selecting a save reaches the game through the settings file and asks for no deploy.
     let s = settings::Settings { sandbox: None, ..s.clone() };
-    Sha256::digest(settings::render(&s).as_bytes()).iter().map(|b| format!("{b:02x}")).collect()
+    crate::hash::hex(&Sha256::digest(settings::render(&s).as_bytes()))
 }
 
 /// `contents` is the game's folder of bundles, to check that the recorded patches are still there.

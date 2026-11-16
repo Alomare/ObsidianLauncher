@@ -272,7 +272,7 @@ fn texts_digests(dir: &Path) -> Result<Value> {
         let name = e.file_name().to_string_lossy().into_owned();
         let Some(lang) = name.strip_suffix(".json").filter(|l| LANGUAGES.contains(l)) else { continue };
         let d = crate::compose::cached_digest(&e.path())?;
-        out.insert(lang.to_string(), Value::String(d.iter().map(|b| format!("{b:02x}")).collect()));
+        out.insert(lang.to_string(), Value::String(crate::hash::hex(&d)));
     }
     Ok(Value::Object(out))
 }

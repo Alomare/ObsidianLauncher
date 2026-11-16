@@ -94,7 +94,7 @@ impl Default for AppSettings {
 impl AppSettings {
     /// The saved settings; a missing or damaged file gives the defaults.
     pub fn load(data: &Path) -> AppSettings {
-        let mut s: AppSettings = std::fs::read_to_string(data.join(FILE)).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
+        let mut s: AppSettings = obsidian_core::paths::json_file::load(&data.join(FILE)).unwrap_or_default();
         if !SCALES.contains(&s.scale) {
             s.scale = 100;
         }
