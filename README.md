@@ -126,27 +126,33 @@ The Making Mods guides in the Wiki start with [Your First Mod](app/src/wiki/40-f
 
 ## Command Line
 
-`obsidian` does the same work from a terminal, on the same data. It isn't in the downloads: build it with `cargo build --release -p obsidian-core`, and run `tools\build-luajit.cmd` once for the LuaJIT 2.0 compiler that turns mod scripts into code the game can run. Run it with the game closed.
+`obsidian-cli` does the same work from a terminal, on the same data. It isn't in the downloads: build it with `cargo build --release -p obsidian-core`, and run `tools\build-luajit.cmd` once for the LuaJIT 2.0 compiler that turns mod scripts into code the game can run. Run it with the game closed.
 
 <details>
 <summary>Commands</summary>
 
 ```
-obsidian import <mod folder or .zip>   add a mod to the library (old whole-file mods work too)
-obsidian list                          mods in load order, on or off
-obsidian enable <id> / disable <id>    choose what to play with
-obsidian order <id>...                 put these mods first; later mods win conflicts
-obsidian conflicts                     show which mods change the same thing
-obsidian deploy                        put the enabled mods into the game
-obsidian purge                         take them out again
-obsidian status                        game build, what is deployed
-obsidian consent on|off                play session mods with other Obsidian users who allow them too
-obsidian set <id> <option> <value>     change a mod option
-obsidian remove <id>                   delete a mod from the library
-obsidian key <id> <keybind> <key>      change a mod key
-obsidian updates                       ask GitHub for new versions of the mods that name a repository
-obsidian update [<id>...]              install new versions from GitHub
-obsidian profile list|use|new <name>   switch between named sets of mods and settings
+obsidian-cli import <mod folder or .zip>     add a mod to the library (old whole-file mods work too)
+obsidian-cli list                            mods in load order, on or off
+obsidian-cli enable <id> / disable <id>      choose what to play with
+obsidian-cli order <id>...                   put these mods first; later mods win conflicts
+obsidian-cli conflicts                       show which mods change the same thing
+obsidian-cli deploy                          put the enabled mods into the game
+obsidian-cli purge                           take them out again
+obsidian-cli status                          game build, what is deployed
+obsidian-cli game                            the game folder, save folder and build check
+obsidian-cli block-public on|off             block session mods from other players in public lobbies
+obsidian-cli block-achievements on|off       keep Steam achievements from unlocking
+obsidian-cli freeze-progress on|off          keep the account progression as it is
+obsidian-cli set <id> <option> <value>       change a mod option
+obsidian-cli key <id> <keybind> <key>        change a mod key
+obsidian-cli remove <id>                     delete a mod from the library
+obsidian-cli restore-starter                 put the Obsidian Kit back as it came
+obsidian-cli updates                         ask GitHub for new versions of the mods that name a repository
+obsidian-cli update [<id>...]                install new versions from GitHub
+obsidian-cli profile list|use|new <name>     switch between named sets of mods and settings
+obsidian-cli saves ...                       list and manage Official and Sandbox saves
+obsidian-cli commander ...                   the Commander package, hosting, and the war the next launch plays
 ```
 
 </details>

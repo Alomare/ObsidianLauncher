@@ -50,8 +50,7 @@ enum Command {
     Purge,
     /// Show the build check, what is deployed and patches from other tools
     Status,
-    /// Allow session mods from other Obsidian users (on or off)
-    /// Block session mods from others in a public lobby.
+    /// Block session mods from other players in public lobbies (on or off), from the next launch
     BlockPublic { state: OnOff },
     /// Keep Steam achievements from unlocking (on or off), from the next launch
     BlockAchievements { state: OnOff },
@@ -63,7 +62,7 @@ enum Command {
     Remove { id: String },
     /// Put the Obsidian Kit back as it came, in the active profile
     RestoreStarter,
-    /// Set a mod key, for example: obsidian key author.mod toggle f9
+    /// Set a mod key, for example: obsidian-cli key author.mod toggle f9
     Key { id: String, keybind: String, key: String },
     /// Ask GitHub for new versions of the mods that name a repository
     Updates,

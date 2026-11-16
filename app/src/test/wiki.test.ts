@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TABS } from "../Markdown";
 import { wikiPages } from "../wiki";
 
 const LANGS = ["en", "pt-BR", "zh-CN"];
@@ -6,7 +7,7 @@ const LANGS = ["en", "pt-BR", "zh-CN"];
 const UNTRANSLATED = new Set([
   "saves", "commander", "commander-wars", "commander-playing", "commander-game-master", "commander-rules",
   "commander-hosting", "commander-sharing", "commander-joining", "commander-faq", "commander-troubleshooting",
-  "tab-store", "tab-mods", "tab-saves", "tab-wars", "tab-wiki", "tab-settings",
+  "tab-store", "tab-mods", "tab-saves", "tab-wars", "tab-wiki", "tab-settings", "tab-account",
 ]);
 
 describe("wiki", () => {
@@ -61,6 +62,7 @@ describe("wiki", () => {
           }
         };
         walk(p.tokens);
+        for (const href of hrefs.filter((h) => h.startsWith("app:"))) expect(TABS, `${lang} ${p.id}: ${href}`).toContain(href.slice(4));
         for (const href of hrefs.filter((h) => h.startsWith("wiki:") || h.startsWith("#"))) {
           const [page, anchor] = href.startsWith("#") ? [p.id, href.slice(1)] : href.slice(5).split("#");
           expect(heads.has(page), `${lang} ${p.id}: ${href}`).toBe(true);

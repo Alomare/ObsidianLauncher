@@ -37,7 +37,13 @@ For each new version:
 2. Make a GitHub release whose tag is that version, such as `v1.4.2`.
 3. Attach the `.zip` to the release. If the release holds several, put the mod id in the name of the right one, such as `author.mod-name-1.4.2.zip`.
 
-Obsidian reads the latest release of a public repository and skips drafts and prereleases, which leaves those free for testing. It refuses a `.zip` with a different id or a version that isn't higher.
+Obsidian offers only stable releases as updates, and skips drafts. It refuses a `.zip` with a different id or a version that isn't higher.
+
+### Channels
+
+A pre-release version, such as `1.5.0-beta.1`, belongs to a channel named after the first word of the pre-release part: `beta` here. The Versions tab in the details of the mod lists one tab per channel, beside **Stable**, and installs any version from there. A release marked as a pre-release on GitHub with a plain version goes in a channel named `pre`. The `ci` channel is hidden, for test builds made by workflows.
+
+A mod in a private repository, listed in the Store Index, is early access: it shows in the Store only to players whose GitHub account can read the repository and who allowed private repository access ([Account](wiki:tab-account)).
 
 ## Pictures
 

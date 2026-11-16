@@ -26,13 +26,13 @@ No. The war server runs inside Obsidian on the host PC, so the war clock freezes
 
 ### Can a war move to another PC?
 
-Yes, as a copy. **Export War** on the old host and **Import War** on the new one, then players join the new host again ([Creating a war](wiki:commander-wars#export-import-and-delete)).
+Yes, as a copy. **Export War** on the old host and **Import** on the Wars tab of the new one, then players join the new host again ([Creating a war](wiki:commander-wars#export-import-and-delete)).
 
 ## Sharing and joining
 
 ### Do players who join need the Commander package?
 
-No. Obsidian is enough: **Join War** on the Commander tab works without the package ([Joining a war](wiki:commander-joining)).
+No. Obsidian is enough: **Join War** on the Wars tab works without the package ([Joining a war](wiki:commander-joining)).
 
 ### Can friends over the internet join?
 

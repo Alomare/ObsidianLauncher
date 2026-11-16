@@ -14,7 +14,7 @@ A client mod changes only what one player sees, hears or presses: the camera, th
 
 A session mod can change the shared game: balance, enemies, spawns, missions, physics, anything other players would notice. In a public lobby, session mods only run when every other player allows them. Alone, and in a friends-only or private lobby, they always run ([Playing online](wiki:multiplayer)).
 
-A session mod changes the whole deploy, in every mission: Galactic War and leaderboard results aren't sent, Proving Grounds is closed, and matchmaking finds only other Obsidian players ([The Galactic War](wiki:galactic-war)).
+A deployed session mod affects every mission, whether it runs or is switched off: Galactic War and leaderboard results aren't sent, and Proving Grounds is closed ([The Galactic War](wiki:galactic-war)). Matchmaking stays the same as for vanilla players ([Matchmaking](wiki:multiplayer#matchmaking)).
 
 ## Expansions
 

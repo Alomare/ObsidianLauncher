@@ -114,9 +114,9 @@ The primary scope is the one an older Obsidian reads, and it runs the whole mod 
 
 ## Text in several languages
 
-Every field that players read is an object with one entry per language: `en`, `pt-BR`, `zh-CN` for the app, and `en`, `fr`, `es`, `pt-BR` for text the game shows. English is always required and fills in for any language you leave out.
+Every field that players read is an object with one entry per language, such as `en`, `pt-BR`, `ru` and `zh-CN`, the languages of the app. English is always required and fills in for any language left out.
 
-Text the mod shows in game goes in a `locales` folder beside `obsidian.json`, one file per language (`locales/en.json`, `locales/fr.json` and so on), each a simple object of keys and text. The mod reads them with `obsidian.text`.
+Text the mod shows in game goes in a `locales` folder beside `obsidian.json`, one file per language of the game (`locales/en.json`, `locales/fr.json` and so on), each a simple object of keys and text. The mod reads them with `obsidian.text`, which lists the file names ([Loader API](wiki:loader-api#obsidian-text-key)).
 
 ## The save editor {#save-editor}
 

@@ -23,7 +23,7 @@ A front that reaches the last point starts an attack on the enemy home world. Ea
 
 ## Settings
 
-The three presets of **Create War** set these numbers. **Settings** on the war screen changes any of them while the war runs, and a change applies from then on. With the War Director off, only the Game Master starts defenses, while fronts still move with the missions and the enemy pressure.
+The three presets of the **Create War** form, opened with **New War**, set these numbers. **War Settings** on the war screen changes any of them while the war runs, and a change applies from then on. With the War Director off, only the Game Master starts defenses, while fronts still move with the missions and the enemy pressure.
 
 | Setting | Standard | Short Campaign | Hard |
 |---|---|---|---|
@@ -40,3 +40,7 @@ The three presets of **Create War** set these numbers. **Settings** on the war s
 | Attack Duration | 6 h | 3 h | 4 h |
 | Attack Goal | 5,000 | 2,500 | 8,000 |
 | Attack Mission Value | 150 | 150 | 120 |
+| Own Save Only | Off | Off | Off |
+| Allow Achievements | Off | Off | Off |
+
+The **Players** group holds the last two. **Own Save Only** keeps the war to the Sandbox save Obsidian makes for it; when off, any Sandbox save plays it. **Allow Achievements** lets Steam achievements unlock while the war is played, except for a player who blocks achievements in the [Guardrails](wiki:guardrails).

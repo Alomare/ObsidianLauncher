@@ -135,7 +135,7 @@ Writes a line to the log of this mod, in `%APPDATA%\Arrowhead\Helldivers\Obsidia
 
 ### obsidian.profiler.start(), stop(), running() and read()
 
-Measures how much of each frame the scripts of every mod take. `start()` turns measuring on for the calling mod until it calls `stop()`; measuring stays on while any mod asked for it, and costs a little of every call into a mod. `read()` answers the last result, made about twice a second, or `nil` before the first one: `{ frame_ms, frames, total_ms, clock, mods = { { id, ms, peak_ms, calls } } }`, the most costly mod first. `ms` is the average time a frame, `peak_ms` the most in one frame, and `calls` the average number of calls a frame. The time a hook spends in the game's own function is the game's, not the mod's. `obsidian.loader` is the loader's own hooks. The Script Profiler page of the F6 window shows these numbers over the game. Check `obsidian.capabilities.profiler` on an older loader.
+Measures how much of each frame the scripts of every mod take. `start()` turns measuring on for the calling mod until it calls `stop()`; measuring stays on while any mod asked for it, and costs a little of every call into a mod. `read()` answers the last result, made about twice a second, or `nil` before the first one: `{ frame_ms, frames, total_ms, clock, mods = { { id, ms, peak_ms, calls } } }`, the most costly mod first. `ms` is the average time a frame, `peak_ms` the most in one frame, and `calls` the average number of calls a frame. The time a hook spends in the original function of the game counts for the game, not for the mod. `obsidian.loader` stands for the hooks of the loader itself. The Script Profiler page of the F6 window shows these numbers over the game. Check `obsidian.capabilities.profiler` on an older loader.
 
 ## Other mods and more files {#other-mods}
 
@@ -385,7 +385,7 @@ Values a player should be able to edit in the save editor go in the [`save_edito
 
 `obsidian.version` is the API version, `1` today. A mod that needs a newer API sets `loader_api` in `obsidian.json`, and older loaders refuse to start it.
 
-`obsidian.capabilities` is a read-only table of what the running loader supports, one entry per feature: `hook`, `on_require`, `on_frame`, `on_session`, `after_startup`, `settings`, `keybind`, `session`, `text`, `log`, `module`, `import`, `caller`, `info`, `menu`, `toast`, `notify`, `storage`, `save_data`, `ui`, `expansion`, `language`, `game_text`, `secondary_scopes` (also `parts`, the older name). Test a feature by name before using one that came later:
+`obsidian.capabilities` is a read-only table of what the running loader supports, one entry per feature: `hook`, `wrap`, `on_require`, `on_frame`, `on_session`, `after_startup`, `settings`, `keybind`, `input_modes`, `pad_binds`, `session`, `guardrails`, `war`, `scope`, `text`, `log`, `profiler`, `module`, `import`, `caller`, `info`, `menu`, `toast`, `notify`, `storage`, `save_data`, `ui`, `expansion`, `language`, `game_text`, `secondary_scopes` (also `parts`, the older name). Test a feature by name before using one that came later:
 
 ```lua
 if obsidian.capabilities.on_frame then

@@ -22,11 +22,11 @@ Port forwarding fails without an error when the provider shares one public addre
 
 ## The game shows the war as offline
 
-The game reaches the war through Obsidian on the same PC, which then reaches the host. Check that Obsidian is open on this PC and on the host PC, and that the war still answers: the joined war tab on the Commander tab shows the host war screens while it does. After a **New Code** on the host, join again with the new code.
+The game reaches the war through Obsidian on the same PC, which then reaches the host. Check that Obsidian is open on this PC and on the host PC, and that the war still answers: the tab of the joined war on the Wars tab shows the host war screens while it does. After a **New Code** on the host, join again with the new code.
 
 ## The game plays the official war
 
-The game plays a custom war only when the war is selected, the war save is the active save and the Obsidian loader is in the game. Start the game with **Play** in Obsidian, after the war shows **Selected**. A game started from Steam with nothing deployed, or started before the war was selected, plays the official war on the Official save.
+The game plays a custom war only when the war is selected, a Sandbox save the war accepts is the active save, and the Obsidian loader is in the game. Start the game with **Play** in Obsidian, after the war shows **Selected**. A game started from Steam with nothing deployed, or started before the war was selected, plays the official war on the Official save.
 
 ## The package won't install
 
@@ -34,7 +34,7 @@ A downloaded package installs only with a valid signature. When the download fai
 
 ## Logs
 
-The war server writes `%LOCALAPPDATA%\ObsidianLauncher\commander\server\logs\server.log` on the host PC. The war lines of the game, on every player PC, are in `loader.log`, with the other logs listed in [Troubleshooting](wiki:troubleshooting#logs) of the Launcher Wiki. **Copy report** in [Settings](app:settings) collects the versions and the end of `loader.log` for a bug report.
+The war server writes `%LOCALAPPDATA%\ObsidianLauncher\commander\server\logs\server.log` on the host PC. The war lines of the game, on every player PC, are in `loader.log`, with the other logs listed in [Troubleshooting](wiki:troubleshooting#logs) of the Launcher Wiki. **Copy report**, under **Problem report** in the System tab of [Settings](app:settings), collects the versions and the end of `loader.log` for a bug report.
 
 ## Removing Commander {#removing-commander}
 

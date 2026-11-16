@@ -98,7 +98,18 @@ if get("enabled") then
 end
 ```
 
-`obsidian.settings.get` returns the value the player chose, or the default. A change in the app applies the next time the game starts, with no deploy.
+`obsidian.settings.get` returns the value the player chose, or the default.
+
+A changed option or key reaches the game at the next launch: Obsidian writes it to the settings file the loader reads, with no deploy. These options need a deploy, and the tooltip of each says **Applies after Deploy**:
+
+- an option that picks files with `when` (below);
+- the toggle that switches a [secondary scope](#options-in-a-secondary-scope);
+- an option of a session mod or an expansion that counts when players compare sets, which is every option not marked `"scope": "client"` and not in a client secondary scope;
+- every option of a mod without an `entry` script.
+
+## Options in the pause menu
+
+A mod that requires Obsidian API can also show settings in the game, on a page under **Mods** in the pause menu, with `api.mod_settings`. A row made with `option = true` is the option of the same id in `obsidian.json`: it starts from the value set in the app, and a value changed in the game goes back into the active profile while the game is closed. The [Obsidian API reference](https://github.com/Alomare/ObsidianAPI/blob/main/REFERENCE.md#your-settings-in-the-pause-menu-apimod_settings) lists the rows.
 
 ## Options that pick files
 
@@ -111,7 +122,7 @@ A resource can depend on an option with `when`. The resource only goes into the 
 ]
 ```
 
-Changing such an option needs a new deploy, and the app turns the Deploy button green to say so.
+Changing such an option needs a new deploy.
 
 ## Keys
 

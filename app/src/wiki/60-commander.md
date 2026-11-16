@@ -9,7 +9,7 @@ Commander runs custom Galactic Wars for HELLDIVERS. A custom war has fronts, reg
 
 ## What runs where
 
-A war lives on one PC, the host. The war server starts from the [Commander tab](app:commander) and runs inside Obsidian, so a war only moves while Obsidian is open on that PC. When Obsidian closes, the server stops and the war clock freezes until the next start.
+A war lives on one PC, the host. The war server starts from the [Wars](app:commander) tab and runs inside Obsidian, so a war only moves while Obsidian is open on that PC. When Obsidian closes, the server stops and the war clock freezes until the next start.
 
 On every player PC, including the host, the game talks only to the Obsidian relay on that same PC. The relay carries the war requests to the war server and removes the Steam login ticket before anything leaves the PC. Obsidian has to stay open while a war is played, since the relay runs inside it.
 
@@ -21,7 +21,7 @@ Each custom war plays on a Sandbox save and in a separate matchmaking pool, so l
 
 ## The package
 
-The war server and the war screens come as the Commander package, which updates apart from Obsidian. **Install Package** on the Commander tab downloads the newest release from GitHub. Obsidian installs a downloaded package only with a valid signature from the Obsidian signing key and refuses any other.
+The war server and the war screens come as the Commander package, which updates apart from Obsidian. **Install Package** on the Wars tab downloads the newest release from GitHub. The war screens are in English only, whatever the language of Obsidian. Obsidian installs a downloaded package only with a valid signature from the Obsidian signing key and refuses any other.
 
 The package button sits at the right end of the row under the war list, and a dot on it means a newer package is out:
 

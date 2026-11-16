@@ -11,7 +11,7 @@ When the game misbehaves, **Purge** takes every Obsidian file out of the game. A
 
 ## The game crashed
 
-The loader writes a line just before it starts each mod. When the game stops at that moment, Obsidian names the mod that was starting the next time it opens. Turn that mod off, deploy, and tell the author.
+The loader writes a line just before it starts each mod. When the game stops at that moment, a banner on the Mods tab names the mod that was starting, the next time Obsidian opens. **Turn off** on the banner switches that mod off: deploy, and tell the author.
 
 When the game stops later, Obsidian only says that the game didn't close normally. A crash inside the engine usually leaves no error in the log, so turn off the mods added last, one at a time, until the crash goes away.
 
@@ -27,7 +27,7 @@ Some game files don't match the build Obsidian knows. This happens when a mod wa
 
 ## Logs
 
-The logs are in `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher\logs`:
+The logs are in `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher\logs` on Windows ([Where the files are](wiki:how-obsidian-works#where-your-files-are) has the Linux folder). **Open logs** in the System tab of [Settings](app:settings) opens the folder.
 
 | File | What it holds |
 |---|---|
@@ -36,4 +36,4 @@ The logs are in `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher\logs`:
 
 ## Asking for help
 
-**Copy report** in [Settings](app:settings), under Data, copies the versions, the mods that are on and the end of `loader.log`, without the Windows account name. Paste it with a description of what happened into the [Discord](https://dsc.gg/hd1modding) or a [GitHub issue](https://github.com/Alomare/ObsidianLauncher/issues). Problems with custom wars have a separate page in the Commander Wiki ([Troubleshooting](wiki:commander-troubleshooting)).
+**Copy report**, under **Problem report** in the System tab of [Settings](app:settings), copies the versions, the mods that are on and the end of `loader.log`, without the Windows account name. Paste it with a description of what happened into the [Discord](https://dsc.gg/hd1modding) or a [GitHub issue](https://github.com/Alomare/ObsidianLauncher/issues). Problems with custom wars have a separate page in the Commander Wiki ([Troubleshooting](wiki:commander-troubleshooting)).
