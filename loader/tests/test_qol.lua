@@ -358,6 +358,41 @@ test("expedite_instant_goes_from_waiting_to_done", function()
 	E.has(e:log("obsidianqol"), "expedite mission end: results skipped")
 end)
 
+test("expedite_instant_leaves_done_the_planet_stamp_point", function()
+	local e = engine(nil, "instant")
+	local state = mission_end(e)
+	local V = {}
+	V.__index = V
+	local function v3(x, y, z) return setmetatable({ x = x, y = y, z = z }, V) end
+	V.__add = function(a, b) return v3(a.x + b.x, a.y + b.y, a.z + b.z) end
+	V.__sub = function(a, b) return v3(a.x - b.x, a.y - b.y, a.z - b.z) end
+	V.__mul = function(a, s) return v3(a.x * s, a.y * s, a.z * s) end
+	local saved = {}
+	local fakes = {
+		Vector3 = setmetatable({ normalize = function(a)
+			local l = math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z)
+			return v3(a.x / l, a.y / l, a.z / l)
+		end }, { __call = function(_, x, y, z) return v3(x, y, z) end }),
+		Vector3Aux = { box = function(t, p) t.x, t.y, t.z = p.x, p.y, p.z return t end },
+		CampaignSettings = { camera = { mission_end = { position = { 0, 0, 0 }, target = { 0, 10, 0 } } } },
+		Application = { resolution = function() return 1920, 1080 end },
+	}
+	for k, f in pairs(fakes) do saved[k] = rawget(_G, k) rawset(_G, k, f) end
+	state.world_proxy = { viewport = function() return { world_to_viewport = function(_, p) return v3(800, 0, 400) end } end }
+	state.gui_manager = { get_scale = function() return 2, 2 end }
+	go(state, "MissionEndStateWaitingForData")
+	go(state, "MissionEndStateMissionScore")
+	local box = state.planet_completed_unit_screen_position
+	E.eq(box and box.x, 400, "the screen point PlanetCompleted would have set")
+	E.eq(box and box.y, 200)
+	state.planet_completed_unit_screen_position = nil
+	state.world_proxy = nil
+	go(state, "MissionEndStateMissionResult")
+	box = state.planet_completed_unit_screen_position
+	E.eq(box and box.x, 960, "the middle of the screen when that fails")
+	for k in pairs(fakes) do rawset(_G, k, saved[k]) end
+end)
+
 test("expedite_faster_fits_the_steps_in_a_second", function()
 	local e = engine(nil, "faster")
 	local state = mission_end(e)
