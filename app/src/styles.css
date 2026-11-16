@@ -1693,7 +1693,7 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 /* The name sits at the foot of the icon; a long name wraps upward. */
 .mid-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.3rem; }
 .mid-name { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 0.4rem 0.75rem; }
-.mby-line { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
+.mfacts .store-tag.early { height: 1.2rem; padding: 0 0.35rem; }
 .mby { color: var(--mu); font-size: var(--fs-sm); }
 .mid h1 { margin: 0; font-family: "Saira Variable", sans-serif; font-weight: 770; font-size: 2rem; line-height: 1.02; letter-spacing: 0.03em; text-transform: uppercase; overflow-wrap: anywhere; }
 .mid-tools > .btn.inst.big { flex: none; }

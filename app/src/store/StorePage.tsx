@@ -442,9 +442,7 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
           {m.icon ? <Zoom path={m.icon} className="mid-ico"><ModIcon m={m} size="xl" /></Zoom> : <ModIcon m={m} size="xl" />}
           <div className="mid-t">
             <div className="mid-name"><h1>{m.name}<Verified m={m} /></h1></div>
-            {(m.early || !!m.authors?.length) && (
-              <span className="mby-line"><Early m={m} />{!!m.authors?.length && <span className="mby">{t("app.store.by", m.authors.join(", "))}</span>}</span>
-            )}
+            {!!m.authors?.length && <span className="mby">{t("app.store.by", m.authors.join(", "))}</span>}
           </div>
           <div className="mid-tools">
             <StarButton m={m} />
@@ -468,7 +466,7 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
           <div><dt>{t("app.store.factScope")}</dt><dd><ScopeTag scope={m.scope} />{t(`app.scope.${m.scope}`)}</dd></div>
           {m.added && <div><dt>{t("app.store.factReleased")}</dt><dd>{date(m.added)}</dd></div>}
           {m.released && <div><dt>{t("app.store.factUpdated")}</dt><dd>{date(m.released)}</dd></div>}
-          <div><dt>{t("app.store.factVersion")}</dt><dd>{m.version}</dd></div>
+          <div><dt>{t("app.store.factVersion")}</dt><dd>{m.version}<Early m={m} /></dd></div>
           {row?.version && row.version !== m.version && <div><dt>{t("app.store.factInstalled")}</dt><dd>{row.version}</dd></div>}
         </dl>
         <div className="mcols">

@@ -133,7 +133,9 @@ describe("StorePage", () => {
     // One row of facts: scope, first release, newest release, version. No download count.
     expect([...host.querySelectorAll(".mfacts dt")].map((d) => d.textContent)).toEqual(
       [t("app.store.factScope"), t("app.store.factReleased"), t("app.store.factUpdated"), t("app.store.factVersion")]);
-    expect(host.querySelectorAll(".mfacts dd")[3].textContent).toBe("0.4.0");
+    expect(host.querySelectorAll(".mfacts dd")[3].textContent).toBe("0.4.0EA");
+    expect(host.querySelector(".mfacts dd:last-child .store-tag.early, .mfacts div:nth-child(4) .store-tag.early")?.textContent).toBe("EA");
+    expect(host.querySelector(".mid-t .store-tag")).toBeNull();
     expect(host.querySelector(".c-dl")).toBeNull();
     // Star, Install, Report and Remove in one row, Early access before the authors.
     expect([...host.querySelectorAll(".mid-tools > *")].map((e) => e.classList[1])).toEqual(["star-btn", "inst", "icon"]);
