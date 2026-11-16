@@ -91,6 +91,7 @@
   "app.error.GameFilesChanged": "The game files don't match a known build, so the changes in this mod can't be worked out. If a mod was copied into the game folder by hand, verify the game files in Steam and import it again.",
   "app.error.GameNotFound": "The game was not found. Choose the game folder in Settings.",
   "app.error.Busy": "Another deploy or purge is running. Try again when it ends.",
+  "app.error.InstallUnderWay": "That mod is already being installed or updated.",
   "app.error.NewerObsidian": "This mod needs a newer Obsidian. Update Obsidian (Settings, Updates), then add the mod again.",
   "app.error.GameRunning": "Close the game first.",
   "app.error.LastProfile": "The last profile cannot be deleted.",

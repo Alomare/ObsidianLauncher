@@ -14,9 +14,27 @@ use crate::commands::{CmdError, CmdResult, Ctx, fresh, saves_of};
 use crate::snapshot::{Snapshot, find};
 
 #[derive(Default)]
+/// The server and the relay this app runs. The server is in one of three states: none, running, or
+/// exited on its own (a crash, a kill); `live_server` is the one way to look at it, and it turns the
+/// third into the first, so no reader hands out the port of a server that is gone.
 pub struct Runtime {
     pub relay: Option<Relay>,
-    pub server: Option<Server>,
+    server: Option<Server>,
+}
+
+impl Runtime {
+    /// The running server, if there is one.
+    fn live_server(&mut self) -> Option<&Server> {
+        if self.server.as_mut().is_some_and(|s| !s.alive()) {
+            self.server = None;
+        }
+        self.server.as_ref()
+    }
+
+    /// Stops the server, if it runs (dropping it closes its stdin, and it exits).
+    fn stop_server(&mut self) {
+        self.server = None;
+    }
 }
 
 fn rt(ctx: &Ctx) -> std::sync::MutexGuard<'_, Runtime> {
@@ -25,11 +43,8 @@ fn rt(ctx: &Ctx) -> std::sync::MutexGuard<'_, Runtime> {
 
 /// The server, started if it isn't running.
 fn ensure_server(ctx: &Ctx, runtime: &mut Runtime) -> CmdResult<(u16, String)> {
-    if let Some(s) = runtime.server.as_mut() {
-        if s.alive() {
-            return Ok((s.port, s.token.clone()));
-        }
-        runtime.server = None;
+    if let Some(s) = runtime.live_server() {
+        return Ok((s.port, s.token.clone()));
     }
     let server = commander::server::start(&ctx.data)?;
     let out = (server.port, server.token.clone());
@@ -85,11 +100,7 @@ pub struct CommanderView {
 }
 
 fn view(ctx: &Ctx, runtime: &mut Runtime) -> CommanderView {
-    if let Some(s) = runtime.server.as_mut()
-        && !s.alive()
-    {
-        runtime.server = None;
-    }
+    let server = runtime.live_server().map(|s| ServerInfo { port: s.port, token: s.token.clone() });
     let state = State::load(&ctx.data);
     let names = find(&AppSettings::load(&ctx.data))
         .map(|g| commander::region_names(&obsidian_core::settings::game_side_dir(&g.saves_dir)))
@@ -99,7 +110,7 @@ fn view(ctx: &Ctx, runtime: &mut Runtime) -> CommanderView {
         installed: package::installed(&ctx.data),
         wars: state.wars,
         playing: state.playing,
-        server: runtime.server.as_ref().map(|s| ServerInfo { port: s.port, token: s.token.clone() }),
+        server,
         names,
     }
 }
@@ -124,7 +135,7 @@ pub async fn commander_state(ctx: TauriState<'_, Ctx>) -> CmdResult<CommanderVie
 #[tauri::command]
 pub async fn commander_install(ctx: TauriState<'_, Ctx>, path: PathBuf) -> CmdResult<CommanderView> {
     let mut runtime = rt(&ctx);
-    runtime.server = None;
+    runtime.stop_server();
     package::install(&ctx.data, &path)?;
     Ok(view(&ctx, &mut runtime))
 }
@@ -136,7 +147,7 @@ pub async fn commander_fetch(ctx: TauriState<'_, Ctx>) -> CmdResult<CommanderVie
     // The download runs before the runtime is held, so other Commander calls answer meanwhile.
     let got = crate::commands::blocking(|| package::download(&obsidian_core::updates::GitHub::default()))?;
     let mut runtime = rt(&ctx);
-    runtime.server = None;
+    runtime.stop_server();
     package::install(&ctx.data, &got.zip)?;
     Ok(view(&ctx, &mut runtime))
 }
@@ -166,7 +177,7 @@ pub async fn commander_firewall_open(ctx: TauriState<'_, Ctx>) -> CmdResult<comm
 #[tauri::command]
 pub async fn commander_uninstall(ctx: TauriState<'_, Ctx>) -> CmdResult<CommanderView> {
     let mut runtime = rt(&ctx);
-    runtime.server = None;
+    runtime.stop_server();
     package::uninstall(&ctx.data)?;
     Ok(view(&ctx, &mut runtime))
 }
@@ -183,7 +194,7 @@ pub async fn commander_server_start(ctx: TauriState<'_, Ctx>) -> CmdResult<Serve
 #[tauri::command]
 pub async fn commander_server_stop(ctx: TauriState<'_, Ctx>) -> CmdResult<CommanderView> {
     let mut runtime = rt(&ctx);
-    runtime.server = None;
+    runtime.stop_server();
     Ok(view(&ctx, &mut runtime))
 }
 
@@ -418,7 +429,7 @@ pub async fn commander_wipe(ctx: TauriState<'_, Ctx>, saves: bool, firewall: boo
     obsidian_core::game::ensure_closed()?;
     let mut runtime = rt(&ctx);
     // The server process ends and the relay port closes before the files go.
-    runtime.server = None;
+    runtime.stop_server();
     runtime.relay = None;
     let (s, side) = saves_and_side(&ctx);
     let report = match wipe::wipe(&ctx.data, s.as_ref(), side.as_deref(), saves, firewall) {

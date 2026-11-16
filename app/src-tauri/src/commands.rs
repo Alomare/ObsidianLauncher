@@ -26,11 +26,35 @@ pub struct Ctx {
     pub work: Mutex<()>,
     /// Commander's relay and server (commander.rs).
     pub commander: Mutex<crate::commander::Runtime>,
+    /// The mods an install or update is under way for. The download runs outside the turn, so without
+    /// this two of them for one mod could both get past it and install one over the other.
+    pub installing: Mutex<std::collections::HashSet<String>>,
 }
 
 impl Ctx {
     pub(crate) fn turn(&self) -> std::sync::MutexGuard<'_, ()> {
         blocking(|| self.work.lock().unwrap_or_else(|p| p.into_inner()))
+    }
+
+    /// Marks mod `id` as being installed until the returned guard drops; refused while it already is.
+    pub(crate) fn installing(&self, id: &str) -> CmdResult<Installing<'_>> {
+        let mut set = self.installing.lock().unwrap_or_else(|p| p.into_inner());
+        if !set.insert(id.to_string()) {
+            return Err(obsidian_core::ObsidianError::InstallUnderWay(id.to_string()).into());
+        }
+        Ok(Installing { ctx: self, id: id.to_string() })
+    }
+}
+
+/// An install under way (`Ctx::installing`); ends when dropped, on success, error or panic.
+pub(crate) struct Installing<'a> {
+    ctx: &'a Ctx,
+    id: String,
+}
+
+impl Drop for Installing<'_> {
+    fn drop(&mut self) {
+        self.ctx.installing.lock().unwrap_or_else(|p| p.into_inner()).remove(&self.id);
     }
 }
 
@@ -552,6 +576,7 @@ pub async fn mod_releases(ctx: State<'_, Ctx>, id: String, page: u32) -> CmdResu
 /// Versions tab. As with `update_mod`, the download runs outside the turn.
 #[tauri::command]
 pub async fn install_mod_version(ctx: State<'_, Ctx>, id: String, tag: String) -> CmdResult<ImportBatch> {
+    let _installing = ctx.installing(&id)?;
     let current = {
         let _turn = ctx.turn();
         installed_manifest(&ctx, &id)?
@@ -613,6 +638,7 @@ fn installed_manifest(ctx: &Ctx, id: &str) -> CmdResult<obsidian_core::manifest:
 /// `check_mod_updates`, and the mod is replaced at the end.
 #[tauri::command]
 pub async fn update_mod(ctx: State<'_, Ctx>, id: String) -> CmdResult<ImportBatch> {
+    let _installing = ctx.installing(&id)?;
     let current = {
         let _turn = ctx.turn();
         installed_manifest(&ctx, &id)?
@@ -654,6 +680,7 @@ pub async fn store_index(ctx: State<'_, Ctx>) -> CmdResult<obsidian_core::store:
 /// download runs outside the turn. A new mod comes in switched off, as an imported one does.
 #[tauri::command]
 pub async fn store_install(ctx: State<'_, Ctx>, id: String) -> CmdResult<ImportBatch> {
+    let _installing = ctx.installing(&id)?;
     let entry = obsidian_core::store::find(&ctx.data, &id)?;
     let staged = blocking(|| obsidian_core::store::stage(&GitHub::default(), &entry))?;
     let _turn = ctx.turn();
@@ -973,6 +1000,17 @@ mod tests {
         assert_eq!((e.code.as_str(), e.message.as_str()), ("ProfileExists", "a profile named A already exists"));
         let e: CmdError = ObsidianError::LastProfile.into();
         assert_eq!(e.code, "LastProfile");
+    }
+
+    #[test]
+    fn one_install_at_a_time_per_mod() {
+        let ctx = Ctx { data: PathBuf::new(), gate: Default::default(), work: Mutex::new(()), commander: Default::default(), installing: Default::default() };
+        let first = ctx.installing("a.mod").unwrap();
+        assert_eq!(ctx.installing("a.mod").err().map(|e| e.code), Some("InstallUnderWay".to_string()), "a second one is refused");
+        let other = ctx.installing("b.mod");
+        assert!(other.is_ok(), "another mod is not held up");
+        drop(first);
+        assert!(ctx.installing("a.mod").is_ok(), "the mark goes with the guard");
     }
 
     /// A game folder `find_game` takes on every system: Linux wants a Proton prefix beside it.

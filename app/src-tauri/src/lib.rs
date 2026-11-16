@@ -39,7 +39,7 @@ pub fn run() {
     }
     // OBSIDIAN_DATA_DIR points the app at another data folder, for the performance suite.
     let data = obsidian_core::paths::data_dir(std::env::var_os("OBSIDIAN_DATA_DIR").map(std::path::PathBuf::from).as_deref());
-    let ctx = commands::Ctx { data, gate: Mutex::new(Default::default()), work: Mutex::new(()), commander: Mutex::new(Default::default()) };
+    let ctx = commands::Ctx { data, gate: Mutex::new(Default::default()), work: Mutex::new(()), commander: Mutex::new(Default::default()), installing: Mutex::new(Default::default()) };
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             // A second launch brings the open window forward instead.
