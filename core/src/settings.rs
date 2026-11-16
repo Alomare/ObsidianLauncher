@@ -91,8 +91,15 @@ fn field(s: &str) -> String {
     s.replace(['\t', '\n', '\r'], " ")
 }
 
+/// The format of the settings file. Raised whenever a line is added that the loader must understand to
+/// do what the window shows: a loader from before (deployed by an older Obsidian, the app updated
+/// since) then says in its log that a deploy is due, instead of skipping the line unseen. The loader's
+/// `M.FORMAT` in `loader/src/settings.lua` is the same number (checked by a test here).
+pub const FORMAT: u32 = 1;
+
 pub fn render(s: &Settings) -> String {
     let mut out = String::from("# Written by Obsidian. Changes made here are replaced at the next deploy.\n");
+    out.push_str(&format!("format\t{FORMAT}\n"));
     out.push_str(&format!("consent\t{}\n", if s.consent { 1 } else { 0 }));
     out.push_str(&format!("block_achievements\t{}\n", if s.block_achievements { 1 } else { 0 }));
     out.push_str(&format!("freeze_progress\t{}\n", if s.freeze_progress { 1 } else { 0 }));
@@ -238,6 +245,7 @@ mod tests {
     fn a_value_cant_write_a_line_of_its_own() {
         let s = Settings { keys: vec![("a.b".into(), "k".into(), "f8\nconsent\t1".into())], ..Default::default() };
         let back = parse(&render(&s));
+        assert!(render(&s).starts_with("# Written by Obsidian. Changes made here are replaced at the next deploy.\nformat\t1\n"));
         assert!(!back.consent);
         assert_eq!(back.keys[0].2, "f8 consent 1");
     }
@@ -300,5 +308,11 @@ mod tests {
     #[test]
     fn game_side_dir_is_beside_the_saves() {
         assert_eq!(game_side_dir(Path::new("C:/x/Arrowhead/Helldivers/saves")), Path::new("C:/x/Arrowhead/Helldivers/ObsidianLauncher"));
+    }
+
+    #[test]
+    fn the_loader_reads_the_format_the_app_writes() {
+        let lua = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../loader/src/settings.lua")).unwrap();
+        assert!(lua.contains(&format!("M.FORMAT = {FORMAT}\n")), "settings.lua M.FORMAT and settings::FORMAT differ");
     }
 }

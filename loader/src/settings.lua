@@ -30,6 +30,10 @@ end
 -- (the frame it comes up), tap (comes up within TAP_MAX of going down), double_tap (goes down a second
 -- time within DOUBLE_GAP of the first), long_press (once, after HOLD of holding).
 M.MODES = { press = true, release = true, tap = true, double_tap = true, long_press = true }
+-- The settings format this loader reads (core/src/settings.rs FORMAT). A file of a newer format comes
+-- from an Obsidian updated since the last deploy: its new lines are skipped, and the log says to deploy.
+M.FORMAT = 1
+
 M.TAP_MAX, M.DOUBLE_GAP, M.HOLD = 0.25, 0.3, 0.5
 -- Seconds, for the modes. Tests set it.
 M.now = B.clock
@@ -97,6 +101,12 @@ function M.load(core, path)
 		local ok = true
 		if line == "" or B.sub(line, 1, 1) == "#" then
 			-- blank or comment
+		elseif x[1] == "format" and #x == 2 and B.match(x[2], "^%d+$") then
+			local got = B.tonumber(x[2])
+			if got > M.FORMAT then
+				core.settings_newer = true
+				log.line("settings: written by a newer Obsidian (format " .. got .. ", this loader reads " .. M.FORMAT .. "): deploy again from Obsidian so every setting counts")
+			end
 		elseif x[1] == "consent" and #x == 2 and (x[2] == "0" or x[2] == "1") then
 			core.consent_on = x[2] == "1"
 		elseif (x[1] == "block_achievements" or x[1] == "freeze_progress") and #x == 2 and (x[2] == "0" or x[2] == "1") then
