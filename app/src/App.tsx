@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { deploy, play, purge } from "./actions";
 import { loadSnapshot, refresh, useSnapshot } from "./api";
 import { useLocked } from "./busy";
+import { reloadChoices } from "./commander/choices";
 import { inkOn } from "./colors";
 import { ColorPickerHost } from "./ColorPicker";
 import { Confirm } from "./Confirm";
@@ -119,9 +120,12 @@ export default function App() {
     const stopDrops = listenForDrops(() => document.querySelector(".mods .list"), () => setTab("mods"), setDropping);
     // The Rust side says when the game starts or stops; the snapshot then locks or frees the buttons.
     const game = listen("game-state", () => refresh());
+    // obsidian-cli changed the data folder while the window was open.
+    const data = listen("data-changed", () => { refresh(); reloadChoices(); });
     return () => {
       stopDrops();
       game.then((f) => f());
+      data.then((f) => f());
       document.removeEventListener("contextmenu", menu);
     };
   }, []);

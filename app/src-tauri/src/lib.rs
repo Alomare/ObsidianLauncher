@@ -12,17 +12,24 @@ use std::sync::Mutex;
 use tauri::Manager;
 
 /// Checks every 2 seconds whether the game runs and tells the window when that changes, so the
-/// UI locks Deploy, Play and Purge while it runs.
-fn watch_game(app: tauri::AppHandle) {
+/// UI locks Deploy, Play and Purge while it runs. Tells it too when `obsidian-cli` changed the data
+/// folder (`paths::changed_elsewhere`), so the window shows the change without a click.
+fn watch_game(app: tauri::AppHandle, data: std::path::PathBuf) {
     use tauri::Emitter;
     std::thread::spawn(move || {
         let mut was = obsidian_core::game::is_running();
+        let mut seen = obsidian_core::paths::changed_elsewhere(&data);
         loop {
             std::thread::sleep(std::time::Duration::from_secs(2));
             let now = obsidian_core::game::is_running();
             if now != was {
                 was = now;
                 let _ = app.emit("game-state", now);
+            }
+            let changed = obsidian_core::paths::changed_elsewhere(&data);
+            if changed.is_some() && changed != seen {
+                seen = changed;
+                let _ = app.emit("data-changed", ());
             }
         }
     });
@@ -65,7 +72,7 @@ pub fn run() {
             app.asset_protocol_scope().allow_directory(&data, true)?;
             // The GitHub token, for every API call from here on.
             obsidian_core::github::load(&data);
-            watch_game(app.handle().clone());
+            watch_game(app.handle().clone(), data.clone());
             // A war selected last time gets its relay and server back, off the window's thread.
             let handle = app.handle().clone();
             std::thread::spawn(move || commander::resume(&handle.state::<commands::Ctx>()));

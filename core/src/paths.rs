@@ -145,6 +145,54 @@ pub fn copy_tree(from: &Path, to: &Path, newer_only: bool) -> std::io::Result<()
     Ok(())
 }
 
+/// The one writer of a data folder. Every change to the library, the profiles, the saves index or the
+/// war state, from the app or from `obsidian-cli`, runs while holding it, so two processes never write
+/// the same files at once. In the app it sits under the turn (`Ctx::turn`), which orders the app's
+/// own commands; the CLI takes it for each command. When it drops after a change, `changed` records
+/// which process made it, and the app's watcher tells the window to read the folder again when that
+/// was another process.
+pub struct WorkLock {
+    file: std::fs::File,
+    dir: PathBuf,
+}
+
+/// The lock file, beside the library.
+pub const WORK_LOCK: &str = "work.lock";
+/// Who changed the folder last, and when: `<process id> <counter>`.
+pub const CHANGED: &str = "changed";
+
+impl WorkLock {
+    /// Waits for the lock of `data`, then holds it until dropped.
+    pub fn hold(data: &Path) -> std::io::Result<WorkLock> {
+        std::fs::create_dir_all(data)?;
+        let file = std::fs::OpenOptions::new().create(true).write(true).truncate(false).open(data.join(WORK_LOCK))?;
+        file.lock()?;
+        Ok(WorkLock { file, dir: data.to_path_buf() })
+    }
+
+    /// Says that this process changed the folder, for a watcher in another process.
+    pub fn mark_changed(&self) {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static N: AtomicU64 = AtomicU64::new(0);
+        let n = N.fetch_add(1, Ordering::Relaxed);
+        let _ = write_atomic(&self.dir.join(CHANGED), format!("{} {n}\n", std::process::id()).as_bytes());
+    }
+}
+
+impl Drop for WorkLock {
+    fn drop(&mut self) {
+        let _ = self.file.unlock();
+    }
+}
+
+/// The last change to `data` made by another process than this one: the text of `changed`, to compare
+/// with the one seen before. `None` when there is none or it was this process.
+pub fn changed_elsewhere(data: &Path) -> Option<String> {
+    let text = std::fs::read_to_string(data.join(CHANGED)).ok()?;
+    let pid = text.split_whitespace().next()?.parse::<u32>().ok()?;
+    (pid != std::process::id()).then_some(text)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -223,6 +271,27 @@ mod tests {
         std::fs::write(&path, b"{").unwrap();
         assert_eq!(json_file::load::<Vec<i32>>(&path), None);
         assert_eq!(json_file::load::<Vec<i32>>(&t.path().join("none.json")), None);
+    }
+
+    #[test]
+    fn the_work_lock_has_one_holder_and_says_who_changed_the_folder() {
+        let t = spaced_tempdir();
+        let held = WorkLock::hold(t.path()).unwrap();
+        // A second holder (another process, here another handle) waits until the first lets go.
+        let dir = t.path().to_path_buf();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let waiter = std::thread::spawn(move || {
+            let _second = WorkLock::hold(&dir).unwrap();
+            tx.send(()).unwrap();
+        });
+        assert!(rx.recv_timeout(std::time::Duration::from_millis(300)).is_err(), "the second holder waited");
+        held.mark_changed();
+        assert_eq!(changed_elsewhere(t.path()), None, "this process's own change");
+        drop(held);
+        rx.recv_timeout(std::time::Duration::from_secs(5)).expect("the second holder got it");
+        waiter.join().unwrap();
+        std::fs::write(t.path().join(CHANGED), "1 7\n").unwrap();
+        assert_eq!(changed_elsewhere(t.path()).as_deref(), Some("1 7\n"), "another process's change");
     }
 
     #[test]

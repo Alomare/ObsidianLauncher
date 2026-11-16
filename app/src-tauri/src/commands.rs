@@ -32,8 +32,15 @@ pub struct Ctx {
 }
 
 impl Ctx {
-    pub(crate) fn turn(&self) -> std::sync::MutexGuard<'_, ()> {
-        blocking(|| self.work.lock().unwrap_or_else(|p| p.into_inner()))
+    /// This command's turn: after the app's other commands (the mutex), and while no `obsidian-cli`
+    /// command writes the same folder (the work lock). A lock file that can't be opened leaves the
+    /// mutex alone in charge, as before the work lock was there.
+    pub(crate) fn turn(&self) -> Turn<'_> {
+        blocking(|| {
+            let guard = self.work.lock().unwrap_or_else(|p| p.into_inner());
+            let lock = obsidian_core::paths::WorkLock::hold(&self.data).ok();
+            Turn { _lock: lock, _guard: guard }
+        })
     }
 
     /// Marks mod `id` as being installed until the returned guard drops; refused while it already is.
@@ -44,6 +51,12 @@ impl Ctx {
         }
         Ok(Installing { ctx: self, id: id.to_string() })
     }
+}
+
+/// A command's turn (`Ctx::turn`). The file lock drops first, then the mutex.
+pub(crate) struct Turn<'a> {
+    _lock: Option<obsidian_core::paths::WorkLock>,
+    _guard: std::sync::MutexGuard<'a, ()>,
 }
 
 /// An install under way (`Ctx::installing`); ends when dropped, on success, error or panic.

@@ -181,6 +181,19 @@ pub fn main() -> ExitCode {
 
 fn run(cli: Cli) -> Result<()> {
     let data = data_dir(cli.data_dir.as_deref());
+    // One writer of the data folder at a time, the app included (`paths::WorkLock`); an open app sees
+    // the change once the command ends. Serve runs until stopped and writes nothing of the library.
+    let serving = matches!(cli.command, Command::Commander { action: CommanderAction::Serve });
+    let work = if serving { None } else { Some(obsidian_core::paths::WorkLock::hold(&data)?) };
+    let done = run_command(cli, &data);
+    if let Some(w) = work {
+        w.mark_changed();
+    }
+    done
+}
+
+fn run_command(cli: Cli, data: &std::path::Path) -> Result<()> {
+    let data = data.to_path_buf();
     let game = || find_game(cli.game.as_deref());
     let lib = Library::open(&data)?;
     // Purge and status must work even when a mod folder or the profile is damaged,
