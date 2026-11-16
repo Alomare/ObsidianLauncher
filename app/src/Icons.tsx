@@ -102,7 +102,9 @@ export const UpdateIcon = () => <Icon><path d="M20 11a8 8 0 0 0-14.3-4.3L3.5 9M3
 /** A clock face with an arrow round it: the Versions tab of a mod. */
 export const HistoryIcon = () => <Icon><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6L3.5 8.5M3.5 4v4.5H8M12 7.5V12l3 2" /></Icon>;
 export const ResetIcon = () => <Icon><path d="M4 4v6h6M4.5 15a8 8 0 1 0 1.5-8.5L4 10" /></Icon>;
-export const InfoIcon = () => <Icon><circle cx="12" cy="12" r="8.5" /><path d="M12 11v5.5M12 7.6v.1" strokeWidth={2.4} /></Icon>;
+/** An issue, as GitHub draws it: a ring with a dot. */
+export const IssueIcon = () => <Icon strokeWidth="2.2"><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" /></Icon>;
+export const InfoIcon =() => <Icon><circle cx="12" cy="12" r="8.5" /><path d="M12 11v5.5M12 7.6v.1" strokeWidth={2.4} /></Icon>;
 /** Three sliders. */
 export const SlidersIcon = () => <Icon><path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h7M15 17h5" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="12" r="2" /><circle cx="13" cy="17" r="2" /></Icon>;
 /** A keyboard with a mouse beside it: the Keys tab's mouse and keyboard column. */

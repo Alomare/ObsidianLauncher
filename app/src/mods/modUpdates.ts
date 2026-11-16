@@ -10,6 +10,7 @@ import { notify } from "../notices";
 import type { CmdError, ImportBatch } from "../types";
 import { importMessage } from "./dropImport";
 import { compareVersions } from "../updates";
+import { forgetReleases } from "./modReleases";
 
 type Checked = { id: string; version: string | null; error: CmdError | null };
 /** `checking` holds the mods of the check under way; one runs at a time. */
@@ -49,6 +50,7 @@ export async function checkModUpdates(ids: string[], names: Map<string, string>,
     for (const c of list) if (c.version) found[c.id] = c.version;
     const count = list.filter((c) => c.version).length;
     set({ checking: [], found });
+    if (!startup) forgetReleases(ids);
     if (startup) {
       if (count) notify("info", checkMessage(count));
       return;

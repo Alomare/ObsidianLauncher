@@ -11,7 +11,7 @@ vi.mock("../opener", () => ({ openUrl: vi.fn(() => Promise.resolve()) }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
 const { Drawer, channelOf, channelsOf } = await import("../mods/Drawer");
 const { compareVersions } = await import("../updates");
-const { useModUpdates } = await import("../mods/modUpdates");
+const { useModUpdates, checkModUpdates } = await import("../mods/modUpdates");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -45,6 +45,7 @@ async function show(m: ModRow) {
   call.mockImplementation((cmd: string) => {
     if (cmd === "mod_releases") return Promise.resolve({ releases: RELEASES, more: false });
     if (cmd === "install_mod_version") return Promise.resolve({ snapshot: {}, results: [] });
+    if (cmd === "check_mod_updates") return Promise.resolve([]);
     return Promise.reject(new Error(cmd));
   });
   const box = document.createElement("div");
@@ -90,17 +91,15 @@ describe("the Versions tab", () => {
     expect([...box.querySelectorAll(".mod-log-entry b")].map((b) => b.textContent)).toEqual(["1.3.0-beta.1"]);
   });
 
-  it("refreshes from GitHub at most once every 20 seconds", async () => {
+  it("asks GitHub for the versions again after Check for Updates, with no button of its own", async () => {
     const box = await show(mod("1.2.0"));
+    expect(box.querySelector(".versions-refresh")).toBeNull();
     const asked = () => call.mock.calls.filter((c) => c[0] === "mod_releases").length;
     const before = asked();
-    const button = box.querySelector<HTMLButtonElement>(".versions-refresh")!;
-    await act(async () => { button.click(); await Promise.resolve(); });
+    await act(async () => { await checkModUpdates(["me.mod"], new Map()); });
+    await act(async () => { await new Promise((r) => setTimeout(r, 400)); });
     expect(asked()).toBe(before + 1);
-    expect(button.classList.contains("cooling")).toBe(true);
-    expect(button.dataset.tip).toMatch(/^Refresh again in \d+ s$/);
-    await act(async () => { button.click(); await Promise.resolve(); });
-    expect(asked()).toBe(before + 1);
+    expect([...box.querySelectorAll(".mod-log-entry b")].map((b) => b.textContent)).toEqual(["1.2.0", "1.1.0"]);
   });
 
   it("puts a switch button above the notes of an unfolded release, none on the installed one", async () => {

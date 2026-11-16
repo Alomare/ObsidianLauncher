@@ -32,7 +32,7 @@ local capabilities = {
 	after_startup = true, log = true, hook = true, wrap = true, on_require = true, on_session = true, session = true,
 	settings = true, keybind = true, text = true, on_frame = true, module = true, import = true, menu = true, toast = true, notify = true, storage = true, caller = true,
 	ui = true, scope = true, guardrails = true, info = true, expansion = true, save_data = true,
-	language = true, game_text = true, parts = true, secondary_scopes = true, war = true, profiler = true, input_modes = true,
+	language = true, game_text = true, parts = true, secondary_scopes = true, war = true, profiler = true, input_modes = true, pad_binds = true,
 }
 local api = {
 	version = API_VERSION,

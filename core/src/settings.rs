@@ -33,6 +33,8 @@ pub struct Settings {
     pub keys: Vec<(String, String, String)>,
     /// (mod id, keybind id, input mode), for binds that don't fire on press
     pub modes: Vec<(String, String, String)>,
+    /// (mod id, keybind id, pad buttons joined by +), for binds the player gave a controller input
+    pub pads: Vec<(String, String, String)>,
 }
 
 /// `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher`, beside the game's own save folder. Folders
@@ -122,6 +124,10 @@ pub fn render(s: &Settings) -> String {
     for (m, k, mode) in &s.modes {
         out.push_str(&format!("mode\t{}\t{}\t{}\n", field(m), field(k), field(mode)));
     }
+    // Likewise for controller inputs: an older loader skips them.
+    for (m, k, combo) in &s.pads {
+        out.push_str(&format!("pad\t{}\t{}\t{}\n", field(m), field(k), field(combo)));
+    }
     out
 }
 
@@ -144,6 +150,7 @@ pub fn parse(text: &str) -> Settings {
             ["option", m, o, t, v] => s.options.push((m.to_string(), o.to_string(), t.to_string(), v.to_string())),
             ["key", m, k, key] => s.keys.push((m.to_string(), k.to_string(), key.to_string())),
             ["mode", m, k, mode] => s.modes.push((m.to_string(), k.to_string(), mode.to_string())),
+            ["pad", m, k, combo] => s.pads.push((m.to_string(), k.to_string(), combo.to_string())),
             _ => {}
         }
     }
@@ -247,6 +254,7 @@ mod tests {
             options: vec![("a.b".into(), "d".into(), "number".into(), "2.5".into())],
             keys: vec![("a.b".into(), "toggle".into(), "f8".into())],
             modes: vec![("a.b".into(), "toggle".into(), "double_tap".into())],
+            pads: vec![("a.b".into(), "toggle".into(), "back+right_thumb".into())],
         };
         let t = crate::testutil::spaced_tempdir();
         write(t.path(), &s).unwrap();

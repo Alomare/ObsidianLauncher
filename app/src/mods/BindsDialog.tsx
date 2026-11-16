@@ -8,7 +8,7 @@ import { pick, t } from "../i18n";
 import { PadGlyph } from "../pad/PadGlyph";
 import { Select } from "../Select";
 import { INPUT_MODES, type KeyRow, type ModRow } from "../types";
-import { KeyButton, PadControl, modeName, padOption, same } from "./BindControls";
+import { KeyButton, PadButtonInput, modeName } from "./BindControls";
 
 export function BindsDialog({ mod, names, onClose }: { mod: ModRow; names: Map<string, string>; onClose: () => void }) {
   useEffect(() => {
@@ -34,7 +34,6 @@ export function BindsDialog({ mod, names, onClose }: { mod: ModRow; names: Map<s
           </div>
           {mod.keybinds.map((k: KeyRow) => {
             const label = pick(k.label, k.id);
-            const pad = padOption(mod, k);
             return (
               <div key={k.id} className="binds-row" role="row">
                 <div className="binds-name" role="rowheader">
@@ -47,13 +46,9 @@ export function BindsDialog({ mod, names, onClose }: { mod: ModRow; names: Map<s
                     aria-label={t("app.drawer.reset")} data-tip={t("app.drawer.resetKey", k.default)}><ResetIcon /></button>
                 </div>
                 <div className="binds-cell" role="cell">
-                  {pad ? (
-                    <>
-                      <PadControl mod={mod} o={pad} />
-                      <button className="bare" disabled={same(pad.value, pad.default)} onClick={() => run("set_option", { id: mod.id, option: pad.id, value: null })}
-                        aria-label={t("app.drawer.reset")} data-tip={t("app.drawer.reset")}><ResetIcon /></button>
-                    </>
-                  ) : <span className="none" data-tip={t("app.drawer.noController")}>–</span>}
+                  <PadButtonInput mod={mod} k={k} label={label} />
+                  <button className="bare" disabled={!k.pad_bind} onClick={() => run("set_pad", { id: mod.id, keybind: k.id, combo: null })}
+                    aria-label={t("app.drawer.reset")} data-tip={t("app.binds.padReset")}><ResetIcon /></button>
                 </div>
                 <div className="binds-cell" role="cell">
                   <Select value={k.mode} options={modes} label={t("app.binds.mode")} tip={t(`app.binds.modeHint.${k.mode}`)}

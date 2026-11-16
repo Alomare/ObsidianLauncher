@@ -568,9 +568,13 @@ fn settings_from<'a>(profile: &Profile, sandbox: Option<String>, manifest: impl 
         // Only keybinds the manifest still declares, so a key set for an older version is dropped.
         let set = profile.keys.get(&m.id);
         let modes = profile.modes.get(&m.id);
+        let pads = profile.pads.get(&m.id);
         for k in crate::options::parse_keybinds(&m.keybinds)? {
             if let Some(key) = set.and_then(|s| s.get(&k.id)) {
                 s.keys.push((m.id.clone(), k.id.clone(), key.clone()));
+            }
+            if let Some(combo) = pads.and_then(|s| s.get(&k.id)) {
+                s.pads.push((m.id.clone(), k.id.clone(), combo.clone()));
             }
             if let Some(mode) = modes.and_then(|s| s.get(&k.id)) {
                 s.modes.push((m.id.clone(), k.id, mode.clone()));

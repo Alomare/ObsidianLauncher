@@ -96,6 +96,9 @@ describe("StorePage", () => {
     expect(hud.querySelector(".c-flag.inst")).not.toBeNull();
     // Obsidian Verified sits in front of the name, only where the index says so, and not among the tags.
     expect(hud.querySelector(".c-body > b > :last-child")?.getAttribute("class")).toBe("store-verified");
+    // No Install on the cards; a Kit card that is not installed has one as an icon.
+    expect(host.querySelector(".card .btn.inst")).toBeNull();
+    expect(host.querySelector(".kit-card .kc-inst")).not.toBeNull();
     expect(hud.querySelector(".c-tags .store-verified")).toBeNull();
     const cross = [...host.querySelectorAll(".card")].find((c) => c.textContent?.includes("CROSSHAIR"))!;
     expect(cross.querySelector(".store-verified")).toBeNull();
@@ -127,10 +130,13 @@ describe("StorePage", () => {
     expect(host.querySelector(".mid h1")?.textContent).toBe("ARCADE");
     expect(host.querySelector(".store-mod .md")?.textContent).toContain("Long text");
     expect(host.querySelector(".msum")?.textContent).toBe("About arcade");
-    // One row of facts: scope, version, first release, newest release, downloads.
+    // One row of facts: scope, first release, newest release, version. No download count.
     expect([...host.querySelectorAll(".mfacts dt")].map((d) => d.textContent)).toEqual(
-      [t("app.store.factScope"), t("app.store.factVersion"), t("app.store.factReleased"), t("app.store.factUpdated"), t("app.store.factDownloads")]);
-    expect(host.querySelectorAll(".mfacts dd")[1].textContent).toBe("0.4.0");
+      [t("app.store.factScope"), t("app.store.factReleased"), t("app.store.factUpdated"), t("app.store.factVersion")]);
+    expect(host.querySelectorAll(".mfacts dd")[3].textContent).toBe("0.4.0");
+    expect(host.querySelector(".c-dl")).toBeNull();
+    // Star, Install, Report and Remove in one row, Early access before the authors.
+    expect([...host.querySelectorAll(".mid-tools > *")].map((e) => e.classList[1])).toEqual(["star-btn", "inst", "icon"]);
     // The side panels in order, folded, each but Versions with a count; GitHub shows while Versions is folded.
     const panels = [...host.querySelectorAll(".mside .mpanel")];
     expect(panels.map((p) => p.querySelector(".mp-tog span")?.textContent)).toEqual([t("app.store.versions"), t("app.store.options"), t("app.store.requires")]);

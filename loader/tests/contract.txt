@@ -19,6 +19,7 @@ obsidian.capabilities.notify boolean
 obsidian.capabilities.on_frame boolean
 obsidian.capabilities.on_require boolean
 obsidian.capabilities.on_session boolean
+obsidian.capabilities.pad_binds boolean
 obsidian.capabilities.parts boolean
 obsidian.capabilities.profiler boolean
 obsidian.capabilities.save_data boolean

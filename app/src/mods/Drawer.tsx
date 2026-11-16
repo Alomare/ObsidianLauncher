@@ -5,12 +5,12 @@ import { useEffect, useMemo, useState } from "react";
 import { run } from "../api";
 import { openColorPicker } from "../ColorPicker";
 import { Confirm } from "../Confirm";
-import { ArrowIcon, ChevronIcon, CloseIcon, ExternalIcon, FileIcon, GamepadIcon, HistoryIcon, InfoIcon, UpdateIcon, KeyboardIcon, KeyboardMouseIcon, LinkIcon, ResetIcon, SlidersIcon, TrashIcon } from "../Icons";
+import { ArrowIcon, ChevronIcon, CloseIcon, ExternalIcon, FileIcon, GamepadIcon, HistoryIcon, InfoIcon, KeyboardIcon, KeyboardMouseIcon, LinkIcon, ResetIcon, SlidersIcon, TrashIcon } from "../Icons";
 import { language, pick, t } from "../i18n";
 import { Markdown, parse } from "../Markdown";
 import { Select } from "../Select";
 import { compareVersions, type Release } from "../updates";
-import { loadMore, refresh, refreshWait, useModReleases } from "./modReleases";
+import { loadMore, useModReleases } from "./modReleases";
 import { installModVersion } from "./modUpdates";
 import { Thumb } from "../Thumb";
 import type { ConflictRow, KeyRow, ModRow, OptionGroup, OptionPreview, OptionRow } from "../types";
@@ -18,7 +18,7 @@ import { previewSrc } from "./preview";
 import { overrides, type Override } from "./conflicts";
 import { dependencies, type Dep } from "./deps";
 import { BindsDialog } from "./BindsDialog";
-import { KeyButton, PadView, modeName, padOption, same } from "./BindControls";
+import { KeyButton, PadView, keyLabel, modeName, padOption, same } from "./BindControls";
 import type { DrawerView } from "./ModsPage";
 import { clampNumber } from "./optionValue";
 import { openUrl } from "../opener";
@@ -266,10 +266,10 @@ function KeysTab({ mod, names }: { mod: ModRow; names: Map<string, string> }) {
                 {k.clash.length > 0 && <div className="d warn">{t("app.drawer.keyClash", [pick(mod.name, mod.id), ...k.clash.map((id) => names.get(id) ?? id)].join(", "))}</div>}
               </div>
               <div className="opt-ctl key-col">
-                <span className={k.clash.length > 0 ? "keycap clash" : "keycap"}>{k.key ?? k.default}</span>
+                <span className={k.clash.length > 0 ? "keycap clash" : "keycap"}>{keyLabel(k.key ?? k.default)}</span>
               </div>
               <div className="opt-ctl pad-col">
-                {pad ? <PadView o={pad} /> : <span className="none" data-tip={t("app.drawer.noController")}>–</span>}
+                <PadView mod={mod} k={k} />
               </div>
             </li>
           );
@@ -330,13 +330,13 @@ function AboutTab({ mod }: { mod: ModRow }) {
   return (
     <div className="about-mod pad">
       {pick(mod.description) && <p>{pick(mod.description)}</p>}
-      {mod.parts.length > 0 && <PartList mod={mod} />}
       <dl className="facts">
         {mod.authors.length > 0 && <><dt>{t("app.drawer.authors")}</dt><dd>{mod.authors.join(", ")}</dd></>}
         <dt>{t("app.drawer.id")}</dt><dd className="mono">{mod.id}</dd>
         {mod.source && <><dt>{t("app.drawer.source")}</dt><dd className="src"><button className="link src-link" aria-label={mod.source} data-tip-title={t("app.drawer.source")} data-tip={mod.source} onClick={() => openUrl(mod.source!).catch(() => {})}><ExternalIcon /></button></dd></>}
         {mod.import && <><dt>{t("app.drawer.imported")}</dt><dd>{date}</dd><dt>{t("app.drawer.file")}</dt><dd className="mono">{mod.import.file}</dd></>}
       </dl>
+      {mod.parts.length > 0 && <PartList mod={mod} />}
     </div>
   );
 }
@@ -416,29 +416,16 @@ function VersionsTab({ mod }: { mod: ModRow }) {
   const badge = (w: string) =>
     !mod.version ? null : w === "new" ? <span className="upd-badge new">{t("app.update.badgeNew")}</span> : w === "installed" ? <span className="upd-badge">{t("app.update.badgeInstalled")}</span> : null;
   const first = r.pages === 0 && (r.loading || !r.error);
-  // The cooldown of Refresh counts down on the button's tooltip.
-  const [, tick] = useState(0);
-  const wait = refreshWait();
-  useEffect(() => {
-    if (wait <= 0) return;
-    const timer = setTimeout(() => tick((n) => n + 1), Math.min(wait, 1000));
-    return () => clearTimeout(timer);
-  }, [wait]);
-  const refreshTip = wait > 0 ? t("app.drawer.refreshWait", Math.ceil(wait / 1000)) : t("app.drawer.refreshVersions");
   return (
     <div className="versions pad">
-      <div className="versions-head">
-        {channels.length > 1 ? (
+      {channels.length > 1 && (
+        <div className="versions-head">
           <div className="versions-channels">
             <Select value={channel} label={t("app.drawer.channels")} options={channels.map((c) => ({ value: c, label: channelName(c) }))}
               onChange={(c) => { setPicked(c); setShown(LOG_STEP); }} />
           </div>
-        ) : <span />}
-        <button onClick={() => { setShown(LOG_STEP); refresh(mod.id).then(() => tick((n) => n + 1)); tick((n) => n + 1); }}
-          disabled={r.loading} aria-disabled={wait > 0} className={wait > 0 ? "bare versions-refresh cooling" : "bare versions-refresh"} aria-label={t("app.drawer.refreshVersions")} data-tip={refreshTip}>
-          <UpdateIcon />
-        </button>
-      </div>
+        </div>
+      )}
       {first && <p className="muted mod-log-note"><span className="upd-spin" aria-hidden="true" />{t("app.drawer.changelogsLoading")}</p>}
       {r.error && (
         <p className="muted mod-log-note">

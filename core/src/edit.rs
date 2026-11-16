@@ -100,6 +100,30 @@ pub fn set_mode(lib: &Library, profile: &mut Profile, id: &str, keybind: &str, m
     Ok(())
 }
 
+/// Sets the controller input of a keybind (`crate::options::is_pad_combo`), or none when `combo` is `None`:
+/// then the mod's own controller input, if it has one, stays.
+pub fn set_pad(lib: &Library, profile: &mut Profile, id: &str, keybind: &str, combo: Option<&str>) -> Result<()> {
+    let m = manifest(lib, id)?;
+    if !parse_keybinds(&m.keybinds)?.iter().any(|k| k.id == keybind) {
+        return Err(ObsidianError::UnknownKeybind { mod_id: id.into(), keybind: keybind.into() });
+    }
+    match combo {
+        Some(c) if crate::options::is_pad_combo(c) => {
+            profile.pads.entry(id.to_string()).or_default().insert(keybind.to_string(), c.to_string());
+        }
+        Some(c) => return Err(ObsidianError::BadOptionValue { option: keybind.into(), value: c.into() }),
+        None => {
+            if let Some(pads) = profile.pads.get_mut(id) {
+                pads.remove(keybind);
+                if pads.is_empty() {
+                    profile.pads.remove(id);
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Writes the profile's consent, guardrails, option values and keys where the loader reads them.
 pub fn write_settings(lib: &Library, profile: &Profile, saves_dir: &Path) -> Result<()> {
     crate::settings::write(&crate::settings::game_side_dir(saves_dir), &crate::loader::settings_for(lib, profile)?)
@@ -162,5 +186,21 @@ mod tests {
         assert!(set_mode(&lib, &mut p, "opt", "toggle", Some("mash")).is_err());
         set_mode(&lib, &mut p, "opt", "toggle", Some("press")).unwrap();
         assert!(p.modes.is_empty(), "press is the default, kept out of the profile");
+    }
+
+    #[test]
+    fn pads_check_the_buttons_and_reach_the_loader() {
+        let (_t, lib, mut p) = world();
+        set_pad(&lib, &mut p, "opt", "toggle", Some("left_shoulder+d_up")).unwrap();
+        assert_eq!(p.pads["opt"]["toggle"], "left_shoulder+d_up");
+        p.mods.iter_mut().for_each(|m| m.enabled = true);
+        let s = crate::loader::settings_for(&lib, &p).unwrap();
+        assert!(crate::settings::render(&s).contains("pad\topt\ttoggle\tleft_shoulder+d_up\n"));
+        assert!(matches!(set_pad(&lib, &mut p, "opt", "nope", Some("a")), Err(ObsidianError::UnknownKeybind { .. })));
+        for bad in ["", "a+a", "a+b+x+y+back", "lb", "A"] {
+            assert!(set_pad(&lib, &mut p, "opt", "toggle", Some(bad)).is_err(), "{bad}");
+        }
+        set_pad(&lib, &mut p, "opt", "toggle", None).unwrap();
+        assert!(p.pads.is_empty());
     }
 }

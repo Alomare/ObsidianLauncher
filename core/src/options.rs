@@ -45,6 +45,20 @@ fn bad(i: usize, reason: impl Into<String>) -> ObsidianError {
     ObsidianError::BadManifest { field: format!("options[{i}]"), reason: reason.into() }
 }
 
+/// The pad buttons a keybind can be set to, by the names the engine's `Pad1.button_index` takes.
+pub const PAD_BUTTONS: &[&str] = &[
+    "a", "b", "x", "y", "left_shoulder", "right_shoulder", "left_trigger", "right_trigger",
+    "left_thumb", "right_thumb", "back", "start", "d_up", "d_down", "d_left", "d_right",
+];
+
+/// A controller input for a keybind: one to four of `PAD_BUTTONS` joined by `+`, each once.
+pub fn is_pad_combo(s: &str) -> bool {
+    let parts: Vec<&str> = s.split('+').collect();
+    (1..=4).contains(&parts.len())
+        && parts.iter().all(|p| PAD_BUTTONS.contains(p))
+        && parts.iter().enumerate().all(|(i, p)| !parts[..i].contains(p))
+}
+
 pub fn is_key_name(s: &str) -> bool {
     !s.is_empty() && s.len() <= 32 && s.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
 }

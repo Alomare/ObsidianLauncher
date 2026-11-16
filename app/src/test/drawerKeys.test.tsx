@@ -7,6 +7,12 @@ const run = vi.fn();
 vi.mock("../api", () => ({ run: (...a: unknown[]) => run(...a) }));
 vi.mock("../opener", () => ({ openUrl: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
+// The controller recording, played by the test: `recorded` gives the buttons let go.
+let recorded: ((b: string[]) => void) | null = null;
+vi.mock("../pad/pad", async (load) => ({
+  ...(await load<typeof import("../pad/pad")>()),
+  recordPad: (done: (b: string[]) => void) => { recorded = done; return () => { if (recorded === done) recorded = null; }; },
+}));
 const { Drawer } = await import("../mods/Drawer");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -29,8 +35,8 @@ const api = (padValue = "thumbs") =>
     id: "obsidian.api", name: { en: "Obsidian API" }, description: { en: "" }, authors: [], version: "1.36.0", scope: "client", on: true,
     options: [choice("pad_open", padValue), { ...choice("other", "off"), label: { en: "Another choice" } }],
     keybinds: [
-      { id: "open", label: { en: "Open in-game menu" }, default: "f6", key: null, clash: [], mode: "press", pad: "pad_open" },
-      { id: "shot", label: { en: "Take a screenshot" }, default: "f7", key: "f9", clash: [], mode: "long_press", pad: null },
+      { id: "open", label: { en: "Open in-game menu" }, default: "f6", key: null, clash: [], mode: "press", pad: "pad_open", pad_bind: null },
+      { id: "shot", label: { en: "Take a screenshot" }, default: "f7", key: "f9", clash: [], mode: "long_press", pad: null, pad_bind: null },
     ],
     files: [], import: null, source: null, updatable: false, image: null, folder: null, requires: [], parts: [], optionGroups: [], optionPreviews: [], size: 0, deployed: false, deployedSize: null,
   }) as ModRow;
@@ -69,6 +75,16 @@ describe("the Keys tab", () => {
     expect(shot.querySelector<HTMLElement>(".pad-col .none")!.dataset.tip).toBe("No controller input for this action");
   });
 
+  it("shows a controller input set by the player over the mod's own, and a mouse button in words", () => {
+    const m = api();
+    m.keybinds[0] = { ...m.keybinds[0], pad_bind: "left_shoulder+d_up" };
+    m.keybinds[1] = { ...m.keybinds[1], key: "mouse_middle", pad_bind: "y" };
+    const [open, shot] = [...show(m, "keys").querySelectorAll(".keys .opt")];
+    expect(open.querySelector<HTMLElement>(".pad-view")!.dataset.tip).toBe("LB + D-pad Up");
+    expect(shot.querySelector<HTMLElement>(".pad-view")!.dataset.tip).toBe("Y");
+    expect(shot.querySelector(".keycap")!.textContent).toBe("Middle mouse");
+  });
+
   it("names how a bind fires under the name, when not on press", () => {
     const [open, shot] = [...show(api(), "keys").querySelectorAll(".keys .opt")];
     expect(open.querySelector(".d")).toBeNull();
@@ -90,21 +106,31 @@ describe("the binds dialog", () => {
     expect(rows.map((r) => r.querySelector(".binds-name span")!.textContent)).toEqual(["Open in-game menu", "Take a screenshot"]);
     expect(rows[0].querySelector(".key-btn")!.textContent).toBe("f6");
     expect(rows[1].querySelector(".key-btn")!.textContent).toBe("f9");
-    expect(rows[1].querySelector<HTMLElement>(".none")!.dataset.tip).toBe("No controller input for this action");
-    const modes = rows.map((r) => r.querySelectorAll(".select-btn")[r === rows[0] ? 1 : 0].textContent);
+    expect(rows[1].querySelector(".pad-btn-in")!.textContent).toBe("None");
+    const modes = rows.map((r) => r.querySelector(".select-btn")!.textContent);
     expect(modes).toEqual(["Press", "Long press"]);
   });
 
-  it("changes and resets the controller input as an option", () => {
-    const row = open().querySelector(".binds-row:not(.binds-head)")!;
-    const [pad] = row.querySelectorAll<HTMLButtonElement>(".select-btn");
+  it("records any controller buttons for any action, and resets to the mod's own", () => {
+    const rows = [...open().querySelectorAll(".binds-row:not(.binds-head)")];
+    const pad = rows[1].querySelector<HTMLButtonElement>(".pad-btn-in")!;
     act(() => pad.click());
-    act(() => [...document.querySelectorAll<HTMLLIElement>(".select-list li")].find((c) => c.textContent!.endsWith("Both sticks pressed in (L3 + R3)"))!.click());
-    expect(run).toHaveBeenCalledWith("set_option", { id: "obsidian.api", option: "pad_open", value: "thumbs" });
-    const resets = row.querySelectorAll<HTMLButtonElement>("button.bare");
+    expect(pad.textContent).toBe("Hold buttons...");
+    act(() => recorded!(["left_shoulder", "d_up"]));
+    expect(run).toHaveBeenCalledWith("set_pad", { id: "obsidian.api", keybind: "shot", combo: "left_shoulder+d_up" });
+    expect(pad.textContent).not.toBe("Hold buttons...");
+    const resets = rows[0].querySelectorAll<HTMLButtonElement>("button.bare");
     expect(resets[0].disabled, "the key is the default").toBe(true);
-    act(() => resets[1].click());
-    expect(run).toHaveBeenCalledWith("set_option", { id: "obsidian.api", option: "pad_open", value: null });
+    expect(resets[1].disabled, "no controller input set by the player").toBe(true);
+  });
+
+  it("takes a mouse button other than the left one as the key", () => {
+    const key = open().querySelector<HTMLButtonElement>(".binds-row:not(.binds-head) .key-btn")!;
+    act(() => key.click());
+    act(() => { key.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 })); });
+    expect(run).not.toHaveBeenCalled();
+    act(() => { key.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 1 })); });
+    expect(run).toHaveBeenCalledWith("set_key", { id: "obsidian.api", keybind: "open", key: "mouse_middle" });
   });
 
   it("offers the five input modes, and press goes back to the default", () => {
@@ -115,7 +141,7 @@ describe("the binds dialog", () => {
       expect(items.map((i) => i.textContent)).toEqual(["Tap", "Double tap", "Press", "Long press", "Release"]);
       act(() => items.find((i) => i.textContent === label)!.click());
     };
-    pick(rows[0].querySelectorAll<HTMLButtonElement>(".select-btn")[1], "Double tap");
+    pick(rows[0].querySelector<HTMLButtonElement>(".select-btn")!, "Double tap");
     expect(run).toHaveBeenCalledWith("set_mode", { id: "obsidian.api", keybind: "open", mode: "double_tap" });
     pick(rows[1].querySelector<HTMLButtonElement>(".select-btn")!, "Press");
     expect(run).toHaveBeenCalledWith("set_mode", { id: "obsidian.api", keybind: "shot", mode: null });

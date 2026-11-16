@@ -20,7 +20,7 @@ export type OptionPreview = { id: string; group: string | null; svg: string; wid
 export const INPUT_MODES = ["tap", "double_tap", "press", "long_press", "release"] as const;
 export type InputMode = (typeof INPUT_MODES)[number];
 /** pad: the choice option with the controller input for the same action, shown in this row instead of under Options. */
-export type KeyRow = { id: string; label: Localized; default: string; key: string | null; clash: string[]; mode: InputMode; pad: string | null };
+export type KeyRow = { id: string; label: Localized; default: string; key: string | null; clash: string[]; mode: InputMode; pad: string | null; pad_bind: string | null };
 export type ImportInfo = { date: string; file: string };
 export type ImageRef = { path: string; v: number };
 /** Every scope a manifest can give, as `Scope::name` in core/src/manifest.rs writes it. */

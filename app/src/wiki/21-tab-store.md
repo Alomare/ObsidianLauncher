@@ -35,4 +35,4 @@ The Store reads a public list, the [Obsidian Store Index](https://github.com/Alo
 3. Optionally, add `thumbnail.jpg` (16:9) at the root of the repository and an icon named by `image` in the manifest. The README becomes the description on the page of the mod.
 4. Open an issue or a pull request on the Store Index that adds the repository to `mods` in `mods.json`.
 
-The index is rebuilt every six hours from the releases, so a new release shows in the Store within a few hours. Obsidian Verified is given by the Store Index to the GitHub accounts it trusts: the tag follows the account that owns the repository, never the authors a manifest names.
+The index is rebuilt every hour from the releases, so a new release shows in the Store within the hour. Obsidian Verified is given by the Store Index to the GitHub accounts it trusts: the tag follows the account that owns the repository, never the authors a manifest names.

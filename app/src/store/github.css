@@ -24,6 +24,7 @@
 .rf-field legend { padding: 0; margin-bottom: 0.35rem; }
 .rf-label { display: flex; flex-direction: column; gap: 0.15rem; font-size: var(--fs-md); font-weight: 600; }
 .rf-label small { font-weight: 400; color: var(--mu); font-size: var(--fs-sm); line-height: 1.4; }
+.rf-name { display: block; }
 .rf-req { font-style: normal; color: var(--warn); margin-left: 0.2rem; }
 .rf-note { margin: 0; color: var(--mu); font-size: var(--fs-sm); line-height: 1.45; white-space: pre-wrap; }
 .rf-field input, .rf-field textarea, .sub-row input {
@@ -55,7 +56,6 @@
 
 /* Downloads and stars at the right of a card, and the star button on a mod page; yellow once starred. */
 .c-stats { margin-left: auto; display: inline-flex; align-items: center; gap: 0.75rem; }
-.c-quick + .c-stats { margin-left: 0.5rem; }
 .c-stars { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--mu); font-size: var(--fs-md); font-weight: 600; font-variant-numeric: tabular-nums; }
 .c-stars svg { width: 1rem; height: 1rem; }
 .c-stars.on svg { color: var(--gold); }
@@ -66,7 +66,7 @@
 .btn.star-btn svg { width: 1.05rem; height: 1.05rem; }
 .btn.star-btn.on svg { color: var(--gold); }
 .btn.icon.report-btn { width: 2.9rem; }
-.btn.icon.report-btn svg { width: 1.2rem; height: 1.2rem; }
+.btn.icon.report-btn svg { width: 1.25rem; height: 1.25rem; color: var(--warn); }
 
 /* Scope filters as icons alone, named in the tooltip. */
 .chip.icon-chip { width: 2.3rem; padding: 0; }

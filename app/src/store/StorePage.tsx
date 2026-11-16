@@ -11,7 +11,7 @@ import { ReportDialog } from "./ReportDialog";
 import { SubmitDialog } from "./SubmitDialog";
 import { useLocked } from "../busy";
 import { Confirm } from "../Confirm";
-import { CheckIcon, ChevronIcon, CloseIcon, GitHubIcon, ImportIcon, SearchIcon, StarIcon, TrashIcon, UpdateIcon } from "../Icons";
+import { CheckIcon, ChevronIcon, CloseIcon, GitHubIcon, ImportIcon, IssueIcon, SearchIcon, StarIcon, TrashIcon, UpdateIcon } from "../Icons";
 import { artFor } from "../homeArt";
 import { language, t } from "../i18n";
 import { Markdown, parse } from "../Markdown";
@@ -79,15 +79,24 @@ const Verified = ({ m }: { m: StoreMod }) =>
     </svg>
   ) : null;
 
-/** A corner over the top right of a card: plain green when installed, yellow with an arrow when the
-    Store has a newer version. */
+/** A corner over the top right of a card: green when installed, yellow when the Store has a newer version. */
 function Flag({ mark, small }: { mark: StoreMark; small?: boolean }) {
   if (mark !== "installed" && mark !== "update") return null;
   const label = mark === "installed" ? t("app.store.installed") : t("app.store.updateFlag");
+  return <span className={`c-flag ${mark === "installed" ? "inst" : "upd"}${small ? " sm" : ""}`} role="img" aria-label={label} data-tip={label} />;
+}
+
+/** On a Kit card that is not installed: Install as an icon, at the right. */
+function KitInstall({ m, mark, onInstall }: { m: StoreMod; mark: StoreMark; onInstall: () => void }) {
+  const locked = useLocked();
+  if (mark === "installing") return <span className="btn icon kc-inst installing" aria-label={t("app.store.installingShort")}><span className="upd-spin" aria-hidden="true" /></span>;
+  if (mark !== "none") return null;
+  const tip = t("app.store.installHint", m.version);
   return (
-    <span className={`c-flag ${mark === "installed" ? "inst" : "upd"}${small ? " sm" : ""}`} role="img" aria-label={label} data-tip={label}>
-      {mark === "installed" ? null : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" /></svg>}
-    </span>
+    <button className="btn icon go kc-inst" disabled={locked} aria-label={t("app.store.install")} data-tip-title={t("app.store.install")} data-tip={tip}
+      onClick={(e) => { e.stopPropagation(); onInstall(); }} onKeyDown={(e) => e.stopPropagation()}>
+      <ImportIcon />
+    </button>
   );
 }
 
@@ -197,6 +206,7 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
               <Flag mark={mark(m)} small />
               <ModIcon m={m} />
               <div className="kc-text"><ScopeTag scope={m.scope} /><b>{m.name}</b><Early m={m} /></div>
+              <KitInstall m={m} mark={mark(m)} onInstall={() => doInstall(m)} />
             </div>
           ))}
         </div>
@@ -244,13 +254,11 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
                   <Flag mark={k} />
                   <div className="c-body">
                     <ModIcon m={m} />
-                    <b>{m.name}<Verified m={m} /></b>
+                    <b className="c-name"><span>{m.name}</span><Verified m={m} /></b>
                     <p className="c-desc">{m.summary}</p>
                     <div className="c-tags">
                       <ScopeTag scope={m.scope} /><Early m={m} />
-                      {k !== "installed" && <span className="c-quick"><InstallButton m={m} mark={k} size="small" onInstall={() => doInstall(m)} /></span>}
                       <span className="c-stats">
-                        <Downloads m={m} />
                         <Stars m={m} on={isStarred(m, store.starred)} />
                       </span>
                     </div>
@@ -331,17 +339,6 @@ function OptionPanel({ m }: { m: StoreMod }) {
       })}
     </Panel>
   );
-}
-
-/** A count as a card shows it: 1234 as 1.2K. */
-const compact = (n: number) => new Intl.NumberFormat(language(), { notation: "compact", maximumFractionDigits: 1 }).format(n);
-
-/** The downloads of every release, on a card. Early access entries have none to count. */
-function Downloads({ m }: { m: StoreMod }) {
-  if (m.private) return null;
-  const n = m.downloads ?? 0;
-  const tip = t(n === 1 ? "app.store.downloadsOne" : "app.store.downloadsCount", n.toLocaleString(language()));
-  return <span className="c-stars c-dl" aria-label={tip} data-tip={tip}><ImportIcon />{compact(n)}</span>;
 }
 
 /** The star count on a card; yellow when the player starred the mod. */
@@ -444,21 +441,23 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
         <div className="mid">
           {m.icon ? <Zoom path={m.icon} className="mid-ico"><ModIcon m={m} size="xl" /></Zoom> : <ModIcon m={m} size="xl" />}
           <div className="mid-t">
-            <div className="mid-name"><h1>{m.name}<Verified m={m} /></h1><Early m={m} /></div>
-            {!!m.authors?.length && <span className="mby">{t("app.store.by", m.authors.join(", "))}</span>}
+            <div className="mid-name"><h1>{m.name}<Verified m={m} /></h1></div>
+            {(m.early || !!m.authors?.length) && (
+              <span className="mby-line"><Early m={m} />{!!m.authors?.length && <span className="mby">{t("app.store.by", m.authors.join(", "))}</span>}</span>
+            )}
           </div>
           <div className="mid-tools">
             <StarButton m={m} />
+            <InstallButton m={m} mark={k} size="big" onInstall={() => onInstall(m)} />
             <button className="btn icon report-btn" onClick={() => setReporting(true)} aria-haspopup="dialog" aria-label={t("app.report.button")}
               data-tip-title={t("app.report.button")} data-tip={t("app.report.hint")}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /><circle cx="12" cy="19.5" r="1.8" fill="currentColor" /></svg>
+              <IssueIcon />
             </button>
+            {k === "installed" && (
+              <button className="btn icon danger uninst" onClick={() => setAsk(true)} aria-label={t("app.store.uninstall")} data-tip={t("app.store.uninstall")}><TrashIcon /></button>
+            )}
           </div>
-          <InstallButton m={m} mark={k} size="big" onInstall={() => onInstall(m)} />
           {reporting && <ReportDialog m={m} onClose={() => setReporting(false)} />}
-          {k === "installed" && (
-            <button className="btn icon danger uninst" onClick={() => setAsk(true)} aria-label={t("app.store.uninstall")} data-tip={t("app.store.uninstall")}><TrashIcon /></button>
-          )}
         </div>
         {ask && (
           <Confirm title={t("app.drawer.removeTitle", m.name)} text={t("app.drawer.removeText")} confirm={t("app.drawer.remove")}
@@ -467,11 +466,10 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
         {m.summary && <p className="msum">{m.summary}</p>}
         <dl className="mfacts">
           <div><dt>{t("app.store.factScope")}</dt><dd><ScopeTag scope={m.scope} />{t(`app.scope.${m.scope}`)}</dd></div>
-          <div><dt>{t("app.store.factVersion")}</dt><dd>{m.version}</dd></div>
           {m.added && <div><dt>{t("app.store.factReleased")}</dt><dd>{date(m.added)}</dd></div>}
           {m.released && <div><dt>{t("app.store.factUpdated")}</dt><dd>{date(m.released)}</dd></div>}
+          <div><dt>{t("app.store.factVersion")}</dt><dd>{m.version}</dd></div>
           {row?.version && row.version !== m.version && <div><dt>{t("app.store.factInstalled")}</dt><dd>{row.version}</dd></div>}
-          {!m.private && <div><dt>{t("app.store.factDownloads")}</dt><dd>{(m.downloads ?? 0).toLocaleString(language())}</dd></div>}
         </dl>
         <div className="mcols">
           <section className="store-box mdesc"><Markdown tokens={desc} /></section>

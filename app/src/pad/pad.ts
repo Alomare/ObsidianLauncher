@@ -95,6 +95,38 @@ let last = 0;
 let scrollRest = { x: 0, y: 0 };
 let tabsMarkAt = 0;
 
+/** The buttons of the standard mapping by the names the game's Pad1.button_index takes; the Guide button is left out. */
+export const ENGINE_BUTTONS = ["a", "b", "x", "y", "left_shoulder", "right_shoulder", "left_trigger", "right_trigger",
+  "back", "start", "left_thumb", "right_thumb", "d_up", "d_down", "d_left", "d_right"] as const;
+export type EngineButton = (typeof ENGINE_BUTTONS)[number];
+
+/** A controller input being recorded for a bind: the buttons held together, given once all are let go. While
+ *  it waits, the controller drives nothing else. Buttons already down when it starts count after they come up. */
+let recording: { done: (buttons: EngineButton[]) => void; got: number[]; skip: Set<number> } | null = null;
+
+/** Records the next combination of up to four buttons; the function returned cancels. */
+export function recordPad(done: (buttons: EngineButton[]) => void): () => void {
+  const skip = new Set<number>();
+  before.forEach((d, i) => d && skip.add(i));
+  const mine = { done, got: [] as number[], skip };
+  recording = mine;
+  wake();
+  return () => { if (recording === mine) recording = null; };
+}
+
+/** One frame of recording; true while it holds the controller. */
+function record(down: boolean[]): boolean {
+  const r = recording;
+  if (!r) return false;
+  for (const i of [...r.skip]) if (!down[i]) r.skip.delete(i);
+  down.forEach((d, i) => { if (d && i < ENGINE_BUTTONS.length && !r.skip.has(i) && !r.got.includes(i) && r.got.length < 4) r.got.push(i); });
+  if (r.got.length && !r.got.some((i) => down[i])) {
+    recording = null;
+    r.done(r.got.map((i) => ENGINE_BUTTONS[i]));
+  }
+  return true;
+}
+
 function set(patch: Partial<PadState>) {
   const next = { ...state, ...patch };
   if (next.active === state.active && next.found === state.found && next.name === state.name && next.kind === state.kind) return;
@@ -351,6 +383,7 @@ function frame(now: number) {
   const [lx, ly, rx, ry] = [0, 1, 2, 3].map((i) => curve(pad.axes[i] ?? 0));
   const any = down.some(Boolean) || prev.some(Boolean) || lx || ly || rx || ry;
   before = down;
+  if (record(down)) return;
   if (!any) return;
   if (!state.active) {
     // The first touch only shows the cursor, so nothing is clicked unseen.

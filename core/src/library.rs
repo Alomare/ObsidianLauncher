@@ -208,6 +208,9 @@ pub struct Profile {
     /// Input modes per mod id and keybind id (`crate::options::INPUT_MODES`), when not the default press.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub modes: BTreeMap<String, BTreeMap<String, String>>,
+    /// Controller inputs per mod id and keybind id (`crate::options::is_pad_combo`), as set by the player.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub pads: BTreeMap<String, BTreeMap<String, String>>,
     /// Folders the player sorts mods into. They change nothing in the game.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub folders: Vec<crate::folders::Folder>,

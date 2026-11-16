@@ -683,6 +683,13 @@ pub async fn set_mode(ctx: State<'_, Ctx>, id: String, keybind: String, mode: Op
     live_edit(&ctx, |lib, p| obsidian_core::edit::set_mode(lib, p, &id, &keybind, mode.as_deref()))
 }
 
+/// Sets the controller input of a keybind (pad buttons joined by +), or none again with `None`.
+#[tauri::command]
+pub async fn set_pad(ctx: State<'_, Ctx>, id: String, keybind: String, combo: Option<String>) -> CmdResult<Snapshot> {
+    let _turn = ctx.turn();
+    live_edit(&ctx, |lib, p| obsidian_core::edit::set_pad(lib, p, &id, &keybind, combo.as_deref()))
+}
+
 /// Deletes mods from the library; they leave every profile.
 #[tauri::command]
 pub async fn remove_mods(ctx: State<'_, Ctx>, ids: Vec<String>) -> CmdResult<Snapshot> {

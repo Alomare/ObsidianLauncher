@@ -105,6 +105,8 @@ pub struct KeyRow {
     /// The choice option with the controller input for the same action: the Keys tab shows it in this
     /// row, and the Options tab leaves it out.
     pub pad: Option<String>,
+    /// The controller input the player set (pad buttons joined by +); it replaces `pad` in the game.
+    pub pad_bind: Option<String>,
 }
 
 /// An image file and a stamp that changes when the file does, so the UI drops a stale copy.
@@ -411,7 +413,8 @@ pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Re
                 let effective = key.clone().unwrap_or_else(|| k.default.clone());
                 let clash = if e.enabled { used.get(&effective).into_iter().flatten().filter(|id| **id != m.id).cloned().collect() } else { Vec::new() };
                 let mode = profile.modes.get(&m.id).and_then(|s| s.get(&k.id)).cloned().unwrap_or_else(|| obsidian_core::options::INPUT_MODES[0].to_string());
-                KeyRow { id: k.id, label: localized(raw.get("label")), default: k.default, key, clash, mode, pad: k.pad }
+                let pad_bind = profile.pads.get(&m.id).and_then(|s| s.get(&k.id)).cloned();
+                KeyRow { id: k.id, label: localized(raw.get("label")), default: k.default, key, clash, mode, pad: k.pad, pad_bind }
             })
             .collect();
         // An imported legacy mod has no version number unless the Nexus file name gave one.

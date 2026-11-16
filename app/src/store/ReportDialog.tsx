@@ -20,7 +20,7 @@ function FieldInput({ f, value, onChange }: { f: Field; value: Answers[string]; 
   if (f.type === "markdown") return <p className="rf-note">{f.description}</p>;
   const head = (
     <span className="rf-label">
-      {f.label}{f.required && <i className="rf-req" aria-label={t("app.report.required")}>*</i>}
+      <span className="rf-name">{f.label}{f.required && <i className="rf-req" aria-label={t("app.report.required")}>*</i>}</span>
       {f.description && <small>{f.description}</small>}
     </span>
   );
@@ -171,7 +171,7 @@ export function ReportDialog({ m, onClose }: { m: StoreMod; onClose: () => void 
       <form className="rf-form" onSubmit={(e) => { e.preventDefault(); send(); }}>
         <div className="rf-scroll">
           <label className={tried && !titleOk ? "rf-field bad" : "rf-field"}>
-            <span className="rf-label">{t("app.report.title")}<i className="rf-req">*</i></span>
+            <span className="rf-label"><span className="rf-name">{t("app.report.title")}<i className="rf-req" aria-label={t("app.report.required")}>*</i></span></span>
             <input ref={first} value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} />
           </label>
           {pick.fields.length

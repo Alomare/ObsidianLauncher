@@ -55,7 +55,7 @@ A mod that asks to run only while every player runs it (`every_player`) is a ses
 
 ## In the app
 
-Every row of the mod list has a diamond for the scope: black for unspecified, green for client, red for session, white for a library (grey on the light theme) and yellow for an expansion. A hybrid mod has a diamond split in two, green on the left and red on the right. Hovering over it shows the name of the scope and what it means, with a WIKI tag: a click opens this page at that scope. The details of each mod name the scope too, and the About tab lists the secondary scopes, marking one that is off.
+Every row of the mod list has a diamond for the scope: black for unspecified, green for client, red for session, white for a library (grey on the light theme) and yellow for an expansion. A hybrid mod has a diamond split in two, green on the left and red on the right. Hovering over it shows the name of the scope and what it means, with a WIKI tag: a click opens this page at that scope. The details of each mod name the scope too, and the About tab ends with the list of scopes of a mod that has more than one, marking one that is off.
 
 ## Who decides the scope
 

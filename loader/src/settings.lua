@@ -5,7 +5,26 @@ local B = require("obsidian/loader/builtins")
 local log = require("obsidian/loader/log")
 local war = require("obsidian/loader/war")
 
-local M = { values = {}, keys = {}, modes = {}, binds = {} }
+local M = { values = {}, keys = {}, modes = {}, pads = {}, binds = {} }
+
+-- The pad buttons a bind can be set to (pad lines), by the names Pad1.button_index takes.
+M.PAD_BUTTONS = {
+	a = true, b = true, x = true, y = true, left_shoulder = true, right_shoulder = true, left_trigger = true,
+	right_trigger = true, left_thumb = true, right_thumb = true, back = true, start = true,
+	d_up = true, d_down = true, d_left = true, d_right = true,
+}
+
+-- "a+left_shoulder" as a list of one to four known buttons, each once; nil when it is not one.
+function M.pad_combo(text)
+	local list, seen = {}, {}
+	for name in B.gmatch(text .. "+", "([^+]*)%+") do
+		if not M.PAD_BUTTONS[name] or seen[name] then return nil end
+		seen[name] = true
+		list[#list + 1] = name
+	end
+	if #list == 0 or #list > 4 then return nil end
+	return list
+end
 
 -- How a bind fires, as in Helldivers 2: press (the frame the input goes down, the default), release
 -- (the frame it comes up), tap (comes up within TAP_MAX of going down), double_tap (goes down a second
@@ -120,6 +139,9 @@ function M.load(core, path)
 		elseif x[1] == "key" and #x == 4 and B.match(x[4], "^[a-z0-9_]+$") then
 			M.keys[x[2]] = M.keys[x[2]] or {}
 			M.keys[x[2]][x[3]] = x[4]
+		elseif x[1] == "pad" and #x == 4 and M.pad_combo(x[4]) then
+			M.pads[x[2]] = M.pads[x[2]] or {}
+			M.pads[x[2]][x[3]] = M.pad_combo(x[4])
 		elseif x[1] == "mode" and #x == 4 and M.MODES[x[4]] then
 			M.modes[x[2]] = M.modes[x[2]] or {}
 			M.modes[x[2]][x[3]] = x[4]
@@ -154,7 +176,9 @@ end
 -- opts.always: the session gate leaves it alone, as with obsidian.wrap. opts.secondary_scope: the key
 -- belongs to that secondary scope of the mod, and does nothing while it is off. opts.pad: a function
 -- that says whether the controller input of the bind is held this frame; the same mode applies to it
--- (obsidian.capabilities.input_modes says this loader reads it).
+-- (obsidian.capabilities.input_modes says this loader reads it). A controller input the player set in
+-- the app (a pad line) replaces opts.pad, and gives any bind one (obsidian.capabilities.pad_binds).
+-- A key named mouse_<button> is that mouse button: mouse_middle, mouse_right, mouse_extra_1.
 function M.keybind(id, fn, opts)
 	local state = M.core and M.core.current
 	if not state or B.type(fn) ~= "function" then return end
@@ -168,6 +192,8 @@ function M.keybind(id, fn, opts)
 	if scope == "off" then return end
 	local always = B.type(opts) == "table" and opts.always == true
 	local pad = B.type(opts) == "table" and B.type(opts.pad) == "function" and opts.pad or nil
+	local combo = (M.pads[state.id] or {})[B.tostring(id)]
+	if combo then pad = function() return M.pads_hold(combo) end end
 	local mode = (M.modes[state.id] or {})[B.tostring(id)] or "press"
 	B.insert(M.binds, { state = state, part = part, id = B.tostring(id), key = key, fn = fn, always = always, pad = pad, mode = mode,
 		inputs = { key = { down = false }, pad = { down = false } } })
@@ -196,6 +222,49 @@ function M.step(s, down, mode, now)
 	return fire
 end
 
+-- Whether any active pad holds every button of `combo` now. Triggers count past half way.
+function M.pads_hold(combo)
+	local list = B.rawget(B.G, "Pads")
+	if B.type(list) ~= "table" then return false end
+	for _, pad in B.ipairs(list) do
+		local active = B.type(pad) == "table" and (B.type(pad.active) ~= "function" or B.select(2, B.pcall(pad.active)) == true)
+		local all = active
+		for _, name in B.ipairs(active and combo or {}) do
+			local ok, i = B.pcall(pad.button_index, name)
+			local fine, level = false, nil
+			if ok and i then fine, level = B.pcall(pad.button, i) end
+			if not (fine and B.type(level) == "number" and level > 0.5) then
+				all = false
+				break
+			end
+		end
+		if all then return true end
+	end
+	return false
+end
+
+-- Where a bind's key is read: the keyboard, or the mouse for mouse_<button>. The index, or false
+-- when the device doesn't know the name.
+local function key_source(b)
+	local name, dev = b.key, B.rawget(B.G, "Keyboard")
+	if B.sub(name, 1, 6) == "mouse_" then name, dev = B.sub(name, 7), B.rawget(B.G, "Mouse") end
+	if B.type(dev) ~= "table" or B.type(dev.button_index) ~= "function" then return false end
+	local ok, i = B.pcall(dev.button_index, name)
+	b.device = dev
+	return (ok and i) or false
+end
+
+-- Whether the key of a bind is down. Keyboard.pressed stays true while a key is held; a mouse button
+-- is read by its level.
+local function key_down(b)
+	if b.device == B.rawget(B.G, "Mouse") then
+		local ok, level = B.pcall(b.device.button, b.index)
+		return ok and B.type(level) == "number" and level > 0.5
+	end
+	local ok, down = B.pcall(b.device.pressed, b.index)
+	return ok and down and true or false
+end
+
 local function fire(b, device)
 	local session = M.core.session
 	local gated = not b.always and session and session.gated(b.state, b.part)
@@ -214,13 +283,11 @@ function M.tick()
 	local now = M.now()
 	for _, b in B.ipairs(M.binds) do
 		if b.index == nil then
-			local ok, i = B.pcall(kb.button_index, b.key)
-			b.index = (ok and i) or false
+			b.index = key_source(b)
 			if not b.index then log.line("keybind " .. b.state.id .. "." .. b.id .. ": unknown key " .. b.key) end
 		end
 		if b.index then
-			local ok, down = B.pcall(kb.pressed, b.index)
-			if M.step(b.inputs.key, ok and down and true or false, b.mode, now) then fire(b, "key") end
+			if M.step(b.inputs.key, key_down(b), b.mode, now) then fire(b, "key") end
 		end
 		if b.pad then
 			local ok, down = B.pcall(b.pad)

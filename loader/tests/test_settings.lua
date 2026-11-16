@@ -177,6 +177,50 @@ test("keybind_controller_input_takes_the_same_mode", function()
 	rawset(_G, "PAD_HELD", nil)
 end)
 
+-- A pad and a mouse as the engine has them: button levels by name.
+local function fake_device(levels)
+	local names = {}
+	return {
+		button_index = function(name) names[#names + 1] = name; return #names end,
+		button = function(i) return levels[names[i]] or 0 end,
+	}
+end
+
+test("a_controller_input_set_in_the_app_replaces_the_mods_own", function()
+	local pad = {}
+	rawset(_G, "Pads", { fake_device(pad) })
+	local e, step = timed("pad\ta\ttoggle\tleft_shoulder+d_up\n", [[
+		rawset(_G, "GOT", {})
+		obsidian.keybind("toggle", function(device) table.insert(rawget(_G, "GOT"), device) end, { pad = function() return true end })
+		rawset(_G, "PADS", obsidian.capabilities.pad_binds)
+	]])
+	E.eq(rawget(_G, "PADS"), true, "capability")
+	step(2)
+	E.eq(#rawget(_G, "GOT"), 0, "the mod's own input is not read")
+	pad.left_shoulder = 1; step()
+	E.eq(#rawget(_G, "GOT"), 0, "one button of two")
+	pad.d_up = 1; step(3)
+	E.eq(table.concat(rawget(_G, "GOT"), " "), "pad", "both, once")
+	rawset(_G, "Pads", nil)
+	-- a bad combination is a bad line
+	e = timed("pad\ta\ttoggle\tleft_shoulder+left_shoulder\npad\ta\ttoggle\tlb\n")
+	E.has(e:log(), "settings: skipped 2 bad lines")
+end)
+
+test("a_key_can_be_a_mouse_button", function()
+	local mouse = {}
+	rawset(_G, "Mouse", fake_device(mouse))
+	local e, step = timed("key\ta\ttoggle\tmouse_middle\n")
+	step()
+	E.eq(rawget(_G, "PRESSES"), 0, "up")
+	mouse.middle = 1; step(3)
+	E.eq(rawget(_G, "PRESSES"), 1, "held for three frames")
+	mouse.middle = 0; step(); mouse.middle = 1; step()
+	E.eq(rawget(_G, "PRESSES"), 2, "second press")
+	E.lacks(e:log(), "unknown key")
+	rawset(_G, "Mouse", nil)
+end)
+
 test("session_mod_keybind_waits_for_a_cleared_session", function()
 	local e = engine(nil, { scope = "session" }, KEY_MOD)
 	e:core().deploy.has_session = true

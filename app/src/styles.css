@@ -635,10 +635,6 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 .mod-log-more { align-self: flex-start; margin-top: 0.2rem; }
 .versions { display: flex; flex-direction: column; gap: 0.5rem; }
 .versions-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
-.versions-refresh { padding: 0.3rem; color: var(--mu); }
-.versions-refresh:hover:not(:disabled):not(.cooling) { color: var(--tx); }
-.versions-refresh:disabled, .versions-refresh.cooling { opacity: 0.45; cursor: default; }
-.versions-refresh svg { width: 1rem; height: 1rem; }
 .versions-channels .select-btn { height: 2rem; padding: 0 0.45rem 0 0.65rem; gap: 0.35rem; font-size: var(--fs-sm); }
 .versions .mod-log-more { align-self: flex-start; }
 .versions-switch { display: block; margin: 0.2rem 0 0.5rem; }
@@ -1226,16 +1222,16 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
    it, and the saves inside on the same tint. Gold for Official, green for Sandbox. */
 .str.sgroup, .str.in, .saves-none { --fc: var(--gold); }
 .str.sgroup.sandbox, .str.in.sandbox-row, .saves-none { --fc: var(--go); }
-.str.sgroup { grid-template-columns: minmax(0, 1fr); min-height: 0; padding: 0; cursor: default; background: color-mix(in srgb, var(--fc) 10%, transparent); box-shadow: inset 4px 0 0 var(--fc); }
-.str.sgroup:hover { background: color-mix(in srgb, var(--fc) 14%, transparent); }
+.str.sgroup { grid-template-columns: minmax(0, 1fr); min-height: 0; padding: 0; cursor: default; background: color-mix(in srgb, var(--fc) 7.5%, transparent); box-shadow: inset 4px 0 0 var(--fc); }
+.str.sgroup:hover { background: color-mix(in srgb, var(--fc) 10.5%, transparent); }
 .sgroup-name { width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.42rem 0.8rem; border: 0; background: none; font-family: "Saira Variable", sans-serif; font-size: var(--fs-sm); font-weight: 700; letter-spacing: 0.12em; color: var(--tx); text-align: left; cursor: pointer; }
 .sgroup-name svg { width: 1rem; height: 1rem; flex: none; color: var(--mu); transition: transform var(--fast); }
 .sgroup.folded .sgroup-name svg { transform: rotate(-90deg); }
 .sgroup-n { font-size: var(--fs-sm); font-weight: 500; letter-spacing: 0; font-variant-numeric: tabular-nums; color: var(--mu); }
-.str.in { background: color-mix(in srgb, var(--fc) 10%, transparent); --mu: color-mix(in srgb, var(--tx) 88%, transparent); }
-.str.in:hover { background: color-mix(in srgb, var(--fc) 14%, transparent); }
-.str.in.sel { background: color-mix(in srgb, var(--fc) 17%, transparent); }
-.saves-none { margin: 0; padding: 0.7rem 0.8rem 0.7rem 4.1rem; font-size: var(--fs-md); border-bottom: 1px solid var(--ln); background: color-mix(in srgb, var(--fc) 10%, transparent); }
+.str.in { background: color-mix(in srgb, var(--fc) 7.5%, transparent); --mu: color-mix(in srgb, var(--tx) 88%, transparent); }
+.str.in:hover { background: color-mix(in srgb, var(--fc) 10.5%, transparent); }
+.str.in.sel { background: color-mix(in srgb, var(--fc) 12.75%, transparent); }
+.saves-none { margin: 0; padding: 0.7rem 0.8rem 0.7rem 4.1rem; font-size: var(--fs-md); border-bottom: 1px solid var(--ln); background: color-mix(in srgb, var(--fc) 7.5%, transparent); }
 @container (max-width: 30rem) {
   .sth, .str { grid-template-columns: 1rem 1.3rem minmax(0, 1fr) 4.5rem; }
   .s-wide { display: none; }
@@ -1600,13 +1596,10 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .store-scope.hybrid::before { background: linear-gradient(to right, var(--client) 50%, var(--session) 50%); }
 .store-tag.early { background: var(--s1); color: var(--goldtx); box-shadow: inset 0 0 0 1px var(--gold); }
 /* Installed or Update: a corner over the top right of a card. */
-.c-flag { position: absolute; top: 0; right: 0; z-index: 2; width: 2.7rem; height: 2.7rem; clip-path: polygon(0 0, 100% 0, 100% 100%); opacity: 0.9; }
-.c-flag.inst { width: 1.33rem; height: 1.33rem; background: var(--go); color: #0d1f18; }
-.c-flag.upd { background: var(--gold); color: #1b1b1b; }
-.c-flag svg { position: absolute; top: 0.3rem; right: 0.3rem; width: 0.95rem; height: 0.95rem; }
-.c-flag.sm { width: 1.9rem; height: 1.9rem; }
-.c-flag.sm svg { top: 0.2rem; right: 0.2rem; width: 0.7rem; height: 0.7rem; }
-.c-flag.inst.sm { width: 0.93rem; height: 0.93rem; }
+.c-flag { position: absolute; top: 0; right: 0; z-index: 2; width: 1.33rem; height: 1.33rem; clip-path: polygon(0 0, 100% 0, 100% 100%); opacity: 0.9; transition: background var(--fast); }
+.c-flag.inst { background: var(--go); }
+.c-flag.upd { background: var(--gold); }
+.c-flag.sm { width: 0.93rem; height: 0.93rem; }
 /* Obsidian Verified: a white circle with a dark check, inline in front of the name, about the height of the capitals. */
 .store-verified { display: inline-block; width: 0.9em; height: 0.9em; margin-left: 0.35em; vertical-align: -0.1em; }
 :root[data-theme="light"] .store-verified circle { stroke: rgba(0, 0, 0, 0.35); stroke-width: 1px; r: 7.5px; }
@@ -1617,6 +1610,10 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .kit-card:hover, .kit-card:focus-visible { transform: translateY(-2px); box-shadow: inset 0 0 0 1px var(--ln), inset 0 -3px 0 var(--gold); outline: 0; }
 .kit-card .mico { box-shadow: 0 0 0 1px color-mix(in srgb, var(--tx) 18%, transparent), 0 2px 8px rgba(0, 0, 0, 0.25); }
 .kc-text { min-width: 0; display: flex; align-items: center; gap: 0.5rem; }
+.kc-inst { flex: none; margin-left: auto; width: 2.1rem; height: 2.1rem; }
+.kc-inst svg { width: 1rem; height: 1rem; }
+.kc-inst.installing { display: inline-grid; place-items: center; background: var(--row); box-shadow: inset 0 0 0 1px var(--go); }
+.kc-inst .upd-spin { width: 0.9rem; height: 0.9rem; margin: 0; }
 .kc-text b { min-width: 0; font-family: "Saira Variable", sans-serif; font-size: var(--fs-md); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Filter row: scope chips, the sort list, Installed; the search at the right */
@@ -1647,11 +1644,11 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 /* No thumbnail: the icon over a blurred, darkened copy of itself, or the letter over a Home picture */
 .backdrop { position: relative; display: block; width: 100%; height: 100%; overflow: hidden; background: #0b0c0e; }
 .bd-blur { position: absolute; inset: -30px; background-size: cover; background-position: center; filter: blur(18.2px) saturate(1.2) brightness(0.42); }
-.c-quick { margin-left: auto; opacity: 0; transition: opacity var(--fast); }
-.card:hover .c-quick, .card:focus-within .c-quick, .c-quick:has(.installing) { opacity: 1; }
 .c-body { position: relative; flex: 1; display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto 1fr auto; gap: 0 0.7rem; padding: 0.65rem 0.75rem 0.85rem; }
 .c-body .mico { --ts: 3rem; margin-top: -1.75rem; z-index: 1; box-shadow: 0 0 0 2px var(--s2), 0 6px 16px rgba(0, 0, 0, 0.4); }
-.c-body b { align-self: center; font-size: var(--fs-base); font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-body b { align-self: center; min-width: 0; display: flex; align-items: center; font-size: var(--fs-base); font-weight: 650; white-space: nowrap; }
+.c-body b > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.c-body b > .store-verified { flex: none; vertical-align: 0; }
 .c-desc { grid-column: 1 / -1; margin: 0.5rem 0 0; min-height: calc(1.38em * 3); font-size: var(--fs-sm); color: var(--mu); line-height: 1.38;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .c-tags { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; min-height: 2.65rem; margin-top: 0.7rem; padding-top: 0.65rem; border-top: 1px solid var(--ln); }
@@ -1665,8 +1662,8 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .btn.inst.installing { background: var(--row); box-shadow: inset 0 0 0 1px var(--go); color: var(--tx); cursor: progress; opacity: 1; }
 .btn.inst.installing .upd-spin { width: 0.9rem; height: 0.9rem; }
 .btn.inst.done { background: var(--s2); box-shadow: inset 0 0 0 1px var(--ln); color: var(--go); }
-.mid > .uninst { flex: none; width: 2.9rem; height: 2.9rem; margin-left: -0.6rem; }
-.mid > .uninst svg { width: 1.15rem; height: 1.15rem; }
+.mid-tools > .uninst { flex: none; width: 2.9rem; }
+.mid-tools > .uninst svg { width: 1.15rem; height: 1.15rem; }
 .btn.inst.done:hover { background: var(--btn); color: var(--tx); }
 .inst-note { font-size: var(--fs-sm); color: var(--mu); }
 /* Installed and Installing have an outline; a line on the fold closes it, as on the light theme's buttons. */
@@ -1696,10 +1693,10 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 /* The name sits at the foot of the icon; a long name wraps upward. */
 .mid-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.3rem; }
 .mid-name { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 0.4rem 0.75rem; }
+.mby-line { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
 .mby { color: var(--mu); font-size: var(--fs-sm); }
 .mid h1 { margin: 0; font-family: "Saira Variable", sans-serif; font-weight: 770; font-size: 2rem; line-height: 1.02; letter-spacing: 0.03em; text-transform: uppercase; overflow-wrap: anywhere; }
-.mid-name .store-tag { margin-bottom: 0.15rem; }
-.mid > .btn.inst.big { flex: none; }
+.mid-tools > .btn.inst.big { flex: none; }
 .msum { margin: 0; max-width: 40rem; color: var(--mu); line-height: 1.5; }
 .mfacts { margin: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; }
 .mfacts > div { min-width: 0; padding: 0.5rem 0.75rem; background: var(--row); display: flex; flex-direction: column; gap: 0.15rem; }
@@ -1761,3 +1758,19 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .kit-card::after { content: ""; position: absolute; inset: 0; pointer-events: none;
   background: linear-gradient(135deg, transparent calc(var(--cut) - 0.3px), var(--ln) calc(var(--cut) - 0.3px), var(--ln) calc(var(--cut) + 1.2px), transparent calc(var(--cut) + 1.2px)),
     linear-gradient(315deg, transparent calc(var(--cut) - 0.3px), var(--ln) calc(var(--cut) - 0.3px), var(--ln) calc(var(--cut) + 1.2px), transparent calc(var(--cut) + 1.2px)); }
+
+/* Motion on the newer screens, in the steps the rest of the app uses: a page or tab content rises in
+   (view-in), a part that unfolds slides down into place (row-in), a list item settles in after the one
+   before it. Setting Motion off stops all of it (the rule at the top). */
+.store-in, .store-mod, .set-page, .dbody > *, .saves-body > *, .acc-thread { animation: view-in var(--enter) ease-out; }
+.mpanel.open > :not(.mp-h), .sopt-group[open] > :not(summary), .mod-log-entry .upd-body, .opt-group-body,
+.acc-messages > li, .acc-reports .pt-row, .str.in, .binds-row { animation: row-in var(--enter) ease-out; }
+.kit-card, .card { animation: view-in var(--enter) ease-out backwards; }
+.grid-cards > .card:nth-child(2), .kit-grid > .kit-card:nth-child(2) { animation-delay: 30ms; }
+.grid-cards > .card:nth-child(3), .kit-grid > .kit-card:nth-child(3) { animation-delay: 60ms; }
+.grid-cards > .card:nth-child(4) { animation-delay: 90ms; }
+.grid-cards > .card:nth-child(n + 5) { animation-delay: 120ms; }
+.ed-card { animation: view-in var(--enter) ease-out backwards; }
+.key-btn, .keycap { transition: background var(--fast), color var(--fast), border-color var(--fast); }
+.pad-btn-in { display: inline-flex; align-items: center; justify-content: center; min-width: 5rem; }
+.pad-btn-in .key-text { display: inline-flex; align-items: center; }
