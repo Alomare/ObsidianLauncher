@@ -12,7 +12,7 @@ import { call, errorText, setSnapshot } from "../api";
 import { isLocked, withTask } from "../busy";
 import { Confirm } from "../Confirm";
 import { ContextMenu } from "../ContextMenu";
-import { t } from "../i18n";
+import { t, tn } from "../i18n";
 import { CheckIcon, CloseIcon, ImportIcon, PlusIcon, TrashIcon, UpdateIcon } from "../Icons";
 import { notify } from "../notices";
 import { useLayer } from "../Modal";
@@ -581,7 +581,7 @@ function JoinDialog({ blocked, onAllow, onClose, onJoin }: { blocked: boolean; o
             <div key={`${f.war}@${f.base}`} className="cmd-found-row" role="listitem">
               <div className="cmd-found-text">
                 <b>{f.name}</b>
-                <small>{t("app.commander.foundLine", f.computer || f.base, f.season, f.players)}</small>
+                <small>{tn("app.commander.foundLine", f.players, f.computer || f.base, f.season, f.players)}</small>
               </div>
               <button className="btn small play" onClick={() => onJoin(f)}>{t("app.commander.join")}</button>
             </div>

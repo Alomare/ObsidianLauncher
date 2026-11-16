@@ -11,7 +11,7 @@ import {
   type Message, type Report, type SyncState,
 } from "../github";
 import { CheckIcon, ChevronIcon, CopyIcon, ExportIcon, GitHubIcon, ImportIcon, OutboundIcon } from "../Icons";
-import { language, t } from "../i18n";
+import { language, t, tn } from "../i18n";
 import { Markdown, parse } from "../Markdown";
 import { notify } from "../notices";
 import { openUrl } from "../opener";
@@ -188,7 +188,7 @@ function ReportsTab() {
             </div>
             {reports.map((r) => {
               const n = unread(r);
-              const tip = n === 1 ? t("app.account.unreadOne") : t("app.account.unread", n);
+              const tip = tn("app.account.unread", n);
               return (
                 <button key={`${r.repo}#${r.number}`} className={n ? "pt-row acc-report new" : "pt-row acc-report"} role="row" onClick={() => setCurrent(r)}>
                   <span className="acc-report-title" role="cell">
@@ -326,7 +326,7 @@ function SyncTab() {
       setSnapshot(r.snapshot);
       applySettings(r.settings);
       setSync((s) => ({ url: s?.url ?? null, updated: r.downloaded.updated || s?.updated || null }));
-      notify("info", t("app.account.downloaded", r.downloaded.profiles.length, r.downloaded.installed.length));
+      notify("info", tn("app.account.downloaded", r.downloaded.installed.length, r.downloaded.profiles.length, r.downloaded.installed.length));
       if (r.downloaded.missing.length) notify("error", t("app.account.missing", r.downloaded.missing.join(", ")));
     } catch (e) {
       notify("error", errorText(e));

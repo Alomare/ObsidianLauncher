@@ -2,7 +2,7 @@
 // before a folder with mods in it goes (keep the mods, or remove them too).
 import { useRef, useState } from "react";
 import { openColorPicker } from "../ColorPicker";
-import { t } from "../i18n";
+import { t, tn } from "../i18n";
 import { Modal } from "../Modal";
 import { PadGlyph } from "../pad/PadGlyph";
 
@@ -65,7 +65,7 @@ export function DeleteFolder({ name, color, count, onDelete, onCancel }: DeleteP
   return (
     <Modal className="modal confirm" role="alertdialog" label={t("app.folder.deleteTitle", name)} style={{ borderTopColor: color }} onClose={onCancel} focus={keep}>
         <h2 className="cap">{t("app.folder.deleteTitle", name)}</h2>
-        <p>{count === 1 ? t("app.folder.deleteTextOne") : t("app.folder.deleteText", count)}</p>
+        <p>{tn("app.folder.deleteText", count)}</p>
         <div className="choices">
           <button className="btn play choice" ref={keep} onClick={() => onDelete(false)}>
             {t("app.folder.ungroup")}

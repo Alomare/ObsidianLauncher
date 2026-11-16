@@ -4,8 +4,18 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-const LOADER_LANGUAGES: [&str; 4] = ["en", "fr", "es", "pt-BR"];
-const APP_LANGUAGES: [&str; 3] = ["en", "pt-BR", "zh-CN"];
+const LOADER_LANGUAGES: [&str; 5] = ["en", "fr", "es", "pt-BR", "ru"];
+const APP_LANGUAGES: [&str; 4] = ["en", "pt-BR", "zh-CN", "ru"];
+/** The plural forms a key may have beside its plain form (`<key>#one`), as Intl.PluralRules names them. */
+const PLURALS: [&str; 5] = ["zero", "one", "two", "few", "many"];
+
+/// The plain key of a plural form (`app.mods.copied#few` is a form of `app.mods.copied`).
+fn base(key: &str) -> &str {
+    match key.split_once('#') {
+        Some((b, form)) if PLURALS.contains(&form) => b,
+        _ => key,
+    }
+}
 const LOADER_KEYS: [&str; 14] = [
     "mod_failed",
     "build_unknown",
@@ -47,7 +57,8 @@ fn catalogs_have_the_same_keys_and_placeholders() {
         assert!(!en.is_empty());
         for lang in languages {
             for (key, text) in &group(lang, app) {
-                let source = en.get(key).unwrap_or_else(|| panic!("{lang} has {key}, which en lacks"));
+                // A plural form needs its plain key in English, and has its placeholders.
+                let source = en.get(base(key)).unwrap_or_else(|| panic!("{lang} has {key}, which en lacks"));
                 assert_eq!(text.matches("%s").count(), source.matches("%s").count(), "{lang} {key} placeholders");
             }
         }
@@ -62,7 +73,8 @@ fn fully_translated() {
         let en = group("en", app);
         for lang in languages {
             let other = group(lang, app);
-            let missing: Vec<_> = en.keys().filter(|k| !other.contains_key(*k)).collect();
+            // English's own plural forms are its words; a language has its own forms or none.
+            let missing: Vec<_> = en.keys().filter(|k| base(k) == k.as_str() && !other.contains_key(*k)).collect();
             assert!(missing.is_empty(), "{lang} lacks {missing:?}");
         }
     }

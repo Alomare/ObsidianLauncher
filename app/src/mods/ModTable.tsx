@@ -11,7 +11,7 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSPr
 import { ContextMenu } from "../ContextMenu";
 import { CheckIcon, ChevronIcon, LockIcon, UnlockIcon, UpArrowIcon, WarnIcon } from "../Icons";
 import { go } from "../nav";
-import { language, t } from "../i18n";
+import { language, t, tn } from "../i18n";
 import { Thumb } from "../Thumb";
 import { offered } from "./modUpdates";
 import type { ConflictRow, ImageRef, ModRow } from "../types";
@@ -310,7 +310,7 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
     const color = into ? (folders.get(into) as (Node & { kind: "folder" }) | undefined)?.folder.color ?? null : null;
     const label = d.folder
       ? (tree.find((n) => n.kind === "folder" && n.folder.id === d.folder) as Node & { kind: "folder" }).folder.name
-      : d.ids.length === 1 ? names.get(d.ids[0]) ?? d.ids[0] : t("app.mods.nMods", d.ids.length);
+      : d.ids.length === 1 ? names.get(d.ids[0]) ?? d.ids[0] : tn("app.mods.nMods", d.ids.length);
     setMarker({ y, color, onto: d.onto, x: e.clientX, py: e.clientY, label });
   };
   const up = (e: PointerEvent<HTMLDivElement>) => {
@@ -362,7 +362,7 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
   const folders = useMemo(() => new Map((tree ?? []).flatMap((n) => (n.kind === "folder" ? [[n.folder.id, n] as const] : []))), [tree]);
   const tipsOf = useMemo(() => {
     const nameOf = (id: string) => names.get(id) ?? id;
-    const withFiles = ([id, n]: [string, number]) => (n === 1 ? t("app.mods.withOneFile", nameOf(id)) : t("app.mods.withFiles", nameOf(id), n));
+    const withFiles = ([id, n]: [string, number]) => tn("app.mods.withFiles", n, nameOf(id), n);
     const out = new Map<string, { tips: string; lose: boolean }>();
     for (const [id, c] of conflictsByMod(conflicts)) {
       const tips = [

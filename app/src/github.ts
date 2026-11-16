@@ -1,7 +1,7 @@
 // The GitHub account (core/src/github.rs): who is signed in, the device sign-in, and the calls made as
 // that player. One small store the Account tab, the nav icon and the Store pages all read.
 import { call, errorText } from "./api";
-import { t } from "./i18n";
+import { t, tn } from "./i18n";
 import { notify } from "./notices";
 import { openUrl } from "./opener";
 import { createStore } from "./store";
@@ -66,7 +66,7 @@ export async function refreshReports(announce = false) {
       const fresh = reports.filter((r) => unread(r) > 0 && r.comments > (before.get(`${r.repo}#${r.number}`) ?? 0));
       const any = fresh.length ? fresh : reports.filter((r) => unread(r) > 0);
       if (any.length === 1) notify("info", t("app.github.newReply", any[0].modName || any[0].repo, any[0].title));
-      else if (any.length > 1) notify("info", t("app.github.newReplies", any.length));
+      else if (any.length > 1) notify("info", tn("app.github.newReplies", any.length));
     }
   } catch { /* offline */ }
 }

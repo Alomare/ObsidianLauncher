@@ -13,7 +13,7 @@ import { Confirm } from "../Confirm";
 import { ContextMenu, type MenuItem } from "../ContextMenu";
 import { CheckIcon, ChevronIcon, CloseIcon, CopyIcon, CubeIcon, DeployIcon, ExportIcon, ImportIcon, PenIcon, PlusIcon, ResetIcon, SaveIcon, SlidersIcon, StarIcon, TrashIcon, UpdateIcon, WarnIcon } from "../Icons";
 import { dragResize, keepWidth } from "../dragResize";
-import { language, t } from "../i18n";
+import { language, t, tn } from "../i18n";
 import { notify } from "../notices";
 import { Prompt } from "../Prompt";
 import { Help } from "../SettingRow";
@@ -172,7 +172,7 @@ export function SavesPage({ snap, visible, home = 0 }: { snap: Snapshot; visible
       await withTask(taskText("saves_export"), async () => {
         for (const [i, r] of rows.entries()) await call("saves_export", { id: r.id, dest: inFolder(dir, names[i]) });
       }, true);
-      notify("info", t("app.saves.exportedMany", rows.length));
+      notify("info", tn("app.saves.exportedMany", rows.length));
     } catch (e) {
       notify("error", errorText(e));
     }
@@ -190,7 +190,7 @@ export function SavesPage({ snap, visible, home = 0 }: { snap: Snapshot; visible
         setSnapshot(done.snapshot);
         setList(done.saves);
       }
-      notify("info", t("app.saves.deletedMany", rows.length));
+      notify("info", tn("app.saves.deletedMany", rows.length));
       setChecked(new Set());
     } catch (e) {
       notify("error", errorText(e));

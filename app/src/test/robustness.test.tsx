@@ -45,7 +45,7 @@ describe("text catalogs", () => {
   const code = files(SRC).map((p) => readFileSync(p, "utf8")).join("\n");
 
   it("every literal t(\"key\") in the code is in en.json", () => {
-    const used = new Set([...code.matchAll(/\bt\(\s*"([a-zA-Z0-9_.]+)"/g)].map((m) => m[1]));
+    const used = new Set([...code.matchAll(/\btn?\(\s*"([a-zA-Z0-9_.]+)"/g)].map((m) => m[1]));
     const missing = [...used].filter((k) => k.startsWith("app.") && !(k in en));
     expect(missing).toEqual([]);
   });

@@ -7,7 +7,7 @@ import { call, errorText, setSnapshot, taskText } from "../api";
 import { withTask } from "../busy";
 import { Confirm } from "../Confirm";
 import { ArrowIcon, CheckIcon, CloseIcon, PenIcon, ResetIcon, TrashIcon, WarnIcon } from "../Icons";
-import { language, pick, t } from "../i18n";
+import { language, pick, t, tn } from "../i18n";
 import { notify } from "../notices";
 import { Select } from "../Select";
 import { Help } from "../SettingRow";
@@ -143,7 +143,7 @@ export function SaveEditor({ id, snap, onClose, startRename = false, home = 0 }:
           ))}
         </div>
         <div className="ed-savebar">
-          {count > 0 && <span className="ed-dirty">{t(count === 1 ? "app.saves.unsavedOne" : "app.saves.unsaved", count)}</span>}
+          {count > 0 && <span className="ed-dirty">{tn("app.saves.unsaved", count)}</span>}
           <button className="btn icon head-tool" disabled={!count || saving} onClick={() => setPending(new Map())} aria-label={t("app.saves.discard")}
             data-tip-title={t("app.saves.discard")} data-tip={t("app.saves.discardHint")}><ResetIcon /></button>
           <button className="btn go head-tool" disabled={!count || !canWrite} onClick={() => write([...pending.values()], t("app.saves.written"), pending)}
@@ -360,7 +360,7 @@ function CharacterTab({ draft, onEdit, undo }: { draft: EditorState; onEdit: (e:
       </Panel>
       <Panel title={t("app.saves.stat.samples")}>
         <ul className="opts opt-table">
-          <Row label={t("app.saves.stat.samples")} desc={t("app.saves.samplesHint", draft.samplesPerPoint, num(draft.maxSamples))} keys={["samples"]} undo={undo}>
+          <Row label={t("app.saves.stat.samples")} desc={tn("app.saves.samplesHint", draft.samplesPerPoint, draft.samplesPerPoint, num(draft.maxSamples))} keys={["samples"]} undo={undo}>
             <NumField value={draft.samples} min={0} max={draft.maxSamples} label={t("app.saves.stat.samples")} onCommit={(samples) => onEdit({ op: "set_samples", samples })} />
           </Row>
           <Row label={t("app.saves.researchPoints")}>

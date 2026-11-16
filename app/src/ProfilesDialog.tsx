@@ -7,7 +7,7 @@ import { Confirm } from "./Confirm";
 import { CloseIcon, CopyIcon, ExportIcon, ImportIcon, ModdersIcon, PaletteIcon, PenIcon, PlusIcon, ShieldIcon, TrashIcon } from "./Icons";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { FOLDER_COLORS } from "./mods/FolderDialog";
-import { t } from "./i18n";
+import { t, tn } from "./i18n";
 import { Modal } from "./Modal";
 import { exportProfile, importProfile } from "./profileZip";
 import { Prompt } from "./Prompt";
@@ -64,7 +64,7 @@ export function ProfilesDialog({ snap, onClose }: { snap: Snapshot; onClose: () 
                   {active && <span className="tag">{t("app.profiles.active")}</span>}
                   <ProfileGuards p={p} />
                 </div>
-                <div className="sub">{t(p.on === 1 ? "app.profiles.oneOn" : "app.profiles.on", p.on)}</div>
+                <div className="sub">{tn("app.profiles.on", p.on)}</div>
               </div>
               <div className="profile-actions">
                 {!active && <button className="btn small play" onClick={() => run("use_profile", { name: p.name })}>{t("app.profiles.use")}</button>}

@@ -8,7 +8,7 @@ import { BuildDialog } from "./BuildDialog";
 import { Confirm } from "./Confirm";
 import { withTask } from "./busy";
 import { FolderIcon } from "./Icons";
-import { LANGUAGES, language, t } from "./i18n";
+import { LANGUAGES, language, t, tn } from "./i18n";
 import { notify } from "./notices";
 import { copyReport } from "./report";
 import { Select } from "./Select";
@@ -103,7 +103,7 @@ function SystemTab({ snap }: { snap: Snapshot }) {
     try {
       const r = await withTask(taskText("remove_other_patches"), () => call<OtherPatchesRemoved>("remove_other_patches"));
       setSnapshot(r.snapshot);
-      notify("info", r.removed === 1 ? t("app.settings.otherRemovedOne") : t("app.settings.otherRemoved", r.removed));
+      notify("info", tn("app.settings.otherRemoved", r.removed));
     } catch (e) {
       notify("error", errorText(e));
     }
@@ -227,7 +227,7 @@ function SystemTab({ snap }: { snap: Snapshot }) {
       </Group>
 
       {removing && (
-        <Confirm title={t("app.settings.otherRemove")} text={t("app.settings.otherRemoveText", others.length)} confirm={t("app.settings.otherRemove")}
+        <Confirm title={t("app.settings.otherRemove")} text={tn("app.settings.otherRemoveText", others.length)} confirm={t("app.settings.otherRemove")}
           onCancel={() => setRemoving(false)} onConfirm={removeOthers} />
       )}
     </div>

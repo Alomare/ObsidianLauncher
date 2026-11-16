@@ -13,7 +13,7 @@ import { useLocked } from "../busy";
 import { Confirm } from "../Confirm";
 import { CheckIcon, ChevronIcon, CloseIcon, GitHubIcon, ImportIcon, IssueIcon, SearchIcon, StarIcon, TrashIcon, UpdateIcon } from "../Icons";
 import { artFor } from "../homeArt";
-import { t } from "../i18n";
+import { t, tn } from "../i18n";
 import { Markdown, parse } from "../Markdown";
 import { ReleaseEntry, releaseDate } from "../ReleaseEntry";
 import { go } from "../nav";
@@ -354,7 +354,7 @@ function OptionPanel({ m }: { m: StoreMod }) {
 
 /** The star count on a card; yellow when the player starred the mod. */
 function Stars({ m, on }: { m: StoreMod; on: boolean }) {
-  const tip = t("app.store.starsCount", m.stars ?? 0);
+  const tip = tn("app.store.starsCount", m.stars ?? 0);
   return <span className={on ? "c-stars on" : "c-stars"} aria-label={tip} data-tip={on ? `${tip}. ${t("app.store.starredByYou")}` : tip}><StarIcon />{m.stars ?? 0}</span>;
 }
 
@@ -401,7 +401,7 @@ function IssuesPanel({ repo, count }: { repo: string; count: number }) {
               <button onClick={() => openUrl(i.url).catch(() => {})} data-tip={i.url}>
                 <b>{i.title}</b>
                 <small>#{i.number} · {i.author} · {date(i.created)}</small>
-                {i.comments > 0 && <i>{t("app.store.issueReplies", i.comments)}</i>}
+                {i.comments > 0 && <i>{tn("app.store.issueReplies", i.comments)}</i>}
               </button>
             </li>
           ))}

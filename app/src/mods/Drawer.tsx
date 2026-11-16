@@ -6,7 +6,7 @@ import { run } from "../api";
 import { openColorPicker } from "../ColorPicker";
 import { Confirm } from "../Confirm";
 import { ArrowIcon, ChevronIcon, CloseIcon, ExternalIcon, FileIcon, GamepadIcon, HistoryIcon, InfoIcon, KeyboardIcon, KeyboardMouseIcon, LinkIcon, ResetIcon, SlidersIcon, TrashIcon } from "../Icons";
-import { language, pick, t } from "../i18n";
+import { language, pick, t, tn } from "../i18n";
 import { ReleaseEntry } from "../ReleaseEntry";
 import { Select } from "../Select";
 import { compareVersions, type Release } from "../updates";
@@ -467,7 +467,7 @@ function OverrideEntry({ o, at, names, focus }: { o: Override; at: (id: string) 
         <span className="ov-mod"><span className="num">{at(o.loser)}</span>{names.get(o.loser) ?? o.loser}</span>
       </div>
       <button className="link small" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-        {t(o.resources.length === 1 ? "app.drawer.oneFile" : "app.drawer.files_n", o.resources.length)}
+        {tn("app.drawer.files_n", o.resources.length)}
       </button>
       {open && <ul className="files">{o.resources.map((r) => <li key={r}><span className="f">{r}</span></li>)}</ul>}
     </div>

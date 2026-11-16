@@ -11,7 +11,7 @@ import { Confirm } from "../Confirm";
 import { ContextMenu, type MenuItem } from "../ContextMenu";
 import { ChevronIcon, CloseIcon, DeployIcon, ExternalIcon, FolderAddIcon, FolderIcon, ImportIcon, LockIcon, PlusIcon, ProfilesIcon, PurgeIcon, SearchIcon, SlidersIcon, StoreIcon, SwitchOffIcon, SwitchOnIcon, TrashIcon, UnlockIcon, UpArrowIcon, UpdateIcon } from "../Icons";
 import { dragResize, keepWidth } from "../dragResize";
-import { language, pick, t } from "../i18n";
+import { language, pick, t, tn } from "../i18n";
 import { go, useNav } from "../nav";
 import { ProfileGuards, ProfilesDialog } from "../ProfilesDialog";
 import { Thumb } from "../Thumb";
@@ -185,7 +185,7 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
     copy: () => {
       const ids = checked.size ? inOrder([...checked]) : view?.kind === "mod" && byId.has(view.id) ? [view.id] : [];
       if (!ids.length) return null;
-      notify("info", ids.length === 1 ? t("app.mods.copiedOne") : t("app.mods.copied", ids.length));
+      notify("info", tn("app.mods.copied", ids.length));
       return copyText(ids.map(clipMod));
     },
     paste: (text) => {
@@ -194,7 +194,7 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
       const ids = pastedMods(text, order.map(clipMod));
       if (!ids.length) return notify("info", t("app.mods.pasteNone"));
       check(ids, true);
-      notify("info", ids.length === 1 ? t("app.mods.pasteCheckedOne") : t("app.mods.pasteChecked", ids.length));
+      notify("info", tn("app.mods.pasteChecked", ids.length));
     },
   });
 
@@ -229,7 +229,7 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
         ],
       },
       "sep",
-      { label: ids.length > 1 ? t("app.menu.removeN", ids.length) : t("app.menu.remove"), icon: <TrashIcon />, danger: true, run: () => setAsk({ kind: "remove", ids }) },
+      { label: ids.length > 1 ? tn("app.menu.removeN", ids.length) : t("app.menu.remove"), icon: <TrashIcon />, danger: true, run: () => setAsk({ kind: "remove", ids }) },
     ];
   };
   /** Takes mods out of their folders, right after the folder they were in. */
@@ -379,7 +379,7 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
           {sorted && sel.length === 0 && (
             <div className="batch-dock">
               <div className="batch sort-done" role="status">
-                <span className="batch-n">{sorted.count === 1 ? t("app.sort.doneOne") : t("app.sort.done", sorted.count)}</span>
+                <span className="batch-n">{tn("app.sort.done", sorted.count)}</span>
                 <button className="btn small" onClick={() => undoSort(sorted)}>{t("app.sort.undo")}</button>
                 <button className="bare batch-x" onClick={() => setSorted(null)} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /></button>
               </div>
@@ -427,7 +427,7 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
       )}
       {ask?.kind === "update" && byId.get(ask.id) && <UpdateConfirm mod={byId.get(ask.id)!} to={offered(modUpdates.found, byId.get(ask.id)!) ?? ""} onDone={() => setAsk(null)} />}
       {ask?.kind === "remove" && (
-        <Confirm title={ask.ids.length === 1 ? t("app.drawer.removeTitle", names.get(ask.ids[0]) ?? ask.ids[0]) : t("app.mods.removeNTitle", ask.ids.length)}
+        <Confirm title={ask.ids.length === 1 ? t("app.drawer.removeTitle", names.get(ask.ids[0]) ?? ask.ids[0]) : tn("app.mods.removeNTitle", ask.ids.length)}
           text={t("app.drawer.removeText")} confirm={t("app.drawer.remove")} onCancel={() => setAsk(null)}
           onConfirm={() => { run("remove_mods", { ids: ask.ids }); setAsk(null); if (view?.kind === "mod" && ask.ids.includes(view.id)) setView(null); }} />
       )}
