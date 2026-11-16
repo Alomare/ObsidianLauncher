@@ -97,3 +97,27 @@ jobs:
         run: tools\test-loader.cmd
       - name: Core tests
         run: cargo test -p obsidian-core
+
+  # The same on Linux, where Steam Deck and Bazzite players run the AppImage: paths, case and process
+  # names differ there, and the deploy and purge runs of core/tests/robustness.rs cover them.
+  core-linux:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: linux
+          save-if: false
+      - name: The Obsidian Kit
+        run: python3 tools/starter_pack.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: The LuaJIT 2.0 compiler
+        run: sh tools/build-luajit.sh
+      - name: Loader tests
+        run: target/luajit/luajit loader/tests/run.lua
+      - name: Core tests
+        run: cargo test -p obsidian-core
