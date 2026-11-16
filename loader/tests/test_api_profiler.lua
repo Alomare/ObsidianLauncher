@@ -12,15 +12,20 @@ local SLOW = [[
 	obsidian.on_frame(function() local t = os.clock() while (os.clock() - t) * 1000 < 2 do end end)
 ]]
 
+-- The Script Profiler option of Obsidian API switched on, as a settings file says it.
+local PROFILER_ON = "option\tobsidian.api\tprofiler\ttoggle\t1\n"
+
+-- opts.off: the Script Profiler option left as it comes, off.
 local function start(opts)
+	opts = opts or {}
 	local mods = {}
 	local api = G.bundled("obsidian.api", mods)
 	mods["obsidian/mods/slow/main"] = SLOW
 	local deploy = {
-		E.mod("obsidian.api", { scope = "client", texts = api.texts, keybinds = api.keybinds, name = api.name }),
+		E.mod("obsidian.api", { scope = "client", texts = api.texts, keybinds = api.keybinds, name = api.name, options = { { id = "profiler", type = "toggle", default = false } } }),
 		E.mod("slow", { scope = "client", requires = { "obsidian.api" }, name = { en = "Slow Mod" } }),
 	}
-	local e = E.new({ deploy = E.deploy({ mods = deploy }), mods = mods })
+	local e = E.new({ deploy = E.deploy({ mods = deploy }), mods = mods, settings = not opts.off and PROFILER_ON or nil })
 	e:boot()
 	e:start_frames()
 	local ui = F.install(e, opts or {})
@@ -140,6 +145,17 @@ test("the_page_is_in_the_f6_window", function()
 		if root.title == "Script Profiler" then found = true end
 	end
 	assert(found, "a Script Profiler page")
+end)
+
+test("with_the_option_off_there_is_no_page_and_nothing_is_measured", function()
+	local e, ui = start({ off = true })
+	for _ = 1, 40 do ui.frame() end
+	local menu = e.loaded["obsidian/mods/obsidian.api/lib/menu"]
+	for _, root in ipairs(menu.roots) do
+		assert(root.owner ~= "obsidian.api", "no page of Obsidian API: " .. tostring(root.title))
+	end
+	E.eq(rawget(_G, "obsidian").profiler.running(), false)
+	E.eq(ui.shown("FPS cost"), false)
 end)
 
 return T

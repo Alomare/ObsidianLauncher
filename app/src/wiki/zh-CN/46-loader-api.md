@@ -135,7 +135,7 @@ obsidian.on_session(function(on) if not on then undo_range() end end, { secondar
 
 ### obsidian.profiler.start(), stop(), running() and read()
 
-测量每个模组的脚本占用每帧多少时间。`start()` 为调用它的模组开启测量，直到它调用 `stop()`；只要有任何模组请求，测量就保持开启，并会给每次进入模组的调用增加少许开销。`read()` 返回最近一次结果（大约每秒生成两次），在第一次结果之前返回 `nil`：`{ frame_ms, frames, total_ms, clock, mods = { { id, ms, peak_ms, calls } } }`，开销最大的模组排在最前。`ms` 是每帧平均时间，`peak_ms` 是单帧最长时间，`calls` 是每帧平均调用次数。挂钩在游戏原函数中花费的时间计入游戏，而不是模组。`obsidian.loader` 代表加载器自身的挂钩。F6 窗口的 Script Profiler 页面会把这些数字显示在游戏画面上。在旧版加载器上请检查 `obsidian.capabilities.profiler`。
+测量每个模组的脚本占用每帧多少时间。`start()` 为调用它的模组开启测量，直到它调用 `stop()`；只要有任何模组请求，测量就保持开启，并会给每次进入模组的调用增加少许开销。`read()` 返回最近一次结果（大约每秒生成两次），在第一次结果之前返回 `nil`：`{ frame_ms, frames, total_ms, clock, mods = { { id, ms, peak_ms, calls } } }`，开销最大的模组排在最前。`ms` 是每帧平均时间，`peak_ms` 是单帧最长时间，`calls` 是每帧平均调用次数。挂钩在游戏原函数中花费的时间计入游戏，而不是模组。`obsidian.loader` 代表加载器自身的挂钩。在 Obsidian 中开启 Obsidian API 的“脚本性能分析器”选项后，F6 窗口的脚本性能分析器页面会把这些数字显示在游戏画面上。在旧版加载器上请检查 `obsidian.capabilities.profiler`。
 
 ## 其他模组和更多文件 {#other-mods}
 

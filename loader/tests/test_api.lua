@@ -440,10 +440,13 @@ test("a_display_name_falls_back_to_something_readable", function()
 	E.eq(api.catalog.text("weapon_pulse_laser"), "Pulse laser", "a missing key")
 end)
 
-test("names_the_font_cant_draw_fall_back_too", function()
+test("names_in_cyrillic_and_chinese_come_as_the_game_writes_them", function()
 	local api = start()
-	rawget(_G, "LocalizationManager").string = function() return "\208\159\209\131\208\187\209\143" end
-	E.eq(api.catalog.text("weapon_rifle"), "Rifle", "cyrillic isn't in the font")
+	local lm = rawget(_G, "LocalizationManager")
+	lm.string = function() return "\208\159\209\131\208\187\209\143" end
+	E.eq(api.catalog.text("weapon_rifle"), "\208\159\209\131\208\187\209\143", "the chat font draws what the menu font lacks")
+	lm.string = function() return "\230\173\165\230\158\170" end
+	E.eq(api.catalog.text("weapon_rifle"), "\230\173\165\230\158\170")
 end)
 
 test("refill_treats_beam_weapons_as_heat", function()
