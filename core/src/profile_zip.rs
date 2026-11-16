@@ -91,8 +91,8 @@ pub struct Imported {
 pub fn import(data: &Path, src: &Path) -> Result<Imported> {
     let lib = Library::open(data)?;
     let tmp = tempfile::tempdir()?;
-    let mut z = zip::ZipArchive::new(std::fs::File::open(src)?).map_err(zip_err)?;
-    z.extract(tmp.path()).map_err(zip_err)?;
+    // The size and file limits of a mod import: a shared ZIP can't fill the disk.
+    crate::import::unzip(src, tmp.path())?;
     let text = std::fs::read_to_string(tmp.path().join(FILE)).map_err(|_| ObsidianError::NothingToImport(src.display().to_string()))?;
     let header: Header = serde_json::from_str(&text)?;
 

@@ -9,6 +9,7 @@ import { signIn, useGitHub } from "../github";
 import { CheckIcon, GitHubIcon, WarnIcon } from "../Icons";
 import { t } from "../i18n";
 import { notify } from "../notices";
+import { useLayer } from "../Modal";
 import { openUrl } from "../opener";
 import "./github.css";
 import { PadGlyph } from "../pad/PadGlyph";
@@ -35,10 +36,8 @@ export function SubmitDialog({ onClose }: { onClose: () => void }) {
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
     input.current?.focus();
-    const key = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [onClose]);
+  }, []);
+  useLayer(onClose);
 
   const check = async () => {
     if (!repo.trim() || checking) return;

@@ -20,7 +20,7 @@ pub struct Runtime {
 }
 
 fn rt(ctx: &Ctx) -> std::sync::MutexGuard<'_, Runtime> {
-    ctx.commander.lock().unwrap_or_else(|p| p.into_inner())
+    crate::commands::blocking(|| ctx.commander.lock().unwrap_or_else(|p| p.into_inner()))
 }
 
 /// The server, started if it isn't running.
@@ -133,9 +133,11 @@ pub async fn commander_install(ctx: TauriState<'_, Ctx>, path: PathBuf) -> CmdRe
 /// runs the old one.
 #[tauri::command]
 pub async fn commander_fetch(ctx: TauriState<'_, Ctx>) -> CmdResult<CommanderView> {
+    // The download runs before the runtime is held, so other Commander calls answer meanwhile.
+    let got = crate::commands::blocking(|| package::download(&obsidian_core::updates::GitHub::default()))?;
     let mut runtime = rt(&ctx);
     runtime.server = None;
-    package::fetch(&ctx.data, &obsidian_core::updates::GitHub::default())?;
+    package::install(&ctx.data, &got.zip)?;
     Ok(view(&ctx, &mut runtime))
 }
 
@@ -360,12 +362,14 @@ pub async fn commander_package_check(ctx: TauriState<'_, Ctx>) -> CmdResult<Opti
 
 #[tauri::command]
 pub async fn commander_forget(ctx: TauriState<'_, Ctx>, id: String) -> CmdResult<CommanderView> {
+    // The turn first, then the runtime, as every command that takes both: forgetting the war being
+    // played rewrites the settings file.
+    let _turn = ctx.turn();
     let mut runtime = rt(&ctx);
-    let state = commander::forget(&ctx.data, &id)?;
-    if state.playing.is_none()
-        && let Some(r) = &runtime.relay
-    {
-        r.set_route(None);
+    let saves = saves_of(&ctx).ok();
+    let state = commander::forget(&ctx.data, saves.as_ref(), &id)?;
+    if let Some(r) = &runtime.relay {
+        r.set_route(state.route());
     }
     Ok(view(&ctx, &mut runtime))
 }

@@ -9,6 +9,7 @@ use crate::gate::{KNOWN_BUILDS, KnownBuild, check_build};
 use crate::hash::{format_name, format_type, hash_name};
 use crate::library::{InstallOutcome, Library};
 use crate::manifest::{self, Manifest, Payload, ResourceSpec, Scope, VariantSpec, write_manifest};
+use crate::paths::beside;
 use crate::{ObsidianError, Result};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -300,13 +301,6 @@ impl Streams {
             })
             .collect()
     }
-}
-
-/// `path` with `.<suffix>` added.
-fn beside(path: &Path, suffix: &str) -> PathBuf {
-    let mut name = path.as_os_str().to_os_string();
-    name.push(format!(".{suffix}"));
-    PathBuf::from(name)
 }
 
 fn is_bundle_name(n: &str) -> bool {

@@ -354,13 +354,23 @@ pub fn set_save(data: &Path, id: &str, save: &str) -> Result<()> {
     s.save(data)
 }
 
-/// Forgets a war on this PC. The save stays in Saves.
-pub fn forget(data: &Path, id: &str) -> Result<State> {
+/// Forgets a war on this PC. The save stays in Saves. Forgetting the war selected goes through
+/// [`apply_selection`] with [`Selection::Current`] first, so the settings file loses the war line;
+/// with `saves` (the game found) that is refused while the game runs. Returns the state left, whose
+/// `route()` is the relay route from now on.
+pub fn forget(data: &Path, saves: Option<&crate::saves::Saves>, id: &str) -> Result<State> {
+    if State::load(data).playing.as_deref() == Some(id) {
+        match saves {
+            Some(s) => {
+                apply_selection(data, s, Selection::Current)?;
+            }
+            None => {
+                select(data, None)?;
+            }
+        }
+    }
     let mut s = State::load(data);
     s.wars.retain(|w| w.id != id);
-    if s.playing.as_deref() == Some(id) {
-        s.playing = None;
-    }
     s.save(data)?;
     Ok(s)
 }
@@ -387,11 +397,103 @@ pub fn valid_pick(war: &WarRef) -> bool {
     id_ok && base_ok && key_ok
 }
 
+/// What the next launch plays.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Selection {
+    /// The official war on the Official save that is in the game files.
+    Official,
+    /// The official war on a save of the player's choice, as the Play choice picks it.
+    Vanilla(String),
+    /// The official war on the save selected now: what is left when the war selected is forgotten.
+    Current,
+    /// A custom war on `save`, a Sandbox the war accepts, or with none on the Sandbox made for it.
+    War { war: WarRef, save: Option<String> },
+}
+
+/// The outcome of [`apply_selection`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct Applied {
+    /// The save selected, when the selection picked one.
+    pub save: Option<String>,
+    /// Where the relay sends the game requests from now on: the app sets this and nothing else.
+    pub route: Option<relay::Route>,
+}
+
+/// The one way the war being played changes. Refused while the game runs, before anything changes.
+/// Then, in this order: `state.json` (the war, the launch token), the save pointer, the settings
+/// file. When selecting the save fails, the war and token selected before are put back, so the
+/// state and the settings file still agree. A local war needs the server port known, so start the
+/// server first.
+pub fn apply_selection(data: &Path, saves: &crate::saves::Saves, selection: Selection) -> Result<Applied> {
+    saves.closed()?;
+    let save = match selection {
+        Selection::War { war, save } => {
+            let (id, save) = war_save(data, saves, war, save.as_deref())?;
+            let before = State::load(data);
+            select(data, Some(&id))?;
+            undo_on_error(data, &before, saves.activate(&save))?;
+            Some(save)
+        }
+        Selection::Official => {
+            let list = saves.list()?;
+            let official = list
+                .saves
+                .iter()
+                .find(|r| r.kind == crate::saves::SaveKind::Official && r.live)
+                .or_else(|| list.saves.iter().find(|r| r.kind == crate::saves::SaveKind::Official))
+                .map(|r| r.id.clone());
+            let before = State::load(data);
+            select(data, None)?;
+            match &official {
+                Some(id) => undo_on_error(data, &before, saves.activate(id))?,
+                None => undo_on_error(data, &before, saves.write_settings())?,
+            }
+            official
+        }
+        Selection::Vanilla(save) => {
+            let before = State::load(data);
+            select(data, None)?;
+            undo_on_error(data, &before, saves.activate(&save))?;
+            Some(save)
+        }
+        Selection::Current => {
+            let before = State::load(data);
+            select(data, None)?;
+            undo_on_error(data, &before, saves.write_settings())?;
+            None
+        }
+    };
+    Ok(Applied { save, route: State::load(data).route() })
+}
+
+/// On `Err`, puts back the war and token of `before`, keeping any other change to the state.
+fn undo_on_error<T>(data: &Path, before: &State, r: Result<T>) -> Result<T> {
+    if r.is_err() {
+        let mut s = State::load(data);
+        s.playing = before.playing.clone();
+        s.token = before.token.clone();
+        let _ = s.save(data);
+    }
+    r
+}
+
+/// The relay route the state names now: at app start, and after the server port changes.
+pub fn current_route(data: &Path) -> Option<relay::Route> {
+    State::load(data).route()
+}
+
 /// Selects a war for the next launch on `save`, a Sandbox the war accepts, or with none on the
 /// Sandbox made for the war (made on first use), and selects that save, which writes the settings
 /// file with the war line. An Official save never plays a custom war. A local war needs the server
 /// port known, so start the server first. Returns the save selected.
 pub fn play_war(data: &Path, saves: &crate::saves::Saves, war: WarRef, save: Option<&str>) -> Result<String> {
+    let applied = apply_selection(data, saves, Selection::War { war, save: save.map(str::to_string) })?;
+    Ok(applied.save.unwrap_or_default())
+}
+
+/// Records `war` and finds the save it plays on: `save` when the war accepts it, else the Sandbox
+/// made for the war, made now on first use. Selects nothing.
+fn war_save(data: &Path, saves: &crate::saves::Saves, war: WarRef, save: Option<&str>) -> Result<(String, String)> {
     if !valid_pick(&war) {
         return Err(ObsidianError::WarUnknown(war.id));
     }
@@ -422,30 +524,17 @@ pub fn play_war(data: &Path, saves: &crate::saves::Saves, war: WarRef, save: Opt
             s
         }
     };
-    select(data, Some(&id))?;
-    saves.activate(&save)?;
-    Ok(save)
+    Ok((id, save))
 }
 
 /// Back to the official war: no war selected, and the Official save that's in the game files.
 pub fn play_official(data: &Path, saves: &crate::saves::Saves) -> Result<()> {
-    select(data, None)?;
-    let list = saves.list()?;
-    let official = list
-        .saves
-        .iter()
-        .find(|r| r.kind == crate::saves::SaveKind::Official && r.live)
-        .or_else(|| list.saves.iter().find(|r| r.kind == crate::saves::SaveKind::Official));
-    match official {
-        Some(row) => saves.activate(&row.id),
-        None => Ok(()),
-    }
+    apply_selection(data, saves, Selection::Official).map(|_| ())
 }
 
 /// Back to the official war on a save of the player's choice, as the Play choice picks it.
 pub fn play_vanilla(data: &Path, saves: &crate::saves::Saves, save: &str) -> Result<()> {
-    select(data, None)?;
-    saves.activate(save)
+    apply_selection(data, saves, Selection::Vanilla(save.to_string())).map(|_| ())
 }
 
 /// A war the next launch can play, for the Play choice.
@@ -697,6 +786,41 @@ mod tests {
     }
 
     #[test]
+    fn a_selection_is_refused_while_the_game_runs_before_anything_changes() {
+        let w = crate::saves::test_support::world();
+        let (data, saves) = (&w.data, w.saves());
+        let mine = saves.create_sandbox("Mine").unwrap();
+        let war = || WarRef { id: "k3x9q2".into(), name: "Night War".into(), host: WarHost::Lan, base: Some("http://192.168.0.7:17494".into()), ..Default::default() };
+        let applied = apply_selection(data, &saves, Selection::War { war: war(), save: Some(mine.clone()) }).unwrap();
+        let before = State::load(data);
+        assert_eq!(applied.route, before.route(), "the route returned is the one the state names");
+        assert_eq!(applied.save.as_deref(), Some(mine.as_str()));
+        let side = crate::settings::game_side_dir(&w.game.saves_dir);
+        let settings = || std::fs::read_to_string(side.join(crate::settings::FILE)).unwrap();
+        let written = settings();
+
+        let busy = crate::saves::Saves::for_account(data, &w.game, crate::saves::test_support::ACCOUNT, || true);
+        for sel in [Selection::War { war: war(), save: Some(mine.clone()) }, Selection::Official, Selection::Vanilla(mine.clone()), Selection::Current] {
+            assert!(matches!(apply_selection(data, &busy, sel), Err(ObsidianError::GameRunning)));
+        }
+        assert!(matches!(forget(data, Some(&busy), "k3x9q2"), Err(ObsidianError::GameRunning)));
+        assert_eq!(State::load(data), before, "the token and the war stay as they were");
+        assert_eq!(settings(), written);
+
+        // Forgetting the war being played takes the war line out of the settings file.
+        let left = forget(data, Some(&saves), "k3x9q2").unwrap();
+        assert_eq!((left.playing.clone(), left.route()), (None, None));
+        assert_eq!(crate::settings::parse(&settings()).war, None);
+        assert_eq!(saves.list().unwrap().active.as_deref(), Some(mine.as_str()), "the save stays selected");
+
+        // A save that can't be selected puts the earlier war and token back.
+        apply_selection(data, &saves, Selection::War { war: war(), save: Some(mine.clone()) }).unwrap();
+        let before = State::load(data);
+        assert!(apply_selection(data, &saves, Selection::Vanilla("nope".into())).is_err());
+        assert_eq!(State::load(data), before);
+    }
+
+    #[test]
     fn only_the_enhanced_model_is_kept() {
         assert_eq!(known_model(Some("enhanced".into())).as_deref(), Some("enhanced"));
         assert_eq!(known_model(Some("evolved".into())), None, "an archived Evolved war plays as Vanilla");
@@ -715,7 +839,7 @@ mod tests {
         assert_eq!(s.wars[0].name, "Renamed");
         s.save(t.path()).unwrap();
         assert!(matches!(select(t.path(), Some("nope")), Err(ObsidianError::WarUnknown(_))));
-        let s = forget(t.path(), "k3x9q2").unwrap();
+        let s = forget(t.path(), None, "k3x9q2").unwrap();
         assert!(s.wars.is_empty());
     }
 

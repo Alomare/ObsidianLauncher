@@ -20,7 +20,7 @@ import { openUrl } from "../opener";
 import { Select } from "../Select";
 import { ImageViewer } from "../Thumb";
 import type { Scope, Snapshot } from "../types";
-import { install, isStarred, loadStarred, loadStore, markOf, toggleStar, useStore, type StoreMark, type StoreMod, type StoreOption } from "./storeIndex";
+import { install, isStarred, loadStarred, loadStore, markOf, modsOf, toggleStar, useStore, type StoreMark, type StoreMod, type StoreOption } from "./storeIndex";
 import { PadGlyph } from "../pad/PadGlyph";
 
 const FILTER_SCOPES: Scope[] = ["library", "client", "session", "expansion"];
@@ -155,8 +155,11 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
   }, [access]);
   // A click on the Store tab while it shows a mod goes back to the list.
   useEffect(() => { if (home) setOpen(null); }, [home]);
-  const all = store.mods ?? [];
-  const mark = (m: StoreMod) => markOf(m, snap.mods, store.installing);
+  const loaded = modsOf(store.index);
+  const all = useMemo(() => loaded ?? [], [loaded]);
+  // The library by id, read once per snapshot instead of once per card.
+  const library = useMemo(() => new Map(snap.mods.map((r) => [r.id, r])), [snap.mods]);
+  const mark = (m: StoreMod) => markOf(m, library, store.installing);
   const doInstall = (m: StoreMod) => install(m, all, snap.mods);
   const show = (id: string | null) => {
     if (id && !open) frontTop.current = scroller.current?.scrollTop ?? 0;
@@ -172,18 +175,19 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
     return sortMods(all.filter((m) => !m.kit), sort, order)
       .filter((m) => !q || `${m.name} ${m.summary}`.toLowerCase().includes(q))
       .filter((m) => !scopes.length || scopes.includes(m.scope))
-      .filter((m) => !installedOnly || snap.mods.some((r) => r.id === m.id))
+      .filter((m) => !installedOnly || library.has(m.id))
       .filter((m) => !starredOnly || isStarred(m, store.starred));
-  }, [all, text, scopes, installedOnly, starredOnly, store.starred, sort, order, snap.mods]);
+  }, [all, text, scopes, installedOnly, starredOnly, store.starred, sort, order, library]);
 
   const mod = open ? all.find((m) => m.id === open) : undefined;
   let body;
-  if (!store.mods) {
-    body = store.error ? (
+  const ix = store.index;
+  if (ix.kind !== "ready") {
+    body = ix.kind === "failed" ? (
       <div className="store-empty">
         <h2>{t("app.store.failed")}</h2>
-        <p>{store.error}</p>
-        <button className="btn" onClick={() => loadStore(true)} disabled={store.loading}>{t("app.drawer.tryAgain")}</button>
+        <p>{ix.error}</p>
+        <button className="btn" onClick={() => loadStore(true)}>{t("app.drawer.tryAgain")}</button>
       </div>
     ) : (
       <div className="store-empty"><p><span className="upd-spin" aria-hidden="true" />{t("app.store.loading")}</p></div>
@@ -192,12 +196,18 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
     body = <ModPage m={mod} all={all} snap={snap} mark={mark} onOpen={show} onInstall={doInstall} />;
   } else {
     const filtered = !!(text || scopes.length || installedOnly || starredOnly);
+    const refreshing = ix.refresh === "running";
     body = (
       <div className="store-in">
-        {store.offline && (
+        {ix.refresh === "failed" ? (
+          <div className="store-note" role="status">
+            {t("app.store.refreshFailed", ix.error ?? "")}
+            <button className="link small" onClick={() => loadStore(true)}>{t("app.drawer.tryAgain")}</button>
+          </div>
+        ) : ix.offline && (
           <div className="store-note">
             {t("app.store.offline")}
-            <button className="link small" onClick={() => loadStore(true)} disabled={store.loading}>{t("app.drawer.tryAgain")}</button>
+            <button className="link small" onClick={() => loadStore(true)} disabled={refreshing}>{t("app.drawer.tryAgain")}</button>
           </div>
         )}
         <div className="kit-grid">

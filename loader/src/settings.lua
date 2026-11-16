@@ -223,22 +223,41 @@ function M.step(s, down, mode, now)
 end
 
 -- Whether any active pad holds every button of `combo` now. Triggers count past half way.
+-- Button indices by pad and name, looked up once: the binds are read every frame.
+local pad_index = B.setmetatable({}, { __mode = "k" })
+local function index_of(pad, name)
+	local known = pad_index[pad]
+	if not known then
+		known = {}
+		pad_index[pad] = known
+	end
+	local i = known[name]
+	if i == nil then
+		local ok, got = B.pcall(pad.button_index, name)
+		i = (ok and got) or false
+		known[name] = i
+	end
+	return i
+end
+
 function M.pads_hold(combo)
 	local list = B.rawget(B.G, "Pads")
 	if B.type(list) ~= "table" then return false end
 	for _, pad in B.ipairs(list) do
 		local active = B.type(pad) == "table" and (B.type(pad.active) ~= "function" or B.select(2, B.pcall(pad.active)) == true)
-		local all = active
-		for _, name in B.ipairs(active and combo or {}) do
-			local ok, i = B.pcall(pad.button_index, name)
-			local fine, level = false, nil
-			if ok and i then fine, level = B.pcall(pad.button, i) end
-			if not (fine and B.type(level) == "number" and level > 0.5) then
-				all = false
-				break
+		if active then
+			local all = true
+			for k = 1, #combo do
+				local i = index_of(pad, combo[k])
+				local fine, level = false, nil
+				if i then fine, level = B.pcall(pad.button, i) end
+				if not (fine and B.type(level) == "number" and level > 0.5) then
+					all = false
+					break
+				end
 			end
+			if all then return true end
 		end
-		if all then return true end
 	end
 	return false
 end

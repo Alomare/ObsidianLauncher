@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { t } from "../i18n";
+import { useLayer } from "../Modal";
 import type { SaveRow } from "./types";
 import { PadGlyph } from "../pad/PadGlyph";
 
@@ -26,13 +27,13 @@ export function DeleteOfficial({ row, onDelete, onCancel }: Props) {
   useEffect(() => {
     input.current?.focus();
     const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !e.isComposing) onCancel();
       // No default answer: Enter never presses a button here.
       if (e.key === "Enter" && !e.isComposing) e.preventDefault();
     };
     window.addEventListener("keydown", key, true);
     return () => window.removeEventListener("keydown", key, true);
-  }, [onCancel]);
+  }, []);
+  useLayer(() => { if (!busy) onCancel(); });
   useEffect(() => {
     if (left <= 0) return;
     const id = setTimeout(() => setLeft((n) => n - 1), 1000);

@@ -219,7 +219,7 @@ pub fn fetch_with(dir: &Path, get: impl Fn(&str, u64) -> Result<Vec<u8>>) -> Res
             let text = String::from_utf8_lossy(&bytes).into_owned();
             let mods = parse(&text)?;
             std::fs::create_dir_all(dir)?;
-            std::fs::write(&cached, text)?;
+            crate::paths::write_atomic(&cached, text.as_bytes())?;
             (mods, false)
         }
         Err(e @ ObsidianError::UpdateNetwork(_)) => match std::fs::read_to_string(&cached) {

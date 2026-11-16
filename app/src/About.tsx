@@ -1,10 +1,10 @@
 // About Obsidian: the version, the license, links and the credits. Opens from the status bar.
 import { openUrl } from "./opener";
-import { useEffect, useRef } from "react";
 import logo from "./assets/logo.png";
 import { CloseIcon, DiscordIcon, ExternalIcon, KofiIcon } from "./Icons";
 import { t } from "./i18n";
 import { LINKS } from "./links";
+import { Modal } from "./Modal";
 import { PadGlyph } from "./pad/PadGlyph";
 
 const CREDITS: { name: string; by: string; url: string; license: string; what: string }[] = [
@@ -18,16 +18,8 @@ const CREDITS: { name: string; by: string; url: string; license: string; what: s
 const open = (url: string) => openUrl(url).catch(() => {});
 
 export function AboutDialog({ version, onClose }: { version: string; onClose: () => void }) {
-  const box = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    box.current?.focus();
-    const key = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [onClose]);
   return (
-    <div className="modal-back" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal about" role="dialog" aria-modal="true" aria-label={t("app.about.title")} ref={box} tabIndex={-1}>
+    <Modal className="modal about" label={t("app.about.title")} onClose={onClose}>
         <div className="about-head">
           <img src={logo} className="about-logo" alt="" />
           <div className="about-name">
@@ -57,7 +49,6 @@ export function AboutDialog({ version, onClose }: { version: string; onClose: ()
             </li>
           ))}
         </ul>
-      </div>
-    </div>
+    </Modal>
   );
 }

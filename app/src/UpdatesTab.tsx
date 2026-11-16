@@ -29,7 +29,7 @@ export function UpdatesTab({ snap, onSystem }: { snap: Snapshot; onSystem: () =>
 function UpdateCard({ snap }: { snap: Snapshot }) {
   const u = useUpdates();
   const busy = u.phase === "checking" || u.phase === "downloading" || u.phase === "installing";
-  const pct = u.total ? Math.round((u.got / u.total) * 100) : 0;
+  const pct = u.phase === "downloading" && u.total ? Math.round((u.got / u.total) * 100) : 0;
   let tone = "current", icon: ReactNode = <CheckIcon />, line = t("app.update.none"), detail: string | null = null, action: ReactNode = null;
   if (u.phase === "checking" || u.phase === "idle") {
     tone = "wait"; icon = <span className="upd-spin" aria-hidden="true" />; line = t("app.update.checking");
@@ -38,7 +38,7 @@ function UpdateCard({ snap }: { snap: Snapshot }) {
   } else if (u.phase === "downloading" || u.phase === "installing") {
     tone = "new"; icon = <UpdateIcon />; line = u.phase === "installing" ? t("app.update.installing") : t("app.update.downloading", pct);
   } else if (u.phase === "found") {
-    tone = "new"; icon = <UpdateIcon />; line = t("app.update.found", u.version ?? "");
+    tone = "new"; icon = <UpdateIcon />; line = t("app.update.found", u.version);
     detail = u.error ? t("app.update.failedInstall", u.error) : snap.portable ? t("app.settings.portableHint") : null;
     if (!snap.portable) action = <button className="btn small play" onClick={installUpdate}>{t("app.update.install")}</button>;
   }

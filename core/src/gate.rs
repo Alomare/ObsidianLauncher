@@ -1,6 +1,7 @@
 //! Build gate: Obsidian deploys only to game builds whose files it knows.
 
-use std::path::Path;
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 
 use crate::Result;
 
@@ -75,14 +76,50 @@ pub fn sha256_file(path: &Path) -> Result<String> {
     Ok(h.finalize().iter().map(|b| format!("{b:02x}")).collect())
 }
 
+/// Hashes of the gate files, kept while the size and the time written of each stay the same: the
+/// game exe and two bundles take a moment to hash, and every deploy and the app check them.
+type Stamp = (u64, std::time::SystemTime);
+static HASHES: std::sync::Mutex<BTreeMap<PathBuf, (Stamp, String)>> = std::sync::Mutex::new(BTreeMap::new());
+
+/// `sha256_file`, kept per path while the file keeps its size and time written.
+pub fn sha256_file_cached(path: &Path) -> Result<String> {
+    let meta = std::fs::metadata(path)?;
+    let stamp = meta.modified().ok().map(|t| (meta.len(), t));
+    if let Some(stamp) = stamp
+        && let Some((s, h)) = HASHES.lock().unwrap_or_else(|p| p.into_inner()).get(path)
+        && *s == stamp
+    {
+        return Ok(h.clone());
+    }
+    let hash = sha256_file(path)?;
+    if let Some(stamp) = stamp {
+        HASHES.lock().unwrap_or_else(|p| p.into_inner()).insert(path.to_path_buf(), (stamp, hash.clone()));
+    }
+    Ok(hash)
+}
+
+/// Drops the kept hashes, so the next check reads every gate file again (Settings, "Check again").
+pub fn forget_hashes() {
+    HASHES.lock().unwrap_or_else(|p| p.into_inner()).clear();
+}
+
 /// Matches the files under `root` against `known`; mismatches name the files of the closest build.
 pub fn check_build(root: &Path, known: &[KnownBuild]) -> Result<GateReport> {
+    check_with(root, known, sha256_file)
+}
+
+/// `check_build` with the hashes kept by [`sha256_file_cached`]: unchanged files are not read again.
+pub fn check_build_cached(root: &Path, known: &[KnownBuild]) -> Result<GateReport> {
+    check_with(root, known, sha256_file_cached)
+}
+
+fn check_with(root: &Path, known: &[KnownBuild], hash: fn(&Path) -> Result<String>) -> Result<GateReport> {
     let mut closest: Option<Vec<String>> = None;
     for build in known {
         let mismatches: Vec<String> = build
             .files
             .iter()
-            .filter(|(rel, sha)| sha256_file(&root.join(rel)).map_or(true, |s| s != *sha))
+            .filter(|(rel, sha)| hash(&root.join(rel)).map_or(true, |s| s != *sha))
             .map(|(rel, _)| rel.to_string())
             .collect();
         if mismatches.is_empty() {
@@ -146,6 +183,26 @@ mod tests {
         let r = check_build(g.path(), known).unwrap();
         assert!(!r.supported());
         assert_eq!(r.mismatches, vec!["b.bin".to_string()]);
+    }
+
+    #[test]
+    fn kept_hashes_follow_the_size_and_time_of_each_file() {
+        let g = spaced_tempdir();
+        put(g.path(), "a.bin", b"a");
+        let known = fake_build(g.path(), &["a.bin"]);
+        assert!(check_build_cached(g.path(), known).unwrap().supported());
+        // A change that keeps the size but not the time written is seen.
+        put(g.path(), "a.bin", b"x");
+        let later = std::time::SystemTime::now() + std::time::Duration::from_secs(60);
+        std::fs::File::options().write(true).open(g.path().join("a.bin")).unwrap().set_modified(later).unwrap();
+        assert!(!check_build_cached(g.path(), known).unwrap().supported());
+        // A change that keeps both is not, until the kept hashes are dropped.
+        put(g.path(), "a.bin", b"a");
+        std::fs::File::options().write(true).open(g.path().join("a.bin")).unwrap().set_modified(later).unwrap();
+        assert!(!check_build_cached(g.path(), known).unwrap().supported());
+        forget_hashes();
+        assert!(check_build_cached(g.path(), known).unwrap().supported());
+        assert!(check_build_cached(&g.path().join("none"), known).unwrap().mismatches == ["a.bin"]);
     }
 
     #[test]

@@ -9,15 +9,16 @@ export function UpdateProgress() {
   const u = useUpdates();
   if (u.phase !== "downloading" && u.phase !== "installing") return null;
   const installing = u.phase === "installing";
-  const pct = u.total ? Math.min(100, Math.round((u.got / u.total) * 100)) : 0;
-  const title = t("app.update.progressTitle", u.version ?? "");
+  const total = u.phase === "downloading" ? u.total : 0;
+  const pct = u.phase === "downloading" && total ? Math.min(100, Math.round((u.got / total) * 100)) : 0;
+  const title = t("app.update.progressTitle", u.version);
   return createPortal(
     <div className="modal-back">
       <div className="modal confirm" role="status" aria-label={title}>
         <h2 className="cap">{title}</h2>
         <p>{installing ? t("app.update.installing") : t("app.update.downloading", pct)}</p>
-        <div className={installing || !u.total ? "update-bar waiting" : "update-bar"}>
-          <i style={installing || !u.total ? undefined : { width: `${pct}%` }} />
+        <div className={installing || !total ? "update-bar waiting" : "update-bar"}>
+          <i style={installing || !total ? undefined : { width: `${pct}%` }} />
         </div>
       </div>
     </div>,

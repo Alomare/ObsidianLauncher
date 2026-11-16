@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AboutDialog } from "./About";
 import { useBusy } from "./busy";
+import { useLayer } from "./Modal";
 import { BellIcon, InfoIcon } from "./Icons";
 import { language, t } from "./i18n";
 import { useNoticeLog } from "./noticeLog";
@@ -55,14 +56,10 @@ function NotificationList({ onClose }: { onClose: () => void }) {
       const el = e.target as Element;
       if (!box.current?.contains(el) && !el.closest?.("[data-pop]")) close.current();
     };
-    const key = (e: KeyboardEvent) => e.key === "Escape" && close.current();
     document.addEventListener("pointerdown", away, true);
-    window.addEventListener("keydown", key);
-    return () => {
-      document.removeEventListener("pointerdown", away, true);
-      window.removeEventListener("keydown", key);
-    };
+    return () => document.removeEventListener("pointerdown", away, true);
   }, []);
+  useLayer(() => close.current());
   return (
     <div className="sb-pop" role="dialog" aria-label={t("app.status.notifications")} ref={box} tabIndex={-1}>
       <h2 className="cap">{t("app.status.notifications")}</h2>

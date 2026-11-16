@@ -18,7 +18,7 @@ describe("StatusBar", () => {
     expect(onUpdates).toHaveBeenCalled();
 
     act(() => (el.querySelector('[aria-label="About Obsidian"]') as HTMLButtonElement).click());
-    expect(el.querySelector('[role="dialog"]')?.textContent).toContain("Apache License 2.0");
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Apache License 2.0");
 
     act(() => notify("error", "X was not imported"));
     act(() => (el.querySelector('[aria-label="Notifications"]') as HTMLButtonElement).click());

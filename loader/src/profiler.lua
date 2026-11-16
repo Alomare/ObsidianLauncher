@@ -27,6 +27,13 @@ local depth = 0
 
 local now = B.clock
 
+-- The end of obsidian.profiler.measure: the clock stopped, then fn's results as they came, or its error.
+local function measured(at, ok, ...)
+	M.leave(at)
+	if not ok then B.error((...), 0) end
+	return ...
+end
+
 local function pick_clock()
 	if M.clock_kind then return end
 	M.clock_kind = "os.clock"
@@ -200,10 +207,7 @@ function M.api(core)
 		measure = function(label, fn, ...)
 			if not M.on then return fn(...) end
 			local at = M.enter(caller(), B.tostring(label))
-			local r = { n = B.select("#", ...), B.pcall(fn, ...) }
-			M.leave(at)
-			if not r[1] then B.error(r[2], 0) end
-			return B.unpack(r, 2, r.n)
+			return measured(at, B.pcall(fn, ...))
 		end,
 		-- The last result, about twice a second, or nil before the first one: { frame_ms, frames,
 		-- total_ms, clock, mods = { { id, ms, peak_ms, calls, sites = { { site, ms, calls } } } } },

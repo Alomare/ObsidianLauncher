@@ -1,13 +1,14 @@
 // The profiles dialog, opened from the Profile button on the Mods page: every profile with what it
 // holds, and New, Import, Duplicate, Rename, Export, Delete and Use. A profile keeps the load order, which mods are
 // on, option values, keys and guardrails.
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import { run } from "./api";
 import { Confirm } from "./Confirm";
 import { CloseIcon, CopyIcon, ExportIcon, ImportIcon, ModdersIcon, PaletteIcon, PenIcon, PlusIcon, ShieldIcon, TrashIcon } from "./Icons";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { FOLDER_COLORS } from "./mods/FolderDialog";
 import { t } from "./i18n";
+import { Modal } from "./Modal";
 import { exportProfile, importProfile } from "./profileZip";
 import { Prompt } from "./Prompt";
 import { Thumb } from "./Thumb";
@@ -31,17 +32,8 @@ export function ProfileGuards({ p }: { p: ProfileRow }) {
 export function ProfilesDialog({ snap, onClose }: { snap: Snapshot; onClose: () => void }) {
   const [ask, setAsk] = useState<Ask>(null);
   const [colors, setColors] = useState<{ x: number; y: number; name: string; color: string | null } | null>(null);
-  const box = useRef<HTMLDivElement>(null);
   const close = () => setAsk(null);
   const last = snap.profileRows.length <= 1;
-  // The focus comes into the dialog, so the keys work from the first button on.
-  useEffect(() => box.current?.focus(), []);
-  useEffect(() => {
-    // Esc closes the question on top first, then the dialog.
-    const key = (e: KeyboardEvent) => e.key === "Escape" && !ask && !colors && onClose();
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [ask, colors, onClose]);
   const colorItems = (name: string, current: string | null): MenuItem[] => [
     { colors: FOLDER_COLORS, current, pick: (color) => run("set_profile_color", { name, color }) },
     "sep",
@@ -49,8 +41,8 @@ export function ProfilesDialog({ snap, onClose }: { snap: Snapshot; onClose: () 
   ];
 
   return (
-    <div className="modal-back" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-    <div className="modal profiles" role="dialog" aria-modal="true" aria-label={t("app.profiles.title")} ref={box} tabIndex={-1}>
+    // Esc closes the question or the menu on top first, then the dialog (Modal.tsx).
+    <Modal className="modal profiles" label={t("app.profiles.title")} onClose={onClose}>
       <div className="head">
         <h2 className="cap">{t("app.profiles.title")}</h2>
         <div className="profiles-tools">
@@ -113,7 +105,6 @@ export function ProfilesDialog({ snap, onClose }: { snap: Snapshot; onClose: () 
         <Confirm title={t("app.profiles.deleteTitle", ask.name)} text={t("app.profiles.deleteText")} confirm={t("app.profiles.delete")}
           onCancel={close} onConfirm={() => { close(); run("delete_profile", { name: ask.name }); }} />
       )}
-    </div>
-    </div>
+    </Modal>
   );
 }

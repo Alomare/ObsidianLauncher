@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { CloseIcon } from "../Icons";
 import { t } from "../i18n";
+import { useLayer } from "../Modal";
 import { PadGlyph } from "../pad/PadGlyph";
 
 export type RuleKind = "before" | "after" | "before_patches" | "after_patches" | "first" | "last";
@@ -82,10 +83,8 @@ export function SortDialog({ plan, name, off, onApply, onClose }: Props) {
   const main = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     main.current?.focus();
-    const key = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [onClose]);
+  }, []);
+  useLayer(onClose);
   const moves = new Map(plan.moves.map((m) => [m.id, m]));
   const n = plan.moves.length;
   const lead = n ? null : plan.conflicts.length ? t("app.sort.nothing") : t("app.sort.inOrder");

@@ -5,9 +5,9 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use obsidian_core::compose::plan_with;
-use obsidian_core::deploy::{ChangesWaiting, UncleanEnd, changes_waiting_for, crash_culprit, settings_digest, has_deployed, load_state, loader_deployed, unclean_end};
+use obsidian_core::deploy::{ChangesWaiting, UncleanEnd, changes_waiting_in, effective_of, has_deployed_in, load_record, loader_deployed_in, log_report, settings_digest};
 use obsidian_core::game::{GameInstall, find_game, is_running};
-use obsidian_core::gate::{KNOWN_BUILDS, check_build};
+use obsidian_core::gate::{KNOWN_BUILDS, check_build_cached};
 use obsidian_core::hash::{display_name, display_text};
 use obsidian_core::images;
 use obsidian_core::library::{BrokenMod, ImportInfo, Library, Profile, folder_bytes};
@@ -206,6 +206,8 @@ pub struct ProfileRow {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Snapshot {
+    /// Grows with every snapshot built, so the window can drop one that arrives after a newer one.
+    pub rev: u64,
     /// In load order.
     pub mods: Vec<ModRow>,
     pub profile: String,
@@ -252,35 +254,43 @@ pub struct GameChange {
 }
 
 /// The game files that differ from the build Obsidian knows: empty when it knows the build.
-/// Hashing the game files takes a moment, so the answer is kept per folder until `forget`
-/// (Settings, "Check again").
+/// Hashing the game files takes a moment, so each hash is kept while the size and time of its file
+/// stay the same (a Steam update changes them); `forget` (Settings, "Check again") hashes again.
 #[derive(Default)]
-pub struct GateCache(Option<(PathBuf, Vec<GameChange>)>);
+pub struct GateCache;
 
 impl GateCache {
     fn changes(&mut self, root: &Path) -> Vec<GameChange> {
-        if let Some((r, c)) = &self.0
-            && r == root
-        {
-            return c.clone();
-        }
-        let changes = match check_build(root, KNOWN_BUILDS) {
+        match check_build_cached(root, KNOWN_BUILDS) {
             Ok(g) if g.build.is_some() => Vec::new(),
             Ok(g) => g.mismatches.into_iter().map(|path| GameChange { missing: !root.join(&path).is_file(), path }).collect(),
             Err(_) => vec![GameChange { path: "contents".into(), missing: true }],
-        };
-        self.0 = Some((root.to_path_buf(), changes.clone()));
-        changes
+        }
     }
     pub fn forget(&mut self) {
-        self.0 = None;
+        obsidian_core::gate::forget_hashes();
     }
 }
 
 /// The game in the folder chosen in Settings, else the one Steam knows. A chosen folder counts
 /// only when it holds the game's `contents` folder.
 pub fn find(settings: &AppSettings) -> Option<GameInstall> {
-    find_game(settings.game_dir.as_deref()).ok().filter(|g| g.contents().is_dir())
+    // Finding the game reads the registry, Steam's library list and every account folder, and one
+    // click asks two or three times: the answer is kept for two seconds per chosen folder.
+    type Kept = Option<(Option<PathBuf>, std::time::Instant, Option<GameInstall>)>;
+    static KEPT: std::sync::Mutex<Kept> = std::sync::Mutex::new(None);
+    let chosen = settings.game_dir.clone();
+    let mut kept = KEPT.lock().unwrap_or_else(|p| p.into_inner());
+    if let Some((dir, at, game)) = kept.as_ref()
+        && *dir == chosen
+        && at.elapsed() < std::time::Duration::from_secs(2)
+        && game.as_ref().is_none_or(|g| g.contents().is_dir())
+    {
+        return game.clone();
+    }
+    let game = find_game(chosen.as_deref()).ok().filter(|g| g.contents().is_dir());
+    *kept = Some((chosen, std::time::Instant::now(), game.clone()));
+    game
 }
 
 /// The path as Windows shows it: Steam stores library paths with `/` and a lowercase drive letter.
@@ -400,8 +410,9 @@ pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Re
         }
     }
 
-    // What the last deploy put in the game. A cut-short deploy still has the previous one in place.
-    let state = load_state(data).ok().flatten().and_then(|s| if s.incomplete { s.previous.map(|p| *p) } else { Some(s) });
+    // What the last deploy put in the game, read once: a cut-short deploy still has the previous one in place.
+    let record = load_record(data);
+    let state = effective_of(&record);
     let mut mods = Vec::new();
     for e in &profile.mods {
         let Some(m) = manifests.get(&e.id) else { continue };
@@ -455,16 +466,28 @@ pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Re
         Some(_) if game_changes.is_empty() => GameState::Supported,
         Some(_) => GameState::Unknown,
     };
-    let crash_culprit = game_install.as_ref().and_then(crash_culprit);
-    let unclean_end = game_install.as_ref().filter(|_| game != GameState::Running).and_then(unclean_end);
+    // The loader log, read once for both.
+    let (crash_culprit, unclean_end) = game_install.as_ref().map(|g| log_report(g, game != GameState::Running)).unwrap_or((None, None));
+    let names = profiles::list(data)?;
+    let contents = game_install.as_ref().map(|g| g.contents());
+    let changes = match changes_waiting_in(&comp, &profile, &settings_digest(&obsidian_core::loader::settings_with(&profile, &manifests)?), record.as_ref().ok().and_then(Option::as_ref), contents.as_deref()) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("changes waiting: {e}");
+            ChangesWaiting::Waiting
+        }
+    };
     let portable = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join("portable.txt").is_file())).unwrap_or(false);
 
+    static REV: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     Ok(Snapshot {
+        rev: REV.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1,
         mods,
         folders: profile.folders.clone(),
         profile: profiles::active(data)?,
-        profile_rows: profiles::list(data)?
-            .into_iter()
+        profile_rows: names
+            .iter()
+            .cloned()
             .map(|name| {
                 let p = Profile::load_named(data, &name).unwrap_or_default();
                 let on = p.mods.iter().filter(|e| e.enabled && manifests.contains_key(&e.id)).count();
@@ -472,20 +495,17 @@ pub fn snapshot(data: &Path, settings: &AppSettings, gate: &mut GateCache) -> Re
                 ProfileRow { name, on, block_public: p.block_public, guarded: p.block_achievements || p.freeze_progress, image, color: p.color }
             })
             .collect(),
-        profiles: profiles::list(data)?,
+        profiles: names,
         block_public: profile.block_public,
         block_achievements: profile.block_achievements,
         freeze_progress: profile.freeze_progress,
         hide_client_mods: profile.hide_client_mods,
-        loader: game_install.as_ref().is_some_and(|g| loader_deployed(g, data)),
+        loader: contents.as_deref().is_some_and(|c| loader_deployed_in(&record, c)),
         sandbox: obsidian_core::saves::active_sandbox(data),
         conflicts,
-        changes: changes_waiting_for(&comp, &profile, &settings_digest(&obsidian_core::loader::settings_with(&profile, &manifests)?), data, game_install.as_ref().map(|g| g.contents()).as_deref()).unwrap_or(ChangesWaiting::Waiting),
-        deployed: has_deployed(data),
-        modded: obsidian_core::deploy::load_state(data)
-            .ok()
-            .flatten()
-            .is_some_and(|s| !s.incomplete && s.mods.iter().any(|m| m != obsidian_core::commander::ENHANCED_MOD)),
+        changes,
+        deployed: has_deployed_in(&record),
+        modded: record.as_ref().ok().and_then(Option::as_ref).is_some_and(|s| !s.incomplete && s.mods.iter().any(|m| m != obsidian_core::commander::ENHANCED_MOD)),
         game,
         game_changes,
         game_dir: game_install.map(|g| tidy(&g.root)),

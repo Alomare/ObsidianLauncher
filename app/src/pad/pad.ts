@@ -7,8 +7,8 @@
 //
 // CSS can't be told an element is hovered, so while the controller is in charge the :hover and :active
 // rules are copied once with .pad-hover and .pad-active in their place, and those classes follow the cursor.
-import { useSyncExternalStore } from "react";
 import { currentSettings } from "../settings";
+import { createStore } from "../store";
 import { glyphUrl, kindOf, shownKind, type GlyphSetting, type PadKind, type PadRole } from "./glyphs";
 import "./pad.css";
 
@@ -21,10 +21,9 @@ export type PadState = {
   /** The pictures shown, from the setting and the controller. */
   kind: PadKind;
 };
-let state: PadState = { active: false, found: null, name: null, kind: "xbox" };
-const listeners = new Set<() => void>();
-export const usePad = () => useSyncExternalStore((f) => { listeners.add(f); return () => { listeners.delete(f); }; }, () => state);
-export const padState = () => state;
+const store = createStore<PadState>({ active: false, found: null, name: null, kind: "xbox" });
+export const usePad = <S = PadState>(select?: (s: PadState) => S) => store.use(select);
+export const padState = () => store.get();
 
 export type PadAction = "tabPrev" | "tabNext" | "play" | "options";
 const handlers = new Map<PadAction, Set<() => void>>();
@@ -101,14 +100,17 @@ export const ENGINE_BUTTONS = ["a", "b", "x", "y", "left_shoulder", "right_shoul
 export type EngineButton = (typeof ENGINE_BUTTONS)[number];
 
 /** A controller input being recorded for a bind: the buttons held together, given once all are let go. While
- *  it waits, the controller drives nothing else. Buttons already down when it starts count after they come up. */
-let recording: { done: (buttons: EngineButton[]) => void; got: number[]; skip: Set<number> } | null = null;
+ *  it waits, the controller drives nothing else. Buttons already down when it starts count after they come up.
+ *  The east button (B, Circle) pressed alone is the way back: it cancels, as Esc does on the keyboard. Held
+ *  with other buttons it is recorded like any other. */
+let recording: { done: (buttons: EngineButton[]) => void; cancel: () => void; got: number[]; skip: Set<number> } | null = null;
 
-/** Records the next combination of up to four buttons; the function returned cancels. */
-export function recordPad(done: (buttons: EngineButton[]) => void): () => void {
+/** Records the next combination of up to four buttons; `cancel` runs when the east button alone backs out.
+ *  The function returned cancels from outside, without calling `cancel`. */
+export function recordPad(done: (buttons: EngineButton[]) => void, cancel: () => void): () => void {
   const skip = new Set<number>();
   before.forEach((d, i) => d && skip.add(i));
-  const mine = { done, got: [] as number[], skip };
+  const mine = { done, cancel, got: [] as number[], skip };
   recording = mine;
   wake();
   return () => { if (recording === mine) recording = null; };
@@ -122,18 +124,20 @@ function record(down: boolean[]): boolean {
   down.forEach((d, i) => { if (d && i < ENGINE_BUTTONS.length && !r.skip.has(i) && !r.got.includes(i) && r.got.length < 4) r.got.push(i); });
   if (r.got.length && !r.got.some((i) => down[i])) {
     recording = null;
-    r.done(r.got.map((i) => ENGINE_BUTTONS[i]));
+    // Let go on the frame it ends, so the dialog's own back press (on the way down) never sees it.
+    if (r.got.length === 1 && r.got[0] === BUTTON.east) r.cancel();
+    else r.done(r.got.map((i) => ENGINE_BUTTONS[i]));
   }
   return true;
 }
 
 function set(patch: Partial<PadState>) {
+  const state = store.get();
   const next = { ...state, ...patch };
   if (next.active === state.active && next.found === state.found && next.name === state.name && next.kind === state.kind) return;
   if (next.kind !== state.kind || !document.documentElement.style.getPropertyValue("--pad-south")) glyphVars(next.kind);
-  state = next;
-  document.documentElement.classList.toggle("gamepad", state.active);
-  listeners.forEach((f) => f());
+  document.documentElement.classList.toggle("gamepad", next.active);
+  store.set(next);
 }
 
 /** The pictures as CSS variables (`--pad-south` and so on), for masks in CSS. */
@@ -174,7 +178,7 @@ function showCursor(on: boolean) {
 const place = () => { if (cursor) cursor.style.transform = `translate(${x}px, ${y}px)`; };
 
 function activate() {
-  if (state.active) return;
+  if (store.get().active) return;
   buildMirror();
   if (mirror) mirror.disabled = false;
   set({ active: true });
@@ -183,7 +187,7 @@ function activate() {
 }
 
 function deactivate() {
-  if (!state.active) return;
+  if (!store.get().active) return;
   set({ active: false });
   showCursor(false);
   hover(null);
@@ -301,7 +305,7 @@ function release(click: boolean) {
   fire(at, "mouseup");
   const target = down.isConnected ? common(down, el) : null;
   if (click && target) fire(target, "click", { detail: 1 });
-  if (state.active) hoverAt();
+  if (store.get().active) hoverAt();
 }
 
 const visible = (el: Element) => (el as HTMLElement).offsetParent !== null || el.getClientRects().length > 0;
@@ -323,7 +327,7 @@ function pageTabs(): Element | null {
 
 /** Marks the tab row the bumpers move along, for the pictures around it. */
 function markTabs() {
-  const tabs = state.active ? pageTabs() : null;
+  const tabs = store.get().active ? pageTabs() : null;
   document.querySelectorAll("[data-pad-tabs]").forEach((e) => e !== tabs && e.removeAttribute("data-pad-tabs"));
   tabs?.setAttribute("data-pad-tabs", "");
 }
@@ -357,6 +361,17 @@ function scrollerAt(el: Element | null): Element | null {
   return document.scrollingElement;
 }
 
+/** The kind and shown name of each controller id, worked out once instead of every frame. */
+const known = new Map<string, { found: PadKind; name: string }>();
+export function identify(id: string): { found: PadKind; name: string } {
+  let k = known.get(id);
+  if (!k) {
+    k = { found: kindOf(id), name: id.replace(/\s*\(.*\)\s*$/, "") || id };
+    known.set(id, k);
+  }
+  return k;
+}
+
 /** The controller used last: the one with the newest input. */
 function current(): Gamepad | null {
   let best: Gamepad | null = null;
@@ -372,9 +387,9 @@ function frame(now: number) {
   const dt = Math.min(0.05, last ? (now - last) / 1000 : 0);
   last = now;
 
-  const found = kindOf(pad.id);
+  const { found, name } = identify(pad.id);
   const setting = (currentSettings()?.padGlyphs ?? "auto") as GlyphSetting;
-  set({ found, name: pad.id.replace(/\s*\(.*\)\s*$/, "") || pad.id, kind: shownKind(setting, found) });
+  set({ found, name, kind: shownKind(setting, found) });
 
   const down = pad.buttons.map((b) => b.pressed || b.value > 0.5);
   const prev = before;
@@ -385,7 +400,7 @@ function frame(now: number) {
   before = down;
   if (record(down)) return;
   if (!any) return;
-  if (!state.active) {
+  if (!store.get().active) {
     // The first touch only shows the cursor, so nothing is clicked unseen.
     activate();
     return;
@@ -430,14 +445,14 @@ export function startPad() {
   started = true;
   x = innerWidth / 2;
   y = innerHeight / 2;
-  glyphVars(state.kind);
+  glyphVars(store.get().kind);
   patchCapture();
   window.addEventListener("gamepadconnected", wake);
   // The cursor starts where the mouse was, and a real mouse takes over again.
   window.addEventListener("pointermove", (e) => {
     if (!e.isTrusted) return;
-    if (state.active && (e.movementX || e.movementY)) deactivate();
-    if (!state.active) { x = e.clientX; y = e.clientY; }
+    if (store.get().active && (e.movementX || e.movementY)) deactivate();
+    if (!store.get().active) { x = e.clientX; y = e.clientY; }
   }, true);
   window.addEventListener("pointerdown", (e) => { if (e.isTrusted) deactivate(); }, true);
   // A controller connected before the window opened shows up at the first button press, as a connect.

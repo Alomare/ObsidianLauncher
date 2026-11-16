@@ -1,10 +1,10 @@
 // The GitHub account (core/src/github.rs): who is signed in, the device sign-in, and the calls made as
 // that player. One small store the Account tab, the nav icon and the Store pages all read.
-import { useSyncExternalStore } from "react";
 import { call, errorText } from "./api";
 import { t } from "./i18n";
 import { notify } from "./notices";
 import { openUrl } from "./opener";
+import { createStore } from "./store";
 
 export type Account = { login: string; avatar: string | null; scopes: string[]; syncGist: string | null };
 export type DeviceCode = { deviceCode: string; userCode: string; verificationUri: string; interval: number; expiresIn: number };
@@ -33,15 +33,10 @@ type State = {
   reports: Report[];
 };
 
-let state: State = { account: null, signing: null, reports: [] };
-const listeners = new Set<() => void>();
-const set = (patch: Partial<State>) => {
-  state = { ...state, ...patch };
-  listeners.forEach((f) => f());
-};
-export const useGitHub = () =>
-  useSyncExternalStore((f) => { listeners.add(f); return () => { listeners.delete(f); }; }, () => state);
-export const gitHubState = () => state;
+const store = createStore<State>({ account: null, signing: null, reports: [] });
+const set = (patch: Partial<State>) => store.set((s) => ({ ...s, ...patch }));
+/** The whole state, or the part `select` picks: a component then renders again only when that part changes. */
+export const useGitHub = <S = State>(select?: (s: State) => S) => store.use(select);
 
 export const hasScope = (a: Account | null, scope: string) => !!a && (a.scopes.includes(scope) || (scope === "public_repo" && a.scopes.includes("repo")));
 export const unread = (r: Report) => Math.max(0, r.comments - r.seen);
@@ -51,20 +46,20 @@ export async function startGitHub() {
   try {
     set({ account: await call<Account | null>("github_account"), reports: await call<Report[]>("github_reports") });
   } catch { /* no account file */ }
-  if (!state.account) return;
+  if (!store.get().account) return;
   try {
     const account = await call<Account | null>("github_verify");
     set({ account });
     if (!account) notify("info", t("app.github.signedOutByGitHub"));
   } catch { /* offline: keep the saved account */ }
-  if (state.account) refreshReports(true);
+  if (store.get().account) refreshReports(true);
 }
 
 /** Asks GitHub where the reports stand; `announce` tells of new replies with a notice. */
 export async function refreshReports(announce = false) {
-  if (!state.reports.length) return;
+  if (!store.get().reports.length) return;
   try {
-    const before = new Map(state.reports.map((r) => [`${r.repo}#${r.number}`, r.comments]));
+    const before = new Map(store.get().reports.map((r) => [`${r.repo}#${r.number}`, r.comments]));
     const reports = await call<Report[]>("github_reports_refresh");
     set({ reports });
     if (announce) {
@@ -139,7 +134,7 @@ export async function signOut() {
 
 /** Makes sure the account has `scope`, asking for it with a new sign-in when it doesn't. */
 export async function ensureScope(scope: Extra): Promise<boolean> {
-  if (hasScope(state.account, scope)) return true;
+  if (hasScope(store.get().account, scope)) return true;
   return signIn([scope]);
 }
 

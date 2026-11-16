@@ -79,6 +79,7 @@ function M.setup(core, hooks)
 		for _, key in B.ipairs(ACHIEVEMENT_PROGRESS) do M.held[key] = true end
 	end
 	if not (core.freeze_progress or no_achievements) then return end
+	local CLOSED = { closed = true }
 	log.line("guardrails:" .. (core.freeze_progress and " progression frozen" or "") .. (no_achievements and " achievements off" or ""))
 	hooks.loader_hook("UserManager", "unlock_trophy", function(original, self, ...)
 		if no_achievements then
@@ -86,20 +87,20 @@ function M.setup(core, hooks)
 			return
 		end
 		return original(self, ...)
-	end)
+	end, CLOSED)
 	-- Every way the game, or a mod, changes the account ends in this one write.
 	hooks.loader_hook("SaveManager", "user_set", function(original, self, key, ...)
 		if M.holds(key) then return end
 		return original(self, key, ...)
-	end)
+	end, CLOSED)
 	hooks.loader_hook("SaveManager", "save", function(original, self, ...)
 		M.restore()
 		return original(self, ...)
-	end)
+	end, CLOSED)
 	hooks.loader_hook("SaveManager", "user_save", function(original, self, ...)
 		M.restore()
 		return original(self, ...)
-	end)
+	end, CLOSED)
 	hooks.on_frame(M.tick)
 end
 

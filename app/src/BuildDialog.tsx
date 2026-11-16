@@ -1,11 +1,11 @@
 // The game-files dialog, opened from the warning in the navigation bar and from Settings when the game
 // files differ from the build Obsidian knows. Deploy and Play still work; this says which files
 // differ, what that usually means, and how to get the known files back.
-import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+import { useState } from "react";
 import { call, errorText, run } from "./api";
 import { CloseIcon, FolderIcon, WarnIcon } from "./Icons";
 import { t } from "./i18n";
+import { Modal } from "./Modal";
 import { notify } from "./notices";
 import type { Snapshot } from "./types";
 import { PadGlyph } from "./pad/PadGlyph";
@@ -21,11 +21,6 @@ export const fileKind = (path: string) => KINDS[path] ?? "other";
 
 export function BuildDialog({ snap, onClose }: { snap: Snapshot; onClose: () => void }) {
   const [checking, setChecking] = useState(false);
-  useEffect(() => {
-    const key = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [onClose]);
   const changes = snap.gameChanges;
   const exe = changes.some((c) => fileKind(c.path) === "exe");
   const bundles = changes.some((c) => fileKind(c.path) !== "exe");
@@ -35,9 +30,8 @@ export function BuildDialog({ snap, onClose }: { snap: Snapshot; onClose: () => 
     setChecking(false);
   };
   const openGame = () => snap.gameDir && call("open_folder", { path: snap.gameDir }).catch((e) => notify("error", errorText(e)));
-  return createPortal(
-    <div className="modal-back" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal build" role="dialog" aria-modal="true" aria-label={t("app.build.title")}>
+  return (
+    <Modal className="modal build" label={t("app.build.title")} onClose={onClose}>
         <div className="head">
           <h2 className="cap"><WarnIcon />{t("app.build.title")}</h2>
           <button data-pad-back className="bare close" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /><PadGlyph role="east" /></button>
@@ -68,8 +62,6 @@ export function BuildDialog({ snap, onClose }: { snap: Snapshot; onClose: () => 
           {snap.gameDir && <button className="btn small" onClick={openGame}><FolderIcon />{t("app.settings.openFolder")}</button>}
           <button className="btn small" onClick={check} disabled={checking}>{t("app.settings.checkAgain")}</button>
         </div>
-      </div>
-    </div>,
-    document.body,
+    </Modal>
   );
 }

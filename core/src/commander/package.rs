@@ -50,13 +50,26 @@ const PACKAGE_KEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6I
 
 /// Downloads the newest released package from GitHub, checks its signature and installs it.
 pub fn fetch(data: &Path, github: &crate::updates::GitHub) -> Result<Installed> {
+    install(data, &download(github)?.zip)
+}
+
+/// The newest released package, downloaded and its signature checked, ready for [`install`]. The
+/// file goes when this drops.
+pub struct Downloaded {
+    _dir: tempfile::TempDir,
+    pub zip: PathBuf,
+}
+
+/// The download half of [`fetch`], which touches nothing in the data folder, so the app runs it
+/// without holding any lock.
+pub fn download(github: &crate::updates::GitHub) -> Result<Downloaded> {
     let repo = crate::updates::github_repo(SOURCE).expect("a GitHub address");
     let dir = tempfile::tempdir()?;
     let zip = dir.path().join("commander.zip");
     let (_, sig) = github.download_latest_zip(&repo, ASSET_PREFIX, &zip)?;
     let sig = sig.ok_or(ObsidianError::CommanderUnsigned)?;
     verify_signed(&std::fs::read(&zip)?, &sig, PACKAGE_KEY)?;
-    install(data, &zip)
+    Ok(Downloaded { _dir: dir, zip })
 }
 
 /// Standard base64 to bytes; None for anything else.

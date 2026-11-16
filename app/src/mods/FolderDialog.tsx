@@ -1,8 +1,9 @@
 // The folder dialogs: a name and a colour for a new or existing folder, and the question asked
 // before a folder with mods in it goes (keep the mods, or remove them too).
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { openColorPicker } from "../ColorPicker";
 import { t } from "../i18n";
+import { Modal } from "../Modal";
 import { PadGlyph } from "../pad/PadGlyph";
 
 export const FOLDER_COLORS = ["#f0b429", "#e8891c", "#d64545", "#c062b8", "#9b7bd4", "#4a90d9", "#2fb889", "#8a9099"];
@@ -32,16 +33,9 @@ export function FolderDialog({ title, confirm, name = "", color = FOLDER_COLORS[
   const [v, setV] = useState(name);
   const [c, setC] = useState(color);
   const input = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    input.current?.select();
-    const key = (e: KeyboardEvent) => e.key === "Escape" && onCancel();
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [onCancel]);
   return (
-    <div className="modal-back" onPointerDown={(e) => e.target === e.currentTarget && onCancel()}>
-      <form className="modal confirm" role="dialog" aria-modal="true" aria-label={title} style={{ borderTopColor: c }}
-        onSubmit={(e) => { e.preventDefault(); if (v.trim()) onConfirm(v.trim(), c); }}>
+    <Modal className="modal confirm" label={title} style={{ borderTopColor: c }} onClose={onCancel} focus={input}
+      onSubmit={(e) => { e.preventDefault(); if (v.trim()) onConfirm(v.trim(), c); }}>
         <h2 className="cap">{title}</h2>
         <label className="field">
           <span>{t("app.folder.name")}</span>
@@ -60,8 +54,7 @@ export function FolderDialog({ title, confirm, name = "", color = FOLDER_COLORS[
           <button data-pad-back type="button" className="btn" onClick={onCancel}><PadGlyph role="east" />{t("app.cancel")}</button>
           <button type="submit" className="btn play" disabled={!v.trim()}>{confirm}</button>
         </div>
-      </form>
-    </div>
+    </Modal>
   );
 }
 
@@ -69,15 +62,8 @@ type DeleteProps = { name: string; color: string; count: number; onDelete: (remo
 
 export function DeleteFolder({ name, color, count, onDelete, onCancel }: DeleteProps) {
   const keep = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    keep.current?.focus();
-    const key = (e: KeyboardEvent) => e.key === "Escape" && onCancel();
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [onCancel]);
   return (
-    <div className="modal-back" onPointerDown={(e) => e.target === e.currentTarget && onCancel()}>
-      <div className="modal confirm" role="alertdialog" aria-modal="true" aria-label={t("app.folder.deleteTitle", name)} style={{ borderTopColor: color }}>
+    <Modal className="modal confirm" role="alertdialog" label={t("app.folder.deleteTitle", name)} style={{ borderTopColor: color }} onClose={onCancel} focus={keep}>
         <h2 className="cap">{t("app.folder.deleteTitle", name)}</h2>
         <p>{count === 1 ? t("app.folder.deleteTextOne") : t("app.folder.deleteText", count)}</p>
         <div className="choices">
@@ -93,7 +79,6 @@ export function DeleteFolder({ name, color, count, onDelete, onCancel }: DeleteP
         <div className="modal-foot">
           <button data-pad-back className="btn" onClick={onCancel}><PadGlyph role="east" />{t("app.cancel")}</button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

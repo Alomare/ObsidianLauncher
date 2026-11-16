@@ -27,7 +27,7 @@ import { StorePage } from "./store/StorePage";
 import { loadSettings, updateSettings, useAppSettings } from "./settings";
 import { StatusBar } from "./StatusBar";
 import { Tooltip } from "./Tooltip";
-import { installUpdate, startupUpdate, useUpdates } from "./updates";
+import { installUpdate, startupUpdate, useUpdates, versionOf } from "./updates";
 import { DeployProgress } from "./DeployProgress";
 import { UpdateProgress } from "./UpdateProgress";
 
@@ -47,7 +47,7 @@ export default function App() {
   const cancelDeploy = useCallback(() => setAskDeploy(false), []);
   // A tab clicked again goes back to the start of it (the Store list, the Saves list, the WARS home).
   const openTab = (to: Tab) => {
-    if (to === "settings" && update.phase === "found") setSettingsTab("updates");
+    if (to === "settings" && update === "found") setSettingsTab("updates");
     if (to === "commander" && tab === "commander") setCommanderHome((n) => n + 1);
     if (to === "store" && tab === "store") setStoreHome((n) => n + 1);
     if (to === "saves" && tab === "saves") setSavesHome((n) => n + 1);
@@ -79,7 +79,8 @@ export default function App() {
   const [savesHome, setSavesHome] = useState(0);
   useEffect(() => { if (tab === "store") setStoreOpened(true); }, [tab]);
   const [wave, setWave] = useState<Wave | null>(null);
-  const update = useUpdates();
+  const update = useUpdates((u) => u.phase);
+  const offered = useUpdates(versionOf);
   const startWave = (tone: Wave["tone"]) => {
     if (document.documentElement.dataset.motion !== "off") setWave((w) => ({ tone, n: (w?.n ?? 0) + 1 }));
   };
@@ -128,7 +129,7 @@ export default function App() {
   if (!settings) return null;
   return (
     <div className="app">
-      <NavBar tab={tab} onTab={openTab} snap={snap} busy={busy} updateFound={update.phase === "found"} wave={wave} onWaveEnd={() => setWave(null)}
+      <NavBar tab={tab} onTab={openTab} snap={snap} busy={busy} updateFound={update === "found"} wave={wave} onWaveEnd={() => setWave(null)}
         onPlay={() => (snap && asksBeforePlay(snap, settings) ? setAskPlay(true) : startPlay())} />
       <main className={tab === "home" || tab === "store" || tab === "wiki" || tab === "commander" ? "page bleed" : "page"}>
         {tab === "home" && <div className="view" key="home"><HomePage /></div>}
@@ -143,7 +144,7 @@ export default function App() {
         {/* The first read of the library can take a few seconds: the tabs that need it wait on this. */}
         {!snap && tab !== "home" && tab !== "wiki" && tab !== "account" &&<div className="view" key="wait"><div className="store-empty app-wait"><p><span className="upd-spin" aria-hidden="true" />{t("app.loadingLibrary")}</p></div></div>}
       </main>
-      <StatusBar version={snap?.version ?? null} updateFound={update.phase === "found"} onUpdates={() => { setSettingsTab("updates"); setTab("settings"); }} />
+      <StatusBar version={snap?.version ?? null} updateFound={update === "found"} onUpdates={() => { setSettingsTab("updates"); setTab("settings"); }} />
       {dropping && (
         <div className={dropping.inside ? "dropzone cap over" : "dropzone cap"}
           style={{ left: dropping.rect.left, top: dropping.rect.top, width: dropping.rect.width, height: dropping.rect.height }}>
@@ -151,7 +152,7 @@ export default function App() {
         </div>
       )}
       {askUpdate && (
-        <Confirm title={t("app.update.title", update.version ?? "")} text={t("app.update.text")}
+        <Confirm title={t("app.update.title", offered ?? "")} text={t("app.update.text")}
           confirm={t("app.update.install")} cancel={t("app.update.later")}
           tone="go" onCancel={() => setAskUpdate(false)} onConfirm={() => { setAskUpdate(false); installUpdate(); }}
           link={{ label: t("app.update.changelog"), onClick: () => { setAskUpdate(false); setSettingsTab("updates"); setTab("settings"); } }} />

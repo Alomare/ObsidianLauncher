@@ -9,9 +9,9 @@ use crate::backup::backup_game_saves;
 use crate::bundle::{self, Bundle, Entry, Variant};
 use crate::compose::{Composition, Conflict};
 use crate::game::GameInstall;
-use crate::gate::{GateReport, KNOWN_BUILDS, KnownBuild, check_build, sha256_file, sha256_files};
+use crate::gate::{GateReport, KNOWN_BUILDS, KnownBuild, check_build_cached, sha256_file, sha256_files};
 use crate::library::{Library, Profile};
-use crate::paths::{rename_retrying, write_atomic};
+use crate::paths::{beside, rename_retrying, write_atomic};
 use crate::{ObsidianError, Result, loader, settings};
 
 pub const STATE: &str = "deploy-state.json";
@@ -165,11 +165,19 @@ fn here(contents: &Path, f: &DeployedFile) -> PathBuf {
     f.path.file_name().map_or_else(|| f.path.clone(), |n| contents.join(n))
 }
 
-/// `path` with `.<suffix>` added.
-fn beside(path: &Path, suffix: &str) -> PathBuf {
-    let mut name = path.as_os_str().to_os_string();
-    name.push(format!(".{suffix}"));
-    PathBuf::from(name)
+#[cfg(test)]
+thread_local! {
+    /// Makes putting an old patch back fail, for the tests of a failed rollback.
+    static FAIL_PUT_BACK: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Moves an old patch set aside back to `place`.
+fn put_back(old: &Path, place: &Path) -> std::io::Result<()> {
+    #[cfg(test)]
+    if FAIL_PUT_BACK.with(|f| f.get()) {
+        return Err(std::io::Error::other("put back refused by the test"));
+    }
+    rename_retrying(old, place)
 }
 
 fn write_state(data_dir: &Path, state: &DeployState) -> Result<()> {
@@ -260,19 +268,49 @@ pub fn load_state(data_dir: &Path) -> Result<Option<DeployState>> {
     }
 }
 
-/// Whether a purge has anything to remove. A state that can't be read counts, as purge is what deals with it.
+impl DeployState {
+    /// The deploy the game counts as holding: this one when it is settled; while a swap is under
+    /// way, the one it replaces, which the next deploy or purge puts back. Every reader of the
+    /// record goes through this, so they agree about a swap cut short.
+    pub fn effective(&self) -> Option<&DeployState> {
+        if self.incomplete { self.previous.as_deref() } else { Some(self) }
+    }
+}
+
+/// The record as loaded once for several readers: `Err` when the file is there but can't be read.
+pub type Record = std::result::Result<Option<DeployState>, ()>;
+
+/// [`load_state`] for the readers below, which treat an unreadable record each in their own way.
+pub fn load_record(data_dir: &Path) -> Record {
+    load_state(data_dir).map_err(|_| ())
+}
+
+/// Whether a purge has anything to remove. A state that can't be read counts, as purge is what deals
+/// with it, and so does a swap under way, which purge finishes first.
 pub fn has_deployed(data_dir: &Path) -> bool {
-    match load_state(data_dir) {
+    has_deployed_in(&load_record(data_dir))
+}
+
+pub fn has_deployed_in(record: &Record) -> bool {
+    match record {
         Ok(Some(s)) => s.incomplete || !s.files.is_empty(),
         Ok(None) => false,
-        Err(_) => true,
+        Err(()) => true,
     }
 }
 
 /// Whether the last deploy put the loader in the game, and the patch that holds it is still there.
 pub fn loader_deployed(game: &GameInstall, data_dir: &Path) -> bool {
-    let contents = game.contents();
-    load_state(data_dir).ok().flatten().is_some_and(|s| !s.incomplete && s.files.iter().any(|f| f.path.file_name().is_some_and(|n| n.to_string_lossy().starts_with(loader::BUNDLE)) && here(&contents, f).is_file()))
+    loader_deployed_in(&load_record(data_dir), &game.contents())
+}
+
+pub fn loader_deployed_in(record: &Record, contents: &Path) -> bool {
+    effective_of(record).is_some_and(|s| s.files.iter().any(|f| f.path.file_name().is_some_and(|n| n.to_string_lossy().starts_with(loader::BUNDLE)) && here(contents, f).is_file()))
+}
+
+/// The effective deploy of a loaded record; `None` for no record or one that can't be read.
+pub fn effective_of(record: &Record) -> Option<&DeployState> {
+    record.as_ref().ok()?.as_ref()?.effective()
 }
 
 /// One hash of what a deploy of `comp` writes: every planned resource and, when the loader goes
@@ -319,9 +357,12 @@ pub fn changes_waiting(lib: &Library, profile: &Profile, data_dir: &Path, conten
 /// keys changed since the deploy (`settings`, from `settings_digest`), although they reach the
 /// game at the next launch anyway: Deploy says the game has what the profile shows.
 pub fn changes_waiting_for(comp: &Composition, profile: &Profile, settings: &str, data_dir: &Path, contents: Option<&Path>) -> Result<ChangesWaiting> {
-    let (comp, profile) = (comp, profile);
-    let state = load_state(data_dir)?;
-    let deployed_nothing = state.as_ref().is_none_or(|s| s.files.is_empty());
+    changes_waiting_in(comp, profile, settings, load_state(data_dir)?.as_ref(), contents)
+}
+
+/// `changes_waiting_for` with the record already loaded.
+pub fn changes_waiting_in(comp: &Composition, profile: &Profile, settings: &str, state: Option<&DeployState>, contents: Option<&Path>) -> Result<ChangesWaiting> {
+    let deployed_nothing = state.is_none_or(|s| s.files.is_empty());
     if !comp.unplaced.is_empty() {
         return Ok(ChangesWaiting::Waiting);
     }
@@ -329,10 +370,11 @@ pub fn changes_waiting_for(comp: &Composition, profile: &Profile, settings: &str
         return Ok(if deployed_nothing { ChangesWaiting::Vanilla } else { ChangesWaiting::Waiting });
     }
     let now = fingerprint(comp, profile, &loader::find_loader_dir()?)?;
-    let whole = state.as_ref().is_some_and(|s| !s.incomplete && contents.is_none_or(|c| s.files.iter().all(|f| here(c, f).is_file())));
+    // A swap under way is never up to date: the next deploy has to finish or undo it.
+    let whole = state.is_some_and(|s| !s.incomplete && contents.is_none_or(|c| s.files.iter().all(|f| here(c, f).is_file())));
     // A state from before the settings were recorded can't tell, so one deploy (a quick one) records them.
-    let same_settings = state.as_ref().is_some_and(|s| s.settings.as_deref() == Some(settings));
-    Ok(match state.and_then(|s| s.fingerprint) {
+    let same_settings = state.is_some_and(|s| s.settings.as_deref() == Some(settings));
+    Ok(match state.and_then(|s| s.fingerprint.as_deref()) {
         Some(f) if f == now && whole && same_settings => ChangesWaiting::UpToDate,
         _ => ChangesWaiting::Waiting,
     })
@@ -360,7 +402,7 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
     let report = Reporter { sink: opts.progress, last: Default::default() };
     report.send(0.0, "preparing", None);
     let contents = game.contents();
-    let gate = check_build(&game.root, opts.known_builds)?;
+    let gate = check_build_cached(&game.root, opts.known_builds)?;
     // A build Obsidian doesn't know still gets the deploy: the patches never touch the game's own
     // files, and the loader keeps every mod off at boot when the game's version isn't the one it
     // was made for. Mods copied over the game's files are the usual cause, and the app says so.
@@ -373,7 +415,7 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
     profile.sync(&lib)?;
     if opts.loader_only {
         // Only this deploy's copy: the profile on disk is left as it is, and the Mods tab shows any change waiting.
-        let kept: &[String] = previous.as_ref().filter(|p| !p.incomplete).map_or(&[], |p| &p.mods);
+        let kept: &[String] = previous.as_ref().and_then(DeployState::effective).map_or(&[], |p| &p.mods);
         for e in &mut profile.mods {
             e.enabled = kept.contains(&e.id);
         }
@@ -545,13 +587,18 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
     })();
     if let Err((file, why)) = swapped {
         remove_all(done.iter().copied());
+        let mut restored = true;
         for (old, place) in &aside {
-            let _ = rename_retrying(old, place);
+            restored &= put_back(old, place).is_ok();
         }
         remove_all(temps.iter().map(|(t, _)| t));
-        match &previous {
-            Some(p) => write_state(data_dir, p)?,
-            None => std::fs::remove_file(data_dir.join(STATE))?,
+        // An old patch still aside keeps the record of a swap under way, so the next deploy or purge
+        // puts it back instead of clearing it away as a leftover.
+        if restored {
+            match &previous {
+                Some(p) => write_state(data_dir, p)?,
+                None => std::fs::remove_file(data_dir.join(STATE))?,
+            }
         }
         return Err(ObsidianError::DeployFailed(format!("{}: {why}", file.display())));
     }
@@ -740,7 +787,7 @@ pub fn remove_foreign(game: &GameInstall, data_dir: &Path, keep_dir: &Path) -> R
 pub fn status(game: &GameInstall, data_dir: &Path, known: &[KnownBuild]) -> Result<Status> {
     let deployed = load_state(data_dir)?;
     let foreign = foreign_patches(&game.contents(), deployed.as_ref(), &[])?.into_iter().map(|(_, _, p)| p).collect();
-    Ok(Status { gate: check_build(&game.root, known)?, deployed, foreign, crash_culprit: crash_culprit(game) })
+    Ok(Status { gate: check_build_cached(&game.root, known)?, deployed, foreign, crash_culprit: crash_culprit(game) })
 }
 
 /// The loader's log of the last launch.
@@ -765,10 +812,19 @@ pub struct UncleanEnd {
 }
 
 pub fn unclean_end(game: &GameInstall) -> Option<UncleanEnd> {
+    log_report(game, true).1
+}
+
+/// The crash culprit and the unclean end from one read of the loader log. `unclean` false leaves
+/// the second out, as while the game runs.
+pub fn log_report(game: &GameInstall, unclean: bool) -> (Option<String>, Option<UncleanEnd>) {
     let log = loader_log(game);
-    let last = loader::unclean_end(&std::fs::read_to_string(&log).ok()?)?;
-    let stamp = std::fs::metadata(&log).ok()?.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?.as_secs();
-    Some(UncleanEnd { stamp, last })
+    let Ok(text) = std::fs::read_to_string(&log) else { return (None, None) };
+    let end = unclean.then(|| loader::unclean_end(&text)).flatten().and_then(|last| {
+        let stamp = std::fs::metadata(&log).ok()?.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?.as_secs();
+        Some(UncleanEnd { stamp, last })
+    });
+    (loader::crash_culprit(&text), end)
 }
 
 #[cfg(test)]
@@ -1050,6 +1106,32 @@ mod tests {
     }
 
     #[test]
+    fn a_rollback_that_cannot_put_a_patch_back_stays_recorded_for_the_next_start() {
+        let mut w = world();
+        w.opts.known_builds = fake_build(&w.game.root, &["contents/00000000000000aa", "contents/00000000000000bb", "contents/9cf71054ea26dddf"]);
+        deploy(&w.game, &w.data, &w.opts).unwrap();
+        let (files, state) = (snapshot(&w.game.contents()), load_state(&w.data).unwrap().unwrap());
+        block_the_swap(&w);
+        FAIL_PUT_BACK.with(|f| f.set(true));
+        let e = deploy(&w.game, &w.data, &w.opts).unwrap_err();
+        FAIL_PUT_BACK.with(|f| f.set(false));
+        assert!(matches!(e, ObsidianError::DeployFailed(_)), "{e}");
+        let left = load_state(&w.data).unwrap().unwrap();
+        assert!(left.incomplete, "the record still says a swap is under way");
+        assert_eq!(left.previous.as_deref(), Some(&state));
+        let aside = std::fs::read_dir(w.game.contents()).unwrap().flatten().filter(|e| e.file_name().to_string_lossy().ends_with(".obsidian-old")).count();
+        assert!(aside > 0, "the old patches are still aside");
+        assert!(has_deployed(&w.data));
+
+        // The next start puts them back instead of deleting them.
+        std::fs::remove_dir_all(patch(&w, "00000000000000cc.patch_0")).unwrap();
+        finish_interrupted(&w.game.contents(), &w.data).unwrap();
+        let now = snapshot(&w.game.contents());
+        assert!(files.iter().all(|(k, v)| now.get(k) == Some(v)), "every patch of the last deploy is back");
+        assert_eq!(load_state(&w.data).unwrap().unwrap(), state);
+    }
+
+    #[test]
     fn a_deploy_cut_short_counts_as_waiting_and_is_put_right() {
         let w = world();
         deploy(&w.game, &w.data, &w.opts).unwrap();
@@ -1061,6 +1143,11 @@ mod tests {
         let moved = patch(&w, "00000000000000aa.patch_0");
         std::fs::rename(&moved, beside(&moved, OLD)).unwrap();
         assert_eq!(waiting(&w), ChangesWaiting::Waiting);
+        // Every reader sees the deploy being replaced, and purge has work.
+        let record = load_record(&w.data);
+        assert_eq!(effective_of(&record), Some(&done));
+        assert!(has_deployed_in(&record));
+        assert_eq!(loader_deployed_in(&record, &w.game.contents()), loader_deployed_in(&Ok(Some(done.clone())), &w.game.contents()));
 
         finish_interrupted(&w.game.contents(), &w.data).unwrap();
         assert_eq!(snapshot(&w.game.contents()), before);
@@ -1290,9 +1377,9 @@ mod tests {
     #[test]
     fn state_is_written_atomically_and_removed_on_rollback() {
         let w = world();
-        put(&w.data, "deploy-state.json.obsidian-tmp", b"torn");
         deploy(&w.game, &w.data, &w.opts).unwrap();
-        assert!(!w.data.join("deploy-state.json.obsidian-tmp").exists());
+        let tmp = std::fs::read_dir(&w.data).unwrap().flatten().any(|e| e.file_name().to_string_lossy().ends_with(".obsidian-tmp"));
+        assert!(!tmp, "no temporary file is left beside the state");
         purge(&w.game, &w.data).unwrap();
         put(&patch(&w, "00000000000000bb.patch_0"), "blocker", b"x");
         assert!(deploy(&w.game, &w.data, &w.opts).is_err());

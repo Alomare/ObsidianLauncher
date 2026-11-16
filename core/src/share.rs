@@ -56,14 +56,22 @@ fn refs(lib: &Library, ids: &[String]) -> Result<Vec<ModRef>> {
 
 /// The mods of `want` the library lacks or has older, installed from their repositories. Returns the
 /// ids installed, kept and left out (no repository, or the download failed).
-fn fetch_mods(lib: &Library, releases: &GitHub, want: &[ModRef]) -> (Vec<String>, Vec<String>, Vec<String>) {
-    let (mut installed, mut kept, mut missing) = (Vec::new(), Vec::new(), Vec::new());
+/// Mods downloaded and waiting to install, by id and name, then the ids kept as they are.
+struct StagedMods {
+    staged: Vec<(ModRef, crate::updates::Staged)>,
+    kept: Vec<String>,
+    failed: Vec<ModRef>,
+}
+
+/// Downloads the mods of `want` the library lacks or has older. Network only: nothing installs.
+fn stage_mods(lib: &Library, releases: &GitHub, want: &[ModRef]) -> StagedMods {
+    let mut out = StagedMods { staged: Vec::new(), kept: Vec::new(), failed: Vec::new() };
     for r in want {
         let wanted = semver::Version::parse(&r.version).ok();
         if let Ok(have) = load_manifest(&lib.mod_dir(&r.id))
             && wanted.as_ref().is_none_or(|w| have.version >= *w)
         {
-            kept.push(r.id.clone());
+            out.kept.push(r.id.clone());
             continue;
         }
         let got = r
@@ -71,16 +79,41 @@ fn fetch_mods(lib: &Library, releases: &GitHub, want: &[ModRef]) -> (Vec<String>
             .as_deref()
             .and_then(github_repo)
             .ok_or(ObsidianError::NoUpdateSource(r.id.clone()))
-            .and_then(|repo| stage_new(releases, &repo, &r.id))
-            .and_then(|s| s.install(lib).map(|_| ()));
+            .and_then(|repo| stage_new(releases, &repo, &r.id));
         match got {
-            Ok(()) => installed.push(r.id.clone()),
-            // An older copy already here still beats nothing.
-            Err(_) if lib.mod_dir(&r.id).is_dir() => kept.push(r.id.clone()),
-            Err(_) => missing.push(if r.name.is_empty() { r.id.clone() } else { r.name.clone() }),
+            Ok(st) => out.staged.push((r.clone(), st)),
+            Err(_) => out.failed.push(r.clone()),
         }
     }
+    out
+}
+
+/// Installs what `stage_mods` downloaded: (installed, kept, missing).
+fn install_mods(lib: &Library, staged: StagedMods) -> (Vec<String>, Vec<String>, Vec<String>) {
+    let (mut installed, mut kept, mut missing) = (Vec::new(), staged.kept, Vec::new());
+    let mut not_here = |r: &ModRef, kept: &mut Vec<String>| {
+        // An older copy already here still beats nothing.
+        if lib.mod_dir(&r.id).is_dir() {
+            kept.push(r.id.clone());
+        } else {
+            missing.push(if r.name.is_empty() { r.id.clone() } else { r.name.clone() });
+        }
+    };
+    for (r, st) in staged.staged {
+        match st.install(lib) {
+            Ok(_) => installed.push(r.id.clone()),
+            Err(_) => not_here(&r, &mut kept),
+        }
+    }
+    for r in &staged.failed {
+        not_here(r, &mut kept);
+    }
     (installed, kept, missing)
+}
+
+#[cfg(test)]
+fn fetch_mods(lib: &Library, releases: &GitHub, want: &[ModRef]) -> (Vec<String>, Vec<String>, Vec<String>) {
+    install_mods(lib, stage_mods(lib, releases, want))
 }
 
 /// Where sync stands: the gist's link and when it last changed, if there is one.
@@ -147,9 +180,15 @@ pub struct Downloaded {
     pub updated: String,
 }
 
-/// Brings the sync gist to this PC: profiles of the same name are replaced, others are added, none
-/// are removed; missing mods install from their repositories; reports are merged.
-pub fn download(data: &Path, c: &Client, releases: &GitHub) -> Result<Downloaded> {
+/// The sync gist read and its missing mods downloaded, not applied yet ([`apply`]).
+pub struct Fetched {
+    synced: Synced,
+    mods: StagedMods,
+}
+
+/// The network half of a download: reads the sync gist and downloads the mods it names that the
+/// library lacks. Changes nothing here, so the app runs it without holding the library.
+pub fn fetch(data: &Path, c: &Client, releases: &GitHub) -> Result<Fetched> {
     let id = github::find_sync_gist(data, c)?.ok_or_else(|| ObsidianError::GitHub("nothing was uploaded from another PC yet".into()))?;
     let (files, _) = github::read_gist(c, &id)?.ok_or_else(|| ObsidianError::GitHub("the sync gist is gone".into()))?;
     let synced: Synced = serde_json::from_str(files.get(SYNC_FILE).ok_or_else(|| ObsidianError::GitHub("the sync gist has no profiles".into()))?)?;
@@ -157,7 +196,21 @@ pub fn download(data: &Path, c: &Client, releases: &GitHub) -> Result<Downloaded
         return Err(ObsidianError::GitHub("the sync gist was written by a newer Obsidian".into()));
     }
     let lib = Library::open(data)?;
-    let (installed, _, missing) = fetch_mods(&lib, releases, &synced.mods);
+    let mods = stage_mods(&lib, releases, &synced.mods);
+    Ok(Fetched { synced, mods })
+}
+
+/// Brings the sync gist to this PC: profiles of the same name are replaced, others are added, none
+/// are removed; missing mods install from their repositories; reports are merged.
+pub fn download(data: &Path, c: &Client, releases: &GitHub) -> Result<Downloaded> {
+    apply(data, fetch(data, c, releases)?)
+}
+
+/// The local half of a download: installs the mods fetched, writes the profiles, merges the reports.
+pub fn apply(data: &Path, fetched: Fetched) -> Result<Downloaded> {
+    let Fetched { synced, mods } = fetched;
+    let lib = Library::open(data)?;
+    let (installed, _, missing) = install_mods(&lib, mods);
     let mut names = Vec::new();
     for (name, mut p) in synced.profiles {
         if crate::profiles::check_name(&name).is_err() {

@@ -133,7 +133,7 @@ fn portable_settings(s: &AppSettings) -> Value {
 
 #[tauri::command]
 pub async fn sync_upload(ctx: State<'_, Ctx>) -> CmdResult<SyncState> {
-    let _turn = ctx.turn();
+    // Reads the profiles and talks to GitHub; changes nothing in the library, so no turn.
     let settings = portable_settings(&AppSettings::load(&ctx.data));
     Ok(share::upload(&ctx.data, &Client::new(), settings)?)
 }
@@ -147,8 +147,10 @@ pub struct SyncDownloaded {
 
 #[tauri::command]
 pub async fn sync_download(ctx: State<'_, Ctx>) -> CmdResult<SyncDownloaded> {
+    // The gist and the mods download outside the turn, which only installs and writes.
+    let fetched = crate::commands::blocking(|| share::fetch(&ctx.data, &Client::new(), &GitHub::default()))?;
     let _turn = ctx.turn();
-    let downloaded = share::download(&ctx.data, &Client::new(), &GitHub::default())?;
+    let downloaded = share::apply(&ctx.data, fetched)?;
     let mut s = AppSettings::load(&ctx.data);
     if let Value::Object(remote) = &downloaded.settings {
         let mut merged = serde_json::to_value(&s).map_err(obsidian_core::ObsidianError::from)?;

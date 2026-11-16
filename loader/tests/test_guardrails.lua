@@ -146,4 +146,19 @@ test("what_a_mod_reads_of_the_guardrails_cant_change_them", function()
 	E.eq(e:core().freeze_progress, true)
 end)
 
+test("a_guardrail_that_fails_holds_the_write_back_and_says_so", function()
+	local e, save = engine("freeze_progress\t1\n")
+	e.loaded["obsidian/loader/guardrails"].holds = function() error("boom") end
+	rawget(_G, "SaveManager"):user_set("player_xp", 900, "user")
+	E.eq(save.user.player_xp, 100, "the write does not go through")
+	E.has(e:log(), "error obsidian.loader hook SaveManager.user_set")
+end)
+
+test("a_failing_frame_function_of_the_loader_is_logged_once_a_site", function()
+	local e = engine(nil)
+	e.loaded["obsidian/loader/hooks"].on_frame(function() error("tick broke") end)
+	e:frames(5)
+	E.eq(E.count(e:log(), "tick broke"), 3, "logged, at most 3 times")
+end)
+
 return T

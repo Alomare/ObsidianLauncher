@@ -1,6 +1,6 @@
 // The parts of a keybind row, shared by the Keys tab of the drawer (read only) and the binds dialog
 // (where they change): the key, the controller input and how the bind fires.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { run } from "../api";
 import { pick, t } from "../i18n";
 import type { KeyRow, ModRow, OptionRow } from "../types";
@@ -88,20 +88,25 @@ export function PadView({ mod, k }: { mod: ModRow; k: KeyRow }) {
 }
 
 /** The controller input of a keybind, to change: a click waits for buttons held together on the controller,
- *  set once all are let go. Esc or a click elsewhere cancels. */
+ *  set once all are let go. Esc, B alone, or a press elsewhere cancels: a controller click doesn't move the
+ *  focus, so a press outside is watched for itself rather than through blur. */
 export function PadButtonInput({ mod, k, label }: { mod: ModRow; k: KeyRow; label: string }) {
   const [waiting, setWaiting] = useState(false);
+  const self = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!waiting) return;
-    return recordPad((buttons) => {
+    const stop = recordPad((buttons) => {
       setWaiting(false);
       const combo = buttons.join("+");
       if (combo !== k.pad_bind) run("set_pad", { id: mod.id, keybind: k.id, combo });
-    });
+    }, () => setWaiting(false));
+    const outside = (e: PointerEvent) => { if (!self.current?.contains(e.target as Node)) setWaiting(false); };
+    window.addEventListener("pointerdown", outside, true);
+    return () => { stop(); window.removeEventListener("pointerdown", outside, true); };
   }, [waiting, mod.id, k.id, k.pad_bind]);
   const c = padNow(mod, k);
   return (
-    <button className={waiting ? "key-btn pad-btn-in waiting" : "key-btn pad-btn-in"} aria-label={`${label}: ${c?.label ?? t("app.binds.padNone")}`}
+    <button ref={self} className={waiting ? "key-btn pad-btn-in waiting" : "key-btn pad-btn-in"} aria-label={`${label}: ${c?.label ?? t("app.binds.padNone")}`}
       data-tip={waiting ? undefined : c ? `${c.label}. ${t("app.binds.padHint")}` : t("app.binds.padHint")}
       onClick={() => setWaiting(!waiting)} onBlur={() => setWaiting(false)}
       onKeyDown={(e) => { if (waiting && e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setWaiting(false); } }}>

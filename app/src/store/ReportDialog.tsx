@@ -9,6 +9,7 @@ import { setReports, signIn, useGitHub, type Report, type Templates } from "../g
 import { CheckIcon, ChevronIcon, GitHubIcon } from "../Icons";
 import { t } from "../i18n";
 import { notify } from "../notices";
+import { useLayer } from "../Modal";
 import { initial, formBody, missing, readTemplate, type Answers, type Field, type Template } from "./issueForms";
 import type { StoreMod } from "./storeIndex";
 import "./github.css";
@@ -79,11 +80,7 @@ export function ReportDialog({ m, onClose }: { m: StoreMod; onClose: () => void 
   const [tried, setTried] = useState(false);
   const first = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const key = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [onClose]);
+  useLayer(() => { if (!pick) onClose(); });
 
   useEffect(() => {
     if (!account) return;

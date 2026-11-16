@@ -510,6 +510,12 @@ fn is_hex16(s: &str) -> bool {
     s.len() == 16 && s.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
+/// Whether `id` is a mod id a manifest may have: also what keeps an id from the window from naming
+/// a folder outside the library.
+pub fn is_valid_id(id: &str) -> bool {
+    valid_id(id)
+}
+
 fn valid_id(id: &str) -> bool {
     let b = id.as_bytes();
     !b.is_empty()
@@ -661,7 +667,13 @@ pub fn load_manifest(mod_dir: &Path) -> Result<Manifest> {
     }
     let m = read_manifest(mod_dir)?;
     if let Some(s) = stamp {
-        cache().lock().unwrap().insert(mod_dir.to_path_buf(), (s, m.clone()));
+        let mut c = cache().lock().unwrap();
+        // Imports and updates read manifests in temp folders deleted right after: past a size no
+        // library reaches, the entries of folders gone are dropped.
+        if c.len() >= 1024 {
+            c.retain(|dir, _| dir.join(FILE).is_file());
+        }
+        c.insert(mod_dir.to_path_buf(), (s, m.clone()));
     }
     Ok(m)
 }
@@ -701,7 +713,7 @@ pub fn forget(mod_dir: &Path) {
 
 pub fn write_manifest(mod_dir: &Path, m: &Manifest) -> Result<()> {
     forget(mod_dir);
-    std::fs::write(mod_dir.join(FILE), serde_json::to_string_pretty(m)? + "\n")?;
+    crate::paths::write_atomic(&mod_dir.join(FILE), (serde_json::to_string_pretty(m)? + "\n").as_bytes())?;
     Ok(())
 }
 

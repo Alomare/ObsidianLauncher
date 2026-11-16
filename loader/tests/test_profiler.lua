@@ -100,9 +100,11 @@ test("each_mod_s_time_is_split_by_hook_and_measured_section", function()
 	assert(by["hook Slow.work"] and by["hook Slow.work"] > 0.7, "the hook, named by class and method")
 	assert(by.on_frame and by.on_frame < 1.5, "the frame function without the measured part: " .. tostring(by.on_frame))
 	E.eq(row.sites[1].site, "frame: heavy part", "costliest first")
-	E.eq(r.clock, "qpc", "the precise clock")
+	if jit and jit.os == "Windows" then E.eq(r.clock, "qpc", "the precise clock") end
 	assert(type(p.clock()) == "number")
 	E.eq(p.measure("x", function(a, b) return a + b end, 2, 3), 5, "gives back what fn gives")
+	local function two() return 1, nil end
+	E.eq(select("#", p.measure("y", two)), 2, "every result, with no arguments and a trailing nil")
 end)
 
 test("a_hook_that_throws_still_closes_its_timing", function()

@@ -49,7 +49,11 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
   const account = useGitHub().account;
   const accountTip = account ? t("app.account.navIn", account.login) : t("app.account.navOut");
   const [choosing, setChoosing] = useState(false);
-  useEffect(() => { reloadChoices(); }, [snap]);
+  // The wars and saves to choose from change when the game stops (it wrote the saves) or through the
+  // Commander and Saves actions, which read them again themselves: not at every snapshot. The read waits
+  // its turn behind a deploy.
+  const known = !!snap;
+  useEffect(() => { if (known) reloadChoices(); }, [known, snap?.game]);
   // The controller: the north button plays, Start opens the choice of war and save.
   const padPlay = useRef(() => {});
   padPlay.current = () => { if (!locked) onPlay(); };

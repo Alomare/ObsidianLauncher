@@ -181,7 +181,7 @@ fn write_log(path: &Path, done: &Taken) {
     lines.extend(done.taken.iter().map(|(m, o, v)| format!("{stamp} took {m} {o} = {v}")));
     lines.extend(done.skipped.iter().map(|(k, v, why)| format!("{stamp} skipped {k:?} = {v:?}: {why}")));
     let start = lines.len().saturating_sub(LOG_LINES);
-    let _ = std::fs::write(path, lines[start..].join("\n") + "\n");
+    let _ = crate::paths::write_atomic(&path, (lines[start..].join("\n") + "\n").as_bytes());
 }
 
 #[cfg(test)]

@@ -9,12 +9,13 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { call, errorText, setSnapshot } from "../api";
-import { withTask } from "../busy";
+import { isLocked, withTask } from "../busy";
 import { Confirm } from "../Confirm";
 import { ContextMenu } from "../ContextMenu";
 import { t } from "../i18n";
 import { CheckIcon, CloseIcon, ImportIcon, PlusIcon, TrashIcon, UpdateIcon } from "../Icons";
 import { notify } from "../notices";
+import { useLayer } from "../Modal";
 import type { Snapshot } from "../types";
 import { reloadChoices, useChoices } from "./choices";
 import { FirewallDialog, useFirewall } from "./firewall";
@@ -163,14 +164,16 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
 
   const applied = (r: Done) => { setView(r.commander); setSnapshot(r.snapshot); reloadChoices(); };
 
-  const select = useCallback(async (pick: Pick, thenPlay: boolean) => {
-    if (running) { notify("error", t("app.commander.gameRunning")); return; }
+  /** True once the war is the one the next launch plays. */
+  const select = useCallback(async (pick: Pick, thenPlay: boolean): Promise<boolean> => {
+    if (running) { notify("error", t("app.commander.gameRunning")); return false; }
     try {
       const r = await withTask(t("app.commander.selecting"), () => call<Done>("commander_select", { war: pick }), true);
       applied(r);
       if (thenPlay) onPlay();
       else notify("info", t("app.commander.selected", pick.name));
-    } catch (e) { notify("error", errorText(e)); }
+      return true;
+    } catch (e) { notify("error", errorText(e)); return false; }
   }, [running, onPlay]);
 
   const official = useCallback(async () => {
@@ -236,6 +239,7 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
 
   // The newest release from GitHub.
   const install = async () => {
+    if (isLocked()) return;
     try {
       installed_(await withTask(t("app.commander.fetching"), () => call<CommanderView>("commander_fetch"), true));
     } catch (e) {
@@ -247,7 +251,7 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
   // A package ZIP from disk, such as a local build.
   const installFile = async () => {
     const path = await open({ filters: [{ name: t("app.commander.zipFilter"), extensions: ["zip"] }] });
-    if (typeof path !== "string") return;
+    if (typeof path !== "string" || isLocked()) return;
     try {
       installed_(await withTask(t("app.commander.installing"), () => call<CommanderView>("commander_install", { path }), true));
     } catch (e) { notify("error", errorText(e)); }
@@ -332,7 +336,7 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
       {joining && <JoinDialog blocked={blocked} onAllow={() => setAskFirewall(true)} onClose={() => setJoining(false)} onJoin={(f) => {
         setJoining(false);
         const war: WarRef = { id: f.war, name: f.name, host: "lan", base: f.base, computer: f.computer, key: f.key };
-        select({ id: f.war, name: f.name, host: "lan", base: f.base, computer: f.computer, model: knownModel(f.model), key: f.key, ownSaveOnly: !!f.ownSaveOnly, allowAchievements: !!f.allowAchievements }, false).then(() => { load(); setSource({ kind: "lan", war }); });
+        select({ id: f.war, name: f.name, host: "lan", base: f.base, computer: f.computer, model: knownModel(f.model), key: f.key, ownSaveOnly: !!f.ownSaveOnly, allowAchievements: !!f.allowAchievements }, false).then((ok) => { if (ok) { load(); setSource({ kind: "lan", war }); } });
       }} />}
     </>
   );
@@ -539,11 +543,7 @@ function JoinDialog({ blocked, onAllow, onClose, onJoin }: { blocked: boolean; o
     } catch (e) { notify("error", errorText(e)); }
     setAsking(false);
   }, [address, invite]);
-  useEffect(() => {
-    const key = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [onClose]);
+  useLayer(onClose);
   return createPortal(
     <div className="modal-back" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal cmd-join-dialog" role="dialog" aria-modal="true" aria-label={t("app.commander.joinLan")}>

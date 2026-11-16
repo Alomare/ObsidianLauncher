@@ -27,7 +27,7 @@ fn migrate(data: &Path) -> Result<()> {
     }
     std::fs::create_dir_all(dir(data))?;
     std::fs::rename(&old, path(data, DEFAULT))?;
-    std::fs::write(dir(data).join(ACTIVE), DEFAULT)?;
+    crate::paths::write_atomic(&dir(data).join(ACTIVE), DEFAULT.as_bytes())?;
     Ok(())
 }
 
@@ -120,7 +120,7 @@ pub fn create(data: &Path, name: &str, copy_of: Option<&str>) -> Result<()> {
             let src = find(data, src)?.ok_or_else(|| ObsidianError::ProfileMissing(src.to_string()))?;
             let from = path(data, &src);
             let text = if from.is_file() { std::fs::read_to_string(from)? } else { "{\"mods\":[]}\n".to_string() };
-            std::fs::write(path(data, name), text)?;
+            crate::paths::write_atomic(&path(data, name), text.as_bytes())?;
         }
         None => crate::starter::blank_profile(data)?.save_named(data, name)?,
     }
@@ -150,7 +150,7 @@ pub fn rename(data: &Path, from: &str, to: &str) -> Result<()> {
 /// Deletes a profile. The last one can't go; deleting the active one makes the first left active.
 pub fn delete(data: &Path, name: &str) -> Result<()> {
     let names = list(data)?;
-    let found = names.iter().find(|n| n.eq_ignore_ascii_case(name)).cloned().ok_or_else(|| ObsidianError::ProfileMissing(name.to_string()))?;
+    let found = find(data, name)?.ok_or_else(|| ObsidianError::ProfileMissing(name.to_string()))?;
     if names.len() == 1 {
         return Err(ObsidianError::LastProfile);
     }
@@ -176,7 +176,7 @@ pub fn set_color(data: &Path, name: &str, color: Option<&str>) -> Result<()> {
     p.color = color.map(str::to_ascii_lowercase);
     let file = path(data, &found);
     std::fs::create_dir_all(dir(data))?;
-    std::fs::write(file, serde_json::to_string_pretty(&p)? + "\n")?;
+    crate::paths::write_atomic(&file, (serde_json::to_string_pretty(&p)? + "\n").as_bytes())?;
     Ok(())
 }
 

@@ -122,6 +122,10 @@ impl Library {
     }
     /// Deletes a mod from the library. Profiles drop it at their next sync.
     pub fn remove(&self, id: &str) -> Result<()> {
+        // The id comes from the window: one that isn't a mod id can't name a folder to delete.
+        if !crate::manifest::is_valid_id(id) {
+            return Err(ObsidianError::ModMissing(id.to_string()));
+        }
         let dir = self.mod_dir(id);
         if !dir.join(FILE).is_file() {
             return Err(ObsidianError::ModMissing(id.to_string()));

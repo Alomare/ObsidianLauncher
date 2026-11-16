@@ -32,6 +32,7 @@ local function wrap(h, target, original)
 		if at then profiler.leave(at) end
 		return B.unpack(results, 1, results.n)
 	end
+	local closed = h.closed
 	target[h.method] = function(...)
 		if (state and state.off) or (gated and not session.allows(state, h.part)) then return original(...) end
 		local outer_ran, outer_results = ran, results
@@ -45,6 +46,9 @@ local function wrap(h, target, original)
 			if got then return B.unpack(got, 1, got.n) end
 			return
 		end
+		-- A guardrail that fails keeps the game's function from running: a write it should have held
+		-- back must not go through because of an error.
+		if closed then return end
 		return original(...)
 	end
 	return target[h.method]
@@ -141,9 +145,10 @@ function M.wrap(target, method, fn)
 	if not install(h) then B.insert(M.pending, h) end
 end
 
--- A hook owned by the loader itself (guardrails, game texts).
-function M.loader_hook(target, method, fn)
-	local h = { state = nil, loader = true, target = target, method = method, fn = fn }
+-- A hook owned by the loader itself (guardrails, game texts). opts.closed: when the hook fails, the
+-- game's function does not run either (for the guardrails).
+function M.loader_hook(target, method, fn, opts)
+	local h = { state = nil, loader = true, target = target, method = method, fn = fn, closed = B.type(opts) == "table" and opts.closed == true }
 	if not install(h) then B.insert(M.pending, h) end
 end
 
@@ -187,7 +192,10 @@ local function install_frame()
 	B.rawset(B.G, "update", function(...)
 		if profiler.on then profiler.frame() end
 		local r = pack(update(...))
-		for i = 1, #fns do B.pcall(fns[i]) end
+		for i = 1, #fns do
+			local ok, err = B.pcall(fns[i])
+			if not ok then log.limited("frame " .. i, "error obsidian.loader frame " .. i .. ": " .. B.tostring(err)) end
+		end
 		return B.unpack(r, 1, r.n)
 	end)
 	-- The boot script defines shutdown before update. A log that says it was watching and never says

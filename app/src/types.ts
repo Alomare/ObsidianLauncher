@@ -47,6 +47,8 @@ export type Snapshot = {
   mods: ModRow[]; folders: Folder[]; profile: string; profiles: string[]; profileRows: ProfileRow[]; blockPublic: boolean; blockAchievements: boolean; freezeProgress: boolean; hideClientMods: boolean; loader: boolean; sandbox: string | null; conflicts: ConflictRow[];
   changes: ChangesWaiting; deployed: boolean; modded: boolean; game: GameState; gameChanges: { path: string; missing: boolean }[]; gameDir: string | null; crashCulprit: string | null; broken: { folder: string; reason: string }[]; damagedProfiles: string[]; uncleanEnd: { stamp: number; last: string } | null;
   portable: boolean; version: string;
+  /** Grows with each snapshot the Rust side builds, so an older one arriving late can be told apart. */
+  rev?: number;
 };
 
 export type AppSettings = {

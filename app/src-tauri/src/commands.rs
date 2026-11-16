@@ -30,7 +30,17 @@ pub struct Ctx {
 
 impl Ctx {
     pub(crate) fn turn(&self) -> std::sync::MutexGuard<'_, ()> {
-        self.work.lock().unwrap_or_else(|p| p.into_inner())
+        blocking(|| self.work.lock().unwrap_or_else(|p| p.into_inner()))
+    }
+}
+
+/// Runs `f`, which blocks (a lock to wait for, a download), telling the async runtime first, so the
+/// worker's other tasks move to another thread: every command is async, and a deploy plus a few
+/// waiting clicks would otherwise hold every worker. Outside a multi-thread runtime (tests), it just runs.
+pub(crate) fn blocking<T>(f: impl FnOnce() -> T) -> T {
+    match tokio::runtime::Handle::try_current() {
+        Ok(h) if h.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => tokio::task::block_in_place(f),
+        _ => f(),
     }
 }
 
@@ -534,7 +544,7 @@ pub async fn mod_releases(ctx: State<'_, Ctx>, id: String, page: u32) -> CmdResu
         load_manifest(&Library::open(&ctx.data)?.mod_dir(&id))?
     };
     let Some(repo) = updates::source_of(&m) else { return Ok(ReleasePage { releases: Vec::new(), more: false }) };
-    let (releases, more) = GitHub::default().releases_page_with(&repo, page, 30, true)?;
+    let (releases, more) = blocking(|| GitHub::default().releases_page_with(&repo, page, 30, true))?;
     Ok(ReleasePage { releases, more })
 }
 
@@ -544,10 +554,12 @@ pub async fn mod_releases(ctx: State<'_, Ctx>, id: String, page: u32) -> CmdResu
 pub async fn install_mod_version(ctx: State<'_, Ctx>, id: String, tag: String) -> CmdResult<ImportBatch> {
     let current = {
         let _turn = ctx.turn();
-        load_manifest(&Library::open(&ctx.data)?.mod_dir(&id))?
+        installed_manifest(&ctx, &id)?
     };
-    let staged = updates::stage_tag(&GitHub::default(), &current, &tag)?;
+    let staged = blocking(|| updates::stage_tag(&GitHub::default(), &current, &tag))?;
     let _turn = ctx.turn();
+    // Removed while it downloaded: the update must not bring it back.
+    installed_manifest(&ctx, &id)?;
     staged.install(&Library::open(&ctx.data)?)?;
     with_profile(&ctx.data, |_| Ok(()))?;
     let result = ImportResult {
@@ -574,7 +586,7 @@ pub async fn check_mod_updates(ctx: State<'_, Ctx>, ids: Vec<String>, fresh: Opt
     };
     mods.retain(|m| ids.contains(&m.id));
     let trust = (!fresh.unwrap_or(true)).then_some(updates::TRUST_SECS);
-    let checked = updates::check_remembering(&GitHub::default(), &mods, &ctx.data.join(updates::MEMORY_FILE), trust, updates::now_secs());
+    let checked = blocking(|| updates::check_remembering(&GitHub::default(), &mods, &ctx.data.join(updates::MEMORY_FILE), trust, updates::now_secs()));
     Ok(checked
         .into_iter()
         .map(|c| match c.result {
@@ -584,16 +596,31 @@ pub async fn check_mod_updates(ctx: State<'_, Ctx>, ids: Vec<String>, fresh: Opt
         .collect())
 }
 
+/// The manifest of mod `id` in the library, under a turn the caller holds. An id from the window that
+/// isn't a mod id names no folder.
+fn installed_manifest(ctx: &Ctx, id: &str) -> CmdResult<obsidian_core::manifest::Manifest> {
+    if !obsidian_core::manifest::is_valid_id(id) {
+        return Err(obsidian_core::ObsidianError::ModMissing(id.to_string()).into());
+    }
+    let dir = Library::open(&ctx.data)?.mod_dir(id);
+    if !dir.is_dir() {
+        return Err(obsidian_core::ObsidianError::ModMissing(id.to_string()).into());
+    }
+    Ok(load_manifest(&dir)?)
+}
+
 /// Installs the latest release of a mod. The download runs outside the turn, as in
 /// `check_mod_updates`, and the mod is replaced at the end.
 #[tauri::command]
 pub async fn update_mod(ctx: State<'_, Ctx>, id: String) -> CmdResult<ImportBatch> {
     let current = {
         let _turn = ctx.turn();
-        load_manifest(&Library::open(&ctx.data)?.mod_dir(&id))?
+        installed_manifest(&ctx, &id)?
     };
-    let staged = updates::stage(&GitHub::default(), &current)?;
+    let staged = blocking(|| updates::stage(&GitHub::default(), &current))?;
     let _turn = ctx.turn();
+    // Removed while it downloaded: the update must not bring it back.
+    installed_manifest(&ctx, &id)?;
     staged.install(&Library::open(&ctx.data)?)?;
     with_profile(&ctx.data, |_| Ok(()))?;
     let result = ImportResult {
@@ -612,7 +639,7 @@ pub async fn update_mod(ctx: State<'_, Ctx>, id: String) -> CmdResult<ImportBatc
 /// GitHub is out of reach. Touches nothing in the library, so it takes no turn.
 #[tauri::command]
 pub async fn store_index(ctx: State<'_, Ctx>) -> CmdResult<obsidian_core::store::StoreIndex> {
-    let mut index = obsidian_core::store::fetch(&ctx.data)?;
+    let mut index = blocking(|| obsidian_core::store::fetch(&ctx.data))?;
     // Early access mods: only those GitHub lets the signed-in player read, and only with that access granted.
     let private = obsidian_core::github::has_scope(&ctx.data, obsidian_core::github::PRIVATE);
     let client = obsidian_core::github::Client::new();
@@ -628,7 +655,7 @@ pub async fn store_index(ctx: State<'_, Ctx>) -> CmdResult<obsidian_core::store:
 #[tauri::command]
 pub async fn store_install(ctx: State<'_, Ctx>, id: String) -> CmdResult<ImportBatch> {
     let entry = obsidian_core::store::find(&ctx.data, &id)?;
-    let staged = obsidian_core::store::stage(&GitHub::default(), &entry)?;
+    let staged = blocking(|| obsidian_core::store::stage(&GitHub::default(), &entry))?;
     let _turn = ctx.turn();
     let outcome = staged.install(&Library::open(&ctx.data)?)?;
     with_profile(&ctx.data, |_| Ok(()))?;

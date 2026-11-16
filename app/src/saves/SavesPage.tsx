@@ -8,7 +8,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { useCallback, useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { deployLoader } from "../actions";
 import { call, errorText, setSnapshot, taskText } from "../api";
-import { withTask } from "../busy";
+import { isLocked, withTask } from "../busy";
 import { Confirm } from "../Confirm";
 import { ContextMenu, type MenuItem } from "../ContextMenu";
 import { CheckIcon, ChevronIcon, CloseIcon, CopyIcon, CubeIcon, DeployIcon, ExportIcon, ImportIcon, PenIcon, PlusIcon, ResetIcon, SaveIcon, SlidersIcon, StarIcon, TrashIcon, UpdateIcon, WarnIcon } from "../Icons";
@@ -23,6 +23,7 @@ import { checkable, checkAll, checkedRows, deletable, inFolder, zipNames } from 
 import { DeleteOfficial } from "./DeleteOfficial";
 import { SaveEditor } from "./Editor";
 import { fileSafe, playTime } from "./logic";
+import { reloadChoices } from "../commander/choices";
 import type { SaveImported, SaveKind, SaveList, SaveRow, SavesDone } from "./types";
 
 type Ask =
@@ -89,12 +90,18 @@ export function SavesPage({ snap, visible, home = 0 }: { snap: Snapshot; visible
   };
   useListKeys(visible && !editing, { selectAll: () => setChecked((c) => checkAll(shownChecks(), c)) });
 
+  // Each read of the list is numbered: one that comes back after a newer read, or after an action that
+  // brought its own list, is dropped, so an older list never covers a newer one.
+  const reads = useRef(0);
   const load = useCallback(async () => {
+    const n = ++reads.current;
     try {
-      setList(await call<SaveList>("saves_list"));
+      const got = await call<SaveList>("saves_list");
+      if (n !== reads.current) return;
+      setList(got);
       setFailed(null);
     } catch (e) {
-      setFailed(errorText(e));
+      if (n === reads.current) setFailed(errorText(e));
     }
   }, []);
   // Again when the tab comes back and when the game stops: the game writes the saves.
@@ -103,10 +110,14 @@ export function SavesPage({ snap, visible, home = 0 }: { snap: Snapshot; visible
   const close = useCallback(() => setAsk(null), []);
 
   const mutate = async (cmd: string, args: Record<string, unknown>, done?: string) => {
+    // A deploy or another save action under way: the save files are not to be touched now.
+    if (isLocked()) return false;
     try {
       const r = await withTask(taskText(cmd), () => call<SavesDone>(cmd, args), true);
+      reads.current++;
       setSnapshot(r.snapshot);
       setList(r.saves);
+      reloadChoices();
       if (done) notify("info", done);
       return true;
     } catch (e) {

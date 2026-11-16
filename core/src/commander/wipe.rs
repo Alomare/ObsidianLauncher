@@ -633,8 +633,10 @@ mod tests {
     fn a_war_save_left_selected_goes_when_the_saves_do() {
         let w = world();
         let side = played(&w);
+        assert!(settings_war(&side).is_some());
         // Forgetting the war clears the selection and leaves the war save selected.
-        forget(&w.data, "k3x9q2").unwrap();
+        forget(&w.data, Some(&w.saves()), "k3x9q2").unwrap();
+        assert_eq!(settings_war(&side), None, "the settings file loses the war line");
         let mut state = State::load(&w.data);
         state.upsert(WarRef { save: crate::saves::active_sandbox(&w.data), ..lan_war() });
         state.save(&w.data).unwrap();

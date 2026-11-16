@@ -1,8 +1,8 @@
 // What the Play button starts: the official war or a custom war (Commander), with the mods of the last
 // deploy or none. The wars come from `commander_choices`, read again whenever something may have
 // changed them; the Play choice dialog sets the war and the save.
-import { useSyncExternalStore } from "react";
 import { call } from "../api";
+import { createStore } from "../store";
 import { t } from "../i18n";
 
 export type WarChoice = {
@@ -17,22 +17,17 @@ export type WarChoice = {
 /** `saves`: how many saves the account has. */
 export type Choices = { playing: string | null; wars: WarChoice[]; saves?: number };
 
-let choices: Choices | null = null;
-const subs = new Set<() => void>();
+const store = createStore<Choices | null>(null);
 
 /** Reads the wars again. A failure keeps what was there: the button then shows the last known war. */
 export async function reloadChoices() {
   try {
     const c = await call<Choices>("commander_choices");
-    if (c && Array.isArray(c.wars)) {
-      choices = c;
-      subs.forEach((f) => f());
-    }
+    if (c && Array.isArray(c.wars)) store.set(c);
   } catch { /* the Play button works without Commander */ }
 }
 
-export const useChoices = () =>
-  useSyncExternalStore((f) => { subs.add(f); return () => { subs.delete(f); }; }, () => choices);
+export const useChoices = () => store.use();
 
 /** The war the next launch plays, when it is a custom war this PC still knows. */
 export const playingWar = (c: Choices | null) => (c?.playing ? c.wars.find((w) => w.id === c.playing) ?? null : null);

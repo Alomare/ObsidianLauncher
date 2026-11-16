@@ -9,6 +9,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ChevronIcon } from "./Icons";
+import { useLayer } from "./Modal";
 import { CustomSwatch } from "./mods/FolderDialog";
 
 export type MenuItem =
@@ -26,16 +27,13 @@ export function ContextMenu({ x, y, up, items, onClose, opener, label }: Props) 
       const at = e.target as Element;
       if (!at.closest?.(".ctx") && !(opener && opener.contains(at))) close.current();
     };
-    const key = (e: KeyboardEvent) => e.key === "Escape" && close.current();
     const gone = () => close.current();
     document.addEventListener("pointerdown", away, true);
-    window.addEventListener("keydown", key);
     window.addEventListener("blur", gone);
     window.addEventListener("resize", gone);
     document.addEventListener("scroll", gone, true);
     return () => {
       document.removeEventListener("pointerdown", away, true);
-      window.removeEventListener("keydown", key);
       window.removeEventListener("blur", gone);
       window.removeEventListener("resize", gone);
       document.removeEventListener("scroll", gone, true);
@@ -43,6 +41,7 @@ export function ContextMenu({ x, y, up, items, onClose, opener, label }: Props) 
       if (opener?.isConnected && (!document.activeElement || document.activeElement === document.body)) opener.focus({ preventScroll: true });
     };
   }, [opener]);
+  useLayer(() => close.current());
   return createPortal(<Menu x={x} y={y} up={up} items={items} onClose={onClose} label={label} root />, document.body);
 }
 

@@ -1,26 +1,19 @@
 // The binds of one mod, to change: one row per action with its key, its controller input and how it
 // fires (tap, double tap, press, long press, release). Every change applies at once, as in the drawer.
-import { useEffect } from "react";
-import { createPortal } from "react-dom";
 import { run } from "../api";
 import { CloseIcon, GamepadIcon, KeyboardMouseIcon, ResetIcon } from "../Icons";
 import { pick, t } from "../i18n";
+import { Modal } from "../Modal";
 import { PadGlyph } from "../pad/PadGlyph";
 import { Select } from "../Select";
 import { INPUT_MODES, type KeyRow, type ModRow } from "../types";
 import { KeyButton, PadButtonInput, modeName } from "./BindControls";
 
 export function BindsDialog({ mod, names, onClose }: { mod: ModRow; names: Map<string, string>; onClose: () => void }) {
-  useEffect(() => {
-    const key = (e: KeyboardEvent) => e.key === "Escape" && !e.defaultPrevented && onClose();
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [onClose]);
   const name = pick(mod.name, mod.id);
   const modes = INPUT_MODES.map((m) => ({ value: m, label: modeName(m) }));
-  return createPortal(
-    <div className="modal-back" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal binds" role="dialog" aria-modal="true" aria-label={t("app.binds.title", name)}>
+  return (
+    <Modal className="modal binds" label={t("app.binds.title", name)} onClose={onClose}>
         <div className="head">
           <h2 className="cap">{t("app.binds.title", name)}</h2>
           <button data-pad-back className="bare close" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /><PadGlyph role="east" /></button>
@@ -59,8 +52,6 @@ export function BindsDialog({ mod, names, onClose }: { mod: ModRow; names: Map<s
           })}
         </div>
         <p className="binds-note muted">{t("app.binds.note")}</p>
-      </div>
-    </div>,
-    document.body,
+    </Modal>
   );
 }

@@ -11,6 +11,7 @@ import { Confirm } from "../Confirm";
 import { CheckIcon, CubeIcon, StarIcon } from "../Icons";
 import { t } from "../i18n";
 import { notify } from "../notices";
+import { useLayer } from "../Modal";
 import type { SaveList, SaveRow } from "../saves/types";
 import type { Snapshot } from "../types";
 import { reloadChoices, type Choices, type WarChoice } from "./choices";
@@ -54,11 +55,7 @@ export function PlayChoice({ snap, choices, onClose }: { snap: Snapshot; choices
   useEffect(() => {
     call<SaveList>("saves_list").then(setList).catch((e) => setFailed(errorText(e)));
   }, []);
-  useEffect(() => {
-    const key = (e: KeyboardEvent) => e.key === "Escape" && !ask && onClose();
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [onClose, ask]);
+  useLayer(() => { if (!ask) onClose(); });
 
   const chosen = war ? choices.wars.find((w) => w.id === war) ?? null : null;
   const saves: SaveRow[] = useMemo(() => (!list ? [] : chosen ? warSaves(list, chosen) : vanillaSaves(list)), [list, chosen]);

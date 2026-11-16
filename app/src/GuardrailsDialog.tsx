@@ -2,11 +2,10 @@
 // One keeps other players' session mods out of a public lobby; two protect the player's own account:
 // achievements and progression; one keeps client mods off the lobby list. All start off. The loader reads
 // them when the game starts, so a change applies at the next launch.
-import { useEffect } from "react";
-import { createPortal } from "react-dom";
 import { run } from "./api";
 import { CloseIcon, ShieldIcon } from "./Icons";
 import { t } from "./i18n";
+import { Modal } from "./Modal";
 import type { Snapshot } from "./types";
 import { PadGlyph } from "./pad/PadGlyph";
 
@@ -29,15 +28,9 @@ export function guardrailsSummary(snap: Snapshot): string {
 }
 
 export function GuardrailsDialog({ snap, onClose }: { snap: Snapshot; onClose: () => void }) {
-  useEffect(() => {
-    const key = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [onClose]);
   // On the body, as every overlay is: inside the navigation bar, the Mods page's drawer would paint over it.
-  return createPortal(
-    <div className="modal-back" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal guardrails" role="dialog" aria-modal="true" aria-label={t("app.guardrails.title")}>
+  return (
+    <Modal className="modal guardrails" label={t("app.guardrails.title")} onClose={onClose}>
         <div className="head">
           <h2 className="cap"><ShieldIcon filled={guardsOn(snap) > 0} />{t("app.guardrails.title")}</h2>
           <button data-pad-back className="bare close" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /><PadGlyph role="east" /></button>
@@ -59,8 +52,6 @@ export function GuardrailsDialog({ snap, onClose }: { snap: Snapshot; onClose: (
           })}
         </ul>
         <p className="muted guard-note">{t("app.guardrails.always")}</p>
-      </div>
-    </div>,
-    document.body,
+    </Modal>
   );
 }

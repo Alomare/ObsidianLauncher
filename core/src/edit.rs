@@ -19,8 +19,13 @@ pub enum Applies {
     AfterDeploy,
 }
 
+/// The manifest of one mod, read from its folder alone rather than the whole library.
 fn manifest(lib: &Library, id: &str) -> Result<Manifest> {
-    lib.list()?.into_iter().find(|m| m.id == id).ok_or_else(|| ObsidianError::ModMissing(id.to_string()))
+    let missing = || ObsidianError::ModMissing(id.to_string());
+    if !crate::manifest::is_valid_id(id) {
+        return Err(missing());
+    }
+    crate::manifest::load_manifest(&lib.mod_dir(id)).ok().filter(|m| m.id == id).ok_or_else(missing)
 }
 
 /// Sets an option to `value`, or back to the default when `value` is `None`.
@@ -52,22 +57,25 @@ pub fn set_option_of(m: &Manifest, profile: &mut Profile, option: &str, value: O
     Ok(if m.option_needs_deploy(spec, &values) { Applies::AfterDeploy } else { Applies::NextLaunch })
 }
 
-/// Binds a keybind to `key`, or back to the mod's default when `key` is `None`.
-pub fn set_key(lib: &Library, profile: &mut Profile, id: &str, keybind: &str, key: Option<&str>) -> Result<()> {
+type BindMap = std::collections::BTreeMap<String, std::collections::BTreeMap<String, String>>;
+
+/// The keybind `keybind` of mod `id`, checked to exist, then `value` set in `map` (a field of the
+/// profile), or taken out when `None`, an emptied mod entry with it. `ok` checks a value.
+fn set_bind(lib: &Library, map: &mut BindMap, id: &str, keybind: &str, value: Option<&str>, ok: impl Fn(&str) -> bool) -> Result<()> {
     let m = manifest(lib, id)?;
     if !parse_keybinds(&m.keybinds)?.iter().any(|k| k.id == keybind) {
         return Err(ObsidianError::UnknownKeybind { mod_id: id.into(), keybind: keybind.into() });
     }
-    match key {
-        Some(k) if crate::options::is_key_name(k) => {
-            profile.keys.entry(id.to_string()).or_default().insert(keybind.to_string(), k.to_string());
+    match value {
+        Some(v) if !ok(v) => return Err(ObsidianError::BadOptionValue { option: keybind.into(), value: v.into() }),
+        Some(v) => {
+            map.entry(id.to_string()).or_default().insert(keybind.to_string(), v.to_string());
         }
-        Some(k) => return Err(ObsidianError::BadOptionValue { option: keybind.into(), value: k.into() }),
         None => {
-            if let Some(keys) = profile.keys.get_mut(id) {
-                keys.remove(keybind);
-                if keys.is_empty() {
-                    profile.keys.remove(id);
+            if let Some(set) = map.get_mut(id) {
+                set.remove(keybind);
+                if set.is_empty() {
+                    map.remove(id);
                 }
             }
         }
@@ -75,53 +83,25 @@ pub fn set_key(lib: &Library, profile: &mut Profile, id: &str, keybind: &str, ke
     Ok(())
 }
 
+/// Binds a keybind to `key`, or back to the mod's default when `key` is `None`.
+pub fn set_key(lib: &Library, profile: &mut Profile, id: &str, keybind: &str, key: Option<&str>) -> Result<()> {
+    set_bind(lib, &mut profile.keys, id, keybind, key, crate::options::is_key_name)
+}
+
 /// Sets how a keybind fires (`crate::options::INPUT_MODES`), or back to press when `mode` is `None`.
+/// Press is the default, so it is kept out of the profile.
 pub fn set_mode(lib: &Library, profile: &mut Profile, id: &str, keybind: &str, mode: Option<&str>) -> Result<()> {
-    let m = manifest(lib, id)?;
-    if !parse_keybinds(&m.keybinds)?.iter().any(|k| k.id == keybind) {
-        return Err(ObsidianError::UnknownKeybind { mod_id: id.into(), keybind: keybind.into() });
+    if mode.is_some_and(|x| !crate::options::INPUT_MODES.contains(&x)) {
+        return set_bind(lib, &mut profile.modes, id, keybind, mode, |_| false);
     }
-    match mode {
-        Some(x) if !crate::options::INPUT_MODES.contains(&x) => {
-            return Err(ObsidianError::BadOptionValue { option: keybind.into(), value: x.into() });
-        }
-        Some(x) if x != crate::options::INPUT_MODES[0] => {
-            profile.modes.entry(id.to_string()).or_default().insert(keybind.to_string(), x.to_string());
-        }
-        _ => {
-            if let Some(modes) = profile.modes.get_mut(id) {
-                modes.remove(keybind);
-                if modes.is_empty() {
-                    profile.modes.remove(id);
-                }
-            }
-        }
-    }
-    Ok(())
+    let mode = mode.filter(|x| *x != crate::options::INPUT_MODES[0]);
+    set_bind(lib, &mut profile.modes, id, keybind, mode, |_| true)
 }
 
 /// Sets the controller input of a keybind (`crate::options::is_pad_combo`), or none when `combo` is `None`:
 /// then the mod's own controller input, if it has one, stays.
 pub fn set_pad(lib: &Library, profile: &mut Profile, id: &str, keybind: &str, combo: Option<&str>) -> Result<()> {
-    let m = manifest(lib, id)?;
-    if !parse_keybinds(&m.keybinds)?.iter().any(|k| k.id == keybind) {
-        return Err(ObsidianError::UnknownKeybind { mod_id: id.into(), keybind: keybind.into() });
-    }
-    match combo {
-        Some(c) if crate::options::is_pad_combo(c) => {
-            profile.pads.entry(id.to_string()).or_default().insert(keybind.to_string(), c.to_string());
-        }
-        Some(c) => return Err(ObsidianError::BadOptionValue { option: keybind.into(), value: c.into() }),
-        None => {
-            if let Some(pads) = profile.pads.get_mut(id) {
-                pads.remove(keybind);
-                if pads.is_empty() {
-                    profile.pads.remove(id);
-                }
-            }
-        }
-    }
-    Ok(())
+    set_bind(lib, &mut profile.pads, id, keybind, combo, crate::options::is_pad_combo)
 }
 
 /// Writes the profile's consent, guardrails, option values and keys where the loader reads them.

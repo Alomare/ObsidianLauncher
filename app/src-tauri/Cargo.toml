@@ -16,6 +16,8 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 obsidian-core = { path = "../../core" }
 tauri = { version = "2.12", features = ["protocol-asset"] }
+# Already in the tree through tauri: block_in_place, so a command waiting on a lock frees its worker.
+tokio = { version = "1", features = ["rt-multi-thread"] }
 tauri-plugin-dialog = "2.8"
 tauri-plugin-opener = "2.7"
 tauri-plugin-single-instance = "2.5"

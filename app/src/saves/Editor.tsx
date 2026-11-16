@@ -56,12 +56,19 @@ export function SaveEditor({ id, snap, onClose, startRename = false, home = 0 }:
   const undo: Undo = { pending, revert };
   const running = snap.game === "running";
 
-  const write = async (edits: Edit[], done: string) => {
+  /** Writes `edits`. `sent` is the set of waiting edits they came from: only those leave the list, so a
+   *  change made while the write runs stays waiting. Without it (a bulk action) every waiting edit goes. */
+  const write = async (edits: Edit[], done: string, sent?: Map<string, Edit>) => {
     setSaving(true);
     try {
       const fresh = await withTask(t("app.task.saves_apply_edits"), () => call<EditorState>("saves_apply_edits", { id, edits }), true);
       setBase(fresh);
-      setPending(new Map());
+      setPending((p) => {
+        if (!sent) return new Map();
+        const next = new Map(p);
+        for (const [k, v] of sent) if (next.get(k) === v) next.delete(k);
+        return next;
+      });
       notify("info", done);
     } catch (e) {
       notify("error", errorText(e));
@@ -76,7 +83,7 @@ export function SaveEditor({ id, snap, onClose, startRename = false, home = 0 }:
     try {
       const r = await withTask(taskText("saves_rename"), () => call<SavesDone>("saves_rename", { id, name }), true);
       setSnapshot(r.snapshot);
-      setBase({ ...base, name });
+      setBase((b) => (b ? { ...b, name } : b));
       return true;
     } catch (e) {
       notify("error", errorText(e));
@@ -134,7 +141,7 @@ export function SaveEditor({ id, snap, onClose, startRename = false, home = 0 }:
           {count > 0 && <span className="ed-dirty">{t(count === 1 ? "app.saves.unsavedOne" : "app.saves.unsaved", count)}</span>}
           <button className="btn icon head-tool" disabled={!count || saving} onClick={() => setPending(new Map())} aria-label={t("app.saves.discard")}
             data-tip-title={t("app.saves.discard")} data-tip={t("app.saves.discardHint")}><ResetIcon /></button>
-          <button className="btn go head-tool" disabled={!count || !canWrite} onClick={() => write([...pending.values()], t("app.saves.written"))}
+          <button className="btn go head-tool" disabled={!count || !canWrite} onClick={() => write([...pending.values()], t("app.saves.written"), pending)}
             data-tip={running ? t("app.action.closeGameFirst") : undefined}><CheckIcon /><span className="label">{t("app.saves.save")}</span></button>
         </div>
       </div>
