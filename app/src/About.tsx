@@ -11,6 +11,8 @@ const CREDITS: { name: string; by: string; url: string; license: string; what: s
   { name: "LuaJIT", by: "Mike Pall", url: "https://luajit.org", license: "MIT", what: "app.about.forLuajit" },
   { name: "Saira", by: "Omnibus-Type", url: "https://fonts.google.com/specimen/Saira", license: "OFL 1.1", what: "app.about.forSaira" },
   { name: "Barlow", by: "Jeremy Tribby", url: "https://fonts.google.com/specimen/Barlow", license: "OFL 1.1", what: "app.about.forBarlow" },
+  { name: "Exo 2", by: "Natanael Gama", url: "https://fonts.google.com/specimen/Exo+2", license: "OFL 1.1", what: "app.about.forExo2" },
+  { name: "Fira Sans", by: "Mozilla", url: "https://fonts.google.com/specimen/Fira+Sans", license: "OFL 1.1", what: "app.about.forFira" },
   { name: "Tauri", by: "Tauri Programme", url: "https://tauri.app", license: "MIT / Apache 2.0", what: "app.about.forTauri" },
   { name: "HELLDIVERS UI concept", by: "Steven Webb", url: "https://stevenwebbdesign.com/helldivers", license: "", what: "app.about.forConcept" },
 ];

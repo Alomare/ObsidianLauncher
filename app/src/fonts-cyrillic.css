@@ -1,0 +1,20 @@
+/* Cyrillic beside the two fonts of the app, which have none: Exo 2 beside Saira (headings, buttons,
+   tabs) and Fira Sans beside Barlow (body text). Each font-family list names them right after the
+   Latin font, so Latin letters keep Saira and Barlow and only Cyrillic letters come from these. Only
+   the Cyrillic files are bundled. Both are under the SIL Open Font License 1.1. */
+@font-face {
+  font-family: "Exo 2 Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url(@fontsource-variable/exo-2/files/exo-2-cyrillic-wght-normal.woff2) format("woff2-variations");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: "Exo 2 Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url(@fontsource-variable/exo-2/files/exo-2-cyrillic-ext-wght-normal.woff2) format("woff2-variations");
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}

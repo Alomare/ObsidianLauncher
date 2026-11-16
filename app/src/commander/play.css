@@ -51,7 +51,7 @@
 .pc-icon svg { width: 1rem; height: 1rem; }
 .pc-meta { font-size: var(--fs-sm); color: var(--mu); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The rank of a save, at the right end of the card. */
-.pc-side { flex: none; font-family: "Saira Variable", sans-serif; font-size: var(--fs-md); font-weight: 500; font-variant-numeric: tabular-nums; color: var(--mu); white-space: nowrap; }
+.pc-side { flex: none; font-family: "Saira Variable", "Exo 2 Variable", sans-serif; font-size: var(--fs-md); font-weight: 500; font-variant-numeric: tabular-nums; color: var(--mu); white-space: nowrap; }
 .pc-row.on .pc-side { color: var(--tx); }
 .pc-empty { padding: 1rem 0.5rem; text-align: center; color: var(--mu); font-size: var(--fs-md); line-height: 1.45; }
 .pc-note { margin: 0; font-size: var(--fs-sm); line-height: 1.45; color: var(--mu); }

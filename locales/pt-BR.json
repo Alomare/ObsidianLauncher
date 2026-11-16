@@ -3,6 +3,8 @@
   "app.about.by": "por %s",
   "app.about.credits": "Créditos",
   "app.about.forBarlow": "Fonte do texto.",
+  "app.about.forExo2": "Letras cirílicas da fonte dos títulos.",
+  "app.about.forFira": "Letras cirílicas da fonte do texto.",
   "app.about.forConcept": "O visual da interface.",
   "app.about.forLuajit": "Compila os scripts dos mods em código que o jogo executa.",
   "app.about.forSaira": "Fonte dos títulos.",

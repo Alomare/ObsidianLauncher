@@ -3,6 +3,8 @@
   "app.about.by": "автор: %s",
   "app.about.credits": "Благодарности",
   "app.about.forBarlow": "Шрифт текста.",
+  "app.about.forExo2": "Кириллица шрифта заголовков.",
+  "app.about.forFira": "Кириллица шрифта текста.",
   "app.about.forConcept": "Внешний вид интерфейса.",
   "app.about.forLuajit": "Компилирует скрипты модов в код, который выполняет игра.",
   "app.about.forSaira": "Шрифт заголовков.",

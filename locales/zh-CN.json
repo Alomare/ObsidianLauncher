@@ -3,6 +3,8 @@
   "app.about.by": "作者：%s",
   "app.about.credits": "致谢",
   "app.about.forBarlow": "正文字体。",
+  "app.about.forExo2": "标题字体的西里尔字母。",
+  "app.about.forFira": "正文字体的西里尔字母。",
   "app.about.forConcept": "界面外观。",
   "app.about.forLuajit": "把模组脚本编译成游戏能运行的代码。",
   "app.about.forSaira": "标题字体。",

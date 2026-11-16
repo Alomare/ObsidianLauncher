@@ -33,7 +33,7 @@ const XBOX_FACE: Record<Face, string> = { a: "#2fb889", b: "#f2574b", x: "#4a90d
 const PS_FACE: Record<Face, string> = { a: "#7ca3d6", b: "#e5636b", x: "#d48ac0", y: "#3fb3a4" };
 
 const LINE = { fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinejoin: "round" } as const;
-const FONT = { fontFamily: '"Saira Variable", Saira, sans-serif' };
+const FONT = { fontFamily: '"Saira Variable", "Exo 2 Variable", Saira, sans-serif' };
 
 function Label({ x, y, size, children }: { x: number; y: number; size: number; children: string }) {
   return <text x={x} y={y} fontSize={size} fontWeight={700} textAnchor="middle" fill="currentColor" stroke="none" style={FONT}>{children}</text>;
