@@ -6349,6 +6349,31 @@ test("a_saved_loadout_that_holds_a_hidden_stratagem_swaps_that_entry_only", func
 	E.eq(out.stratagems[1], "stratagem_jumppack")
 end)
 
+-- A low-rank player whose loadout holds every stratagem they have: nothing can take the hidden one's
+-- place. Taking it out moved the later picks up and left the last slot empty, which other players
+-- saw as a missing 4th stratagem.
+test("a_hidden_stratagem_with_no_replacement_keeps_its_slot", function()
+	local api, game, e = start()
+	wire_world(game)
+	local seen = hide_world(e)
+	local s = rawget(_G, "LoadoutSettings")
+	local list = { "stratagem_reinforce", "stratagem_resupply" }
+	for _, item in ipairs(s.stratagems) do
+		local n = item.name
+		if n ~= "stratagem_resupply" and n ~= "stratagem_reinforce" and api.catalog.unlocked(n) then list[#list + 1] = n end
+	end
+	local want = table.concat(list, ",")
+	game.save.user.loadouts = { { stratagems = list } }
+	E.eq(api.stratagems.hide("stratagem_resupply"), true)
+	rawget(_G, "MenuScreenLoadout").setup_loadout({ parent = { players = { { pad_number = 1 } } } }, 1)
+	E.eq(table.concat(seen()[1].stratagems, ","), want, "every pick keeps its slot")
+	local out = rawget(_G, "Boot").ensure_loadout(1, { stratagems = { "stratagem_resupply", list[3] } })
+	E.eq(#out.stratagems, 2, "nothing taken out")
+	local defaults = table.concat(s.default_loadouts[1].stratagems, ",")
+	E.eq(#s.default_loadouts[1].stratagems, 2, "the default loadouts keep their length: " .. defaults)
+	api.stratagems.unhide("stratagem_resupply")
+end)
+
 test("hiding_is_checked_and_a_client_mod_cant", function()
 	local api, game, e = start()
 	wire_world(game)
