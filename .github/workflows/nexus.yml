@@ -29,7 +29,7 @@ concurrency:
 
 env:
   NEXUS_MOD_ID: '15255723835408'   # the Unique Mod ID (Files tab, Advanced)
-  LINUX_FILE_ID: ''                # the API File ID of the Linux ZIP on the page; empty skips its upload
+  LINUX_FILE_ID: '8408109'         # the API File ID of the Linux ZIP on the page; empty skips its upload
   TAG: ${{ github.event.release.tag_name || inputs.tag }}
 
 jobs:
