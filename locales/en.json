@@ -373,6 +373,8 @@
   "app.status.noNotifications": "No notifications yet.",
   "app.status.notifications": "Notifications",
   "app.status.notificationsHint": "Notices shown so far",
+  "app.status.reportIssue": "Report Issue",
+  "app.status.reportIssueHint": "Opens the issue forms of Obsidian on GitHub",
   "app.status.updateFound": "A new version is available",
   "app.status.updates": "Version and updates",
   "app.task.check_game": "Checking the game files...",

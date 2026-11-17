@@ -2,6 +2,8 @@
 export const LINKS = {
   repo: "https://github.com/Alomare/ObsidianLauncher",
   releases: "https://github.com/Alomare/ObsidianLauncher/releases",
+  // The page that lists the issue forms to pick from.
+  issues: "https://github.com/Alomare/ObsidianLauncher/issues/new/choose",
   discord: "https://dsc.gg/hd1modding",
   nexus: "https://www.nexusmods.com/games/helldivers",
   kofi: "https://ko-fi.com/alomare",

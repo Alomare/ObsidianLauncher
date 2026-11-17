@@ -17,6 +17,10 @@ describe("StatusBar", () => {
     act(() => ver.click());
     expect(onUpdates).toHaveBeenCalled();
 
+    const { openUrl } = await import("../opener");
+    act(() => (el.querySelector('[aria-label="Report Issue"]') as HTMLButtonElement).click());
+    expect(openUrl).toHaveBeenCalledWith("https://github.com/Alomare/ObsidianLauncher/issues/new/choose");
+
     act(() => (el.querySelector('[aria-label="About Obsidian"]') as HTMLButtonElement).click());
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Apache License 2.0");
 

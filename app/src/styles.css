@@ -324,12 +324,12 @@ button.link:hover { filter: brightness(1.2); }
 .dropzone.over { border-color: var(--gold); background: rgba(0, 0, 0, 0.6); color: var(--gold); }
 
 /* Status bar */
-.statusbar { display: flex; align-items: center; gap: 0.25rem; height: 1.7rem; padding: 0 0.6rem; background: var(--bar); border-top: 1px solid var(--ln); font-size: var(--fs-sm); color: var(--mu); }
+.statusbar { display: flex; align-items: center; gap: 0.25rem; height: 1.9rem; padding: 0 0.6rem; background: var(--bar); border-top: 1px solid var(--ln); font-size: var(--fs-sm); color: var(--mu); }
 .statusbar .spacer { flex: 1; }
-.sb-btn { display: inline-flex; align-items: center; gap: 0.4rem; height: 1.35rem; padding: 0 0.45rem; background: none; border: 0; border-radius: 2px; color: inherit; cursor: pointer; transition: color var(--fast), background var(--fast); }
+.sb-btn { display: inline-flex; align-items: center; gap: 0.4rem; height: 1.45rem; padding: 0 0.45rem; background: none; border: 0; border-radius: 2px; color: inherit; cursor: pointer; transition: color var(--fast), background var(--fast); }
 .sb-btn:hover, .sb-btn.on { color: var(--tx); background: var(--row); }
-.sb-btn.round { width: 1.6rem; padding: 0; justify-content: center; border-radius: 50%; }
-.sb-pop { position: fixed; right: 0.5rem; bottom: 2.1rem; z-index: 45; width: min(26rem, calc(100vw - 1rem)); max-height: 60vh; overflow: auto; background: linear-gradient(160deg, var(--n1), var(--n2)); border: 1px solid var(--ln); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35); outline: 0; }
+.sb-btn.round { width: 1.6rem; height: 1.6rem; padding: 0; justify-content: center; border-radius: 50%; }
+.sb-pop { position: fixed; right: 0.5rem; bottom: 2.3rem; z-index: 45; width: min(26rem, calc(100vw - 1rem)); max-height: 60vh; overflow: auto; background: linear-gradient(160deg, var(--n1), var(--n2)); border: 1px solid var(--ln); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35); outline: 0; }
 .sb-pop h2 { position: sticky; top: 0; margin: 0; padding: 0.6rem 0.8rem; font-size: var(--fs-sm); background: var(--n1); border-bottom: 1px solid var(--ln); }
 .sb-pop .muted { margin: 0; padding: 0.8rem; }
 .note-log { list-style: none; margin: 0; padding: 0; }
@@ -866,9 +866,9 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .home-shade { position: absolute; inset: 0; background: rgba(6, 7, 9, 0.72); }
 .home-body { position: relative; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.9rem 2.2rem 3.4rem; animation: view-in 260ms ease-out; }
 /* The logo, the name and the links as one group, centred on the whole window rather than the page under the
-   tab bar: the tab bar (3.3rem) is taller than the status bar (1.7rem), so the group moves up by half the
+   tab bar: the tab bar (3.3rem) is taller than the status bar (1.9rem), so the group moves up by half the
    difference. The bottom padding keeps it clear of the picture controls. */
-.home-center { --home-sub: clamp(0.85rem, 0.51rem + 1.02vmin, 1.36rem); display: flex; flex-direction: column; align-items: center; gap: 2.2rem; transform: translateY(-0.8rem); }
+.home-center { --home-sub: clamp(0.85rem, 0.51rem + 1.02vmin, 1.36rem); display: flex; flex-direction: column; align-items: center; gap: 2.2rem; transform: translateY(-0.7rem); }
 /* About 15% under the first size. */
 .home-brand { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.95rem; text-align: center; }
 .home-brand img { width: calc(var(--home-sub) * 7.5); height: calc(var(--home-sub) * 7.5); filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.5)); }

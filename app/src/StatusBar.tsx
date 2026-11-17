@@ -1,13 +1,15 @@
 // Along the bottom: what the app is doing on the left (importing, deploying), with a glow that
 // travels to the right and fades out; on the right the version (it leads to the updates in
-// Settings), the notifications shown so far, and About.
+// Settings), Report Issue (the issue forms on GitHub), the notifications shown so far, and About.
 import { useEffect, useRef, useState } from "react";
 import { AboutDialog } from "./About";
 import { useBusy } from "./busy";
 import { useLayer } from "./Modal";
-import { BellIcon, InfoIcon } from "./Icons";
+import { BellIcon, InfoIcon, IssueIcon } from "./Icons";
 import { language, t } from "./i18n";
+import { LINKS } from "./links";
 import { useNoticeLog } from "./noticeLog";
+import { openUrl } from "./opener";
 
 /** The time today, the date and time before. */
 function shownTime(at: number) {
@@ -31,6 +33,10 @@ export function StatusBar({ version, updateFound, onUpdates }: { version: string
           v{version}{updateFound && <i className="sb-dot" aria-hidden="true" />}
         </button>
       )}
+      <button className="sb-btn round" onClick={() => openUrl(LINKS.issues).catch(() => {})} aria-label={t("app.status.reportIssue")}
+        data-tip-title={t("app.status.reportIssue")} data-tip={t("app.status.reportIssueHint")}>
+        <IssueIcon />
+      </button>
       <button className={log ? "sb-btn round on" : "sb-btn round"} data-pop onClick={() => setLog((v) => !v)} aria-expanded={log}
         aria-label={t("app.status.notifications")} data-tip-title={t("app.status.notifications")} data-tip={t("app.status.notificationsHint")}>
         <BellIcon />
