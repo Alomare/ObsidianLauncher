@@ -1,5 +1,5 @@
-# Uploads a release's installer and portable ZIP to Nexus Mods, as new versions of the Setup and Portable files
-# already on the mod page. The mod's version follows. No changelog is sent: the two uploads each added one, so every
+# Uploads a release's installer, portable ZIP and Linux ZIP to Nexus Mods, as new versions of the Setup, Portable and
+# Linux files already on the mod page. The mod's version follows. No changelog is sent: the two uploads each added one, so every
 # version showed it twice. The files' titles and descriptions are the ones on
 # the page, set by hand there, and stay as they are (tools/nexus_release.py).
 # It runs when a release is published (the Release workflow makes a draft; publishing it starts this), and by
@@ -29,6 +29,7 @@ concurrency:
 
 env:
   NEXUS_MOD_ID: '15255723835408'   # the Unique Mod ID (Files tab, Advanced)
+  LINUX_FILE_ID: ''                # the API File ID of the Linux ZIP on the page; empty skips its upload
   TAG: ${{ github.event.release.tag_name || inputs.tag }}
 
 jobs:
@@ -60,10 +61,13 @@ jobs:
           VERSION="${TAG#v}"
           SETUP="Obsidian.Launcher_${VERSION}_x64-setup.exe"
           PORTABLE="ObsidianLauncher-${VERSION}-portable.zip"
-          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$SETUP" --pattern "$PORTABLE"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$SETUP" --pattern "$PORTABLE" \
+            --pattern "Obsidian.Launcher_${VERSION}_amd64.AppImage" --pattern "Obsidian.Launcher_${VERSION}_amd64.deb"
           test -s "$SETUP" || { echo "::error::$SETUP is missing from the release $TAG."; exit 1; }
           test -s "$PORTABLE" || { echo "::error::$PORTABLE is missing from the release $TAG."; exit 1; }
-          { echo "VERSION=$VERSION"; echo "SETUP=$SETUP"; echo "PORTABLE=$PORTABLE"; } >> "$GITHUB_ENV"
+          # Nexus refuses .AppImage files, so the two Linux files go up in one ZIP (tools/linux_zip.py).
+          LINUX=$(python3 tools/linux_zip.py "$VERSION" .) || { echo "::error::The Linux files are missing from the release $TAG."; exit 1; }
+          { echo "VERSION=$VERSION"; echo "SETUP=$SETUP"; echo "PORTABLE=$PORTABLE"; echo "LINUX=$(basename "$LINUX")"; } >> "$GITHUB_ENV"
 
       - name: The files' titles and descriptions on the page now
         id: page
@@ -99,6 +103,25 @@ jobs:
           display_name: ${{ steps.page.outputs.portable_name }}
           description: ${{ steps.page.outputs.portable_description }}
           category: main
+          archive_existing_version: true
+          primary_mod_manager_download: false
+          allow_mod_manager_download: true
+          update_mod_version: false
+          mod_id: ${{ env.NEXUS_MOD_ID }}
+
+      # The Linux ZIP (AppImage and .deb), skipped until LINUX_FILE_ID holds the API File ID of the first one,
+      # uploaded by hand. The page's title must say "Linux"; the category is the one the file has there.
+      - name: Upload Obsidian Launcher Linux
+        if: env.LINUX_FILE_ID != ''
+        uses: Nexus-Mods/upload-action@98532f7670c27cbecc78fae03fa3e278147827e2  # v1.0.0-beta.11
+        with:
+          api_key: ${{ secrets.NEXUSMODS_API_KEY }}
+          file_id: ${{ env.LINUX_FILE_ID }}
+          filename: ${{ env.LINUX }}
+          version: ${{ env.VERSION }}
+          display_name: ${{ steps.page.outputs.linux_name }}
+          description: ${{ steps.page.outputs.linux_description }}
+          category: ${{ steps.page.outputs.linux_category || 'main' }}
           archive_existing_version: true
           primary_mod_manager_download: false
           allow_mod_manager_download: true
