@@ -10,11 +10,11 @@
 <p align="center">Launcher and mod loader for HELLDIVERS (2015).</p>
 
 <p align="center">
-  <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-2f7bf5?style=flat-square">
+  <img alt="Windows 10 and 11, Linux in beta" src="https://img.shields.io/badge/Windows%2010%20%7C%2011-Linux%20beta-2f7bf5?style=flat-square">
   <img alt="Mods for HELLDIVERS (2015)" src="https://img.shields.io/badge/mods%20for-HELLDIVERS%20%282015%29-ffe81f?style=flat-square">
   <img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache%202.0-3a3a3a?style=flat-square">
   <!-- the count of LANGUAGES in app/src/i18n.ts, listed under Supported Languages -->
-  <a href="#-supported-languages"><img alt="3 languages" src="https://img.shields.io/badge/languages-3-3a3a3a?style=flat-square"></a>
+  <a href="#-supported-languages"><img alt="4 languages" src="https://img.shields.io/badge/languages-4-3a3a3a?style=flat-square"></a>
   <a href="https://github.com/Alomare/ObsidianLauncher/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Alomare/ObsidianLauncher?style=flat-square&label=release&color=3a3a3a&include_prereleases"></a>
 </p>
 
@@ -37,44 +37,43 @@
 <br>
 
 <p align="center">
-  <img src="assets/readme/home.png" alt="The Home tab over HELLDIVERS art of four Helldivers fighting Bugs, with the logo and name at the top left, links to Nexus, the Discord, sponsoring and the source code at the bottom left, and controls for the picture before or after at the bottom right" width="100%">
+  <img src="assets/readme/home.png" alt="The Home tab: the Obsidian logo and the words Helldivers Launcher in the middle, over a picture of a destroyer above a planet, with buttons for the Mod Store, Nexus, the official Discord, sponsoring and the GitHub source below, and the Home, Store, Mods, Saves and Wars tabs at the top" width="100%">
 </p>
 
 <br>
 
 ## Features
 
-### 🧩 Mods
-
-The mod library. Turn mods on and off, drag them into the load order, sort them into folders, and change options and keys for each mod. Conflicts show which mods change the same thing, and profiles keep separate sets of mods and settings. Mods that name a GitHub repository update from inside the app, Older mods that replace whole game files or come as `.patch` files import like any other, and mods that add new weapons or units work side by side.
-
-<img src="assets/readme/mods.png" alt="The Mods tab: the Obsidian Kit and a Favorites folder of four mods from Nexus, each mod with a switch, a place in the load order, a version and a scope diamond, a warning on two that change the same file, and the options of Obsidian Quality of Life on the right" width="100%">
-
-### 📖 Wiki
-
-Guides inside the app, for players and for mod authors. They cover adding mods, load order, profiles, the multiplayer rules and troubleshooting, then go from a first mod to the loader API.
-
-<img src="assets/readme/wiki.png" alt="The Wiki tab: search and the guides by group on the left, How Obsidian Works open in the middle, and the headings of the page on the right" width="100%">
+- **Home**: links to the Mod Store, Nexus Mods, the Discord and the source code, over HELLDIVERS art that changes every 30 seconds.
+- **Store**: the Obsidian Kit and mods from GitHub, with scope filters, sorting, search and stars. Each mod has a page with the description, the versions, the options and what it requires, and **Install** adds the mods it requires too. **Submit Mod** proposes a GitHub repository for the Store.
+- **Mods**: the library. Turn mods on and off, drag them into the load order, sort them into folders and change the options and keys of each mod. Conflicts show which mods change the same thing, profiles keep separate sets of mods and settings, and mods from GitHub update or switch to any release from the **Versions** tab. Older mods that replace whole game files or come as `.patch` files import like any other. **Deploy** and **Purge** are here.
+- **Saves**: the Official saves and Sandbox saves of the Steam account. A Sandbox plays on a separate save, in a separate matchmaking pool and with no war reporting. The save editor has the rank ladder of all 50 insignia, an **Arsenal** board of every item and the DLC owned on Steam.
+- **Wars**: Obsidian Commander hosts custom Galactic Wars on your PC, with the war screens and a galactic map. Other players join over LAN, or over the internet with an address and an invite code. Nothing reaches the official war.
+- **Wiki**: guides for players, mod authors and war hosts, with search, in every language of the app.
+- **Account**: sign in with GitHub to star mods, report a problem from the Store page of a mod with the Obsidian report attached, and read the replies. **Sync** carries profiles and appearance settings to another PC.
+- **Settings**: the game folder and build check, patches from other tools, language, updates, controller, save backups, the problem report, and colors, size and animations.
+- **Play** starts the game through Steam, on the official war or a custom one, with the save you pick. **Guardrails**, beside it, block the session mods of other players in public lobbies, keep Steam achievements from unlocking, freeze the account progression and hide client mods from the lobby list.
+- Every screen works with a controller: the left stick moves a cursor, and the button pictures match Xbox, PlayStation, Nintendo and Steam Deck controllers. Keys of mods can be mouse buttons or controller buttons, with tap, double tap, long press and release.
 
 ### 🎁 Obsidian Kit
 
-Three mods come with Obsidian, in the Obsidian Kit folder. Obsidian Patches starts on with most of the fixes enabled, and the other two stay off until you turn them on. They're mods like any other: each has its own repository and updates from GitHub, and you can move or delete them. **Restore Obsidian Kit** in Settings puts everything back.
+Three mods come with Obsidian, in the Obsidian Kit folder. Obsidian Patches starts on, and the other two stay off until you turn them on. They're mods like any other: each has its own repository and updates from GitHub, and you can move or delete them. The **Store** installs them again.
 
 #### [Obsidian Patches](https://github.com/Alomare/ObsidianPatches)
 
-Skips the intro, the login screen, war briefs and planet scanning, removes the black bars on screens wider than 16:9, and can speed up or skip the results screens after a mission. It can also keep the aim cursor visible, make the minimap stay open with one press, and fix two animation faults of the game: weapon recoil lost after a stratagem throw, and a stuck upper body when sprinting out of a dive. Each fix is an option.
+Removes the black bars on wide screens, skips the intro, the login screen and the planet scans, speeds up the mission end, pauses the game in solo missions, and fixes the recoil and sprint animations. Each fix is an option.
 
 #### [Obsidian Trainer](https://github.com/Alomare/ObsidianTrainer)
 
-An in-game window, opened with F6, for your character, weapons, stratagems, enemies, missions and game values. It works with the mouse or the keys, and you can move and resize it. It doesn't change XP or rank, doesn't unlock paid DLC and doesn't touch the Galactic War. It's a session mod, so it follows the same multiplayer rules as any other.
+An in-game menu, opened with F6, for the character, weapons, stratagems, enemies, missions and game data. Missions add nothing to the save while the Trainer is on, it stays out of the Galactic War, and it offers only the base game and owned DLC. It's a session mod, so it follows the same multiplayer rules as any other.
 
 #### [Obsidian API](https://github.com/Alomare/ObsidianAPI)
 
-A library other mods can build on. It turns on with the Trainer.
+A library other mods build on. It turns on with any mod that needs it.
 
 ### 🌐 Supported Languages
 
-English, Portuguese (Brazil) and Simplified Chinese, for the window, the messages and the Wiki. **Language** in Settings picks one, and until then Obsidian follows the language of Windows.
+English, Portuguese (Brazil), Russian and Simplified Chinese, for the window, the messages and the Wiki. **App language** in Settings picks one, and until then Obsidian follows the language of the system.
 
 <br>
 
@@ -94,11 +93,11 @@ You need Windows 10 or 11, or Linux ([beta](#linux-beta)), and HELLDIVERS instal
 
 1. Download Obsidian from [Releases](https://github.com/Alomare/ObsidianLauncher/releases/latest) and run it. The installer isn't code-signed yet, so Windows may say it protected your PC: choose **More info**, then **Run anyway**.
 2. Start Obsidian. It finds the game through Steam. If it can't, pick the game folder in Settings.
-3. On the Mods tab, press the green **+**, or drop a `.zip` or a folder on the list. [Nexus Mods](https://www.nexusmods.com/games/helldivers) has mods to try.
+3. Install mods from the **Store** tab. For a mod from somewhere else, such as [Nexus Mods](https://www.nexusmods.com/games/helldivers), press **Add** on the Mods tab, or drop a `.zip` or a folder on the list.
 4. Turn on the mods you want. When two change the same thing, the later one in the list wins.
-5. Press **Deploy**, then **Play**, which starts the game through Steam.
+5. Press **Deploy** at the top right of the Mods tab, then **Play**, which starts the game through Steam.
 
-To go back to vanilla, close the game and press **Purge**. Your library and profiles stay as they are. Do this before you uninstall Obsidian too, as the patches stay in the game folder until something removes them.
+To go back to vanilla, close the game and press **Purge**, beside **Deploy**. Your library and profiles stay as they are. Do this before you uninstall Obsidian too, as the patches stay in the game folder until something removes them.
 
 | Download | What it is |
 |---|---|
@@ -163,7 +162,7 @@ obsidian-cli commander ...                   the Commander package, hosting, and
 
 Ask on the [Discord](https://dsc.gg/hd1modding) how to do something, or show what you made. Refer to the in-app Wiki before doing so.
 
-To report a bug or suggest an idea, open an [issue](https://github.com/Alomare/ObsidianLauncher/issues/new). For a bug, say what you did and what happened. **Copy report** in Settings, under Data, gives you the versions, the mods that were on and the end of the game log, without your Windows account name.
+To report a bug or suggest an idea, open an [issue](https://github.com/Alomare/ObsidianLauncher/issues/new), or press **Report Issue** in the status bar of Obsidian. For a bug, say what you did and what happened. **Copy report** in Settings, under Problem report, gives you the versions, the mods that were on and the end of the game log, without your Windows account name.
 
 Obsidian is 100% free, no caveats. If you'd like to support it, buy me a [Ko-fi](https://ko-fi.com/alomare)!
 
