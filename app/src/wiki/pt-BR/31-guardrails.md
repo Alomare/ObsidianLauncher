@@ -1,36 +1,38 @@
 ---
 title: Proteções
 group: Jogar online
-summary: O escudo no topo: mods de sessão de outros jogadores, conquistas e a progressão da sua conta.
+summary: O escudo no topo: mods de sessão de outros jogadores, conquistas, progressão da conta e a lista de lobbies.
 ---
 
-**Proteções**, o escudo no topo da janela, reúne três interruptores do perfil ativo. Eles valem a partir da próxima vez que você abrir o jogo, e para tudo o que roda nele: nenhum mod consegue mudá-los nem passar por cima deles.
+As **Proteções**, o botão de escudo na barra no topo da janela, têm quatro interruptores para o perfil ativo. Eles valem a partir do próximo início do jogo, e para tudo o que roda nele: nenhum mod pode mudá-los ou contorná-los. Os quatro começam desligados.
 
 ## Mods de sessão de outros jogadores {#session-mods-of-other-players}
 
-**Bloquear mods de sessão dos outros no meu lobby público** mantém os mods de sessão dos outros jogadores fora do seu jogo enquanto você estiver num lobby público com eles. Ele vem desligado, então jogar com outros jogadores do Obsidian simplesmente funciona. Lobbies só para amigos e privados nunca são bloqueados. Ele não decide se os seus próprios mods de sessão rodam ([Jogar online](wiki:multiplayer)).
+**Bloquear mods de sessão de outros jogadores em lobbies públicos** mantém os mods de sessão de outros jogadores fora do jogo enquanto se está num lobby público com eles. O interruptor começa desligado, então jogar com outros jogadores do Obsidian simplesmente funciona, e lobbies só para amigos e privados nunca são bloqueados. Ele não decide se os mods de sessão do jogador que o ligou rodam ([Jogar online](wiki:multiplayer)).
 
 ## Conquistas {#achievements}
 
-**Impedir que conquistas sejam desbloqueadas** barra todas as conquistas da Steam enquanto você joga. O progresso que o jogo conta para uma também não é guardado, então nada aparece depois numa partida normal.
+**Impedir que conquistas sejam desbloqueadas** bloqueia todas as conquistas da Steam durante o jogo. O progresso que o jogo conta para uma conquista também não fica guardado, então nada aparece depois num jogo normal.
 
 ## Progressão congelada {#frozen-progression}
 
-**Congelar a progressão da minha conta** mantém seu XP e patente, amostras, desbloqueios, melhorias e estatísticas como estavam quando o jogo abriu. Missões, a Armaria e mods ainda podem mudá-los enquanto você joga, mas nada disso é salvo, e a próxima abertura começa com a mesma conta. Configurações e visual, como suas teclas ou seu capacete, continuam sendo salvos.
-
-Serve para testar mods, o trainer ou um modo de jogo novo sem que conte.
+**Congelar a progressão da conta** mantém XP e patente, amostras, desbloqueios, melhorias e estatísticas como estavam quando o jogo abriu. Missões, o Arsenal e mods ainda podem mudá-los durante o jogo, mas nada disso é salvo, e o próximo início do jogo parte da mesma conta. Configurações e aparência, como teclas ou o capacete, continuam sendo salvas. O interruptor serve para testar mods, o Trainer ou um novo modo de jogo sem que nada conte.
 
 > [!NOTE]
-> Comprar algo na Armaria com isso ligado parece funcionar, e é desfeito no próximo salvamento.
+> Comprar algo no Arsenal com isto ligado parece funcionar, e é desfeito no próximo salvamento.
 
-## No aplicativo {#in-the-app}
+## A lista de lobbies {#the-lobby-list}
 
-O escudo fica preenchido, com um número, enquanto algum dos interruptores estiver ligado. Passe o mouse por cima para ver os três. Na lista de perfis, um escudo marca o perfil com um dos dois últimos ligado, e o ícone de jogadores marca o que bloqueia os mods de sessão dos outros.
+Um lobby hospedado com o Obsidian lista os mods que roda no terminal de multijogador do jogo ([A aba Com mods](wiki:multiplayer#the-modded-tab)). Mods de sessão e expansões sempre aparecem, porque mudam o jogo dos outros jogadores. **Esconder mods de cliente da lista de lobbies** deixa os mods de cliente fora dessa lista.
 
-Um perfil que você compartilha ou importa mantém os dois últimos, e o Obsidian avisa quando um perfil importado vem com eles ligados. **Bloquear mods de sessão dos outros no meu lobby público** fica desligado num perfil importado, para cada jogador escolher.
+## No app {#in-the-app}
+
+O escudo fica preenchido enquanto **Bloquear mods de sessão de outros jogadores em lobbies públicos**, **Impedir que conquistas sejam desbloqueadas** ou **Congelar a progressão da conta** está ligado, e passar o mouse sobre ele mostra o estado desses três. Na lista de perfis, um escudo marca um perfil com conquistas ou progressão protegidas, e o ícone de jogadores marca um que bloqueia mods de sessão de outros jogadores.
+
+Um perfil compartilhado ou importado mantém os interruptores de conquistas e de progressão, e o Obsidian avisa quando um perfil importado os tem ligados. **Bloquear mods de sessão de outros jogadores em lobbies públicos** fica desligado num perfil importado, para cada jogador escolher.
 
 ## Sempre ligado {#always-on}
 
-Resultados da Guerra Galáctica e placares nunca são enviados enquanto houver mods de sessão aplicados, nem de uma missão em que o conteúdo de uma expansão rodou, e Proving Grounds fica fechado nesses casos ([A Guerra Galáctica](wiki:galactic-war)). Isso protege os outros jogadores, então não é uma escolha. [O que as proteções não fazem](wiki:honest-limits) explica os limites de tudo isso.
+Resultados da Guerra Galáctica e placares nunca são enviados enquanto há mods de sessão aplicados, nem de uma missão em que o conteúdo de uma expansão rodou, e o Proving Grounds fica fechado nesses casos ([A Guerra Galáctica](wiki:galactic-war)). Isso protege os outros jogadores, então não é uma escolha. [O que as proteções não fazem](wiki:honest-limits) cobre os limites de tudo isso.
 
-Autores de mods podem ler as escolhas do jogador com `obsidian.guardrails()` ([API do loader](wiki:loader-api#obsidian-guardrails)).
+Autores de mods podem ler os três primeiros interruptores com `obsidian.guardrails()` ([Loader API](wiki:loader-api#obsidian-guardrails)).

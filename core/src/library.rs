@@ -44,17 +44,21 @@ pub enum InstallOutcome {
 
 /// Copies a folder tree.
 pub(crate) fn copy_dir(from: &Path, to: &Path) -> Result<()> {
-    std::fs::create_dir_all(to)?;
-    for e in std::fs::read_dir(from)? {
-        let e = e?;
-        let target = to.join(e.file_name());
-        if e.file_type()?.is_dir() {
-            copy_dir(&e.path(), &target)?;
-        } else {
-            std::fs::copy(e.path(), target)?;
-        }
-    }
-    Ok(())
+    Ok(crate::paths::copy_tree(from, to, false)?)
+}
+
+/// The bytes of every file under `dir`, in all its folders. Links are not followed, and what can't be
+/// read counts as nothing.
+pub fn folder_bytes(dir: &Path) -> u64 {
+    let Ok(entries) = std::fs::read_dir(dir) else { return 0 };
+    entries
+        .flatten()
+        .map(|e| match e.file_type() {
+            Ok(t) if t.is_dir() => folder_bytes(&e.path()),
+            Ok(t) if t.is_file() => e.metadata().map(|m| m.len()).unwrap_or(0),
+            _ => 0,
+        })
+        .sum()
 }
 
 impl Library {
@@ -103,11 +107,14 @@ impl Library {
         Ok(outcome)
     }
     pub fn import_info(&self, id: &str) -> Option<ImportInfo> {
-        let text = std::fs::read_to_string(self.mod_dir(id).join(IMPORT_INFO)).ok()?;
-        serde_json::from_str(&text).ok()
+        crate::paths::json_file::load(&self.mod_dir(id).join(IMPORT_INFO))
     }
     /// Deletes a mod from the library. Profiles drop it at their next sync.
     pub fn remove(&self, id: &str) -> Result<()> {
+        // The id comes from the window: one that isn't a mod id can't name a folder to delete.
+        if !crate::manifest::is_valid_id(id) {
+            return Err(ObsidianError::ModMissing(id.to_string()));
+        }
         let dir = self.mod_dir(id);
         if !dir.join(FILE).is_file() {
             return Err(ObsidianError::ModMissing(id.to_string()));
@@ -191,6 +198,12 @@ pub struct Profile {
     /// Keys per mod id and keybind id, as set by the player.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub keys: BTreeMap<String, BTreeMap<String, String>>,
+    /// Input modes per mod id and keybind id (`crate::options::INPUT_MODES`), when not the default press.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub modes: BTreeMap<String, BTreeMap<String, String>>,
+    /// Controller inputs per mod id and keybind id (`crate::options::is_pad_combo`), as set by the player.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub pads: BTreeMap<String, BTreeMap<String, String>>,
     /// Folders the player sorts mods into. They change nothing in the game.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub folders: Vec<crate::folders::Folder>,

@@ -7,7 +7,7 @@ wiki: commander
 
 ## The war screen
 
-Opening a war from the war list shows the war screen. The bar on top holds the war name with the season and state, the war clock, **Share**, **Settings**, the More menu and **Select**. Under it, the galaxy map draws the war map from the game, with each front in the color of the enemy, and the strip below the map shows how far each front has come. The Events panel on the map lists the running defenses and attacks with the time each has left.
+Opening a war from the war list shows the war screen. The bar on top holds the war name with the season and state, the war clock, **Share**, **War Settings** (the cog), the **More** menu, and **Selected** while the war is the one **Play** starts. Under it, the galaxy map draws the war map from the game, with each front in the color of the enemy, and the strip below the map shows how far each front has come. The Events panel on the map lists the running defenses and attacks with the time each has left.
 
 The side panel has four tabs, also on the keys 1 to 4: **Command**, **Feed**, **Players** and **Statistics**. Escape clears the selection on the map.
 
@@ -36,7 +36,7 @@ Super Earth takes one order: a defense against the front picked in the panel. Se
 
 ## Seasons
 
-A season is won when every front is defeated and lost when Super Earth falls. Either way the war stops until **New Season**, and the game plays the recap and season-end screens when players next load in. **End Season** in the Command tab ends the running season with a win or a loss. **New Season** starts the next one from the start points: the statistics start over, while the players and the history stay.
+A season is won when every front is defeated and lost when Super Earth falls. Either way the war stops until **New Season**, and the game plays the recap and season-end screens when players next load in. **End Season** in the **Command** tab ends the running season with a win or a loss. **New Season** starts the next one from the start points: the statistics start over, while the players and the history stay.
 
 ## Feed, Players and Statistics
 

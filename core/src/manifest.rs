@@ -144,7 +144,7 @@ pub struct ResourceSpec {
     pub payload: Payload,
     /// Deploy options: the resource joins only when every listed option has the listed value.
     pub when: BTreeMap<String, Value>,
-    /// The part of the mod the file belongs to (`parts`): left out while that part is off.
+    /// The secondary scope the file belongs to (`secondary_scope`): left out while that one is off.
     pub part: Option<String>,
 }
 
@@ -178,7 +178,8 @@ struct RawResource {
     clips: Vec<ClipSpec>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     when: BTreeMap<String, Value>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// `part` before Hybrid Scopes had the name.
+    #[serde(default, rename = "secondary_scope", alias = "part", skip_serializing_if = "Option::is_none")]
     part: Option<String>,
 }
 
@@ -278,9 +279,10 @@ pub struct Manifest {
     /// the same shared option values. Players who allow other players' mods don't count.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub every_player: bool,
-    /// Pieces of the mod with a scope of their own (parts.rs). The top-level scope stays the strictest,
-    /// which is all an older Obsidian reads.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    /// Hybrid Scopes: code, options and files of the mod that run with a scope other than the primary
+    /// `scope` (parts.rs). The primary scope is all an older Obsidian reads. `parts` before the feature
+    /// had that name.
+    #[serde(default, rename = "secondary_scopes", alias = "parts", skip_serializing_if = "Vec::is_empty")]
     pub parts: Vec<PartSpec>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub entry: Option<PathBuf>,
@@ -318,7 +320,7 @@ fn one() -> u32 {
     1
 }
 
-/// One part of a mod (`parts`): the code, options and files tagged with the id run with this scope.
+/// One secondary scope of a mod (`secondary_scopes`): the code, options and files tagged with the id run with this scope.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PartSpec {
     pub id: String,
@@ -329,7 +331,7 @@ pub struct PartSpec {
     pub name: Localized,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<Localized>,
-    /// A toggle option of the mod: the part is on only while that option is true.
+    /// A toggle option of the mod: the secondary scope is on only while that option is true.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub option: Option<String>,
     #[serde(flatten)]
@@ -508,6 +510,12 @@ fn is_hex16(s: &str) -> bool {
     s.len() == 16 && s.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
+/// Whether `id` is a mod id a manifest may have: also what keeps an id from the window from naming
+/// a folder outside the library.
+pub fn is_valid_id(id: &str) -> bool {
+    valid_id(id)
+}
+
 fn valid_id(id: &str) -> bool {
     let b = id.as_bytes();
     !b.is_empty()
@@ -659,7 +667,13 @@ pub fn load_manifest(mod_dir: &Path) -> Result<Manifest> {
     }
     let m = read_manifest(mod_dir)?;
     if let Some(s) = stamp {
-        cache().lock().unwrap().insert(mod_dir.to_path_buf(), (s, m.clone()));
+        let mut c = cache().lock().unwrap();
+        // Imports and updates read manifests in temp folders deleted right after: past a size no
+        // library reaches, the entries of folders gone are dropped.
+        if c.len() >= 1024 {
+            c.retain(|dir, _| dir.join(FILE).is_file());
+        }
+        c.insert(mod_dir.to_path_buf(), (s, m.clone()));
     }
     Ok(m)
 }
@@ -699,7 +713,7 @@ pub fn forget(mod_dir: &Path) {
 
 pub fn write_manifest(mod_dir: &Path, m: &Manifest) -> Result<()> {
     forget(mod_dir);
-    std::fs::write(mod_dir.join(FILE), serde_json::to_string_pretty(m)? + "\n")?;
+    crate::paths::write_atomic(&mod_dir.join(FILE), (serde_json::to_string_pretty(m)? + "\n").as_bytes())?;
     Ok(())
 }
 

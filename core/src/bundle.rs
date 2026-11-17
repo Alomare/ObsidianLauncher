@@ -79,6 +79,16 @@ fn inflate(file: &[u8], want: Option<usize>) -> Result<Vec<u8>> {
     Ok(out)
 }
 
+/// A packed block's size as the file gives it. Blocks unpack to 64 KB, and packing never makes one
+/// much larger, so a bigger size is a damaged file: refused before allocating it.
+fn block_size(size: u64) -> Result<usize> {
+    const MAX_BLOCK: u64 = 64 * 1024 + 4096;
+    if size > MAX_BLOCK {
+        return Err(ObsidianError::TruncatedBundle);
+    }
+    Ok(size as usize)
+}
+
 pub fn decompress(file: &[u8]) -> Result<Vec<u8>> {
     inflate(file, None)
 }
@@ -304,7 +314,7 @@ pub fn read_index(path: &Path) -> Result<Vec<(u64, u64)>> {
     while payload.len() < want {
         let mut size = [0u8; 4];
         file.read_exact(&mut size)?;
-        let mut body = vec![0u8; u32::from_le_bytes(size) as usize];
+        let mut body = vec![0u8; block_size(u32::from_le_bytes(size) as u64)?];
         file.read_exact(&mut body)?;
         payload.extend(unpack_block(&body)?);
         if !counted {
@@ -392,7 +402,7 @@ impl Reader {
             if self.last.as_ref().is_none_or(|(have, _)| *have != i) {
                 let (pos, size) = *self.blocks.get(i).ok_or(ObsidianError::TruncatedBundle)?;
                 self.file.seek(SeekFrom::Start(pos))?;
-                let mut body = vec![0u8; size as usize];
+                let mut body = vec![0u8; block_size(size as u64)?];
                 self.file.read_exact(&mut body)?;
                 self.last = Some((i, unpack_block(&body)?));
             }

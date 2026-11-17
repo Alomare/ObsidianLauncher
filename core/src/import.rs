@@ -9,6 +9,7 @@ use crate::gate::{KNOWN_BUILDS, KnownBuild, check_build};
 use crate::hash::{format_name, format_type, hash_name};
 use crate::library::{InstallOutcome, Library};
 use crate::manifest::{self, Manifest, Payload, ResourceSpec, Scope, VariantSpec, write_manifest};
+use crate::paths::beside;
 use crate::{ObsidianError, Result};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -302,25 +303,11 @@ impl Streams {
     }
 }
 
-/// `path` with `.<suffix>` added.
-fn beside(path: &Path, suffix: &str) -> PathBuf {
-    let mut name = path.as_os_str().to_os_string();
-    name.push(format!(".{suffix}"));
-    PathBuf::from(name)
-}
-
 fn is_bundle_name(n: &str) -> bool {
     n.len() == 16 && n.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
-/// `(bundle, N)` for a file named `<bundle>.patch_<N>`, in lower case.
-fn patch_name(n: &str) -> Option<(String, u32)> {
-    let (bundle, slot) = n.split_once(".patch_")?;
-    if !is_bundle_name(bundle) || slot.is_empty() || !slot.bytes().all(|b| b.is_ascii_digit()) {
-        return None;
-    }
-    Some((bundle.to_string(), slot.parse().ok()?))
-}
+use crate::deploy::patch_name;
 
 /// A ReShade preset: an .ini that lists ReShade techniques. It needs ReShade, not Obsidian.
 fn is_reshade_preset(p: &Path) -> bool {
@@ -412,7 +399,7 @@ fn legacy_id(stem: &str) -> String {
         return id;
     }
     use sha2::{Digest, Sha256};
-    let hash: String = Sha256::digest(stem.as_bytes()).iter().take(4).map(|b| format!("{b:02x}")).collect();
+    let hash = crate::hash::hex(&Sha256::digest(stem.as_bytes())[..4]);
     if id.ends_with('.') { format!("{id}{hash}") } else { format!("{id}-{hash}") }
 }
 

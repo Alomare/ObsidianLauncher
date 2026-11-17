@@ -1,5 +1,6 @@
--- Parts of a mod (`parts` in obsidian.json): code tagged with a client part runs in any lobby, code of
--- a session part and untagged code only in a cleared one, and a part that is off runs nothing.
+-- Hybrid Scopes (`secondary_scopes` in obsidian.json, `parts` before): code tagged with a client secondary
+-- scope runs in any lobby, code of a session one and untagged code only in a cleared one, and one that is
+-- off runs nothing. The mod below tags with the older `part`; one test tags with `secondary_scope`.
 local E = require "fake_engine"
 local T = {}
 local function test(name, fn) T[#T + 1] = { name, fn } end
@@ -117,9 +118,9 @@ test("a_part_that_is_off_runs_nothing", function()
 	local m = marks()
 	E.eq(m["hook far"], nil)
 	E.eq(m["frame far"], nil)
-	E.has(e:log(), "hook left out: Target.far by cam, part far is off")
+	E.has(e:log(), "hook left out: Target.far by cam, secondary scope far is off")
 	E.lacks(e:log(), "hook installed: Target.far")
-	E.has(e:log(), "hook installed: Target.view by cam part view")
+	E.has(e:log(), "hook installed: Target.view by cam secondary scope view")
 	local core = e:core()
 	core.current = core.mods_by_id["cam"]
 	E.eq(rawget(_G, "CAM").cleared("far"), false, "even in a cleared session")
@@ -185,7 +186,7 @@ test("a_notice_names_the_session_parts_that_stop", function()
 	vanilla_joins(lobby, e)
 	e:frames(1)
 	E.has(e:log(), "notice: part_off: Cam: Range is off in this lobby. The rest keeps working.")
-	E.has(e:log(), "session: cam session parts off, client parts on")
+	E.has(e:log(), "session: cam session secondary scopes off, the rest on")
 	-- Once per switch: the next checks in the same lobby say nothing more.
 	e:frames(61)
 	E.eq(E.count(e:log(), "notice: part_off"), 1)
@@ -239,7 +240,25 @@ test("a_session_mod_stays_whole_and_says_nothing_of_parts", function()
 	E.eq(m["frame always"], 1)
 	E.eq(rawget(_G, "CAM").scope, "session")
 	E.lacks(e:log(), "notice: part")
-	E.has(e:log(), "part: cam names view, which is not one of the mod's parts")
+	E.has(e:log(), "secondary_scope: cam names view, which is not one of the mod's secondary scopes")
+end)
+
+test("the_secondary_scope_option_tags_as_part_does", function()
+	local lobby = { my_id = "me", members = { "me" }, data = {} }
+	local code = CODE:gsub("{ part = ", "{ secondary_scope = ")
+	local e = engine(lobby, nil, { ["obsidian/mods/cam/main"] = code })
+	vanilla_joins(lobby, e)
+	call_all()
+	e:frames(1)
+	local m = marks()
+	E.eq(m["hook view"], 1, "the client secondary scope runs")
+	E.eq(m["hook range"], nil, "the session one stops")
+	E.eq(m["frame view"], 1)
+	E.has(e:log(), "hook left out: Target.far by cam, secondary scope far is off")
+	local core = e:core()
+	core.current = core.mods_by_id["cam"]
+	E.eq(rawget(_G, "CAM").cleared("view"), true)
+	E.eq(rawget(_G, "CAM").cleared("range"), false)
 end)
 
 return T

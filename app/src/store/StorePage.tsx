@@ -1,0 +1,519 @@
+// The Store tab: the Obsidian Kit as a row of small cards, then the other mods as cards with a filter
+// row (scopes, sort, Installed, search). A card opens the page of the mod: the description from the
+// README, the versions with their notes, the details and the mods it requires. The list comes from
+// github.com/Alomare/ObsidianStoreIndex (storeIndex.ts); installing downloads the newest release.
+import { convertFileSrc } from "@tauri-apps/api/core";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { call, errorText, run } from "../api";
+import { signIn, useGitHub, type OpenIssue, type RepoInfo } from "../github";
+import { notify } from "../notices";
+import { ReportDialog } from "./ReportDialog";
+import { SubmitDialog } from "./SubmitDialog";
+import { useLocked } from "../busy";
+import { Confirm } from "../Confirm";
+import { CheckIcon, ChevronIcon, CloseIcon, GitHubIcon, ImportIcon, IssueIcon, SearchIcon, StarIcon, TrashIcon, UpdateIcon } from "../Icons";
+import { artFor } from "../homeArt";
+import { t, tn } from "../i18n";
+import { Markdown, parse } from "../Markdown";
+import { ReleaseEntry, releaseDate } from "../ReleaseEntry";
+import { go } from "../nav";
+import { openUrl } from "../opener";
+import { Select } from "../Select";
+import { ImageViewer } from "../Thumb";
+import type { Scope, Snapshot } from "../types";
+import { install, isStarred, loadStarred, loadStore, markOf, modsOf, toggleStar, useStore, type StoreMark, type StoreMod, type StoreOption } from "./storeIndex";
+import { PadGlyph } from "../pad/PadGlyph";
+
+const FILTER_SCOPES: Scope[] = ["library", "client", "session", "expansion"];
+type Sort = "az" | "za" | "scope" | "new" | "updated" | "stars" | "random";
+const SORTS: Sort[] = ["new", "updated", "stars", "az", "za", "scope", "random"];
+const later = (a: string | null, b: string | null) => ((a ?? "") < (b ?? "") ? 1 : (a ?? "") > (b ?? "") ? -1 : 0);
+const byName = (a: StoreMod, b: StoreMod) => a.name.localeCompare(b.name);
+
+export function sortMods(list: StoreMod[], sort: Sort, order: string[]): StoreMod[] {
+  const out = list.slice();
+  switch (sort) {
+    case "az": return out.sort(byName);
+    case "za": return out.sort((a, b) => byName(b, a));
+    case "scope": return out.sort((a, b) => FILTER_SCOPES.indexOf(a.scope) - FILTER_SCOPES.indexOf(b.scope) || byName(a, b));
+    case "new": return out.sort((a, b) => later(a.added, b.added) || byName(a, b));
+    case "updated": return out.sort((a, b) => later(a.released, b.released) || byName(a, b));
+    case "stars": return out.sort((a, b) => (b.stars ?? 0) - (a.stars ?? 0) || byName(a, b));
+    case "random": return out.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+  }
+}
+
+const shuffled = (ids: string[]) => ids.map((id) => [Math.random(), id] as const).sort((a, b) => a[0] - b[0]).map(([, id]) => id);
+const date = releaseDate;
+const src = (path: string) => convertFileSrc(path);
+
+function ModIcon({ m, size = "" }: { m: StoreMod; size?: string }) {
+  return (
+    <span className={`mico ${size}${m.icon ? "" : " letter"}`}>
+      {m.icon ? <img src={src(m.icon)} alt="" draggable={false} /> : <span aria-hidden="true">{[...m.name.trim()][0]?.toUpperCase() ?? "?"}</span>}
+    </span>
+  );
+}
+
+/** In place of a thumbnail: the icon blurred and darkened, or one of the Home pictures when the mod has no
+    icon either. */
+function Backdrop({ m }: { m: StoreMod }) {
+  const under = m.icon ? src(m.icon) : artFor(m.id);
+  return <span className="backdrop">{under && <span className="bd-blur" aria-hidden="true" style={{ backgroundImage: `url("${under}")` }} />}</span>;
+}
+
+function ScopeTag({ scope }: { scope: Scope }) {
+  return (
+    <span className={`store-scope ${scope}`} role="img" aria-label={t(`app.scope.${scope}`)} data-tip-title={t(`app.scope.${scope}`)} data-tip={t(`app.scope.${scope}Hint`)} />
+  );
+}
+
+const Early = ({ m }: { m: StoreMod }) =>
+  m.early ? <span className="store-tag early" data-tip-title={t("app.store.earlyTitle")} data-tip={t("app.store.earlyHint", m.version)}>{t("app.store.early")}</span> : null;
+
+/** Obsidian Verified, in front of the name: a white circle with a dark check. */
+const Verified = ({ m }: { m: StoreMod }) =>
+  m.verified ? (
+    <svg className="store-verified" viewBox="0 0 16 16" role="img" aria-label={t("app.store.verified")} data-tip-title={t("app.store.verified")} data-tip={t("app.store.verifiedHint")}>
+      <circle cx="8" cy="8" r="8" fill="#fff" />
+      <path d="M4.6 8.3l2.3 2.3 4.5-4.8" fill="none" stroke="#1b1b1b" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ) : null;
+
+/** A corner over the top right of a card: green when installed, yellow when the Store has a newer version. */
+function Flag({ mark, small }: { mark: StoreMark; small?: boolean }) {
+  if (mark !== "installed" && mark !== "update") return null;
+  const label = mark === "installed" ? t("app.store.installed") : t("app.store.updateFlag");
+  return <span className={`c-flag ${mark === "installed" ? "inst" : "upd"}${small ? " sm" : ""}`} role="img" aria-label={label} data-tip={label} />;
+}
+
+/** On a Kit card that is not installed: Install as an icon, at the right. */
+function KitInstall({ m, mark, onInstall }: { m: StoreMod; mark: StoreMark; onInstall: () => void }) {
+  const locked = useLocked();
+  if (mark === "installing") return <span className="btn icon kc-inst installing" aria-label={t("app.store.installingShort")}><span className="upd-spin" aria-hidden="true" /></span>;
+  if (mark !== "none") return null;
+  const tip = t("app.store.installHint", m.version);
+  return (
+    <button className="btn icon go kc-inst" disabled={locked} aria-label={t("app.store.install")} data-tip-title={t("app.store.install")} data-tip={tip}
+      onClick={(e) => { e.stopPropagation(); onInstall(); }} onKeyDown={(e) => e.stopPropagation()}>
+      <ImportIcon />
+    </button>
+  );
+}
+
+function InstallButton({ m, mark, size, onInstall }: { m: StoreMod; mark: StoreMark; size: "small" | "big"; onInstall: () => void }) {
+  const locked = useLocked();
+  const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
+  if (mark === "installing") {
+    return <button className={`btn inst ${size} installing`} disabled onClick={stop}><span className="upd-spin" aria-hidden="true" />{t("app.store.installingShort")}</button>;
+  }
+  if (mark === "installed") {
+    return (
+      <button className={`btn inst ${size} done`} onClick={(e) => { stop(e); go("mods"); }} data-tip={t("app.store.showInMods")}>
+        <CheckIcon />{t("app.store.installed")}
+      </button>
+    );
+  }
+  const update = mark === "update";
+  return (
+    <button className={`btn inst ${size} ${update ? "play" : "go"}`} disabled={locked} onClick={(e) => { stop(e); onInstall(); }}
+      data-tip={update ? t("app.store.updateHint", m.version) : t("app.store.installHint", m.version)}>
+      {update ? <UpdateIcon /> : <ImportIcon />}
+      {update ? t("app.store.update") : t("app.store.install")}
+    </button>
+  );
+}
+
+/** Enter or Space on a card opens it, as a click does. */
+const keyOpen = (open: () => void) => (e: KeyboardEvent) => {
+  if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
+  e.preventDefault();
+  open();
+};
+
+export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
+  const store = useStore();
+  const [open, setOpen] = useState<string | null>(null);
+  const [text, setText] = useState("");
+  const [scopes, setScopes] = useState<Scope[]>([]);
+  const [installedOnly, setInstalledOnly] = useState(false);
+  const [sort, setSort] = useState<Sort>("new");
+  const [order, setOrder] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const scroller = useRef<HTMLDivElement>(null);
+  const frontTop = useRef(0);
+  useEffect(() => { loadStore(); }, []);
+  // Early access mods depend on the access granted: read the list again when that changes.
+  const signedIn = !!useGitHub().account;
+  const [starredOnly, setStarredOnly] = useState(false);
+  useEffect(() => { loadStarred(signedIn); if (!signedIn) setStarredOnly(false); }, [signedIn]);
+  const access = useGitHub().account?.scopes.join(",") ?? "";
+  const lastAccess = useRef(access);
+  useEffect(() => {
+    if (lastAccess.current === access) return;
+    lastAccess.current = access;
+    loadStore(true);
+  }, [access]);
+  // A click on the Store tab while it shows a mod goes back to the list.
+  useEffect(() => { if (home) setOpen(null); }, [home]);
+  const loaded = modsOf(store.index);
+  const all = useMemo(() => loaded ?? [], [loaded]);
+  // The library by id, read once per snapshot instead of once per card.
+  const library = useMemo(() => new Map(snap.mods.map((r) => [r.id, r])), [snap.mods]);
+  const mark = (m: StoreMod) => markOf(m, library, store.installing);
+  const doInstall = (m: StoreMod) => install(m, all, snap.mods);
+  const show = (id: string | null) => {
+    if (id && !open) frontTop.current = scroller.current?.scrollTop ?? 0;
+    setOpen(id);
+  };
+  // The list comes back where it was left; a mod page starts at the top.
+  useLayoutEffect(() => {
+    if (scroller.current) scroller.current.scrollTop = open ? 0 : frontTop.current;
+  }, [open]);
+
+  const list = useMemo(() => {
+    const q = text.trim().toLowerCase();
+    return sortMods(all.filter((m) => !m.kit), sort, order)
+      .filter((m) => !q || `${m.name} ${m.summary}`.toLowerCase().includes(q))
+      .filter((m) => !scopes.length || scopes.includes(m.scope))
+      .filter((m) => !installedOnly || library.has(m.id))
+      .filter((m) => !starredOnly || isStarred(m, store.starred));
+  }, [all, text, scopes, installedOnly, starredOnly, store.starred, sort, order, library]);
+
+  const mod = open ? all.find((m) => m.id === open) : undefined;
+  let body;
+  const ix = store.index;
+  if (ix.kind !== "ready") {
+    body = ix.kind === "failed" ? (
+      <div className="store-empty">
+        <h2>{t("app.store.failed")}</h2>
+        <p>{ix.error}</p>
+        <button className="btn" onClick={() => loadStore(true)}>{t("app.drawer.tryAgain")}</button>
+      </div>
+    ) : (
+      <div className="store-empty"><p><span className="upd-spin" aria-hidden="true" />{t("app.store.loading")}</p></div>
+    );
+  } else if (mod) {
+    body = <ModPage m={mod} all={all} snap={snap} mark={mark} onOpen={show} onInstall={doInstall} />;
+  } else {
+    const filtered = !!(text || scopes.length || installedOnly || starredOnly);
+    const refreshing = ix.refresh === "running";
+    body = (
+      <div className="store-in">
+        {ix.refresh === "failed" ? (
+          <div className="store-note" role="status">
+            {t("app.store.refreshFailed", ix.error ?? "")}
+            <button className="link small" onClick={() => loadStore(true)}>{t("app.drawer.tryAgain")}</button>
+          </div>
+        ) : ix.offline && (
+          <div className="store-note">
+            {t("app.store.offline")}
+            <button className="link small" onClick={() => loadStore(true)} disabled={refreshing}>{t("app.drawer.tryAgain")}</button>
+          </div>
+        )}
+        <div className="kit-grid">
+          {all.filter((m) => m.kit).map((m) => (
+            <div key={m.id} className="kit-card" role="link" tabIndex={0} onClick={() => show(m.id)} onKeyDown={keyOpen(() => show(m.id))}>
+              <Flag mark={mark(m)} small />
+              <ModIcon m={m} />
+              <div className="kc-text"><ScopeTag scope={m.scope} /><b>{m.name}</b><Early m={m} /></div>
+              <KitInstall m={m} mark={mark(m)} onInstall={() => doInstall(m)} />
+            </div>
+          ))}
+        </div>
+        <div className="fbar">
+          <div className="fbar-left">
+            {FILTER_SCOPES.map((s) => {
+              const on = scopes.includes(s);
+              return (
+                <button key={s} className={on ? "chip icon-chip on" : "chip icon-chip"} aria-pressed={on} aria-label={t(`app.scope.${s}`)}
+                  data-tip-title={t(`app.scope.${s}`)} data-tip={t(`app.scope.${s}Hint`)} onClick={() => setScopes(on ? scopes.filter((x) => x !== s) : [...scopes, s])}>
+                  <span className={`scope ${s}`}><i /></span>
+                </button>
+              );
+            })}
+            <span className="sep" />
+            <Select value={sort} label={t("app.store.sort")} prefix={t("app.store.sort")}
+              options={SORTS.map((s) => ({ value: s, label: t(`app.store.sort_${s}`) }))}
+              onChange={(s) => { setSort(s); if (s === "random") setOrder(shuffled(all.map((m) => m.id))); }} />
+            <button role="checkbox" aria-checked={installedOnly} className="check-line" onClick={() => setInstalledOnly(!installedOnly)}>
+              <span className={installedOnly ? "ck on" : "ck"}>{installedOnly && <CheckIcon />}</span>{t("app.store.installed")}
+            </button>
+            {signedIn && (
+              <button role="checkbox" aria-checked={starredOnly} className="check-line" onClick={() => setStarredOnly(!starredOnly)}>
+                <span className={starredOnly ? "ck on" : "ck"}>{starredOnly && <CheckIcon />}</span>{t("app.store.starred")}
+              </button>
+            )}
+            {filtered && (
+              <button className="chip clear" onClick={() => { setText(""); setScopes([]); setInstalledOnly(false); setStarredOnly(false); }}><CloseIcon />{t("app.store.clear")}</button>
+            )}
+          </div>
+          <label className="search">
+            <SearchIcon />
+            <input type="search" value={text} onChange={(e) => setText(e.target.value)} placeholder={t("app.store.search")} aria-label={t("app.store.search")} />
+          </label>
+        </div>
+        {list.length ? (
+          <div className="grid-cards">
+            {list.map((m) => {
+              const k = mark(m);
+              return (
+                <div key={m.id} className="card" role="link" tabIndex={0} onClick={() => show(m.id)} onKeyDown={keyOpen(() => show(m.id))}>
+                  <div className="c-img">
+                    {m.banner ? <img src={src(m.banner)} alt="" draggable={false} loading="lazy" /> : <Backdrop m={m} />}
+                  </div>
+                  <Flag mark={k} />
+                  <div className="c-body">
+                    <ModIcon m={m} />
+                    <b className="c-name"><span>{m.name}</span><Verified m={m} /></b>
+                    <p className="c-desc">{m.summary}</p>
+                    <div className="c-tags">
+                      <ScopeTag scope={m.scope} /><Early m={m} />
+                      <span className="c-stats">
+                        <Stars m={m} on={isStarred(m, store.starred)} />
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="store-empty"><h2>{t("app.store.noMatch")}</h2><p>{t("app.store.noMatchHint")}</p></div>
+        )}
+        <div className="store-foot">
+          <button className="btn submit-btn" onClick={() => setSubmitting(true)} aria-haspopup="dialog" data-tip={t("app.submit.hint")}>{t("app.submit.button")}</button>
+        </div>
+        {submitting && <SubmitDialog onClose={() => setSubmitting(false)} />}
+      </div>
+    );
+  }
+  return <div className="store" ref={scroller}>{body}</div>;
+}
+
+type PageProps = { m: StoreMod; all: StoreMod[]; snap: Snapshot; mark: (m: StoreMod) => StoreMark; onOpen: (id: string | null) => void; onInstall: (m: StoreMod) => void };
+
+/** A picture of the mod that opens large on a click. */
+function Zoom({ path, className, children }: { path: string; className: string; children: ReactNode }) {
+  const [big, setBig] = useState(false);
+  return (
+    <>
+      <button className={`zoomable ${className}`} onClick={() => setBig(true)} aria-haspopup="dialog" aria-label={t("app.image.view")} data-tip={t("app.image.view")}>
+        {children}
+      </button>
+      {big && <ImageViewer image={{ path, v: 0 }} onClose={() => setBig(false)} />}
+    </>
+  );
+}
+
+/** A panel of the side column, folded at first: the title with a count opens it; tools stay at the right. */
+function Panel({ title, count, tools, children }: { title: string; count?: number; tools?: ReactNode; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section className={open ? "store-box mpanel open" : "store-box mpanel"}>
+      <div className="mp-h">
+        <h2><button className="mp-tog" aria-expanded={open} onClick={() => setOpen(!open)}><ChevronIcon /><span>{title}</span>{count !== undefined && <i>{count}</i>}</button></h2>
+        {tools}
+      </div>
+      {open && children}
+    </section>
+  );
+}
+
+/** The options by name, each in a box with its description in the tooltip, as in the Mods tab; options
+    under a group sit in that group, folded. */
+function OptionPanel({ m }: { m: StoreMod }) {
+  const opts = m.option_list ?? [];
+  if (!opts.length) return null;
+  const known = new Set((m.option_groups ?? []).map((g) => g.id));
+  const loose = opts.filter((o) => !o.group || !known.has(o.group));
+  const rows = (list: StoreOption[]) => (
+    <ul className="sopt-rows">
+      {list.map((o, i) => (
+        <li key={i} className="sopt-name" tabIndex={o.description ? 0 : undefined} data-tip-title={o.description ? o.label : undefined} data-tip={o.description || undefined}>
+          {o.label}
+        </li>
+      ))}
+    </ul>
+  );
+  return (
+    <Panel title={t("app.store.options")} count={opts.length}>
+      {loose.length > 0 && rows(loose)}
+      {(m.option_groups ?? []).map((g) => {
+        const inside = opts.filter((o) => o.group === g.id);
+        return inside.length ? (
+          <details key={g.id} className="sopt-group">
+            <summary><ChevronIcon />{g.label}<i>{inside.length}</i></summary>
+            {rows(inside)}
+          </details>
+        ) : null;
+      })}
+    </Panel>
+  );
+}
+
+/** The star count on a card; yellow when the player starred the mod. */
+function Stars({ m, on }: { m: StoreMod; on: boolean }) {
+  const tip = tn("app.store.starsCount", m.stars ?? 0);
+  return <span className={on ? "c-stars on" : "c-stars"} aria-label={tip} data-tip={on ? `${tip}. ${t("app.store.starredByYou")}` : tip}><StarIcon />{m.stars ?? 0}</span>;
+}
+
+/** The star of a mod: the count from the index, and a toggle once signed in (a sign-in otherwise). */
+function StarButton({ m }: { m: StoreMod }) {
+  const { account } = useGitHub();
+  const { starred: list } = useStore();
+  const starred = account && list ? isStarred(m, list) : null;
+  const [busy, setBusy] = useState(false);
+  const toggle = async () => {
+    if (!account) { signIn(); return; }
+    if (starred === null || busy) return;
+    setBusy(true);
+    try {
+      await toggleStar(m);
+    } catch (e) {
+      notify("error", errorText(e));
+    }
+    setBusy(false);
+  };
+  const tip = !account ? t("app.store.starSignIn") : starred ? t("app.store.unstar") : t("app.store.star");
+  return (
+    <button className={starred ? "btn star-btn on" : "btn star-btn"} onClick={toggle} disabled={busy} aria-pressed={!!starred} aria-label={tip} data-tip={tip}>
+      <StarIcon />{m.stars ?? 0}
+    </button>
+  );
+}
+
+/** For the authors of a mod: the open issues of the repository, newest first. */
+function IssuesPanel({ repo, count }: { repo: string; count: number }) {
+  const [list, setList] = useState<OpenIssue[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    call<OpenIssue[]>("github_open_issues", { repo }).then((l) => live && setList(l)).catch(() => live && setList([]));
+    return () => { live = false; };
+  }, [repo]);
+  return (
+    <Panel title={t("app.store.issues")} count={list?.length ?? count}>
+      {list && !list.length && <p className="iss-empty">{t("app.store.issuesNone")}</p>}
+      {list && list.length > 0 && (
+        <ul className="iss-list">
+          {list.map((i) => (
+            <li key={i.number}>
+              <button onClick={() => openUrl(i.url).catch(() => {})} data-tip={i.url}>
+                <b>{i.title}</b>
+                <small>#{i.number} · {i.author} · {date(i.created)}</small>
+                {i.comments > 0 && <i>{tn("app.store.issueReplies", i.comments)}</i>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
+  );
+}
+
+function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
+  const [unfolded, setUnfolded] = useState<Record<string, boolean>>({});
+  const [ask, setAsk] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  const { account } = useGitHub();
+  const [info, setInfo] = useState<RepoInfo | null>(null);
+  // Signed in: whether the player is one of the authors.
+  useEffect(() => {
+    setInfo(null);
+    if (!account) return;
+    let live = true;
+    call<RepoInfo | null>("github_repo", { repo: m.repo }).then((i) => live && setInfo(i)).catch(() => {});
+    return () => { live = false; };
+  }, [account, m.repo]);
+  const k = mark(m);
+  const row = snap.mods.find((r) => r.id === m.id);
+  const desc = useMemo(() => parse(m.description || m.summary).tokens, [m.description, m.summary]);
+  const needs = m.requires.map((id) => ({ id, entry: all.find((x) => x.id === id), row: snap.mods.find((r) => r.id === id) }));
+  const neededBy = all.filter((x) => x.requires.includes(m.id));
+  const url = `https://github.com/${m.repo}`;
+  const band = m.banner ? src(m.banner) : m.icon ? src(m.icon) : artFor(m.id);
+  const reqRow = (key: string, target: StoreMod | undefined, name: string, ok: boolean) => (
+    <li key={key}>
+      <button className="req-row" onClick={() => target && onOpen(target.id)} disabled={!target}>
+        {target ? <ModIcon m={target} size="sm" /> : <span className="mico sm letter"><span aria-hidden="true">{[...name][0]?.toUpperCase()}</span></span>}
+        <span className="rq-name"><b>{name}</b>{target && <small>{target.version}</small>}</span>
+        <span className={ok ? "rq-state ok" : "rq-state"}>{ok ? t("app.store.installed") : target ? t("app.store.notInstalled") : t("app.store.notInStore")}</span>
+      </button>
+    </li>
+  );
+  return (
+    <div className="store-mod">
+      <div className="mband">
+        {band && <span className="mb-pic" aria-hidden="true" style={{ backgroundImage: `url("${band}")` }} />}
+        {m.banner && <Zoom path={m.banner} className="mb-zoom">{null}</Zoom>}
+        <span className="back-wrap"><button data-pad-back className="btn small back" onClick={() => onOpen(null)}><ChevronIcon /><PadGlyph role="east" swap />{t("app.store.back")}</button></span>
+      </div>
+      <div className="mcol">
+        <div className="mid">
+          {m.icon ? <Zoom path={m.icon} className="mid-ico"><ModIcon m={m} size="xl" /></Zoom> : <ModIcon m={m} size="xl" />}
+          <div className="mid-t">
+            <div className="mid-name"><h1>{m.name}<Verified m={m} /></h1></div>
+            {!!m.authors?.length && <span className="mby">{t("app.store.by", m.authors.join(", "))}</span>}
+          </div>
+          <div className="mid-tools">
+            <InstallButton m={m} mark={k} size="big" onInstall={() => onInstall(m)} />
+            <StarButton m={m} />
+            <button className="btn icon report-btn" onClick={() => setReporting(true)} aria-haspopup="dialog" aria-label={t("app.report.button")}
+              data-tip-title={t("app.report.button")} data-tip={t("app.report.hint")}>
+              <IssueIcon />
+            </button>
+            {k === "installed" && (
+              <button className="btn icon danger uninst" onClick={() => setAsk(true)} aria-label={t("app.store.uninstall")} data-tip={t("app.store.uninstall")}><TrashIcon /></button>
+            )}
+          </div>
+          {reporting && <ReportDialog m={m} onClose={() => setReporting(false)} />}
+        </div>
+        {ask && (
+          <Confirm title={t("app.drawer.removeTitle", m.name)} text={t("app.drawer.removeText")} confirm={t("app.drawer.remove")}
+            onCancel={() => setAsk(false)} onConfirm={() => { setAsk(false); run("remove_mods", { ids: [m.id] }); }} />
+        )}
+        {m.summary && <p className="msum">{m.summary}</p>}
+        <dl className="mfacts">
+          <div><dt>{t("app.store.factScope")}</dt><dd><ScopeTag scope={m.scope} />{t(`app.scope.${m.scope}`)}</dd></div>
+          {m.added && <div><dt>{t("app.store.factReleased")}</dt><dd>{date(m.added)}</dd></div>}
+          {m.released && <div><dt>{t("app.store.factUpdated")}</dt><dd>{date(m.released)}</dd></div>}
+          <div><dt>{t("app.store.factVersion")}</dt><dd>{m.version}<Early m={m} /></dd></div>
+          {row?.version && row.version !== m.version && <div><dt>{t("app.store.factInstalled")}</dt><dd>{row.version}</dd></div>}
+        </dl>
+        <div className="mcols">
+          <section className="store-box mdesc"><Markdown tokens={desc} /></section>
+          <div className="mside">
+            <Panel title={t("app.store.versions")}
+              tools={<button className="btn small icon gh" onClick={() => openUrl(url).catch(() => {})} aria-label="GitHub" data-tip={url}><GitHubIcon /></button>}>
+              <ol className="mod-log-list">
+                {m.versions.map((v, i) => {
+                  const unfold = unfolded[v.version] ?? i === 0;
+                  return (
+                    <ReleaseEntry key={v.version} version={v.version} date={v.date} className="mod-log-entry" open={unfold}
+                      onToggle={() => setUnfolded((u) => ({ ...u, [v.version]: !unfold }))} notes={v.notes}
+                      badges={<>
+                        {v.channel !== "stable" && <span className="upd-badge">{v.channel.length <= 3 ? v.channel.toUpperCase() : v.channel[0].toUpperCase() + v.channel.slice(1)}</span>}
+                        {row?.version === v.version && <span className="upd-badge new">{t("app.update.badgeInstalled")}</span>}
+                      </>} />
+                  );
+                })}
+              </ol>
+            </Panel>
+            {info?.push && <IssuesPanel repo={m.repo} count={info.openIssues} />}
+            <OptionPanel m={m} />
+            {needs.length > 0 && (
+              <Panel title={t("app.store.requires")} count={needs.length}>
+                <ul className="req">{needs.map((n) => reqRow(n.id, n.entry, n.entry?.name ?? n.id, !!n.row))}</ul>
+              </Panel>
+            )}
+            {neededBy.length > 0 && (
+              <Panel title={t("app.store.neededBy")} count={neededBy.length}>
+                <ul className="req">{neededBy.map((x) => reqRow(x.id, x, x.name, snap.mods.some((r) => r.id === x.id)))}</ul>
+              </Panel>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

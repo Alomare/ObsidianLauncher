@@ -61,17 +61,25 @@ function M.tick()
 	end
 end
 
+-- Whether this launch plays a custom war that allows achievements: a war line in war mode, with the
+-- war_achievements line. war.setup has dropped a war line it refused by then.
+function M.war_allows(core)
+	return core.war ~= nil and core.war_achievements == true and core.sandbox ~= nil
+end
+
 function M.setup(core, hooks)
 	M.core = core
 	M.held, M.kept, M.told = {}, nil, false
-	-- A Sandbox save never earns achievements. Unlike the guardrail, that needs no notice.
-	local no_achievements = core.block_achievements or core.sandboxed()
+	-- A Sandbox save never earns achievements, unless the custom war played on it allows them. Unlike
+	-- the guardrail, that needs no notice, and the player's own guardrail applies either way.
+	local no_achievements = core.block_achievements or (core.sandboxed() and not M.war_allows(core))
 	if core.freeze_progress then
 		for _, key in B.ipairs(PROGRESS) do M.held[key] = true end
 	elseif no_achievements then
 		for _, key in B.ipairs(ACHIEVEMENT_PROGRESS) do M.held[key] = true end
 	end
 	if not (core.freeze_progress or no_achievements) then return end
+	local CLOSED = { closed = true }
 	log.line("guardrails:" .. (core.freeze_progress and " progression frozen" or "") .. (no_achievements and " achievements off" or ""))
 	hooks.loader_hook("UserManager", "unlock_trophy", function(original, self, ...)
 		if no_achievements then
@@ -79,20 +87,20 @@ function M.setup(core, hooks)
 			return
 		end
 		return original(self, ...)
-	end)
+	end, CLOSED)
 	-- Every way the game, or a mod, changes the account ends in this one write.
 	hooks.loader_hook("SaveManager", "user_set", function(original, self, key, ...)
 		if M.holds(key) then return end
 		return original(self, key, ...)
-	end)
+	end, CLOSED)
 	hooks.loader_hook("SaveManager", "save", function(original, self, ...)
 		M.restore()
 		return original(self, ...)
-	end)
+	end, CLOSED)
 	hooks.loader_hook("SaveManager", "user_save", function(original, self, ...)
 		M.restore()
 		return original(self, ...)
-	end)
+	end, CLOSED)
 	hooks.on_frame(M.tick)
 end
 

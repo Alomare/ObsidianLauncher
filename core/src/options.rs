@@ -23,7 +23,7 @@ pub struct OptionSpec {
     /// `"scope": "client"`: personal, so the value stays out of the mod-set hash.
     pub client: bool,
     pub visible_when: BTreeMap<String, Value>,
-    /// The part of the mod the option belongs to (`parts`). Manifest::validate checks that the part exists.
+    /// The secondary scope the option belongs to (`secondary_scope`). Manifest::validate checks that it exists.
     pub part: Option<String>,
     /// The heading the Options tab lists the option under (`option_groups`). Checked the same way.
     pub group: Option<String>,
@@ -43,6 +43,20 @@ impl OptionKind {
 
 fn bad(i: usize, reason: impl Into<String>) -> ObsidianError {
     ObsidianError::BadManifest { field: format!("options[{i}]"), reason: reason.into() }
+}
+
+/// The pad buttons a keybind can be set to, by the names the engine's `Pad1.button_index` takes.
+pub const PAD_BUTTONS: &[&str] = &[
+    "a", "b", "x", "y", "left_shoulder", "right_shoulder", "left_trigger", "right_trigger",
+    "left_thumb", "right_thumb", "back", "start", "d_up", "d_down", "d_left", "d_right",
+];
+
+/// A controller input for a keybind: one to four of `PAD_BUTTONS` joined by `+`, each once.
+pub fn is_pad_combo(s: &str) -> bool {
+    let parts: Vec<&str> = s.split('+').collect();
+    (1..=4).contains(&parts.len())
+        && parts.iter().all(|p| PAD_BUTTONS.contains(p))
+        && parts.iter().enumerate().all(|(i, p)| !parts[..i].contains(p))
 }
 
 pub fn is_key_name(s: &str) -> bool {
@@ -103,7 +117,11 @@ pub fn parse_options(raw: &[Value]) -> Result<Vec<OptionSpec>> {
             default: Value::Null,
             client: o.get("scope").and_then(Value::as_str) == Some("client"),
             visible_when,
-            part: tag("part")?,
+            // `part` before Hybrid Scopes had the name.
+            part: match tag("secondary_scope")? {
+                Some(id) => Some(id),
+                None => tag("part")?,
+            },
             group: tag("group")?,
         };
         let default = o.get("default").ok_or_else(|| bad(i, "needs a default"))?;
@@ -112,6 +130,9 @@ pub fn parse_options(raw: &[Value]) -> Result<Vec<OptionSpec>> {
     }
     Ok(out)
 }
+
+/// How a keybind fires, as the loader reads them (`settings.lua`). Press, the first, is the default.
+pub const INPUT_MODES: [&str; 5] = ["press", "release", "tap", "double_tap", "long_press"];
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct KeybindSpec {

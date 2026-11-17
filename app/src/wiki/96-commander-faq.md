@@ -10,7 +10,7 @@ pin: faq
 
 ### Does a custom war change the official war or the Official save?
 
-No. A custom war plays on a separate Sandbox save, in a separate matchmaking pool, and the mission results only reach the war server ([What Commander is](wiki:commander#kept-apart-from-the-official-war)).
+No. A custom war plays on a Sandbox save, in a separate matchmaking pool, and the mission results only reach the war server ([What Commander is](wiki:commander#kept-apart-from-the-official-war)).
 
 ### Do mods work in a custom war?
 
@@ -26,17 +26,17 @@ No. The war server runs inside Obsidian on the host PC, so the war clock freezes
 
 ### Can a war move to another PC?
 
-Yes, as a copy. **Export War** on the old host and **Import War** on the new one, then players join the new host again ([Creating a war](wiki:commander-wars#export-import-and-delete)).
+Yes, as a copy. **Export War** on the old host and **Import** on the Wars tab of the new one, then players join the new host again ([Creating a war](wiki:commander-wars#export-import-and-delete)).
 
 ## Sharing and joining
 
 ### Do players who join need the Commander package?
 
-No. Obsidian is enough: **Join War** on the Commander tab works without the package ([Joining a war](wiki:commander-joining)).
+No. Obsidian is enough: **Join War** on the Wars tab works without the package ([Joining a war](wiki:commander-joining)).
 
 ### Can friends over the internet join?
 
-Yes. **Share**, then **Internet**, and a TCP port forwarded on the router or a tunnel such as playit.gg. Friends type the address and the invite code under **Join by Address**. A VPN such as Tailscale works without either and without the code ([Sharing a war](wiki:commander-sharing#internet)).
+Yes. **Share**, then **Internet**, and a TCP port forwarded on the router or a tunnel such as playit.gg. Friends type the address and the invite code under **On another network** in **Join War**. A VPN such as Tailscale works without either and without the code ([Sharing a war](wiki:commander-sharing#internet)).
 
 ### Is opening a war to the internet safe?
 

@@ -1,8 +1,9 @@
 import { listen } from "@tauri-apps/api/event";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { deploy, play, purge } from "./actions";
 import { loadSnapshot, refresh, useSnapshot } from "./api";
 import { useLocked } from "./busy";
+import { reloadChoices } from "./commander/choices";
 import { inkOn } from "./colors";
 import { ColorPickerHost } from "./ColorPicker";
 import { Confirm } from "./Confirm";
@@ -16,13 +17,18 @@ import { NavBar, type Wave } from "./NavBar";
 import { go as setTab, useNav } from "./nav";
 import { WikiPage } from "./WikiPage";
 import { SettingsPage, type SettingsTab } from "./SettingsPage";
+import { AccountPage, type AccountTab } from "./account/AccountPage";
+import { startGitHub } from "./github";
+import { onPadAction, startPad } from "./pad/pad";
+import type { Tab } from "./nav";
 import { Notices } from "./NoticeList";
 import { asksBeforePlay, PlayPrompt } from "./PlayPrompt";
 import { SavesPage } from "./saves/SavesPage";
+import { StorePage } from "./store/StorePage";
 import { loadSettings, updateSettings, useAppSettings } from "./settings";
 import { StatusBar } from "./StatusBar";
 import { Tooltip } from "./Tooltip";
-import { installUpdate, startupUpdate, useUpdates } from "./updates";
+import { installUpdate, startupUpdate, useUpdates, versionOf } from "./updates";
 import { DeployProgress } from "./DeployProgress";
 import { UpdateProgress } from "./UpdateProgress";
 
@@ -33,12 +39,33 @@ export default function App() {
   const { tab } = useNav();
   const [dropping, setDropping] = useState<DropState>(null);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("system");
+  const [accountTab, setAccountTab] = useState<AccountTab>("github");
   const [askUpdate, setAskUpdate] = useState(false);
   const [askPlay, setAskPlay] = useState(false);
   // The same function on every render: the dialog puts the focus back on Yes when it gets a new one.
   const cancelPlay = useCallback(() => setAskPlay(false), []);
   const [askDeploy, setAskDeploy] = useState(false);
   const cancelDeploy = useCallback(() => setAskDeploy(false), []);
+  // A tab clicked again goes back to the start of it (the Store list, the Saves list, the WARS home).
+  const openTab = (to: Tab) => {
+    if (to === "settings" && update === "found") setSettingsTab("updates");
+    if (to === "commander" && tab === "commander") setCommanderHome((n) => n + 1);
+    if (to === "store" && tab === "store") setStoreHome((n) => n + 1);
+    if (to === "saves" && tab === "saves") setSavesHome((n) => n + 1);
+    setTab(to);
+  };
+  // The controller triggers go through the tabs in the order of the bar, round at the ends.
+  const openTabRef = useRef(openTab);
+  openTabRef.current = openTab;
+  useEffect(() => {
+    const order: Tab[] = ["home", "store", "mods", "saves", "commander", "wiki", "account", "settings"];
+    const step = (dir: number) => () => {
+      const at = order.indexOf(tab);
+      openTabRef.current(order[(at + dir + order.length) % order.length]);
+    };
+    const offs = [onPadAction("tabPrev", step(-1)), onPadAction("tabNext", step(1))];
+    return () => offs.forEach((f) => f());
+  }, [tab]);
   // The Saves tab reads the save files, so it waits for the first visit, and then stays mounted to keep edits under way.
   const [savesOpened, setSavesOpened] = useState(false);
   useEffect(() => { if (tab === "saves") setSavesOpened(true); }, [tab]);
@@ -47,8 +74,14 @@ export default function App() {
   // Each click on the Commander tab while it is open takes Commander back to the war list.
   const [commanderHome, setCommanderHome] = useState(0);
   useEffect(() => { if (tab === "commander") setCommanderOpened(true); }, [tab]);
+  // The Store keeps its filters and place once opened; a click on the Store tab while it is open goes back to the list.
+  const [storeOpened, setStoreOpened] = useState(false);
+  const [storeHome, setStoreHome] = useState(0);
+  const [savesHome, setSavesHome] = useState(0);
+  useEffect(() => { if (tab === "store") setStoreOpened(true); }, [tab]);
   const [wave, setWave] = useState<Wave | null>(null);
-  const update = useUpdates();
+  const update = useUpdates((u) => u.phase);
+  const offered = useUpdates(versionOf);
   const startWave = (tone: Wave["tone"]) => {
     if (document.documentElement.dataset.motion !== "off") setWave((w) => ({ tone, n: (w?.n ?? 0) + 1 }));
   };
@@ -78,6 +111,8 @@ export default function App() {
   useEffect(() => {
     loadSettings();
     loadSnapshot();
+    startGitHub();
+    startPad();
     // The browser menu (Back, Reload, Inspect) has no place in the app; text fields keep theirs.
     const menu = (e: MouseEvent) => !(e.target as Element).closest?.("input, textarea") && e.preventDefault();
     document.addEventListener("contextmenu", menu);
@@ -85,9 +120,12 @@ export default function App() {
     const stopDrops = listenForDrops(() => document.querySelector(".mods .list"), () => setTab("mods"), setDropping);
     // The Rust side says when the game starts or stops; the snapshot then locks or frees the buttons.
     const game = listen("game-state", () => refresh());
+    // obsidian-cli changed the data folder while the window was open.
+    const data = listen("data-changed", () => { refresh(); reloadChoices(); });
     return () => {
       stopDrops();
       game.then((f) => f());
+      data.then((f) => f());
       document.removeEventListener("contextmenu", menu);
     };
   }, []);
@@ -95,18 +133,22 @@ export default function App() {
   if (!settings) return null;
   return (
     <div className="app">
-      <NavBar tab={tab} onTab={(to) => { if (to === "settings" && update.phase === "found") setSettingsTab("updates"); if (to === "commander" && tab === "commander") setCommanderHome((n) => n + 1); setTab(to); }} snap={snap} busy={busy} updateFound={update.phase === "found"} wave={wave} onWaveEnd={() => setWave(null)}
+      <NavBar tab={tab} onTab={openTab} snap={snap} busy={busy} updateFound={update === "found"} wave={wave} onWaveEnd={() => setWave(null)}
         onPlay={() => (snap && asksBeforePlay(snap, settings) ? setAskPlay(true) : startPlay())} />
-      <main className={tab === "home" || tab === "wiki" || tab === "commander" ? "page bleed" : "page"}>
+      <main className={tab === "home" || tab === "store" || tab === "wiki" || tab === "commander" ? "page bleed" : "page"}>
         {tab === "home" && <div className="view" key="home"><HomePage /></div>}
+        {snap && (tab === "store" || storeOpened) && <div className="view" hidden={tab !== "store"}><StorePage snap={snap} home={storeHome} /></div>}
         {/* Mods stays mounted while hidden: a long list then costs nothing to come back to. */}
         {snap && <div className="view" hidden={tab !== "mods"}><ModsPage snap={snap} busy={busy} onPurge={() => { startWave(snap.deployed ? "red" : "grey"); purge(); }} onDeploy={() => { startWave(snap.changes === "Waiting" ? "green" : "grey"); deploy(); }} /></div>}
-        {snap && (tab === "saves" || savesOpened) && <div className="view" hidden={tab !== "saves"}><SavesPage snap={snap} visible={tab === "saves"} /></div>}
+        {snap && (tab === "saves" || savesOpened) && <div className="view" hidden={tab !== "saves"}><SavesPage snap={snap} visible={tab === "saves"} home={savesHome} /></div>}
         {snap && (tab === "commander" || commanderOpened) && <div className="view" hidden={tab !== "commander"}><CommanderPage snap={snap} visible={tab === "commander"} onPlay={startPlay} home={commanderHome} /></div>}
         {tab === "wiki" && <div className="view" key="wiki"><WikiPage /></div>}
         {snap && tab === "settings" && <div className="view" key="settings"><SettingsPage snap={snap} tab={settingsTab} onTab={setSettingsTab} /></div>}
+        {tab === "account" && <div className="view" key="account"><AccountPage tab={accountTab} onTab={setAccountTab} /></div>}
+        {/* The first read of the library can take a few seconds: the tabs that need it wait on this. */}
+        {!snap && tab !== "home" && tab !== "wiki" && tab !== "account" &&<div className="view" key="wait"><div className="store-empty app-wait"><p><span className="upd-spin" aria-hidden="true" />{t("app.loadingLibrary")}</p></div></div>}
       </main>
-      <StatusBar version={snap?.version ?? null} updateFound={update.phase === "found"} onUpdates={() => { setSettingsTab("updates"); setTab("settings"); }} />
+      <StatusBar version={snap?.version ?? null} updateFound={update === "found"} onUpdates={() => { setSettingsTab("updates"); setTab("settings"); }} />
       {dropping && (
         <div className={dropping.inside ? "dropzone cap over" : "dropzone cap"}
           style={{ left: dropping.rect.left, top: dropping.rect.top, width: dropping.rect.width, height: dropping.rect.height }}>
@@ -114,7 +156,7 @@ export default function App() {
         </div>
       )}
       {askUpdate && (
-        <Confirm title={t("app.update.title", update.version ?? "")} text={t("app.update.text")}
+        <Confirm title={t("app.update.title", offered ?? "")} text={t("app.update.text")}
           confirm={t("app.update.install")} cancel={t("app.update.later")}
           tone="go" onCancel={() => setAskUpdate(false)} onConfirm={() => { setAskUpdate(false); installUpdate(); }}
           link={{ label: t("app.update.changelog"), onClick: () => { setAskUpdate(false); setSettingsTab("updates"); setTab("settings"); } }} />

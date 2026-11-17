@@ -1,0 +1,56 @@
+/* Controller: the cursor, and the button pictures, shown only while the controller is in charge (:root.gamepad). */
+
+.pad-cursor { position: fixed; left: 0; top: 0; z-index: 2147483647; width: 1.7rem; height: 1.7rem; margin: -0.17rem 0 0 -0.27rem; pointer-events: none; will-change: transform; }
+.pad-cursor[hidden] { display: none; }
+.pad-cursor svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6)); }
+.pad-cursor path { fill: #fff; stroke: #111; stroke-width: 1.4; stroke-linejoin: round; }
+:root.gamepad, :root.gamepad * { cursor: none !important; }
+
+/* The pictures as Kenney drew them, colours included. */
+.gp-glyph, [data-pad-tabs]::before, [data-pad-tabs]::after {
+  flex: none; width: 1.3em; height: 1.3em; background: var(--pad-g) center / contain no-repeat;
+}
+.gp-glyph { display: none; vertical-align: middle; }
+:root.gamepad .gp-glyph { display: inline-block; }
+.gp-glyph[data-role="south"] { --pad-g: var(--pad-south); }
+.gp-glyph[data-role="east"] { --pad-g: var(--pad-east); }
+.gp-glyph[data-role="west"] { --pad-g: var(--pad-west); }
+.gp-glyph[data-role="north"] { --pad-g: var(--pad-north); }
+.gp-glyph[data-role="lb"] { --pad-g: var(--pad-lb); }
+.gp-glyph[data-role="rb"] { --pad-g: var(--pad-rb); }
+.gp-glyph[data-role="lt"] { --pad-g: var(--pad-lt); }
+.gp-glyph[data-role="rt"] { --pad-g: var(--pad-rt); }
+.gp-glyph[data-role="start"] { --pad-g: var(--pad-start); }
+.gp-glyph[data-role="lstick"] { --pad-g: var(--pad-lstick); }
+.gp-glyph[data-role="rstick"] { --pad-g: var(--pad-rstick); }
+
+/* The tab row the bumpers move along gets the bumpers at its ends. */
+/* The bumpers take room from the tabs, never from outside the row: the tabs give up padding first, then clip. */
+:root.gamepad [data-pad-tabs] { align-items: center; min-width: 0; }
+:root.gamepad [data-pad-tabs]::before, :root.gamepad [data-pad-tabs]::after { content: ""; display: inline-block; width: 1.15rem; height: 1.15rem; }
+:root.gamepad [data-pad-tabs]::before { --pad-g: var(--pad-lb); margin-right: 0.25rem; }
+:root.gamepad [data-pad-tabs]::after { --pad-g: var(--pad-rb); margin-left: 0.25rem; }
+:root.gamepad [data-pad-tabs] > button { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:root.gamepad .subtabs[data-pad-tabs] > button { padding-inline: 0.45rem; }
+/* The wiki sidebar is narrow: tabs as wide as their names, set a little tighter, and smaller bumpers. */
+:root.gamepad .wiki-books[data-pad-tabs] > button { flex: 1 1 auto; padding-inline: 0.15rem; letter-spacing: 0.06em; }
+:root.gamepad .wiki-books[data-pad-tabs]::before, :root.gamepad .wiki-books[data-pad-tabs]::after { width: 1rem; height: 1rem; }
+
+/* Before the main tabs: ‹ LT RT ›, the triggers that go through them. */
+.gp-tabs { display: none; }
+/* The same room on both sides: the left margin is the right one plus the padding of Home (1rem). */
+:root.gamepad .gp-tabs { display: inline-flex; align-self: center; align-items: center; gap: 0.15rem; margin: 0 0.5rem 0 1.5rem; color: var(--mu); }
+.gp-tabs::before { content: "\2039"; }
+.gp-tabs::after { content: "\203A"; }
+.gp-tabs::before, .gp-tabs::after { font-size: 1.3rem; line-height: 1; margin-top: -0.12rem; }
+.gp-tabs .gp-glyph { width: 1.5rem; height: 1.5rem; }
+
+/* In buttons (the places are in PadGlyph.tsx). A .btn spaces its parts with its gap; a bare button needs a margin. */
+.bare > * + .gp-glyph { margin-left: 0.3em; }
+.bare > .gp-glyph:first-child { margin-right: 0.3em; }
+:root.gamepad svg:has(+ .gp-swap) { display: none; }
+.btn.play .gp-glyph { width: 1.45em; height: 1.45em; }
+/* A button with only an icon grows to hold the picture beside it. */
+:root.gamepad .btn.icon:has(> .gp-glyph) { width: auto; padding: 0 0.7rem; }
+:root.gamepad .actions .play-split .btn.play-more { width: auto; padding: 0 0.85rem 0 0.6rem; gap: 0.3rem; }
+:root.gamepad .actions .play-split .btn.play-more svg { width: 22px; height: 22px; }

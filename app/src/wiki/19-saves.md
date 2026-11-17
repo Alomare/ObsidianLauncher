@@ -16,8 +16,9 @@ An Official save is the progress the game and Steam know about. The first time t
 - **New** starts a blank Official save, kept in the library until it is switched to.
 - **Snapshot** keeps a copy of the save to come back to.
 - **Duplicate as Sandbox** copies the progress into a new Sandbox and leaves the Official save as it is.
+- **Delete** removes an Official save kept in the library, one at a time, after a backup and after typing the save name. The Official save in the game files can't be deleted: switch to another Official save first.
 
-Official saves can't be renamed, deleted, exported or edited.
+Official saves can't be renamed, exported or edited.
 
 ### Steam Cloud
 
@@ -41,7 +42,7 @@ Sandbox saves can't move the official war. While a Sandbox is active:
 - Achievements are blocked.
 - Sandbox players only see and join other Sandbox lobbies, and the multiplayer terminal says **Sandbox Public** above the lobby list. Friends are included: a player on a Sandbox and a friend on an Official save can't join each other, and the refused invite says so.
 
-Official saves can join anything, as always ([Playing online](wiki:multiplayer)). A custom war from Commander plays on a separate Sandbox made for that war, in a separate pool.
+Official saves can join anything, as always ([Playing online](wiki:multiplayer)). A custom war from Commander plays on a Sandbox save, in a separate pool: any Sandbox, or the one made for the war when none is picked or the host keeps the war to it.
 
 ## The save editor {#the-save-editor}
 

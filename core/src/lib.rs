@@ -16,6 +16,9 @@ pub mod error;
 pub mod game;
 pub mod game_options;
 pub mod gate;
+pub mod github;
+pub mod share;
+pub mod submit;
 pub mod hash;
 pub mod host;
 pub mod images;
@@ -38,6 +41,7 @@ pub mod saves;
 pub mod settings;
 pub mod sort;
 pub mod starter;
+pub mod store;
 #[cfg(test)]
 pub(crate) mod testutil;
 pub mod updates;

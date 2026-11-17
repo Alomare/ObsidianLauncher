@@ -26,11 +26,58 @@ pub struct Ctx {
     pub work: Mutex<()>,
     /// Commander's relay and server (commander.rs).
     pub commander: Mutex<crate::commander::Runtime>,
+    /// The mods an install or update is under way for. The download runs outside the turn, so without
+    /// this two of them for one mod could both get past it and install one over the other.
+    pub installing: Mutex<std::collections::HashSet<String>>,
 }
 
 impl Ctx {
-    pub(crate) fn turn(&self) -> std::sync::MutexGuard<'_, ()> {
-        self.work.lock().unwrap_or_else(|p| p.into_inner())
+    /// This command's turn: after the app's other commands (the mutex), and while no `obsidian-cli`
+    /// command writes the same folder (the work lock). A lock file that can't be opened leaves the
+    /// mutex alone in charge, as before the work lock was there.
+    pub(crate) fn turn(&self) -> Turn<'_> {
+        blocking(|| {
+            let guard = self.work.lock().unwrap_or_else(|p| p.into_inner());
+            let lock = obsidian_core::paths::WorkLock::hold(&self.data).ok();
+            Turn { _lock: lock, _guard: guard }
+        })
+    }
+
+    /// Marks mod `id` as being installed until the returned guard drops; refused while it already is.
+    pub(crate) fn installing(&self, id: &str) -> CmdResult<Installing<'_>> {
+        let mut set = self.installing.lock().unwrap_or_else(|p| p.into_inner());
+        if !set.insert(id.to_string()) {
+            return Err(obsidian_core::ObsidianError::InstallUnderWay(id.to_string()).into());
+        }
+        Ok(Installing { ctx: self, id: id.to_string() })
+    }
+}
+
+/// A command's turn (`Ctx::turn`). The file lock drops first, then the mutex.
+pub(crate) struct Turn<'a> {
+    _lock: Option<obsidian_core::paths::WorkLock>,
+    _guard: std::sync::MutexGuard<'a, ()>,
+}
+
+/// An install under way (`Ctx::installing`); ends when dropped, on success, error or panic.
+pub(crate) struct Installing<'a> {
+    ctx: &'a Ctx,
+    id: String,
+}
+
+impl Drop for Installing<'_> {
+    fn drop(&mut self) {
+        self.ctx.installing.lock().unwrap_or_else(|p| p.into_inner()).remove(&self.id);
+    }
+}
+
+/// Runs `f`, which blocks (a lock to wait for, a download), telling the async runtime first, so the
+/// worker's other tasks move to another thread: every command is async, and a deploy plus a few
+/// waiting clicks would otherwise hold every worker. Outside a multi-thread runtime (tests), it just runs.
+pub(crate) fn blocking<T>(f: impl FnOnce() -> T) -> T {
+    match tokio::runtime::Handle::try_current() {
+        Ok(h) if h.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => tokio::task::block_in_place(f),
+        _ => f(),
     }
 }
 
@@ -534,8 +581,35 @@ pub async fn mod_releases(ctx: State<'_, Ctx>, id: String, page: u32) -> CmdResu
         load_manifest(&Library::open(&ctx.data)?.mod_dir(&id))?
     };
     let Some(repo) = updates::source_of(&m) else { return Ok(ReleasePage { releases: Vec::new(), more: false }) };
-    let (releases, more) = GitHub::default().releases_page(&repo, page, 30)?;
+    let (releases, more) = blocking(|| GitHub::default().releases_page_with(&repo, page, 30, true))?;
     Ok(ReleasePage { releases, more })
+}
+
+/// Installs the release `tag` of a mod in place of the version it has, older or newer, from the
+/// Versions tab. As with `update_mod`, the download runs outside the turn.
+#[tauri::command]
+pub async fn install_mod_version(ctx: State<'_, Ctx>, id: String, tag: String) -> CmdResult<ImportBatch> {
+    let _installing = ctx.installing(&id)?;
+    let current = {
+        let _turn = ctx.turn();
+        installed_manifest(&ctx, &id)?
+    };
+    let staged = blocking(|| updates::stage_tag(&GitHub::default(), &current, &tag))?;
+    let _turn = ctx.turn();
+    // Removed while it downloaded: the update must not bring it back.
+    installed_manifest(&ctx, &id)?;
+    staged.install(&Library::open(&ctx.data)?)?;
+    with_profile(&ctx.data, |_| Ok(()))?;
+    let result = ImportResult {
+        file: id,
+        ok: true,
+        kind: "updated",
+        name: staged.manifest.name.clone(),
+        version: Some(staged.manifest.version.to_string()),
+        old_version: Some(current.version.to_string()),
+        error: None,
+    };
+    Ok(ImportBatch { snapshot: fresh(&ctx)?, results: vec![result] })
 }
 
 /// Asks GitHub about the mods in `ids` that name a repository. Only reading the library takes a
@@ -550,7 +624,7 @@ pub async fn check_mod_updates(ctx: State<'_, Ctx>, ids: Vec<String>, fresh: Opt
     };
     mods.retain(|m| ids.contains(&m.id));
     let trust = (!fresh.unwrap_or(true)).then_some(updates::TRUST_SECS);
-    let checked = updates::check_remembering(&GitHub::default(), &mods, &ctx.data.join(updates::MEMORY_FILE), trust, updates::now_secs());
+    let checked = blocking(|| updates::check_remembering(&GitHub::default(), &mods, &ctx.data.join(updates::MEMORY_FILE), trust, updates::now_secs()));
     Ok(checked
         .into_iter()
         .map(|c| match c.result {
@@ -560,16 +634,32 @@ pub async fn check_mod_updates(ctx: State<'_, Ctx>, ids: Vec<String>, fresh: Opt
         .collect())
 }
 
+/// The manifest of mod `id` in the library, under a turn the caller holds. An id from the window that
+/// isn't a mod id names no folder.
+fn installed_manifest(ctx: &Ctx, id: &str) -> CmdResult<obsidian_core::manifest::Manifest> {
+    if !obsidian_core::manifest::is_valid_id(id) {
+        return Err(obsidian_core::ObsidianError::ModMissing(id.to_string()).into());
+    }
+    let dir = Library::open(&ctx.data)?.mod_dir(id);
+    if !dir.is_dir() {
+        return Err(obsidian_core::ObsidianError::ModMissing(id.to_string()).into());
+    }
+    Ok(load_manifest(&dir)?)
+}
+
 /// Installs the latest release of a mod. The download runs outside the turn, as in
 /// `check_mod_updates`, and the mod is replaced at the end.
 #[tauri::command]
 pub async fn update_mod(ctx: State<'_, Ctx>, id: String) -> CmdResult<ImportBatch> {
+    let _installing = ctx.installing(&id)?;
     let current = {
         let _turn = ctx.turn();
-        load_manifest(&Library::open(&ctx.data)?.mod_dir(&id))?
+        installed_manifest(&ctx, &id)?
     };
-    let staged = updates::stage(&GitHub::default(), &current)?;
+    let staged = blocking(|| updates::stage(&GitHub::default(), &current))?;
     let _turn = ctx.turn();
+    // Removed while it downloaded: the update must not bring it back.
+    installed_manifest(&ctx, &id)?;
     staged.install(&Library::open(&ctx.data)?)?;
     with_profile(&ctx.data, |_| Ok(()))?;
     let result = ImportResult {
@@ -579,6 +669,47 @@ pub async fn update_mod(ctx: State<'_, Ctx>, id: String) -> CmdResult<ImportBatc
         name: staged.manifest.name.clone(),
         version: Some(staged.manifest.version.to_string()),
         old_version: Some(current.version.to_string()),
+        error: None,
+    };
+    Ok(ImportBatch { snapshot: fresh(&ctx)?, results: vec![result] })
+}
+
+/// The Store list from GitHub, with the pictures kept in the data folder; the last list read when
+/// GitHub is out of reach. Touches nothing in the library, so it takes no turn.
+#[tauri::command]
+pub async fn store_index(ctx: State<'_, Ctx>) -> CmdResult<obsidian_core::store::StoreIndex> {
+    let mut index = blocking(|| obsidian_core::store::fetch(&ctx.data))?;
+    // Early access mods: only those GitHub lets the signed-in player read, and only with that access granted.
+    let private = obsidian_core::github::has_scope(&ctx.data, obsidian_core::github::PRIVATE);
+    let client = obsidian_core::github::Client::new();
+    obsidian_core::store::keep_readable(&mut index, &GitHub::default(), |repo| {
+        private && matches!(obsidian_core::github::repo(&client, repo), Ok(Some(_)))
+    });
+    Ok(index)
+}
+
+/// Installs the newest release of a mod in the Store, or replaces the copy in the library with it.
+/// The repository comes from the last list read, never from the window. As with `update_mod`, the
+/// download runs outside the turn. A new mod comes in switched off, as an imported one does.
+#[tauri::command]
+pub async fn store_install(ctx: State<'_, Ctx>, id: String) -> CmdResult<ImportBatch> {
+    let _installing = ctx.installing(&id)?;
+    let entry = obsidian_core::store::find(&ctx.data, &id)?;
+    let staged = blocking(|| obsidian_core::store::stage(&GitHub::default(), &entry))?;
+    let _turn = ctx.turn();
+    let outcome = staged.install(&Library::open(&ctx.data)?)?;
+    with_profile(&ctx.data, |_| Ok(()))?;
+    let (kind, old_version) = match outcome {
+        obsidian_core::library::InstallOutcome::Added => ("installed", None),
+        obsidian_core::library::InstallOutcome::Replaced { old_version } => ("updated", Some(old_version.to_string())),
+    };
+    let result = ImportResult {
+        file: id,
+        ok: true,
+        kind,
+        name: staged.manifest.name.clone(),
+        version: Some(staged.manifest.version.to_string()),
+        old_version,
         error: None,
     };
     Ok(ImportBatch { snapshot: fresh(&ctx)?, results: vec![result] })
@@ -612,19 +743,26 @@ pub async fn set_key(ctx: State<'_, Ctx>, id: String, keybind: String, key: Opti
     live_edit(&ctx, |lib, p| obsidian_core::edit::set_key(lib, p, &id, &keybind, key.as_deref()))
 }
 
+/// Sets how a keybind fires (tap, double tap, press, long press, release), or press again with `None`.
+#[tauri::command]
+pub async fn set_mode(ctx: State<'_, Ctx>, id: String, keybind: String, mode: Option<String>) -> CmdResult<Snapshot> {
+    let _turn = ctx.turn();
+    live_edit(&ctx, |lib, p| obsidian_core::edit::set_mode(lib, p, &id, &keybind, mode.as_deref()))
+}
+
+/// Sets the controller input of a keybind (pad buttons joined by +), or none again with `None`.
+#[tauri::command]
+pub async fn set_pad(ctx: State<'_, Ctx>, id: String, keybind: String, combo: Option<String>) -> CmdResult<Snapshot> {
+    let _turn = ctx.turn();
+    live_edit(&ctx, |lib, p| obsidian_core::edit::set_pad(lib, p, &id, &keybind, combo.as_deref()))
+}
+
 /// Deletes mods from the library; they leave every profile.
 #[tauri::command]
 pub async fn remove_mods(ctx: State<'_, Ctx>, ids: Vec<String>) -> CmdResult<Snapshot> {
     let _turn = ctx.turn();
     remove_from_library(&ctx.data, &ids)?;
     live_edit(&ctx, |_, _| Ok(()))
-}
-
-/// Puts the starter pack back as it came, in the active profile.
-#[tauri::command]
-pub async fn restore_starter_pack(ctx: State<'_, Ctx>) -> CmdResult<Snapshot> {
-    let _turn = ctx.turn();
-    live_edit(&ctx, obsidian_core::starter::restore)
 }
 
 const STEAM_LAUNCH: &str = "steam://rungameid/394510";
@@ -803,6 +941,16 @@ pub async fn saves_delete(ctx: State<'_, Ctx>, id: String) -> CmdResult<SavesDon
     saves_done(&ctx, &s)
 }
 
+/// Deletes an Official save. `name` is what the player typed; the core compares it with the save
+/// name again and refuses on any difference, and refuses while the game runs.
+#[tauri::command]
+pub async fn saves_delete_official(ctx: State<'_, Ctx>, id: String, name: String) -> CmdResult<SavesDone> {
+    let _turn = ctx.turn();
+    let s = saves_of(&ctx)?;
+    s.delete_official(&id, &name)?;
+    saves_done(&ctx, &s)
+}
+
 #[tauri::command]
 pub async fn saves_export(ctx: State<'_, Ctx>, id: String, dest: PathBuf) -> CmdResult<()> {
     let _turn = ctx.turn();
@@ -858,6 +1006,17 @@ mod tests {
         assert_eq!((e.code.as_str(), e.message.as_str()), ("ProfileExists", "a profile named A already exists"));
         let e: CmdError = ObsidianError::LastProfile.into();
         assert_eq!(e.code, "LastProfile");
+    }
+
+    #[test]
+    fn one_install_at_a_time_per_mod() {
+        let ctx = Ctx { data: PathBuf::new(), gate: Default::default(), work: Mutex::new(()), commander: Default::default(), installing: Default::default() };
+        let first = ctx.installing("a.mod").unwrap();
+        assert_eq!(ctx.installing("a.mod").err().map(|e| e.code), Some("InstallUnderWay".to_string()), "a second one is refused");
+        let other = ctx.installing("b.mod");
+        assert!(other.is_ok(), "another mod is not held up");
+        drop(first);
+        assert!(ctx.installing("a.mod").is_ok(), "the mark goes with the guard");
     }
 
     /// A game folder `find_game` takes on every system: Linux wants a Proton prefix beside it.

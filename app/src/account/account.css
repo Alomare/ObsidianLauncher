@@ -1,0 +1,84 @@
+/* The Account tab, and the account icon in the navigation bar. The page is made of the Settings parts
+   (.set-sec groups, .game-card, .set-btns, .patch-table) and the Store boxes (.store-box); this file sizes
+   what those parts do not cover. */
+
+/* Nav: a small green check on the bottom right of the person while signed in, measured from the middle of the tab. */
+.tab.tab-account { position: relative; }
+.tab-check { position: absolute; top: calc(50% + 0.05rem); left: calc(50% + 0.12rem); display: grid; place-items: center; width: 0.85rem; height: 0.85rem;
+  color: var(--go); filter: drop-shadow(0 0 1px var(--bg2)) drop-shadow(0 0 1px var(--bg2)); }
+.tab .tab-check svg { width: 0.85rem; height: 0.85rem; stroke-width: 3.6; }
+
+/* The status card: the picture (or the dot, or the spinner) in the place of the Game card dot. */
+.acc-card { align-items: center; }
+.acc-card .game-dot { margin-top: 0; }
+.acc-card .game-text small { max-width: 40rem; }
+.acc-avatar { flex: none; width: 3rem; height: 3rem; border-radius: 50%; background: var(--row); object-fit: cover; box-shadow: 0 0 0 1px var(--ln); }
+.acc-avatar.small { width: 1.5rem; height: 1.5rem; }
+.acc-avatar.letter { display: grid; place-items: center; color: var(--mu); font-family: "Saira Variable", "Exo 2 Variable", sans-serif; font-weight: 660; font-size: var(--fs-lg); line-height: 1; }
+.acc-avatar.small.letter { font-size: var(--fs-xs); }
+.acc-avatar.letter svg { width: 1.4rem; height: 1.4rem; }
+.acc-spin { display: grid; place-items: center; }
+.acc-spin .upd-spin { width: 1.3rem; height: 1.3rem; }
+button.link.acc-login { font-size: var(--fs-lg); font-weight: 650; color: var(--tx); text-decoration: none; }
+button.link.acc-login:hover { color: var(--goldtx); filter: none; }
+.acc-code { display: block; font-family: Consolas, "Cascadia Mono", monospace; font-size: var(--fs-xl); font-weight: 700; letter-spacing: 0.18em; color: var(--goldtx); user-select: all; }
+.game-card.busy .acc-code + small { margin-top: 0.1rem; }
+
+/* Access: the patch table with the permission and what it enables at the left, the state at the right. */
+.patch-table.acc-access { max-height: none; }
+.acc-access .pt-row { grid-template-columns: minmax(0, 1fr) 7rem; padding: 0.55rem 0.7rem; }
+.acc-access .pt-row > .acc-access-text { display: flex; flex-direction: column; gap: 0.15rem; color: var(--tx); }
+.acc-access-text b { font-weight: 600; font-size: var(--fs-base); }
+.acc-access-text small { max-width: 40rem; font-size: var(--fs-sm); line-height: 1.45; color: var(--mu); }
+.acc-access .pt-row > .acc-access-ctl { display: flex; justify-content: flex-end; }
+.acc-access-ctl .btn.small { width: 100%; padding: 0; }
+.acc-granted { display: inline-flex; align-items: center; gap: 0.35rem; font-size: var(--fs-xs); font-weight: 660; letter-spacing: 0.08em; text-transform: uppercase; color: var(--go); }
+.acc-granted svg { width: 0.95rem; height: 0.95rem; }
+
+/* Reports: the patch table, a row a report; a green bar at the left marks new replies. */
+.patch-table.acc-reports { max-height: none; }
+.acc-reports .pt-row { grid-template-columns: minmax(0, 1fr) minmax(0, 10rem) 5.5rem 7rem; min-height: 2.5rem; }
+button.pt-row.acc-report { width: 100%; border: 0; border-top: 1px solid var(--ln); background: none; color: inherit; font: inherit; font-size: var(--fs-md);
+  text-align: left; cursor: pointer; outline-offset: -2px; transition: background var(--fast); }
+.acc-report:hover { background: var(--row); }
+.acc-report.new { box-shadow: inset 3px 0 0 var(--go); }
+.acc-reports .pt-row > .acc-report-title { display: flex; align-items: center; gap: 0.5rem; min-width: 0; color: var(--tx); }
+.acc-report-title b { min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acc-report-mod { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acc-unread { flex: none; display: grid; place-items: center; min-width: 1.3rem; height: 1.3rem; padding: 0 0.35rem; background: var(--go); color: var(--on);
+  font-family: "Saira Variable", "Exo 2 Variable", sans-serif; font-size: var(--fs-xs); font-weight: 800; font-variant-numeric: tabular-nums; }
+/* The state, in the shape of the save chips. */
+.acc-state { display: inline-block; padding: 0.05rem 0.4rem; font-size: var(--fs-xs); font-weight: 660; letter-spacing: 0.08em; text-transform: uppercase;
+  background: var(--row); color: var(--mu); box-shadow: inset 0 0 0 1px var(--ln); }
+.acc-state.open { color: var(--goldtx); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gold) 55%, transparent); }
+.acc-state.fixed { color: var(--go); box-shadow: inset 0 0 0 1px var(--go); }
+.acc-state.deleted { color: var(--warn); box-shadow: inset 0 0 0 1px var(--warn); }
+
+/* One report: the back button and the title, then a Store box per message and one for the reply. */
+.acc-thread { display: flex; flex-direction: column; gap: 0.9rem; padding-top: 0.4rem; }
+.acc-thread-head { display: flex; flex-direction: column; align-items: flex-start; gap: 0.45rem; }
+.btn.small.acc-back { gap: 0.4rem; padding: 0 1rem 0 0.7rem; margin-bottom: 0.3rem; }
+.acc-back svg { transform: rotate(90deg); }
+.acc-thread-title { display: flex; align-items: center; flex-wrap: wrap; gap: 0.6rem; }
+.acc-thread-title h2 { margin: 0; font-size: var(--fs-xl); font-weight: 650; }
+.acc-meta { font-size: var(--fs-sm); color: var(--mu); font-variant-numeric: tabular-nums; }
+.acc-wait { display: flex; align-items: center; gap: 0.6rem; margin: 0; font-size: var(--fs-md); color: var(--mu); }
+.acc-messages { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+.acc-message-head { display: flex; align-items: center; gap: 0.5rem; }
+.acc-message-head b { font-weight: 600; }
+.acc-message-head .acc-meta { margin-left: auto; }
+.acc-author { padding: 0.05rem 0.4rem; font-size: var(--fs-xs); font-weight: 660; letter-spacing: 0.08em; text-transform: uppercase; color: var(--on); background: var(--gold); }
+.acc-message-body { padding-left: 2rem; font-size: var(--fs-base); user-select: text; overflow-wrap: anywhere; }
+.acc-message-body .md > :first-child { margin-top: 0; }
+.acc-message-body .md > :last-child { margin-bottom: 0; }
+.acc-reply textarea { width: 100%; min-height: 6rem; resize: vertical; padding: 0.55rem 0.7rem; background: var(--row); border: 1px solid var(--ln); border-radius: 0;
+  color: var(--tx); font: inherit; font-size: var(--fs-base); line-height: 1.45; outline: 0; box-sizing: border-box; }
+.acc-reply textarea:focus { border-color: var(--gold); }
+.acc-reply textarea::placeholder, .acc-import input::placeholder { color: var(--mu); opacity: 0.8; }
+
+/* Shared links: the field as tall as the small buttons beside it. */
+.acc-import { display: flex; gap: 0.4rem; max-width: 40rem; }
+.acc-import input { flex: 1; min-width: 0; height: 2rem; padding: 0 0.7rem; background: var(--row); border: 1px solid var(--ln); color: var(--tx); font-size: var(--fs-md); outline: 0; }
+.acc-import input:focus { border-color: var(--gold); }
+.confirm .share-seg { width: max-content; min-width: 16rem; margin-top: 0.3rem; }
+.confirm .share-seg + .set-note { margin-top: 0.5rem; }

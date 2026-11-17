@@ -6,7 +6,7 @@ summary: Importing a mod from a .zip or a folder, updating one, and removing one
 
 ## Importing
 
-Drag a mod folder or a `.zip` file onto the mod list in the [Mods](app:mods) tab, or click the green **Add** button above the list and pick one. Several files can go in at once, and a notification says what happened to each.
+Drag a mod folder or a `.zip` file onto the mod list in the [Mods](app:mods) tab, or click the green **Add** button above the list and choose **Import .zip** or **Import folder**. Several files can go in at once, and a notification says what happened to each. The [Store](app:store) installs mods without a download by hand.
 
 Obsidian copies the mod into the library, so the download can be deleted afterwards. Importing changes nothing in the game until the next deploy.
 
@@ -33,11 +33,14 @@ Import the new version the same way. A mod with the same id replaces the one in 
 
 ### From GitHub
 
-A mod can name a GitHub repository. To ask GitHub for new versions, check the mods in the [Mods](app:mods) tab (the checkbox of a folder checks every mod in it, and the one at the top of the list checks them all) and use **Check for Updates** in the bar at the foot of the list. A mod with a new version shows it in gold in the Version column, and **Update to** in the details of the mod. Click either, then deploy.
+A mod can name a GitHub repository. Obsidian asks GitHub for new versions of those mods at startup, unless it asked in the last six hours, and on request:
 
-Obsidian asks GitHub on **Check for Updates**, and at startup unless it asked in the last six hours. It only offers a higher version of the same mod, and nothing installs without a click. The gold version box shows the new version and a link to the changelog, then asks to confirm. **Update All** installs every waiting update at once.
+- **Check All for Updates**, an icon at the top of the [Mods](app:mods) tab, asks about every such mod.
+- **Check for Updates** in the bar at the foot of the list asks about the checked mods. The checkbox of a folder checks every mod in it, and the one at the top of the list checks them all.
 
-The About tab in the details of such a mod lists the changes of each release under **Changelogs**. Click a version to read what changed, and **Load more** brings older ones.
+A mod with a new version shows it in gold in the Version column, and **Update to** in the details of the mod. A click on either shows the new version and a link to the changelog, then asks to confirm. The gold button with a number, at the top of the Mods tab, installs every waiting update at once. Only stable releases with a higher version are offered, and nothing installs without a click. Deploy afterwards to put the new versions in the game.
+
+The Versions tab in the details of such a mod lists every release, by channel, with what each one changed, and installs any of them, older ones included ([Channels](wiki:sharing#channels)).
 
 ## Removing
 
@@ -47,7 +50,7 @@ Right-click a mod and choose **Remove**, or use the bin under the close button i
 
 Three mods come with Obsidian, in the **Obsidian Kit** folder at the top of the list: Obsidian API, [Obsidian Trainer](wiki:trainer) and Obsidian Patches. Obsidian Patches starts on, with most of the fixes enabled, and the other two stay off until switched on.
 
-They are mods like any other: they turn on and off, can be removed and update from GitHub. The folder starts locked, so it stays in place. A click on the padlock unlocks it, and then the mods can move and the folder can be renamed or deleted. **Restore Obsidian Kit** in [Settings](app:settings) puts everything back: it brings back deleted mods and the folder, and resets their settings in the active profile.
+They are mods like any other: they turn on and off, can be removed and update from GitHub. The folder starts locked, so it stays in place. A click on the padlock unlocks it, and then the mods can move and the folder can be renamed or deleted. A removed Kit mod installs again from the Obsidian Kit row at the top of the [Store](app:store).
 
 ## Dependencies
 

@@ -16,7 +16,7 @@ use obsidian_core::updates::{self, GitHub};
 use obsidian_core::{ObsidianError, Result};
 
 #[derive(Parser)]
-#[command(name = "obsidian", version, about = "Launcher and mod loader for HELLDIVERS (2015)")]
+#[command(name = "obsidian-cli", version, about = "Launcher and mod loader for HELLDIVERS (2015)")]
 struct Cli {
     /// The Helldivers game folder (skips the Steam search)
     #[arg(long, global = true)]
@@ -50,20 +50,19 @@ enum Command {
     Purge,
     /// Show the build check, what is deployed and patches from other tools
     Status,
-    /// Allow session mods from other Obsidian users (on or off)
-    /// Block session mods from others in a public lobby.
+    /// Block session mods from other players in public lobbies (on or off), from the next launch
     BlockPublic { state: OnOff },
     /// Keep Steam achievements from unlocking (on or off), from the next launch
     BlockAchievements { state: OnOff },
     /// Keep the account's progression as it is (on or off), from the next launch
     FreezeProgress { state: OnOff },
-    /// Set a mod option, for example: obsidian set author.mod distance 7
+    /// Set a mod option, for example: obsidian-cli set author.mod distance 7
     Set { id: String, option: String, value: String },
     /// Delete a mod from the library
     Remove { id: String },
     /// Put the Obsidian Kit back as it came, in the active profile
     RestoreStarter,
-    /// Set a mod key, for example: obsidian key author.mod toggle f9
+    /// Set a mod key, for example: obsidian-cli key author.mod toggle f9
     Key { id: String, keybind: String, key: String },
     /// Ask GitHub for new versions of the mods that name a repository
     Updates,
@@ -116,6 +115,9 @@ enum CommanderAction {
         name: String,
         #[arg(long)]
         lan: Option<String>,
+        /// The Sandbox save to play it on (the war's own save when left out)
+        #[arg(long)]
+        save: Option<String>,
     },
     /// Play the official war on the next launch
     Official,
@@ -178,6 +180,19 @@ pub fn main() -> ExitCode {
 
 fn run(cli: Cli) -> Result<()> {
     let data = data_dir(cli.data_dir.as_deref());
+    // One writer of the data folder at a time, the app included (`paths::WorkLock`); an open app sees
+    // the change once the command ends. Serve runs until stopped and writes nothing of the library.
+    let serving = matches!(cli.command, Command::Commander { action: CommanderAction::Serve });
+    let work = if serving { None } else { Some(obsidian_core::paths::WorkLock::hold(&data)?) };
+    let done = run_command(cli, &data);
+    if let Some(w) = work {
+        w.mark_changed();
+    }
+    done
+}
+
+fn run_command(cli: Cli, data: &std::path::Path) -> Result<()> {
+    let data = data.to_path_buf();
     let game = || find_game(cli.game.as_deref());
     let lib = Library::open(&data)?;
     // Purge and status must work even when a mod folder or the profile is damaged,
@@ -255,7 +270,7 @@ fn run(cli: Cli) -> Result<()> {
                 let m = mods.iter().find(|m| m.id == *id).ok_or_else(|| ObsidianError::ModMissing(id.clone()))?;
                 let staged = updates::stage(&github, m)?;
                 staged.install(&lib)?;
-                println!("Updated {id} {} -> {} (run obsidian deploy)", m.version, staged.manifest.version);
+                println!("Updated {id} {} -> {} (run obsidian-cli deploy)", m.version, staged.manifest.version);
             }
             profile.sync(&lib)?;
             profile.save(&data)?;
@@ -263,7 +278,7 @@ fn run(cli: Cli) -> Result<()> {
         Command::List => {
             let mods = lib.list()?;
             if profile.mods.is_empty() {
-                println!("The library is empty. Add mods with: obsidian import <folder or .zip>");
+                println!("The library is empty. Add mods with: obsidian-cli import <folder or .zip>");
             }
             for (i, entry) in profile.mods.iter().enumerate() {
                 let Some(m) = mods.iter().find(|m| m.id == entry.id) else { continue };
@@ -343,7 +358,7 @@ fn run(cli: Cli) -> Result<()> {
             }
             // Status must work with a damaged library, so a failure here only skips the line.
             if let Ok(w) = Profile::load(&data).and_then(|p| changes_waiting(&lib, &p, &data, Some(&g.contents()))) {
-                println!("Changes waiting: {}", if w == ChangesWaiting::Waiting { "yes (run obsidian deploy)" } else { "no" });
+                println!("Changes waiting: {}", if w == ChangesWaiting::Waiting { "yes (run obsidian-cli deploy)" } else { "no" });
             }
             if obsidian_core::game::is_running() {
                 println!("The game is running.");
@@ -376,7 +391,7 @@ fn run(cli: Cli) -> Result<()> {
             match obsidian_core::edit::set_option(&lib, &mut profile, &id, &option, Some(&parsed))? {
                 obsidian_core::edit::Applies::AfterDeploy => {
                     profile.save(&data)?;
-                    println!("{id} {option} is now {parsed}. Run obsidian deploy to apply.");
+                    println!("{id} {option} is now {parsed}. Run obsidian-cli deploy to apply.");
                 }
                 obsidian_core::edit::Applies::NextLaunch => live_change(&profile, &data, &lib, &game()?, &format!("{id} {option} is now {parsed}"))?,
             }
@@ -411,7 +426,7 @@ fn run(cli: Cli) -> Result<()> {
             }
             ProfileAction::New { name, copy } => {
                 profiles::create(&data, &name, copy.as_deref())?;
-                println!("Created profile {name}. Switch to it with: obsidian profile use {name}");
+                println!("Created profile {name}. Switch to it with: obsidian-cli profile use {name}");
             }
         },
     }
@@ -478,14 +493,14 @@ fn run_commander(action: CommanderAction, data: &std::path::Path, game: impl Fn(
                 std::thread::sleep(std::time::Duration::from_millis(500));
             }
         }
-        CommanderAction::Play { id, name, lan } => {
+        CommanderAction::Play { id, name, lan, save } => {
             let war = match lan {
-                Some(base) => WarRef { id: id.clone(), name, host: WarHost::Lan, base: Some(base.trim_end_matches('/').to_string()), save: None, computer: None, model: None, key: None },
-                None => WarRef { id: id.clone(), name, host: WarHost::Local, base: None, save: None, computer: None, model: None, key: None },
+                Some(base) => commander::with_host_flags(WarRef { id: id.clone(), name, host: WarHost::Lan, base: Some(base.trim_end_matches('/').to_string()), ..Default::default() }),
+                None => WarRef { id: id.clone(), name, host: WarHost::Local, ..Default::default() },
             };
-            commander::play_war(data, &saves()?, war)?;
+            let on = commander::play_war(data, &saves()?, war, save.as_deref())?;
             let s = State::load(data);
-            println!("The next launch plays war {id} on Sandbox save {}.", s.war(&id).and_then(|w| w.save.clone()).unwrap_or_default());
+            println!("The next launch plays war {id} on Sandbox save {on}.");
             if s.war(&id).is_some_and(|w| w.host == WarHost::Local) {
                 println!("Keep `obsidian commander serve` (or the app) running while playing.");
             }
@@ -595,7 +610,7 @@ fn live_change(profile: &Profile, data: &std::path::Path, lib: &Library, g: &Gam
     if loader_deployed {
         println!("{what}. Applies at the next game launch.");
     } else {
-        println!("{what}. Run obsidian deploy to apply.");
+        println!("{what}. Run obsidian-cli deploy to apply.");
     }
     Ok(())
 }
@@ -613,7 +628,7 @@ fn toggle(profile: &mut Profile, lib: &Library, data: &std::path::Path, id: &str
     let others = profile.switch(lib, id, on)?;
     profile.save(data)?;
     let word = if on { "on" } else { "off" };
-    println!("{id} is now {word}. Run obsidian deploy to apply.");
+    println!("{id} is now {word}. Run obsidian-cli deploy to apply.");
     for other in others {
         println!("{other} is now {word} too, because {} needs it.", if on { id } else { &other });
     }

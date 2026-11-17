@@ -2675,7 +2675,7 @@ dependencies = [
 
 [[package]]
 name = "obsidian-app"
-version = "2.0.0-beta.1"
+version = "2.0.0"
 dependencies = [
  "obsidian-core",
  "semver",
@@ -2689,11 +2689,12 @@ dependencies = [
  "tauri-plugin-updater",
  "tauri-plugin-window-state",
  "tempfile",
+ "tokio",
 ]
 
 [[package]]
 name = "obsidian-core"
-version = "2.0.0-beta.1"
+version = "2.0.0"
 dependencies = [
  "assert_cmd",
  "chrono",

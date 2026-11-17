@@ -89,6 +89,19 @@ struct Index {
     active_official: Option<String>,
     #[serde(default)]
     saves: Vec<SaveEntry>,
+    /// Set while the game's own files change from one Official save to another, cleared once the
+    /// index names the new one. Still set at the next use, the switch is finished then.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    switching: Option<Switching>,
+}
+
+/// An Official switch under way: `from` was stored in the library before the game files changed.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Switching {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    from: Option<String>,
+    to: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -345,7 +358,8 @@ impl Saves {
         Ok(())
     }
 
-    fn write_settings(&self) -> Result<()> {
+    /// Writes the settings file from the profile, the save selected and the war selected.
+    pub(crate) fn write_settings(&self) -> Result<()> {
         let lib = Library::open(&self.data)?;
         let mut profile = Profile::load(&self.data)?;
         profile.sync(&lib)?;
@@ -408,9 +422,13 @@ impl Saves {
         Some(Pair { common: c.unwrap_or(blank.common), user: u.unwrap_or(blank.user) })
     }
 
-    /// The library with the current game files adopted as an Official save the first time it is used.
+    /// The library with the current game files adopted as an Official save the first time it is used,
+    /// and an Official switch that was cut short finished first.
     fn ensure(&self) -> Result<Index> {
         let mut idx = self.read_index()?;
+        if idx.switching.is_some() && !(self.running)() {
+            self.recover_switch(&mut idx)?;
+        }
         if idx.saves.is_empty()
             && let Some(pair) = self.capture_live()
         {
@@ -428,7 +446,7 @@ impl Saves {
         use sha2::{Digest, Sha256};
         let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
         (0u32..)
-            .map(|i| Sha256::digest(format!("{nanos}:{i}:{}", self.account)).iter().take(4).map(|b| format!("{b:02x}")).collect::<String>())
+            .map(|i| crate::hash::hex(&Sha256::digest(format!("{nanos}:{i}:{}", self.account))[..4]))
             .find(|id| !idx.saves.iter().any(|s| s.id == *id) && !self.sandbox_common(id).exists() && !self.dir.join(id).exists())
             .expect("a free id")
     }
@@ -498,6 +516,11 @@ impl Saves {
             SaveKind::Official if idx.active_official.as_deref() == Some(entry.id.as_str()) => self.official_mod(),
             SaveKind::Official => self.slot_mod(&entry.id),
         }
+    }
+
+    /// How many saves the account has, from the index alone, without reading the save files.
+    pub fn count(&self) -> Result<usize> {
+        Ok(self.ensure()?.saves.len())
     }
 
     pub fn list(&self) -> Result<SaveList> {
@@ -577,6 +600,10 @@ impl Saves {
         self.write_settings()
     }
 
+    /// Stores the outgoing Official save in the library, marks the switch in the index, writes the
+    /// incoming save into the game's own files and then names it active. A failure or a crash
+    /// after the mark is finished by the next [`Saves::ensure`], so the index never names a save
+    /// other than the one in the game files.
     fn switch_official(&self, idx: &mut Index, id: &str) -> Result<()> {
         let outgoing = self.capture_live();
         if let (Some(active), Some(pair)) = (idx.active_official.clone(), &outgoing) {
@@ -584,15 +611,39 @@ impl Saves {
             copy_or_remove(&self.official_mod(), &self.slot_mod(&active))?;
         }
         crate::backup::backup_game_saves(&self.game, &self.data.join("backups"), KEEP_BACKUPS)?;
-        let mut incoming = self.read_slot(id)?;
+        let incoming = self.read_slot(id)?;
+        let from = idx.active_official.clone().filter(|_| outgoing.is_some());
+        idx.switching = Some(Switching { from, to: id.to_string() });
+        self.save_index(idx)?;
+        self.finish_switch(idx, incoming, outgoing.as_ref())
+    }
+
+    /// The second half of a switch: the incoming save into the game files, then the index.
+    fn finish_switch(&self, idx: &mut Index, mut incoming: Pair, outgoing: Option<&Pair>) -> Result<()> {
+        let Some(Switching { to, .. }) = idx.switching.clone() else { return Ok(()) };
         strip_queues(&mut incoming);
-        if let Some(o) = &outgoing {
+        if let Some(o) = outgoing {
             carry_counters(&mut incoming.user.root, &o.user.root);
         }
         self.write_live(&incoming)?;
-        copy_or_remove(&self.slot_mod(id), &self.official_mod())?;
-        idx.active_official = Some(id.to_string());
+        copy_or_remove(&self.slot_mod(&to), &self.official_mod())?;
+        idx.active_official = Some(to);
+        idx.switching = None;
         self.save_index(idx)
+    }
+
+    /// Finishes a switch a failure or a crash cut short. The outgoing save was stored before the
+    /// mark, so its slot is whole; the game files may be anything in between, so the incoming save
+    /// is written again from its slot. A switch to a save no longer in the index is dropped.
+    fn recover_switch(&self, idx: &mut Index) -> Result<()> {
+        let Some(sw) = idx.switching.clone() else { return Ok(()) };
+        if !idx.saves.iter().any(|e| e.id == sw.to && e.kind == SaveKind::Official) {
+            idx.switching = None;
+            return self.save_index(idx);
+        }
+        let incoming = self.read_slot(&sw.to)?;
+        let outgoing = sw.from.as_deref().and_then(|f| self.read_slot(f).ok());
+        self.finish_switch(idx, incoming, outgoing.as_ref())
     }
 
     /// A new blank Official save. It starts in the library; activate it to play it.
@@ -685,6 +736,37 @@ impl Saves {
                 Err(e) => return Err(e.into()),
             }
         }
+        idx.saves.retain(|e| e.id != id);
+        self.save_index(&idx)
+    }
+
+    /// Deletes an Official save from the library. `confirm` must be the name of the save exactly as
+    /// stored, checked here again whatever the caller checked. The active Official save is refused: the
+    /// game files hold it, and Steam downloads tracked files removed outside the game again, so the
+    /// player switches to another Official save first. A backup of the library copy comes first and the
+    /// delete stops if it fails.
+    pub fn delete_official(&self, id: &str, confirm: &str) -> Result<()> {
+        self.closed()?;
+        let mut idx = self.ensure()?;
+        let entry = self.entry(&idx, id)?.clone();
+        if entry.kind != SaveKind::Official {
+            return Err(ObsidianError::SandboxSave { op: "delete official".to_string() });
+        }
+        if idx.active_official.as_deref() == Some(id) {
+            return Err(ObsidianError::ActiveOfficialSave);
+        }
+        if confirm != entry.name {
+            return Err(ObsidianError::SaveNameMismatch);
+        }
+        let slot = self.dir.join(id);
+        if !slot.is_dir() {
+            return Err(ObsidianError::BadSave("the save files are missing from the library, so nothing was deleted".to_string()));
+        }
+        let sources = [(format!("library-{}-{id}", self.account), slot.clone())];
+        if crate::backup::backup_saves(&sources, &self.data.join("backups"), KEEP_BACKUPS)?.is_none() {
+            return Err(ObsidianError::BadSave("no backup of the save could be made, so nothing was deleted".to_string()));
+        }
+        std::fs::remove_dir_all(&slot)?;
         idx.saves.retain(|e| e.id != id);
         self.save_index(&idx)
     }
@@ -931,6 +1013,49 @@ mod tests {
     }
 
     #[test]
+    fn a_switch_cut_short_between_the_files_and_the_index_is_finished_next_time() {
+        let w = world();
+        let s = w.saves();
+        let first = s.list().unwrap().saves[0].id.clone();
+        let snap = s.snapshot(&first, "Snap").unwrap();
+        // The player goes on in the first save, then the second gets its own progress.
+        write_verified(&w.local_user(), &user_save(2000.0, 9.0), Format::Local).unwrap();
+        let mut second = s.read_slot(&snap).unwrap();
+        second.user.root.set("player_xp", Value::Number(1500.0));
+        s.write_slot(&snap, &second).unwrap();
+
+        // The second write of the game files fails: a folder stands where the `.old` copy goes. The
+        // live `.sav` files already hold the incoming save.
+        let blocker = w.game.saves_dir.join(format!("helldivers_steam_{UID}.old"));
+        std::fs::create_dir_all(blocker.join("x")).unwrap();
+        assert!(s.activate(&snap).is_err());
+        assert_eq!(read_file(&w.local_user()).unwrap().root.number("player_xp"), Some(1500.0));
+        let idx = s.read_index().unwrap();
+        assert_eq!(idx.active_official.as_deref(), Some(first.as_str()), "the index still names the first");
+        assert_eq!(idx.switching, Some(Switching { from: Some(first.clone()), to: snap.clone() }));
+
+        // While the game runs nothing is touched.
+        let busy = Saves::for_account(&w.data, &w.game, ACCOUNT, || true);
+        busy.list().unwrap();
+        assert!(s.read_index().unwrap().switching.is_some());
+
+        // The next use finishes the switch: the second is active and live, the first keeps its data.
+        std::fs::remove_dir_all(&blocker).unwrap();
+        let list = s.list().unwrap();
+        assert_eq!(list.active.as_deref(), Some(snap.as_str()));
+        assert!(list.saves.iter().find(|r| r.id == snap).unwrap().live);
+        assert_eq!(s.read_index().unwrap().switching, None);
+        assert_eq!(read_file(&w.local_user()).unwrap().root.number("player_xp"), Some(1500.0));
+        assert_eq!(read_file(&w.local_user()).unwrap().root.number("backend_planet_index_win32"), Some(9.0), "the counters still carry over");
+        assert!(blocker.is_file(), "the .old copy is written too");
+
+        // Switching back gives the first save its own progress, not the second's.
+        s.activate(&first).unwrap();
+        assert_eq!(read_file(&w.local_user()).unwrap().root.number("player_xp"), Some(2000.0));
+        assert_eq!(xp_of(&s.read_slot(&snap).unwrap()), 1500.0);
+    }
+
+    #[test]
     fn with_no_tracking_only_the_local_files_are_written() {
         let w = world();
         let s = w.saves();
@@ -993,6 +1118,49 @@ mod tests {
     }
 
     #[test]
+    fn deleting_an_official_save_needs_the_exact_name_and_a_closed_game() {
+        let w = world();
+        let s = w.saves();
+        s.list().unwrap();
+        let snap = s.create_official("Old War").unwrap();
+        let busy = Saves::for_account(&w.data, &w.game, ACCOUNT, || true);
+        assert!(matches!(busy.delete_official(&snap, "Old War"), Err(ObsidianError::GameRunning)));
+        for wrong in ["", "old war", "Old War ", " Old War", "Old"] {
+            assert!(matches!(s.delete_official(&snap, wrong), Err(ObsidianError::SaveNameMismatch)), "{wrong:?}");
+        }
+        assert!(s.dir.join(&snap).is_dir(), "a refused delete touches nothing");
+        let sandbox = s.create_sandbox("Box").unwrap();
+        assert!(matches!(s.delete_official(&sandbox, "Box"), Err(ObsidianError::SandboxSave { .. })));
+        assert!(matches!(s.delete_official("nope", "x"), Err(ObsidianError::SaveMissing(_))));
+
+        s.delete_official(&snap, "Old War").unwrap();
+        assert!(!s.dir.join(&snap).exists());
+        assert!(s.list().unwrap().saves.iter().all(|r| r.id != snap));
+        let backup = &crate::backup::list_backups(&w.data.join("backups"))[0];
+        assert!(backup.join(format!("library-{ACCOUNT}-{snap}")).join("common.sav").is_file(), "backed up first");
+    }
+
+    #[test]
+    fn deleting_the_active_official_save_is_refused_and_changes_nothing() {
+        let w = world();
+        track(&w);
+        let s = w.saves();
+        let before = s.list().unwrap();
+        let live = before.saves[0].id.clone();
+        let user_before = std::fs::read(w.local_user()).unwrap();
+        let cloud = w.remote.join(format!("helldivers_save{UID}"));
+        let cloud_before = std::fs::read(&cloud).ok();
+        assert!(matches!(s.delete_official(&live, "Main"), Err(ObsidianError::ActiveOfficialSave)));
+        assert!(matches!(s.delete_official(&live, "wrong"), Err(ObsidianError::ActiveOfficialSave)), "refused before the name check");
+        let after = s.list().unwrap();
+        assert_eq!(after.saves.len(), before.saves.len());
+        assert!(after.saves[0].id == live && after.saves[0].live && after.saves[0].active);
+        assert_eq!(std::fs::read(w.local_user()).unwrap(), user_before, "the game files are untouched");
+        assert_eq!(std::fs::read(&cloud).ok(), cloud_before, "the Cloud pair is untouched");
+        assert!(crate::backup::list_backups(&w.data.join("backups")).is_empty(), "no backup was made");
+    }
+
+    #[test]
     fn a_new_sandbox_starts_with_every_tutorial_done() {
         let w = world();
         let s = w.saves();
@@ -1015,7 +1183,7 @@ mod tests {
         s.activate(&id).unwrap();
         let settings = || std::fs::read_to_string(crate::settings::game_side_dir(&w.game.saves_dir).join(crate::settings::FILE)).unwrap();
         assert!(settings().contains(&format!("sandbox\t{id}\n")));
-        assert!(settings().contains("block_achievements\t1\n"), "forced while a Sandbox is selected");
+        assert!(settings().contains("block_achievements\t0\n"), "the player's own choice: the loader blocks a Sandbox by itself");
         assert_eq!(active_sandbox(&w.data).as_deref(), Some(id.as_str()));
         assert_eq!(s.list().unwrap().active.as_deref(), Some(id.as_str()));
         assert!(matches!(s.delete(&id), Err(ObsidianError::SaveInUse)));

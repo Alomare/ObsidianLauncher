@@ -102,12 +102,12 @@ A game update counts as changes waiting, and a new deploy reads the game again. 
 | `bundle` | The bundle the resource goes in, 16 hex digits. Needed for every resource except one with `clips` |
 | `flags` | A value bundles keep beside each resource; leave it out unless a converter set it |
 | `when` | Options that must have these values for the resource to be used ([Options and keys](wiki:options-and-keys#options-that-pick-files)) |
-| `part` | The [part](wiki:manifest#parts) of the mod the resource belongs to |
+| `secondary_scope` | The [secondary scope](wiki:manifest#hybrid-scopes) the resource belongs to (`part` before Hybrid Scopes had the name) |
 
-## Files in parts {#parts}
+## Files in a secondary scope {#hybrid-scopes}
 
-In a mod with parts, `"part": "<part id>"` puts a resource in that part. A resource of a part that is off isn't deployed, as with `when`. A resource of a client part stays with the player who runs it: it doesn't keep vanilla players out of a public lobby, as the files of a session mod do. A resource without a part follows the strictest part that is on, so in a session or hybrid mod it counts as session content.
+In a mod with [Hybrid Scopes](wiki:manifest#hybrid-scopes), `"secondary_scope": "<id>"` puts a resource in that secondary scope. A resource of one that is off isn't deployed, as with `when`. A resource of a client secondary scope stays with the player who runs it: it doesn't keep vanilla players out of a public lobby, as the files of a session mod do. In a session mod, a resource without a secondary scope follows the strictest one that is on, so in a session or hybrid mod it counts as session content.
 
 ## Limits
 
-A replaced resource is static: it can't be switched off in the middle of a game. In a session mod, use resources for data the game reads at startup and hooks for behavior. A part doesn't change that: the files of a session part stay in the game in every lobby, and only the deploy decides which go in.
+A replaced resource is static: it can't be switched off in the middle of a game. In a session mod, use resources for data the game reads at startup and hooks for behavior. Hybrid Scopes don't change that: the files of a session secondary scope stay in the game in every lobby, and only the deploy decides which go in.

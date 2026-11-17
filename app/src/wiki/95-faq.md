@@ -13,7 +13,7 @@ HELLDIVERS has no anti-cheat, and Obsidian never writes over a game file. Sessio
 
 ### Does playing with friends who don't use Obsidian work? {#can-i-play-with-friends-who-don-t-use-obsidian}
 
-Yes. Session mods don't change who a player finds or who can join. In a friends-only or private lobby they run with anyone, and in a public lobby they switch off while a vanilla player is there. Data overrides and older imported mods can't switch off, so a public lobby hosted with them stays closed to vanilla players. The first load into the ship shows a message that says which case applies ([Playing online](wiki:multiplayer#matchmaking)).
+Yes. Session mods don't change who a player finds or who can join. In a friends-only or private lobby they run with anyone, and in a public lobby they switch off while a vanilla player is there. Game files replaced by a session mod can't switch off, so a public lobby hosted with such a mod stays closed to vanilla players. The first load into the ship shows a message that says which case applies ([Playing online](wiki:multiplayer#matchmaking)).
 
 ### Two friends both use Obsidian. Why are the session mods off? {#my-friend-and-i-both-use-obsidian-why-are-my-session-mods-off}
 
@@ -33,7 +33,7 @@ Some game files differ from the build Obsidian knows, usually because a mod was 
 
 ### What is Commander? {#what-is-commander}
 
-The Commander tab hosts custom Galactic Wars with rules set by the host, on one PC or shared with friends over the network or the internet. The Commander subtab of this Wiki covers it ([What Commander is](wiki:commander)).
+Obsidian Commander, on the [Wars](app:commander) tab, hosts custom Galactic Wars with rules set by the host, on one PC or shared with friends over the network or the internet. The Commander subtab of this Wiki covers it ([What Commander is](wiki:commander)).
 
 ## Mods
 

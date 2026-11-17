@@ -73,3 +73,18 @@ describe("ContextMenu colors", () => {
     expect(document.activeElement).toBe(el.querySelector(".ctx-colors button"));
   });
 });
+
+describe("ContextMenu switches", () => {
+  it("runs an item with keep and stays open; a plain item closes", () => {
+    const flip = vi.fn();
+    const onClose = vi.fn();
+    const el = open([{ label: "Version", checked: true, keep: true, run: flip }, { label: "Close me", run: vi.fn() }], onClose);
+    const [keep, plain] = el.querySelectorAll<HTMLButtonElement>(".ctx > button");
+    expect(keep.getAttribute("role")).toBe("menuitemcheckbox");
+    act(() => keep.click());
+    expect(flip).toHaveBeenCalledOnce();
+    expect(onClose).not.toHaveBeenCalled();
+    act(() => plain.click());
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+});

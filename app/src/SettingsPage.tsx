@@ -8,15 +8,16 @@ import { BuildDialog } from "./BuildDialog";
 import { Confirm } from "./Confirm";
 import { withTask } from "./busy";
 import { FolderIcon } from "./Icons";
-import { LANGUAGES, language, t } from "./i18n";
+import { LANGUAGES, language, t, tn } from "./i18n";
 import { notify } from "./notices";
 import { copyReport } from "./report";
 import { Select } from "./Select";
-import { Field, Group } from "./SettingRow";
+import { Group, Row, Rows } from "./SettingRow";
 import { updateSettings, useAppSettings } from "./settings";
 import { motionOn, systemReducesMotion } from "./theme";
 import type { AppSettings, Snapshot } from "./types";
 import { UpdatesTab } from "./UpdatesTab";
+import { usePad } from "./pad/pad";
 
 type OtherPatch = { name: string; bundle: string; size: number; modified: number | null };
 type SystemInfo = {
@@ -80,7 +81,6 @@ function SystemTab({ snap }: { snap: Snapshot }) {
   const settings = useAppSettings()!;
   const [info, setInfo] = useState<SystemInfo | null>(null);
   const [checking, setChecking] = useState(false);
-  const [restoring, setRestoring] = useState(false);
   const [removing, setRemoving] = useState(false);
   useEffect(() => {
     let live = true;
@@ -98,16 +98,12 @@ function SystemTab({ snap }: { snap: Snapshot }) {
     await run("check_game");
     setChecking(false);
   };
-  const restore = async () => {
-    setRestoring(false);
-    if (await run("restore_starter_pack")) notify("info", t("app.settings.starterDone"));
-  };
   const removeOthers = async () => {
     setRemoving(false);
     try {
       const r = await withTask(taskText("remove_other_patches"), () => call<OtherPatchesRemoved>("remove_other_patches"));
       setSnapshot(r.snapshot);
-      notify("info", r.removed === 1 ? t("app.settings.otherRemovedOne") : t("app.settings.otherRemoved", r.removed));
+      notify("info", tn("app.settings.otherRemoved", r.removed));
     } catch (e) {
       notify("error", errorText(e));
     }
@@ -134,33 +130,31 @@ function SystemTab({ snap }: { snap: Snapshot }) {
           {snap.game === "unknown" && <button className="btn small" onClick={() => setBuildOpen(true)} aria-haspopup="dialog">{t("app.settings.buildDetails")}</button>}
         </div>
         {buildOpen && snap.game === "unknown" && <BuildDialog snap={snap} onClose={() => setBuildOpen(false)} />}
+      </Group>
 
-        {snap.gameDir && (
-          <div className="other-patches">
-            <h3>
-              {t("app.settings.otherPatches")}
-              {others.length > 0 && <span className="count">{others.length}</span>}
-            </h3>
-            {info && others.length === 0 && <p className="set-note">{t("app.settings.otherNone")}</p>}
-            {others.length > 0 && (
-              <>
-                <p className="set-note">{t("app.settings.otherHint")}</p>
-                <div className="patch-table" role="table" aria-label={t("app.settings.otherPatches")}>
-                  <div className="pt-row pt-head" role="row">
-                    <span role="columnheader">{t("app.settings.otherFile")}</span>
-                    <span role="columnheader">{t("app.settings.otherSize")}</span>
-                    <span role="columnheader">{t("app.settings.otherDate")}</span>
-                  </div>
-                  {others.map((p) => (
-                    <div key={p.name} className="pt-row" role="row">
-                      <span className="mono" role="cell">{p.name}</span>
-                      <span role="cell">{bytes(p.size)}</span>
-                      <span role="cell">{p.modified ? new Date(p.modified * 1000).toLocaleDateString(language(), { dateStyle: "medium" }) : ""}</span>
-                    </div>
-                  ))}
+      {snap.gameDir && (
+        <Group title={t("app.settings.otherPatches")} count={others.length}>
+          {info && others.length === 0 && <p className="set-note">{t("app.settings.otherNone")}</p>}
+          {others.length > 0 && (
+            <>
+              <p className="set-note">{t("app.settings.otherHint")}</p>
+              <div className="patch-table" role="table" aria-label={t("app.settings.otherPatches")}>
+                <div className="pt-row pt-head" role="row">
+                  <span role="columnheader">{t("app.settings.otherFile")}</span>
+                  <span role="columnheader">{t("app.settings.otherSize")}</span>
+                  <span role="columnheader">{t("app.settings.otherDate")}</span>
                 </div>
-              </>
-            )}
+                {others.map((p) => (
+                  <div key={p.name} className="pt-row" role="row">
+                    <span className="mono" role="cell">{p.name}</span>
+                    <span role="cell">{bytes(p.size)}</span>
+                    <span role="cell">{p.modified ? new Date(p.modified * 1000).toLocaleDateString(language(), { dateStyle: "medium" }) : ""}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          {(others.length > 0 || info?.removedPatches) && (
             <div className="set-btns">
               {others.length > 0 && (
                 <button className="btn small danger" onClick={() => setRemoving(true)} disabled={running} data-tip={running ? t("app.action.closeGameFirst") : t("app.settings.otherRemoveHint")}>
@@ -169,85 +163,94 @@ function SystemTab({ snap }: { snap: Snapshot }) {
               )}
               {info?.removedPatches && <button className="btn small" onClick={() => openFolder(info.removedPatches!)}><FolderIcon />{t("app.settings.otherKept")}</button>}
             </div>
+          )}
+        </Group>
+      )}
+
+      <Group title={t("app.settings.general")}>
+        <Rows label={t("app.settings.general")}>
+          <Row title={t("app.settings.askVanilla")} note={t("app.settings.askVanillaHint")} help="deploy-and-purge#deploy">
+            <button role="switch" aria-checked={settings.askVanillaPlay} aria-label={t("app.settings.askVanilla")} className={settings.askVanillaPlay ? "sw on" : "sw"}
+              onClick={() => updateSettings({ askVanillaPlay: !settings.askVanillaPlay })} />
+          </Row>
+          <Row title={t("app.settings.languageLabel")}>
+            <Select value={settings.language ?? ""} label={t("app.settings.language")}
+              options={[{ value: "", label: t("app.settings.systemLanguage") }, ...LANGUAGES.map(([value, label]) => ({ value, label }))]}
+              onChange={(v) => updateSettings({ language: v || null })} />
+          </Row>
+          {!snap.portable && (
+            <Row title={t("app.settings.updateMode")} note={t(`app.settings.updates.${settings.updates}Hint`)} help="how-obsidian-works#updating-obsidian">
+              <Segmented<AppSettings["updates"]> value={settings.updates} label={t("app.settings.updateMode")}
+                options={(["manual", "prompt", "auto"] as const).map((v) => [v, t(`app.settings.updates.${v}`)])}
+                onChange={(v) => updateSettings({ updates: v })} />
+            </Row>
+          )}
+        </Rows>
+      </Group>
+
+      <ControllerGroup settings={settings} />
+
+      <Group title={t("app.settings.data")} help="how-obsidian-works#where-your-files-are">
+        <div className="game-card set-data">
+          <FolderIcon />
+          <div className="game-text">
+            <b>{t("app.settings.dataFolder")}</b>
+            <span className="mono">{info?.dataDir ?? ""}</span>
+            <small>{snap.portable ? t("app.settings.portable") : t("app.settings.dataHint")}</small>
+          </div>
+        </div>
+        <div className="set-btns">
+          {info && <button className="btn small" onClick={() => openFolder(info.dataDir)}><FolderIcon />{t("app.settings.openFolder")}</button>}
+        </div>
+      </Group>
+
+      <Group title={t("app.settings.backups")}>
+        <p className="set-note">{info && info.backups.length === 0 ? t("app.settings.noBackups") : t("app.settings.backupsHint")}</p>
+        {info && info.backups.length > 0 && (
+          <div className="patch-table set-backups" role="list" aria-label={t("app.settings.backups")}>
+            {info.backups.map((b) => (
+              <div key={b.name} className="pt-row" role="listitem">
+                <span>{stamp(b.name)}</span>
+                <button className="btn small" onClick={() => openFolder(b.path)}><FolderIcon />{t("app.settings.open")}</button>
+              </div>
+            ))}
           </div>
         )}
       </Group>
 
-      <Group title={t("app.settings.play")} help="deploy-and-purge#deploy">
-        <label className="switch-line">
-          <button role="switch" aria-checked={settings.askVanillaPlay} aria-label={t("app.settings.askVanilla")} className={settings.askVanillaPlay ? "sw on" : "sw"}
-            onClick={() => updateSettings({ askVanillaPlay: !settings.askVanillaPlay })} />
-          <span>
-            <b>{t("app.settings.askVanilla")}</b>
-            <small>{t("app.settings.askVanillaHint")}</small>
-          </span>
-        </label>
-      </Group>
-
-      <Group title={t("app.settings.language")}>
-        <Field label={t("app.settings.languageLabel")}>
-          <Select value={settings.language ?? ""} label={t("app.settings.language")}
-            options={[{ value: "", label: t("app.settings.systemLanguage") }, ...LANGUAGES.map(([value, label]) => ({ value, label }))]}
-            onChange={(v) => updateSettings({ language: v || null })} />
-        </Field>
-      </Group>
-
-      {!snap.portable && (
-        <Group title={t("app.settings.updates")} help="how-obsidian-works#updating-obsidian">
-          <Field label={t("app.settings.updateMode")} note={t(`app.settings.updates.${settings.updates}Hint`)}>
-            <Segmented<AppSettings["updates"]> value={settings.updates} label={t("app.settings.updateMode")}
-              options={(["manual", "prompt", "auto"] as const).map((v) => [v, t(`app.settings.updates.${v}`)])}
-              onChange={(v) => updateSettings({ updates: v })} />
-          </Field>
-        </Group>
-      )}
-
-      <Group title={t("app.settings.starter")} help="adding-mods#obsidian-kit">
-        <Field label={t("app.settings.starterLabel")} note={t("app.settings.starterHint")}>
-          <button className="btn small" onClick={() => setRestoring(true)}>{t("app.settings.starterRestore")}</button>
-        </Field>
-      </Group>
-
-      <Group title={t("app.settings.data")} help="how-obsidian-works#where-your-files-are">
-        <Field label={t("app.settings.dataFolder")} note={snap.portable ? t("app.settings.portable") : t("app.settings.dataHint")}>
-          <div className="path-line">
-            <span className="mono">{info?.dataDir ?? ""}</span>
-            {info && <button className="btn small" onClick={() => openFolder(info.dataDir)}><FolderIcon />{t("app.settings.open")}</button>}
-          </div>
-        </Field>
-        <Field label={t("app.settings.backups")} note={t("app.settings.backupsHint")}>
-          {info && info.backups.length === 0 && <p className="set-note">{t("app.settings.noBackups")}</p>}
-          {info && info.backups.length > 0 && (
-            <ul className="backups">
-              {info.backups.map((b) => (
-                <li key={b.name}>
-                  <span>{stamp(b.name)}</span>
-                  <button className="link small" onClick={() => openFolder(b.path)}>{t("app.settings.open")}</button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Field>
-      </Group>
-
       <Group title={t("app.settings.report")} help="troubleshooting#asking-for-help">
-        <Field note={t("app.settings.reportHint")}>
-          <div className="set-btns">
-            <button className="btn small" onClick={copyReport}>{t("app.crash.copyReport")}</button>
-            {info?.logsDir && <button className="btn small" onClick={() => openFolder(info.logsDir!)}><FolderIcon />{t("app.settings.logs")}</button>}
-          </div>
-        </Field>
+        <p className="set-note">{t("app.settings.reportHint")}</p>
+        <div className="set-btns">
+          <button className="btn small" onClick={copyReport}>{t("app.crash.copyReport")}</button>
+          {info?.logsDir && <button className="btn small" onClick={() => openFolder(info.logsDir!)}><FolderIcon />{t("app.settings.logs")}</button>}
+        </div>
       </Group>
 
-      {restoring && (
-        <Confirm title={t("app.settings.starterRestore")} text={t("app.settings.starterText", snap.profile)} confirm={t("app.settings.starterRestore")}
-          onCancel={() => setRestoring(false)} onConfirm={restore} />
-      )}
       {removing && (
-        <Confirm title={t("app.settings.otherRemove")} text={t("app.settings.otherRemoveText", others.length)} confirm={t("app.settings.otherRemove")}
+        <Confirm title={t("app.settings.otherRemove")} text={tn("app.settings.otherRemoveText", others.length)} confirm={t("app.settings.otherRemove")}
           onCancel={() => setRemoving(false)} onConfirm={removeOthers} />
       )}
     </div>
+  );
+}
+
+/** The controller: which button pictures show, and how fast the left stick moves the cursor. */
+function ControllerGroup({ settings }: { settings: AppSettings }) {
+  const pad = usePad();
+  return (
+    <Group title={t("app.settings.controller")} help="tab-settings#controller">
+      <Rows label={t("app.settings.controller")}>
+        <Row title={t("app.settings.padGlyphs")} note={pad.name ? t("app.settings.padFound", pad.name) : t("app.settings.padNone")}>
+          <Segmented<AppSettings["padGlyphs"]> value={settings.padGlyphs} label={t("app.settings.padGlyphs")}
+            options={(["auto", "xbox", "playstation", "nintendo"] as const).map((v) => [v, t(`app.settings.padGlyphs.${v}`)])}
+            onChange={(padGlyphs) => updateSettings({ padGlyphs })} />
+        </Row>
+        <Row title={t("app.settings.padSpeed")} note={t("app.settings.padSpeedHint")}>
+          <Segmented label={t("app.settings.padSpeed")} value={settings.padSpeed} onChange={(padSpeed) => updateSettings({ padSpeed })}
+            options={([50, 75, 100, 150, 200] as const).map((v) => [v, `${v} %`])} />
+        </Row>
+      </Rows>
+    </Group>
   );
 }
 
@@ -257,28 +260,28 @@ function ThemeTab() {
   return (
     <div className="set-page">
       <Group title={t("app.settings.appearance")}>
-        <Field label={t("app.settings.colours")}>
-          <Segmented label={t("app.settings.colours")} value={s.theme} onChange={(theme) => updateSettings({ theme })}
-            options={[["default", t("app.settings.theme.default")], ["light", t("app.settings.theme.light")]]} />
-        </Field>
-        <Field label={t("app.settings.scale")} note={t("app.settings.scaleHint")}>
-          <Segmented label={t("app.settings.scale")} value={s.scale} onChange={(scale) => updateSettings({ scale })}
-            options={([90, 100, 110, 125] as const).map((v) => [v, `${v} %`])} />
-        </Field>
-        <Field label={t("app.settings.textSize")} note={t("app.settings.textSizeHint")}>
-          <Segmented label={t("app.settings.textSize")} value={s.text} onChange={(text) => updateSettings({ text })}
-            options={[["small", t("app.settings.text.small")], ["normal", t("app.settings.text.normal")], ["large", t("app.settings.text.large")]]} />
-        </Field>
+        <Rows label={t("app.settings.appearance")}>
+          <Row title={t("app.settings.colours")}>
+            <Segmented label={t("app.settings.colours")} value={s.theme} onChange={(theme) => updateSettings({ theme })}
+              options={[["default", t("app.settings.theme.default")], ["light", t("app.settings.theme.light")]]} />
+          </Row>
+          <Row title={t("app.settings.scale")} note={t("app.settings.scaleHint")}>
+            <Segmented label={t("app.settings.scale")} value={s.scale} onChange={(scale) => updateSettings({ scale })}
+              options={([90, 100, 110, 125] as const).map((v) => [v, `${v} %`])} />
+          </Row>
+          <Row title={t("app.settings.textSize")} note={t("app.settings.textSizeHint")}>
+            <Segmented label={t("app.settings.textSize")} value={s.text} onChange={(text) => updateSettings({ text })}
+              options={[["small", t("app.settings.text.small")], ["normal", t("app.settings.text.normal")], ["large", t("app.settings.text.large")]]} />
+          </Row>
+        </Rows>
       </Group>
       <Group title={t("app.settings.motion")}>
-        <label className="switch-line">
-          <button role="switch" aria-checked={motion} aria-label={t("app.settings.animations")} className={motion ? "sw on" : "sw"}
-            onClick={() => updateSettings({ motion: !motion })} />
-          <span>
-            <b>{t("app.settings.animations")}</b>
-            <small>{s.motion === null && systemReducesMotion() ? t("app.settings.animationsSystem") : t("app.settings.animationsHint")}</small>
-          </span>
-        </label>
+        <Rows label={t("app.settings.motion")}>
+          <Row title={t("app.settings.animations")} note={s.motion === null && systemReducesMotion() ? t("app.settings.animationsSystem") : t("app.settings.animationsHint")}>
+            <button role="switch" aria-checked={motion} aria-label={t("app.settings.animations")} className={motion ? "sw on" : "sw"}
+              onClick={() => updateSettings({ motion: !motion })} />
+          </Row>
+        </Rows>
       </Group>
     </div>
   );

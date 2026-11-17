@@ -4,7 +4,19 @@
 local B = require("obsidian/loader/builtins")
 local log = require("obsidian/loader/log")
 
-local M = { map = {}, args = {}, when = {}, words = {}, installed = false, waiting = false }
+local M = { map = {}, args = {}, when = {}, words = {}, caps = {}, installed = false, waiting = false }
+
+-- A text in capitals, as the game draws titles: the engine's Utf8.upper knows letters beyond ASCII.
+-- Without it only a to z change, so the bytes of other letters are never split.
+function M.upper(text)
+	if B.type(text) ~= "string" then return text end
+	local utf8 = B.rawget(B.G, "Utf8")
+	if B.type(utf8) == "table" and B.type(utf8.upper) == "function" then
+		local ok, out = B.pcall(utf8.upper, text)
+		if ok and B.type(out) == "string" then return out end
+	end
+	return (B.gsub(text, "[a-z]+", B.upper))
+end
 
 -- A mod's words for a text key, in the game's language, else English, else any.
 local function chosen(core, w)
@@ -19,8 +31,9 @@ end
 local function install()
 	local lm = B.rawget(B.G, "LocalizationManager")
 	if B.type(lm) ~= "table" or B.type(lm.string) ~= "function" then return false end
-	local original, map, args, when, words, core = lm.string, M.map, M.args, M.when, M.words, M.core
-	lm.string = function(self, key, ...)
+	local original, map, args, when, words, caps, core = lm.string, M.map, M.args, M.when, M.words, M.caps, M.core
+	local upper = M.upper
+	local function look(self, key, ...)
 		local own = map[key]
 		if own then
 			local a = args[key]
@@ -36,6 +49,11 @@ local function install()
 		local w = words[key]
 		if w then return chosen(core, w) end
 		return original(self, key, ...)
+	end
+	lm.string = function(self, key, ...)
+		local from = caps[key]
+		if from == nil then return look(self, key, ...) end
+		return upper(look(self, from, ...))
 	end
 	M.installed = true
 	log.line("hook installed: LocalizationManager.string")
@@ -61,6 +79,13 @@ end
 function M.replace_when(core, hooks, key, own, when)
 	M.replace(core, hooks, key, own, nil)
 	M.when[key] = when
+end
+
+-- From then on the key shows in capitals the text of `from` (the key itself when nil), whatever
+-- gives that text: a loader text, a mod's words or the game's own.
+function M.capitals(core, hooks, key, from)
+	M.caps[key] = from or key
+	ensure(core, hooks)
 end
 
 -- obsidian.game_text: the key shows `words`, a string or a table of strings by language. nil takes

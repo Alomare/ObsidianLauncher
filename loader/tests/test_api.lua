@@ -440,10 +440,13 @@ test("a_display_name_falls_back_to_something_readable", function()
 	E.eq(api.catalog.text("weapon_pulse_laser"), "Pulse laser", "a missing key")
 end)
 
-test("names_the_font_cant_draw_fall_back_too", function()
+test("names_in_cyrillic_and_chinese_come_as_the_game_writes_them", function()
 	local api = start()
-	rawget(_G, "LocalizationManager").string = function() return "\208\159\209\131\208\187\209\143" end
-	E.eq(api.catalog.text("weapon_rifle"), "Rifle", "cyrillic isn't in the font")
+	local lm = rawget(_G, "LocalizationManager")
+	lm.string = function() return "\208\159\209\131\208\187\209\143" end
+	E.eq(api.catalog.text("weapon_rifle"), "\208\159\209\131\208\187\209\143", "the chat font draws what the menu font lacks")
+	lm.string = function() return "\230\173\165\230\158\170" end
+	E.eq(api.catalog.text("weapon_rifle"), "\230\173\165\230\158\170")
 end)
 
 test("refill_treats_beam_weapons_as_heat", function()
@@ -899,6 +902,8 @@ test("dlc_goes_by_ownership", function()
 	E.eq(select(2, api.stratagems.give("stratagem_dlc")), "not_available")
 	E.eq(select(2, api.stratagems.call("stratagem_dlc", api.world.cursor())), "not_available")
 	rawget(_G, "DlcSettings").can_use = function(name) return name == "weapon_dlc" end
+	E.eq(has(api.catalog.primaries(), "weapon_dlc"), false, "the answer is kept for a few seconds")
+	api.catalog.forget()
 	E.eq(has(api.catalog.primaries(), "weapon_dlc"), true, "owned, whatever the progress")
 	E.eq(api.gear.give_weapon("primary_weapon", "equipment/dlc"), true)
 end)
@@ -5625,6 +5630,43 @@ test("a_bot_uses_a_thing_once_the_game_offers_it_and_usables_lists_them", functi
 	E.eq(bot:cancel_use(), false, "nothing to cancel")
 end)
 
+test("a_bot_in_a_mech_keeps_its_rockets_for_armor_and_never_holds_them_for_a_grenade", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	with_turns()
+	local S = char_states({ "CharacterStateIdle", "CharacterStateThrow" })
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 4, y = 1, z = 0 })
+	local cs = u.master.character
+	cs.current_state = S.CharacterStateIdle
+	u.master.inventory.num_grenades = 2
+	local mech = game.mech
+	mech.settings.vehicle_info.has_grenade_launcher = true
+	mech.settings.seat_info = { { name = "pilot", actor = "a_pilot" } }
+	mech.rot = 3 * math.pi / 4
+	-- A grenade order from before the bot got in: dropped, the rockets untouched.
+	local done
+	E.eq(bot:throw_at({ x = 4, y = 11 }, function(ok, why) done = { ok, why } end), true)
+	cs.current_seat_unit, cs.current_seat_index = mech, 1
+	local held = 0
+	for _ = 1, 60 do
+		game.step(1)
+		if u.master.input.input_data.throw == 1 then held = held + 1 end
+	end
+	E.eq(held, 0, "no throw held in the seat")
+	E.eq(done and done[2], "interrupted")
+	E.eq(select(2, bot:throw_at({ x = 4, y = 11 })), "seated")
+	local armored = false
+	bot.armored = function() return armored end
+	bot:fight(25, { secondary = { every = 0, only = "armored" } })
+	game.step(2)
+	E.eq(u.master.input.input_data.throw, 0, "not at what the gun gets through")
+	armored = true
+	game.step(2)
+	E.eq(u.master.input.input_data.throw, 1, "at armor")
+	bot:fight(false)
+end)
+
 test("a_bot_using_a_thing_presses_only_on_it", function()
 	local api, game, e = start()
 	bot_world(game, e)
@@ -5987,6 +6029,45 @@ test("extraction_reads_the_beacon_and_shuttle_and_a_bot_boards_at_the_door", fun
 	lst.shuttle_state = 7
 	game.step(1)
 	E.eq(done[2], "left")
+	aux.get_component = real
+end)
+
+test("a_bot_boards_the_landed_shuttle_from_a_few_metres_through_the_games_own_boarding", function()
+	local api, game, e = start()
+	bot_world(game, e)
+	local bot = api.bots.add()
+	local u = game.land(2, { x = 1, y = 1, z = 0 })
+	local shuttle = { alive = true }
+	local lz = { alive = true, owned = true, pos = { x = 30, y = 5, z = 0 }, master = {}, slave = {} }
+	local lst = { shuttle_state = 6, shuttle = shuttle, active_lz = lz, shuttle_position = { x = 30, y = 5, z = 0 }, avatars_in_dropship = 0 }
+	local ctx = { state = lst }
+	game.slaves.objective_extract_lz = { [lz] = ctx }
+	local got
+	local comp = { extracted_units = {} }
+	function comp.overlap_callback_extract_players(self, args, actors)
+		got = { args = args, actor = actors[1] }
+		self.extracted_units[actors[1].of] = true
+	end
+	local aux = rawget(_G, "EntityAux")
+	local real = aux.get_component
+	aux.get_component = function(name) if name == "objective_extract_lz" then return comp end return real(name) end
+	local units = rawget(_G, "Unit")
+	units.num_actors = function() return 1 end
+	units.actor = function(unit, i) return { of = unit, index = i } end
+	local door = api.mission.extraction().shuttle.door
+	E.eq(select(2, api.mission.board(u)), "too_far")
+	local done
+	E.eq(bot:board(function(ok, why) done = { ok, why } end), true)
+	u.pos = { x = door.x + 3, y = door.y, z = 0 }
+	game.step(1)
+	E.eq(done and done[1], true, "aboard from 3 metres")
+	E.eq(got.args[1], lz)
+	E.eq(got.args[2], ctx, "the landing zone and its state, as the game passes them")
+	E.eq(got.actor.index, 0)
+	E.eq(select(2, api.mission.board(u)), "aboard")
+	lst.shuttle_state = 5
+	comp.extracted_units[u] = nil
+	E.eq(select(2, api.mission.board(u)), "no_shuttle", "not before it lands")
 	aux.get_component = real
 end)
 
@@ -7179,6 +7260,62 @@ test("fight_keeps_to_the_range_of_the_weapon_in_hand_and_lets_the_aim_go", funct
 	game.step(80)
 	E.eq(u.master.input.input_data.aim.x, 0, "out of sight for a while: let go")
 	bot:fight(false)
+end)
+
+test("fight_throws_a_satchel_charged_to_the_targets_distance_one_at_a_time", function()
+	local api, game, e = start()
+	local bot, u, w = armed_bot(api, game, e)
+	local S = char_states({ "CharacterStateIdle", "CharacterStateThrow" })
+	local cs = u.master.character
+	cs.current_state = S.CharacterStateIdle
+	local tw = { child_units = {}, num_mags = 3 }
+	local satchel = { alive = true, master = { throwable_weapon = tw }, slave = {} }
+	w.inv.support_weapon, w.inv.current_weapon = satchel, satchel
+	game.enemies[1].pos = { x = 33, y = 0, z = 0 }
+	bot:fight(25, { satchel = { every = 2 } })
+	local t
+	local pressed = false
+	for _ = 1, 40 do
+		game.step(1)
+		t = u.master.input.input_data
+		if t.fire_button == 1 then pressed = true break end
+	end
+	E.eq(pressed, true, "the throw starts")
+	-- 8 metres want a charge of 0.96: the trigger stays down until then.
+	cs.current_state, cs.grenade_charge, cs.has_thrown = S.CharacterStateThrow, 0.2, false
+	game.step(5)
+	E.eq(u.master.input.input_data.fire_button, 1, "charging")
+	cs.grenade_charge = 0.97
+	game.step(1)
+	E.eq(u.master.input.input_data.fire_button, 0, "let go at the distance")
+	cs.has_thrown, cs.throw_done = true, true
+	tw.child_units = { "one" }
+	game.step(1)
+	cs.current_state = S.CharacterStateIdle
+	local again = 0
+	for _ = 1, 150 do
+		game.step(1)
+		if u.master.input.input_data.fire_button == 1 then again = again + 1 end
+	end
+	E.eq(again, 0, "one out waits for detonate")
+	tw.child_units = {}
+	game.enemies[1].pos = { x = 28, y = 0, z = 0 }
+	for _ = 1, 150 do
+		game.step(1)
+		if u.master.input.input_data.fire_button == 1 then again = again + 1 end
+	end
+	E.eq(again, 0, "never at a target 3 metres off")
+	bot:fight(false)
+	-- The direct order: the satchel comes out, then a charged throw at the point.
+	w.inv.current_weapon = w.rifle
+	game.commands = {}
+	E.eq(bot:throw_satchel({ x = 25, y = 10 }), true)
+	game.step(1)
+	E.eq(G.command(game, "inventory", "wield").data.weapon, "support_weapon")
+	w.inv.current_weapon = satchel
+	game.step(30)
+	E.eq(u.master.input.input_data.fire_button, 1, "held for the charge")
+	E.eq(u.master.input.input_data.throw, 0)
 end)
 
 test("fight_with_the_best_weapon_takes_the_primary_the_support_where_it_hurts_more_and_the_sidearm_last", function()

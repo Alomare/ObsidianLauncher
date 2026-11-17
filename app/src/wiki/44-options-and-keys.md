@@ -36,9 +36,9 @@ Each option has an `id` (lowercase letters, digits and `_`), a `type`, a `defaul
 
 The option values of a session mod or an expansion count when Obsidian compares two players' mods, because a balance slider changes the shared game. Mark an option `"scope": "client"` when the value only changes what this player sees, such as a color or a camera distance. Players can then pick different values and still match ([Playing online](wiki:multiplayer)).
 
-### Options of a part
+### Options in a secondary scope
 
-In a mod with [parts](wiki:manifest#parts), `"part": "<part id>"` puts an option in that part. An option of a client part counts as `"scope": "client"`, and an option of a part that is off doesn't count at all. An option without a part follows the strictest part that is on. The toggle a part names in `option` switches that part, so changing the toggle needs a deploy.
+In a mod with [Hybrid Scopes](wiki:manifest#hybrid-scopes), `"secondary_scope": "<id>"` puts an option in that secondary scope. An option of a client secondary scope counts as `"scope": "client"`, and an option of one that is off doesn't count at all. In a session mod, an untagged option follows the strictest secondary scope that is on. The toggle a secondary scope names in `option` switches it, so changing the toggle needs a deploy.
 
 ## Option groups
 
@@ -98,7 +98,18 @@ if get("enabled") then
 end
 ```
 
-`obsidian.settings.get` returns the value the player chose, or the default. A change in the app applies the next time the game starts, with no deploy.
+`obsidian.settings.get` returns the value the player chose, or the default.
+
+A changed option or key reaches the game at the next launch: Obsidian writes it to the settings file the loader reads, with no deploy. These options need a deploy, and the tooltip of each says **Applies after Deploy**:
+
+- an option that picks files with `when` (below);
+- the toggle that switches a [secondary scope](#options-in-a-secondary-scope);
+- an option of a session mod or an expansion that counts when players compare sets, which is every option not marked `"scope": "client"` and not in a client secondary scope;
+- every option of a mod without an `entry` script.
+
+## Options in the pause menu
+
+A mod that requires Obsidian API can also show settings in the game, on a page under **Mods** in the pause menu, with `api.mod_settings`. A row made with `option = true` is the option of the same id in `obsidian.json`: it starts from the value set in the app, and a value changed in the game goes back into the active profile while the game is closed. The [Obsidian API reference](https://github.com/Alomare/ObsidianAPI/blob/main/REFERENCE.md#your-settings-in-the-pause-menu-apimod_settings) lists the rows.
 
 ## Options that pick files
 
@@ -111,7 +122,7 @@ A resource can depend on an option with `when`. The resource only goes into the 
 ]
 ```
 
-Changing such an option needs a new deploy, and the app turns the Deploy button green to say so.
+Changing such an option needs a new deploy.
 
 ## Keys
 
@@ -129,7 +140,21 @@ obsidian.keybind("toggle", function()
 end)
 ```
 
-The function runs once each time the key goes down. Players rebind keys in the app, which is where clashes between mods get sorted out. Key names are the ones the game uses, in lower case: `f8`, `k`, `insert`.
+The function runs once each time the bind fires. Players rebind keys in the app, which is where clashes between mods get sorted out. Key names are the ones the game uses, in lower case: `f8`, `k`, `insert`. A player can also bind a mouse button other than the left one: the loader reads `mouse_middle`, `mouse_right`, `mouse_extra_1` and `mouse_extra_2` from the mouse.
+
+### Input modes
+
+Players also choose how each bind fires, in **Change binds** on the Keys tab:
+
+| Mode | Fires |
+|---|---|
+| Press (the default) | The frame the key goes down |
+| Release | The frame the key comes back up |
+| Tap | When the key comes back up within a quarter of a second |
+| Double tap | On the second press, within 0.3 seconds of the first |
+| Long press | Once, after half a second of holding |
+
+The loader applies the mode, so the mod needs no code for it.
 
 ### Controller input
 
@@ -141,4 +166,6 @@ The Keys tab has a column for the mouse and keyboard and one for a controller. W
 "keybinds": [ { "id": "toggle", "default": "f8", "pad": "pad_toggle", "label": { "en": "Turn the compass on or off" } } ]
 ```
 
-The app then shows the option in the row of the keybind, under the controller column, and leaves it out of the Options tab. The mod reads the option like any other and watches the pad itself. A keybind with no `pad` shows a dash in that column. Obsidian versions without the controller column ignore `pad` and list the option under Options.
+The app then shows the option in the row of the keybind, under the controller column, and leaves it out of the Options tab. The mod reads the option like any other. To have the input mode apply to the controller too, give `obsidian.keybind` a function that says whether the controller input is held, as `opts.pad`; the loader then calls `fn` with `"pad"` when it fires (`obsidian.capabilities.input_modes` is `true` in a loader that does this). Otherwise the mod watches the pad itself.
+
+Players can give any keybind a controller input in **Change binds**, with or without a `pad` option: one to four buttons held together. The loader then reads the pad for that bind and calls `fn` with `"pad"`, in place of `opts.pad` (`obsidian.capabilities.pad_binds` is `true` in a loader that does this). The mod needs no code for it. A keybind with no `pad` shows a dash in that column. Obsidian versions without the controller column ignore `pad` and list the option under Options.

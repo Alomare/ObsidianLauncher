@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import { run } from "./api";
 import { CloseIcon } from "./Icons";
 import { t } from "./i18n";
+import { useLayer } from "./Modal";
 import type { ImageRef } from "./types";
 
 const TYPES = ["png", "jpg", "jpeg", "webp"];
@@ -53,10 +54,8 @@ export function ImageViewer({ image, onClose }: { image: ImageRef; onClose: () =
   const close = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     close.current?.focus();
-    const key = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [onClose]);
+  }, []);
+  useLayer(onClose);
   return createPortal(
     <div className="modal-back image-view" role="dialog" aria-modal="true" aria-label={t("app.image.view")} onClick={onClose}>
       <img src={imageSrc(image)} alt="" draggable={false} />

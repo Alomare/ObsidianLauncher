@@ -1,14 +1,17 @@
 // The mod table in load order (spec 4.1), with folders. Mods and folders drag to a new place: a
 // line shows where they land, and a folder's name lights up when they would go in at the end of that folder.
-// Dragging a checked mod takes every checked mod. After a move the rows slide to their places.
+// Dragging a checked mod takes every checked mod, and the switch of a checked mod switches them all.
+// After a move the rows slide to their places.
 // Alt+Up and Alt+Down move the focused mod or folder from the keyboard. A warning icon marks
 // mods in a conflict and opens the conflicts; a right click opens the menu. A mod with a newer version
 // found shows it in gold in the Version column. Checked mods are checked for updates from the bar under the list.
-// The Version and Scope columns have fixed widths (styles.css, .table).
+// Size is the mod's folder; Deployed is what the last deploy put in the game. The columns at the right have
+// fixed widths, and Size and Deployed give way in a narrow list (styles.css, .table).
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type MutableRefObject, type PointerEvent } from "react";
+import { ContextMenu } from "../ContextMenu";
 import { CheckIcon, ChevronIcon, LockIcon, UnlockIcon, UpArrowIcon, WarnIcon } from "../Icons";
 import { go } from "../nav";
-import { language, pick, t } from "../i18n";
+import { language, t, tn } from "../i18n";
 import { Thumb } from "../Thumb";
 import { offered } from "./modUpdates";
 import type { ConflictRow, ImageRef, ModRow } from "../types";
@@ -52,7 +55,7 @@ const keyOf = (l: Line) => (l.kind === "folder" ? `folder:${l.folder.id}` : l.id
 /** Clicks on these do their own thing and never start a drag. */
 const stop = { onPointerDown: (e: PointerEvent) => e.stopPropagation(), onKeyDown: (e: KeyboardEvent) => e.stopPropagation() };
 
-function Check({ state, label, onChange }: { state: boolean | "mixed"; label: string; onChange: (on: boolean, shift: boolean) => void }) {
+export function Check({ state, label, onChange }: { state: boolean | "mixed"; label: string; onChange: (on: boolean, shift: boolean) => void }) {
   return (
     <button role="checkbox" aria-checked={state} aria-label={label} className={state ? "ck on" : "ck"} {...stop}
       onClick={(e) => onChange(state !== true, e.shiftKey)}>
@@ -63,6 +66,19 @@ function Check({ state, label, onChange }: { state: boolean | "mixed"; label: st
 
 /** Where builds that let the Version and Scope columns be dragged kept the widths. Nothing reads it now. */
 export const OLD_COLUMN_KEY = "obsidian.modColumns";
+
+/** The columns a right click on the header can hide, and where the hidden ones are kept. */
+export type Column = "num" | "size" | "dep" | "ver";
+const COLUMNS: Column[] = ["num", "size", "dep", "ver"];
+export const HIDDEN_KEY = "obsidian.hiddenModColumns";
+const readHidden = (): Column[] => {
+  try {
+    const v = JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? "[]");
+    return Array.isArray(v) ? COLUMNS.filter((c) => v.includes(c)) : [];
+  } catch {
+    return [];
+  }
+};
 
 /** What a row calls back into; kept in a ref so the rows never see new functions. */
 type Handlers = {
@@ -77,17 +93,17 @@ type Handlers = {
   update: (id: string) => void;
 };
 type RowProps = {
-  id: string; folder: string | null; color: string | null; name: string; description: string; version: string | null; update: string | null;
+  id: string; folder: string | null; color: string | null; name: string; version: string | null; update: string | null;
   scope: string; on: boolean; imagePath: string | null; imageV: number; num: number; pinned: boolean; selected: boolean; checked: boolean;
   lifted: boolean; leaving: boolean; tips: string | null; lose: boolean; h: MutableRefObject<Handlers>;
-  /** One line per part of the mod, with the scope, for the diamond's tooltip; null for a mod with no parts. */
-  parts: string | null;
+  /** Bytes of the mod's folder, and what the last deploy put in the game: null when not deployed. */
+  size: number; deployed: boolean; deployedSize: number | null;
   /** The UI language: the row's texts change with it. */
   lang: string;
 };
 
 /** One mod. Every prop is a plain value, so a click elsewhere in a long list leaves this row alone. */
-const ModLine = memo(function ModLine({ id, folder, color, name, description, version, update, scope, on, imagePath, imageV, num, pinned: fixed, selected, checked, lifted, leaving, tips, lose, h, parts }: RowProps) {
+const ModLine = memo(function ModLine({ id, folder, color, name, version, update, scope, on, imagePath, imageV, num, pinned: fixed, selected, checked, lifted, leaving, tips, lose, h, size, deployed, deployedSize }: RowProps) {
   const line: Line = { kind: "mod", id, folder };
   const image: ImageRef | null = useMemo(() => (imagePath ? { path: imagePath, v: imageV } : null), [imagePath, imageV]);
   const cls = ["tr", folder && "in", fixed && "pinned", selected && "sel", checked && "checked", lifted && "lifted", leaving && "leaving"].filter(Boolean).join(" ");
@@ -97,41 +113,50 @@ const ModLine = memo(function ModLine({ id, folder, color, name, description, ve
       onKeyDown={(e) => h.current.key(e, line)} onContextMenu={(e) => h.current.menu(e, { kind: "mod", id })}>
       <Check state={checked} label={name} onChange={(v, shift) => h.current.check(id, v, shift)} />
       <span className="num">{num}</span>
-      <button role="switch" aria-checked={on} aria-label={name} className={on ? "sw on" : "sw"} data-tip={t(on ? "app.mods.turnOff" : "app.mods.turnOn", name)}
+      <button role="switch" aria-checked={on} aria-label={name} className={["sw", on && "on", deployed && "dep"].filter(Boolean).join(" ")}
+        data-tip={t(on ? "app.mods.turnOff" : "app.mods.turnOn", name)} data-tip-note={deployed ? t("app.mods.inGame") : undefined}
         {...stop} onClick={() => h.current.toggle(id, !on)} />
-      <div className="mod-cell" data-tip-title={description ? name : undefined} data-tip={description || undefined}>
+      <div className="mod-cell">
         <Thumb image={image} name={name} />
         <div className="who">
           <div className="nm">
             <span className="nm-text">{name}</span>
+            {tips && (
+              <button className={lose ? "bare cf-ico lose" : "bare cf-ico"} aria-label={t("app.drawer.conflicts")}
+                data-tip-title={t("app.drawer.conflicts")} data-tip={tips} {...stop} onClick={() => h.current.conflicts(id)}>
+                <WarnIcon filled={!lose} />
+              </button>
+            )}
           </div>
         </div>
       </div>
-      {tips ? (
-        <button className={lose ? "bare cf-ico lose" : "bare cf-ico"} aria-label={t("app.drawer.conflicts")}
-          data-tip-title={t("app.drawer.conflicts")} data-tip={tips} {...stop} onClick={() => h.current.conflicts(id)}>
-          <WarnIcon filled={!lose} />
-        </button>
-      ) : <span />}
+      <span className="sz">{formatSize(size)}</span>
+      {deployed ? (
+        <span className="dep-cell"><span className="dep-tag" data-tip-title={t("app.mods.deployedTitle")} data-tip={t("app.mods.deployedHint")}>
+          {deployedSize === null ? t("app.mods.deployedYes") : formatSize(deployedSize)}</span></span>
+      ) : (
+        <span className="dep-cell"><span className="dep-no" aria-label={t("app.mods.notDeployed")} data-tip-title={t("app.mods.notDeployed")} data-tip={t("app.mods.notDeployedHint")}>-</span></span>
+      )}
       {update ? (
         <button className="ver ver-up" data-tip-title={t("app.mods.updateTo", update)} data-tip={t("app.mods.updateHint")} {...stop} onClick={() => h.current.update(id)}>
           <span>{version ?? t("app.mods.imported")}</span><UpArrowIcon />
         </button>
       ) : <span className="ver">{version ?? t("app.mods.imported")}</span>}
       <button className={`bare scope ${scope}`} aria-label={t(`app.scope.${scope}`)} data-tip-title={t(`app.scope.${scope}`)}
-        data-tip={[t(`app.scope.${scope}Hint`), parts, t("app.scope.wikiHint")].filter(Boolean).join("\n")}
-        {...stop} onClick={() => go("wiki", `scopes#${SCOPE_ANCHORS[scope] ?? ""}`)}><i /></button>
+        data-tip={t(`app.scope.${scope}Hint`)} data-tip-wiki="" {...stop} onClick={() => go("wiki", `scopes#${SCOPE_ANCHORS[scope] ?? ""}`)}><i /></button>
     </div>
   );
 });
 
 /** The part of the Scopes page in the Wiki about each scope. */
-const SCOPE_ANCHORS: Record<string, string> = { client: "client-mods", session: "session-mods", hybrid: "mods-with-parts", expansion: "expansions", unspecified: "unspecified-mods", library: "libraries" };
+const SCOPE_ANCHORS: Record<string, string> = { client: "client-mods", session: "session-mods", hybrid: "hybrid-scopes", expansion: "expansions", unspecified: "unspecified-mods", library: "libraries" };
 
-/** The tooltip lines of a mod's parts: name and scope, and whether the part is off. */
-export function partLines(m: ModRow): string | null {
-  if (!m.parts.length) return null;
-  return m.parts.map((p) => t(p.on ? "app.mods.partLine" : "app.mods.partLineOff", pick(p.name, p.id), t(`app.scope.${p.scope}`))).join("\n");
+/** Bytes as MB, or as GB from 1000 MB, in the UI language. */
+export function formatSize(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  const n = (v: number, digits: number) => v.toLocaleString(language(), { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  if (mb >= 1000) return t("app.mods.sizeGb", n(mb / 1024, 2));
+  return t("app.mods.sizeMb", mb >= 100 ? n(mb, 0) : n(Math.max(mb, bytes > 0 ? 0.1 : 0), 1));
 }
 
 /** How long the mods of a closing folder take to fade before the rows below move up. */
@@ -150,6 +175,14 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
     try { localStorage.removeItem(OLD_COLUMN_KEY); } catch { /* storage may be off; nothing reads the key */ }
   }, []);
   const [marker, setMarker] = useState<Marker | null>(null);
+  const [hidden, setHidden] = useState<Column[]>(readHidden);
+  const [colMenu, setColMenu] = useState<{ x: number; y: number } | null>(null);
+  const showColumn = (c: Column, on: boolean) => {
+    const next = on ? hidden.filter((x) => x !== c) : [...hidden, c];
+    setHidden(next);
+    try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(next)); } catch { /* storage may be off: the choice lasts until restart */ }
+  };
+  const colLabel: Record<Column, string> = { num: t("app.mods.orderTitle"), size: t("app.mods.colSize"), dep: t("app.mods.colDeployed"), ver: t("app.mods.colVersion") };
   // Folders open and close on screen at once; the saved state follows.
   const [fold, setFold] = useState<Record<string, boolean>>({});
   const [leaving, setLeaving] = useState<string | null>(null);
@@ -277,7 +310,7 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
     const color = into ? (folders.get(into) as (Node & { kind: "folder" }) | undefined)?.folder.color ?? null : null;
     const label = d.folder
       ? (tree.find((n) => n.kind === "folder" && n.folder.id === d.folder) as Node & { kind: "folder" }).folder.name
-      : d.ids.length === 1 ? names.get(d.ids[0]) ?? d.ids[0] : t("app.mods.nMods", d.ids.length);
+      : d.ids.length === 1 ? names.get(d.ids[0]) ?? d.ids[0] : tn("app.mods.nMods", d.ids.length);
     setMarker({ y, color, onto: d.onto, x: e.clientX, py: e.clientY, label });
   };
   const up = (e: PointerEvent<HTMLDivElement>) => {
@@ -329,7 +362,7 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
   const folders = useMemo(() => new Map((tree ?? []).flatMap((n) => (n.kind === "folder" ? [[n.folder.id, n] as const] : []))), [tree]);
   const tipsOf = useMemo(() => {
     const nameOf = (id: string) => names.get(id) ?? id;
-    const withFiles = ([id, n]: [string, number]) => (n === 1 ? t("app.mods.withOneFile", nameOf(id)) : t("app.mods.withFiles", nameOf(id), n));
+    const withFiles = ([id, n]: [string, number]) => tn("app.mods.withFiles", n, nameOf(id), n);
     const out = new Map<string, { tips: string; lose: boolean }>();
     for (const [id, c] of conflictsByMod(conflicts)) {
       const tips = [
@@ -342,19 +375,21 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
     return out;
   }, [conflicts, names]);
   const h = useRef<Handlers>(null!);
-  h.current = { down, move, up, key, menu, check, toggle: (id, on) => toggle([id], on), conflicts: onConflicts, update: onUpdate };
+  // The switch of a checked mod switches every checked mod, as a drag of one takes them all.
+  h.current = { down, move, up, key, menu, check, toggle: (id, on) => toggle(checked.has(id) ? order.filter((x) => checked.has(x)) : [id], on), conflicts: onConflicts, update: onUpdate };
   const allState = visibleMods.length && visibleMods.every((id) => checked.has(id)) ? true : visibleMods.some((id) => checked.has(id)) ? "mixed" : false;
   const draggingKeys = new Set(drag.current?.moved ? (drag.current.folder ? [drag.current.key] : drag.current.ids) : []);
 
   return (
-    <div className="table" role="table">
-      <div className="th cap" role="row">
+    <div className={["table", ...hidden.map((c) => `no-${c}`)].join(" ")} role="table">
+      <div className="th cap" role="row" data-tip-side="bottom" onContextMenu={(e) => { e.preventDefault(); setColMenu({ x: e.clientX, y: e.clientY }); }}>
         <Check state={allState} label={t("app.mods.checkAll")} onChange={(on) => onCheck(visibleMods, on)} />
-        <span data-tip-title={t("app.mods.orderTitle")} data-tip={tree ? t("app.mods.orderHint") : t("app.mods.reorderOff")}>#</span>
+        <span className="h-num" data-tip-title={t("app.mods.orderTitle")} data-tip={tree ? t("app.mods.orderHint") : t("app.mods.reorderOff")}>#</span>
         <span>{t("app.mods.colOn")}</span>
         <span>{t("app.mods.colMod")}</span>
-        <span />
-        <span className="th-col">{t("app.mods.colVersion")}</span>
+        <span className="th-col sz">{t("app.mods.colSize")}</span>
+        <span className="th-col dep-cell">{t("app.mods.colDeployed")}</span>
+        <span className="th-col h-ver">{t("app.mods.colVersion")}</span>
         <span className="th-col th-scope">{t("app.mods.colScope")}</span>
       </div>
       <div ref={body} className={marker ? "tbody dragging-list" : "tbody"}>
@@ -372,7 +407,6 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
                 onPointerDown={(e) => down(e, line)} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onKeyDown={(e) => key(e, line)} onContextMenu={(e) => menu(e, { kind: "folder", id: f.id })}>
                 {ids.length ? <Check state={state} label={f.name} onChange={(v) => onCheck(ids, v)} /> : <span />}
                 <span className="fr-chev"><ChevronIcon /></span>
-                <span />
                 <span className="fr-title">
                   <button className={f.locked ? "bare fr-lock on" : "bare fr-lock"} aria-pressed={f.locked} aria-label={t(f.locked ? "app.menu.unlock" : "app.menu.lock")}
                     data-tip-title={t(f.locked ? "app.folder.locked" : "app.menu.lock")} data-tip={t(f.locked ? "app.folder.lockedHint" : "app.folder.lockHint")}
@@ -394,14 +428,21 @@ export function ModTable({ tree: saved, rows, byId, order, names, conflicts, sel
           const folder = line.folder ? folders.get(line.folder) : undefined;
           return (
             <ModLine key={m.id} id={m.id} folder={line.folder} color={folder?.kind === "folder" ? folder.folder.color : null} name={names.get(m.id) ?? m.id}
-              description={pick(m.description)} version={m.version} update={offered(updates, m)} scope={m.scope} on={flips[m.id]?.on ?? m.on} imagePath={m.image?.path ?? null} imageV={m.image?.v ?? 0} num={position.get(m.id) ?? 0}
+              version={m.version} update={offered(updates, m)} scope={m.scope} on={flips[m.id]?.on ?? m.on} imagePath={m.image?.path ?? null} imageV={m.image?.v ?? 0} num={position.get(m.id) ?? 0}
               pinned={!!folder && folder.kind === "folder" && folder.folder.locked} selected={selected === m.id} checked={checked.has(m.id)}
               lifted={draggingKeys.has(m.id)} leaving={leaving !== null && line.folder === leaving} tips={conflict?.tips ?? null} lose={conflict?.lose ?? false}
-              h={h} lang={language()} parts={partLines(m)} />
+              h={h} lang={language()} size={m.size} deployed={m.deployed} deployedSize={m.deployedSize} />
           );
         })}
         {marker && !marker.onto && <div className="drop-line" style={{ top: marker.y, ...(marker.color ? { ["--lc" as string]: marker.color } : {}) }} aria-hidden="true" />}
       </div>
+      {colMenu && (
+        <ContextMenu x={colMenu.x} y={colMenu.y} label={t("app.mods.columns")} onClose={() => setColMenu(null)}
+          items={COLUMNS.map((c) => {
+            const on = !hidden.includes(c);
+            return { label: colLabel[c], checked: on, icon: <span className={on ? "ck on" : "ck"}>{on && <CheckIcon />}</span>, keep: true, run: () => showColumn(c, !on) };
+          })} />
+      )}
       {marker && <div className="drag-ghost" style={{ left: marker.x + 14, top: marker.py + 10 }} aria-hidden="true">{marker.label}</div>}
     </div>
   );

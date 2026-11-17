@@ -25,6 +25,9 @@ pub struct Found {
     /// The invite code the war was found with, for a war asked for by address.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub key: Option<String>,
+    /// The war settings Obsidian acts on, as the host announced them.
+    pub own_save_only: bool,
+    pub allow_achievements: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -41,6 +44,10 @@ struct Packet {
     host: String,
     #[serde(default)]
     players: u32,
+    #[serde(default)]
+    own_save_only: bool,
+    #[serde(default)]
+    allow_achievements: bool,
     #[serde(default)]
     version: String,
 }
@@ -66,6 +73,8 @@ pub fn read_packet(bytes: &[u8], from: SocketAddr) -> Option<Found> {
         players: p.players,
         version: clip(&p.version, 20),
         key: None,
+        own_save_only: p.own_save_only,
+        allow_achievements: p.allow_achievements,
     })
 }
 
@@ -127,6 +136,10 @@ struct InfoWar {
     season: u32,
     #[serde(default)]
     players: u32,
+    #[serde(default)]
+    own_save_only: bool,
+    #[serde(default)]
+    allow_achievements: bool,
 }
 
 /// The wars in a war server answer to `GET /api/info`, as found at `base`.
@@ -137,7 +150,19 @@ pub fn read_info(body: &[u8], base: &str) -> Vec<Found> {
         .into_iter()
         .filter(|w| !w.id.is_empty() && w.id.len() <= 32 && w.id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'))
         .take(64)
-        .map(|w| Found { war: w.id, name: clip(&w.name, 60), model: clip(&w.model, 16), season: w.season, base: base.to_string(), computer: clip(&computer, 40), players: w.players, version: clip(&info.version, 20), key: None })
+        .map(|w| Found {
+            war: w.id,
+            name: clip(&w.name, 60),
+            model: clip(&w.model, 16),
+            season: w.season,
+            base: base.to_string(),
+            computer: clip(&computer, 40),
+            players: w.players,
+            version: clip(&info.version, 20),
+            key: None,
+            own_save_only: w.own_save_only,
+            allow_achievements: w.allow_achievements,
+        })
         .collect()
 }
 
@@ -158,6 +183,19 @@ pub fn ask(typed: &str, invite: &str) -> std::io::Result<Vec<Found>> {
     if key.is_none() && !invite.trim().is_empty() {
         return Err(bad("not an invite code".into()));
     }
+    info_at(&base, key)
+}
+
+/// The settings of war `id` as the war server at `base` states them now, for a LAN war being
+/// selected. None when the server does not answer or lists no such war.
+pub fn flags_at(base: &str, key: Option<&str>, id: &str) -> Option<super::WarFlags> {
+    let base = base_of(base)?;
+    let found = info_at(&base, key.and_then(key_of)).ok()?;
+    found.into_iter().find(|f| f.war == id).map(|f| super::WarFlags { own_save_only: f.own_save_only, allow_achievements: f.allow_achievements })
+}
+
+/// `GET <base>/api/info`, with the invite code when there is one.
+fn info_at(base: &str, key: Option<String>) -> std::io::Result<Vec<Found>> {
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .http_status_as_error(false)
         .user_agent("Obsidian")
@@ -176,7 +214,7 @@ pub fn ask(typed: &str, invite: &str) -> std::io::Result<Vec<Found>> {
         return Err(std::io::Error::other(format!("no war open at {base} (the server answered {})", res.status().as_u16())));
     }
     let body = res.body_mut().with_config().limit(256 * 1024).read_to_vec().map_err(|e| std::io::Error::other(e.to_string()))?;
-    let mut found = read_info(&body, &base);
+    let mut found = read_info(&body, base);
     for f in &mut found {
         f.key = key.clone();
     }
@@ -196,16 +234,18 @@ mod tests {
             assert_eq!(base_of(no), None, "{no}");
         }
         // What `base_of` gives passes the check a selected war goes through.
-        let war = crate::commander::WarRef { id: "k3x9q2".into(), name: "W".into(), host: crate::commander::WarHost::Lan, base: base_of("203.0.113.7"), save: None, computer: None, model: None, key: None };
+        let war = crate::commander::WarRef { id: "k3x9q2".into(), name: "W".into(), host: crate::commander::WarHost::Lan, base: base_of("203.0.113.7"), save: None, computer: None, model: None, key: None, ..Default::default() };
         assert!(crate::commander::valid_pick(&war));
     }
 
     #[test]
     fn the_wars_of_an_answer_are_checked_like_announced_ones() {
-        let body = br#"{"version":"0.5.0","protocol":1,"wars":[{"id":"k3x9q2","name":"Night War","model":"evolved","season":3,"players":2},{"id":"../x","name":"bad"},{"id":"ok_2"}]}"#;
+        let body = br#"{"version":"0.5.0","protocol":1,"wars":[{"id":"k3x9q2","name":"Night War","model":"enhanced","season":3,"players":2,"own_save_only":true,"allow_achievements":true},{"id":"../x","name":"bad"},{"id":"ok_2"}]}"#;
         let found = read_info(body, "http://203.0.113.7:17494");
         assert_eq!(found.len(), 2);
-        assert_eq!((found[0].war.as_str(), found[0].name.as_str(), found[0].model.as_str(), found[0].season, found[0].players), ("k3x9q2", "Night War", "evolved", 3, 2));
+        assert_eq!((found[0].war.as_str(), found[0].name.as_str(), found[0].model.as_str(), found[0].season, found[0].players), ("k3x9q2", "Night War", "enhanced", 3, 2));
+        assert!(found[0].own_save_only && found[0].allow_achievements);
+        assert!(!found[1].own_save_only && !found[1].allow_achievements, "a server that states neither: the defaults");
         assert_eq!((found[0].base.as_str(), found[0].computer.as_str(), found[0].version.as_str()), ("http://203.0.113.7:17494", "203.0.113.7:17494", "0.5.0"));
         assert!(read_info(b"<html>", "http://x:1").is_empty());
     }
@@ -236,6 +276,25 @@ mod tests {
         assert_eq!(key_of(""), None);
     }
 
+    #[test]
+    fn the_settings_of_one_war_come_from_its_server() {
+        use std::io::{Read, Write};
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = l.local_addr().unwrap().port();
+        let h = std::thread::spawn(move || {
+            let (mut s, _) = l.accept().unwrap();
+            let mut buf = [0u8; 2048];
+            let _ = s.read(&mut buf).unwrap();
+            let body = r#"{"wars":[{"id":"abc","allow_achievements":true},{"id":"def","own_save_only":true}]}"#;
+            write!(s, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body).unwrap();
+        });
+        let f = flags_at(&format!("http://127.0.0.1:{port}"), None, "def").unwrap();
+        h.join().unwrap();
+        assert_eq!(f, crate::commander::WarFlags { own_save_only: true, allow_achievements: false });
+        assert_eq!(flags_at(&format!("http://127.0.0.1:{port}"), None, "def"), None, "no answer: nothing");
+        assert_eq!(flags_at("file:///x", None, "def"), None);
+    }
+
     fn from() -> SocketAddr {
         "192.168.0.7:51000".parse().unwrap()
     }
@@ -246,6 +305,10 @@ mod tests {
         let f = read_packet(p, from()).unwrap();
         assert_eq!(f.base, "http://192.168.0.7:17494");
         assert_eq!((f.war.as_str(), f.name.as_str(), f.players), ("k3x9q2", "Night War", 3));
+        assert!(!f.own_save_only && !f.allow_achievements);
+        let p = br#"{"commander":1,"war":"k3x9q2","name":"N","port":17494,"own_save_only":true,"allow_achievements":true}"#;
+        let f = read_packet(p, from()).unwrap();
+        assert!(f.own_save_only && f.allow_achievements);
     }
 
     #[test]

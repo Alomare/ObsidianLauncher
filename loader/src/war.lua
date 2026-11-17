@@ -30,6 +30,15 @@ function M.pool_tag(core)
 	return M.active and core.war and core.war.pool or nil
 end
 
+-- obsidian.war(): the custom war this launch plays, as { id, model }, or nil on the official war. The
+-- model is "vanilla" or "enhanced", for the companion mod of an Enhanced war. Never the relay address.
+function M.api(core)
+	return function()
+		if not (M.active and core.war) then return nil end
+		return { id = core.war.id, model = core.war_model or "vanilla" }
+	end
+end
+
 -- Whether the in-game war requests can only reach the relay: uploads then belong to the war.
 function M.reporting(core)
 	return M.active and M.confirmed and core.war ~= nil

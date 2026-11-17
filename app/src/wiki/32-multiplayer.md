@@ -44,16 +44,16 @@ Client mods always run. A few examples, from the point of view of player A with 
 
 In a friends-only or private lobby, every row is On. The check runs again whenever someone joins, leaves or changes setup, and when the host changes who can join. Mods switch on and off live, and a session mod can undo what it changed when that happens.
 
-## Mods with parts
+## Hybrid Scopes
 
-A [mod with parts](wiki:scopes#mods-with-parts) follows the same rules, part by part. The session parts run where session mods run, and the client parts run in any lobby. When the session parts switch off in a public lobby, the game names them and says the rest keeps working.
+A mod with [Hybrid Scopes](wiki:scopes#hybrid-scopes) follows the same rules, one secondary scope at a time. The session secondary scopes run where session mods run, and the client ones run in any lobby. When the session secondary scopes switch off in a public lobby, the game names them and says the rest keeps working.
 
-| Other players | Camera part of A (client) | Weapon range part of A (session) |
+| Other players | Camera of A (client secondary scope) | Weapon range of A (session secondary scope) |
 |---|---|---|
 | B runs the same set | On | On |
 | B has vanilla HELLDIVERS | On | Off |
 
-The options of client parts don't count when Obsidian compares sets, and a part switched off in the options of the mod counts for nothing.
+The options of client secondary scopes don't count when Obsidian compares sets, and a secondary scope switched off in the options of the mod counts for nothing.
 
 ## Mods every player needs
 
@@ -70,9 +70,15 @@ Once the content starts, every game in the lobby follows the host. A player who 
 
 ## Mods that can't switch off live
 
-Some session content can't switch off in the middle of a game: data overrides and older imported mods. While a player with such content hosts a public lobby, vanilla players can't join it, and the game tells them the version doesn't match. That player also can't take the content into a public lobby whose host doesn't run such content. Friends-only and private lobbies are open to everyone.
+Game files a session mod replaces, listed under `resources` in the manifest of the mod, can't switch off in the middle of a game. While a player with such a mod hosts a public lobby, vanilla players can't join it, and the game tells them the version doesn't match. That player also can't take the content into a public lobby whose host doesn't run such content. Friends-only and private lobbies are open to everyone.
 
 When a player who blocks session mods ends up in such a public lobby, the loader records a warning in `loader.log`, and the session mods that can switch off stay off. Leave the lobby, or play in a friends-only lobby.
+
+## The Modded tab {#the-modded-tab}
+
+The multiplayer terminal on the ship has three tabs with Obsidian: **Public**, **Modded** and **Friends**. A host running Obsidian publishes a list of mods with the lobby: the name and version of each session mod and expansion that runs, and of each client mod unless the host hides them with the [Guardrails](wiki:guardrails#the-lobby-list). **Modded** lists only the public lobbies with such a list, and the other tabs mark those lobbies **MODDED**. Selecting one shows the list under **Mods in this lobby**. The list is only information: which mods run once a player is in the lobby follows the rules above.
+
+On a Sandbox save the **Public** tab reads **Sandbox Public**, and lists only lobbies of other Sandbox players ([Saves](wiki:saves#the-sandbox-matchmaking-pool)).
 
 ## Invites
 

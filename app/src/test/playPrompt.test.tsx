@@ -22,7 +22,7 @@ const { go } = await import("../nav");
 
 const mod = (id: string, on: boolean): ModRow => ({
   id, name: { en: id }, description: {}, authors: [], version: "1.0.0", scope: "client", on, options: [], keybinds: [], files: [],
-  import: null, source: null, updatable: false, image: null, folder: null, requires: [], parts: [], optionGroups: [], optionPreviews: [],
+  import: null, source: null, updatable: false, image: null, folder: null, requires: [], parts: [], optionGroups: [], optionPreviews: [], size: 0, deployed: false, deployedSize: null,
 });
 /** `deployed` is what the app tracks of the last deploy; `on` is the switch of the one mod in the list. */
 const snap = ({ deployed, on }: { deployed: boolean; on: boolean }): Snapshot => ({
@@ -165,8 +165,10 @@ describe("the Settings row", () => {
     const row = () => [...document.querySelectorAll<HTMLButtonElement>(".set-sec button[role=switch]")].find((b) => b.getAttribute("aria-label") === t("app.settings.askVanilla"))!;
     expect(row().getAttribute("aria-checked")).toBe("true");
     const group = row().closest(".set-sec")!;
-    expect(group.querySelector("h2 .cap")!.textContent).toBe(t("app.settings.play"));
-    expect(group.querySelector(".help-q")).not.toBeNull();
+    expect(group.querySelector("h2 .cap")!.textContent).toBe(t("app.settings.general"));
+    const line = row().closest(".set-row")!;
+    expect(line.querySelector(".set-row-text b")!.textContent).toBe(t("app.settings.askVanilla"));
+    expect(line.querySelector(".help-q")).not.toBeNull();
     await press(row());
     await vi.waitFor(() => expect(row().getAttribute("aria-checked")).toBe("false"));
     await press(row());

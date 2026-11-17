@@ -1,18 +1,16 @@
 // What the app is working on, shown in the status bar ("Importing X…"). Several tasks can run at
 // once; the newest one shows. A locking task (deploy, import) also locks Purge, Deploy and Play.
-import { useSyncExternalStore } from "react";
+import { createStore } from "./store";
 
 type Task = { id: number; text: string; lock: boolean };
 type State = { text: string | null; locked: boolean };
 
 let tasks: Task[] = [];
-let state: State = { text: null, locked: false };
 let next = 1;
-const listeners = new Set<() => void>();
+const store = createStore<State>({ text: null, locked: false });
 
 function publish() {
-  state = { text: tasks.at(-1)?.text ?? null, locked: tasks.some((t) => t.lock) };
-  listeners.forEach((f) => f());
+  store.set({ text: tasks.at(-1)?.text ?? null, locked: tasks.some((t) => t.lock) });
 }
 
 /** Shows `text` until the returned function is called. */
@@ -26,10 +24,11 @@ export function startTask(text: string, lock = false): () => void {
   };
 }
 
-/** Runs `work`, showing `text` only when it takes longer than a blink. */
+/** Runs `work`, showing `text` only when it takes longer than a blink. A locking task locks at once,
+ *  before `work` starts, so nothing that checks the lock can slip in between. */
 export async function withTask<T>(text: string, work: () => Promise<T>, lock = false): Promise<T> {
-  let end: (() => void) | null = null;
-  const timer = setTimeout(() => (end = startTask(text, lock)), lock ? 0 : 120);
+  let end: (() => void) | null = lock ? startTask(text, true) : null;
+  const timer = lock ? undefined : setTimeout(() => (end = startTask(text)), 120);
   try {
     return await work();
   } finally {
@@ -38,11 +37,7 @@ export async function withTask<T>(text: string, work: () => Promise<T>, lock = f
   }
 }
 
-const subscribe = (f: () => void) => {
-  listeners.add(f);
-  return () => {
-    listeners.delete(f);
-  };
-};
-export const useBusy = () => useSyncExternalStore(subscribe, () => state).text;
-export const useLocked = () => useSyncExternalStore(subscribe, () => state).locked;
+/** Whether a locking task runs now. */
+export const isLocked = () => store.get().locked;
+export const useBusy = () => store.use((s) => s.text);
+export const useLocked = () => store.use((s) => s.locked);

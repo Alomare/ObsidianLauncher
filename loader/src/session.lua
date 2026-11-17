@@ -66,35 +66,39 @@ end
 M.publish = publish
 
 -- Whether a mod's gated code may run: a cleared session, and for a mod every player has to run,
--- every other player running it. An expansion's runs only while its content does. A library that
--- only expansions require runs as a client library, and serves them while their content runs.
--- A library a session mod requires runs while the session is cleared, and while the content of an
--- expansion that requires it runs, whoever else is in the lobby.
-function M.allows(state)
+-- every other player running it. An expansion's runs only while its content does; the code of a
+-- session secondary scope of an expansion (`part`) also runs in a cleared session outside it. A
+-- library that only expansions require runs as a client library, and serves them while their content
+-- runs. A library a session mod requires runs while the session is cleared, and while the content of
+-- an expansion that requires it runs, whoever else is in the lobby.
+function M.allows(state, part)
 	local mod = state and state.mod
 	if mod and mod.scope == "expansion" then
-		return not expansion.is_own(state.id) or expansion.serves(mod.expansions)
+		if not expansion.is_own(state.id) or expansion.serves(mod.expansions) then return true end
+		if not (part and part.scope == "session") then return false end
+		return M.state and not M.missing[state.id] or false
 	end
 	if mod and mod.expansions and expansion.serves(mod.expansions) then return true end
 	return M.state and not (state and M.missing[state.id])
 end
 
--- The part a registration names (opts.part), with what the code tagged with it runs as: "client",
--- "session", or "off" for a part that is off, whose code never runs. nil without a part, or with one
--- the mod doesn't declare: then the mod's own scope decides, a hybrid mod's as a session mod's.
+-- The secondary scope a registration names (opts.secondary_scope, or opts.part from before Hybrid
+-- Scopes had the name), with what the code tagged with it runs as: "client", "session", or "off" for a
+-- secondary scope that is off, whose code never runs. nil without one, or with one the mod doesn't
+-- declare: then the primary scope decides, a hybrid mod's as a session mod's.
 function M.part_scope(state, opts)
-	local id = B.type(opts) == "table" and opts.part or nil
+	local id = B.type(opts) == "table" and (opts.secondary_scope or opts.part) or nil
 	if id == nil or not state then return nil end
 	local part = state.parts and state.parts[B.tostring(id)]
 	if not part then
-		log.limited(state.id .. "\0part " .. B.tostring(id), "part: " .. state.id .. " names " .. B.tostring(id) .. ", which is not one of the mod's parts")
+		log.limited(state.id .. "\0part " .. B.tostring(id), "secondary_scope: " .. state.id .. " names " .. B.tostring(id) .. ", which is not one of the mod's secondary scopes")
 		return nil
 	end
 	if not part.on then return "off", part end
 	return part.scope == "client" and "client" or "session", part
 end
 
--- Whether code of `state` tagged with `part` (nil: untagged) runs only in a cleared session.
+-- Whether code of `state` tagged with the secondary scope `part` (nil: untagged) runs only in a cleared session.
 function M.gated(state, part)
 	if part then return part.scope ~= "client" end
 	return not (state and state.mod.scope == "client")
@@ -102,19 +106,31 @@ end
 
 -- What obsidian.on_session reports: whether the loader has the mod on. For a library that only
 -- expansions require, that's their content, so it can undo what an expansion changed once it ends.
--- A client part is always on.
+-- A client secondary scope is always on.
 local function switched(state, part)
 	if part and part.scope == "client" then return true end
 	local mod = state and state.mod
-	if mod and mod.scope == "expansion" then return expansion.serves(mod.expansions) end
-	return M.allows(state)
+	if mod and mod.scope == "expansion" and not (part and part.scope == "session") then return expansion.serves(mod.expansions) end
+	return M.allows(state, part)
 end
 
--- A notice when a hybrid mod's session parts stop and the client parts keep running.
+-- Whether a mod has a session secondary scope that is on, which stops while the others keep running:
+-- a hybrid mod, or an expansion outside the content.
+local SESSION = { scope = "session" }
+local function has_session_secondary(state)
+	if state.mod.scope == "hybrid" then return true end
+	if state.mod.scope ~= "expansion" then return false end
+	for _, p in B.ipairs(state.part_list or {}) do
+		if p.on and p.scope == "session" then return true end
+	end
+	return false
+end
+
+-- A notice when the session secondary scopes of a mod stop and the rest keeps running.
 local function parts_notice()
 	for _, state in B.ipairs(M.core.mods or {}) do
-		if state.mod.scope == "hybrid" and not state.off then
-			local now = M.allows(state)
+		if has_session_secondary(state) and not state.off then
+			local now = M.allows(state, SESSION)
 			if state.parts_were ~= false and not now then
 				local lang, names = M.core.language(), {}
 				for _, p in B.ipairs(state.part_list or {}) do
@@ -124,7 +140,7 @@ local function parts_notice()
 					end
 				end
 				if #names > 0 then
-					log.line("session: " .. state.id .. " session parts off, client parts on")
+					log.line("session: " .. state.id .. " session secondary scopes off, the rest on")
 					local list = #names == 1 and names[1] or (B.concat(names, ", ", 1, #names - 1) .. " and " .. names[#names])
 					M.core.notice(#names == 1 and "part_off" or "parts_off", M.core.name_of(state), list)
 				end
@@ -241,8 +257,8 @@ function M.cleared()
 	return M.state
 end
 
--- opts.part: the listener hears only the switch of that part. A client part's never switches off, and
--- a part that is off registers nothing.
+-- opts.secondary_scope: the listener hears only the switch of that secondary scope. A client one never
+-- switches off, and one that is off registers nothing.
 function M.on_session(fn, opts)
 	local state = M.core.current
 	local scope, part = M.part_scope(state, opts)
@@ -250,11 +266,11 @@ function M.on_session(fn, opts)
 	B.insert(M.listeners, { state = state, fn = fn, part = part, on = switched(state, part) })
 end
 
--- obsidian.session.cleared(part): for the calling mod, or for one of the calling mod's parts.
+-- obsidian.session.cleared(id): for the calling mod, or for one of the calling mod's secondary scopes.
 function M.cleared_for(part)
 	local state = M.core.current
 	if part ~= nil then
-		local scope, p = M.part_scope(state, { part = part })
+		local scope, p = M.part_scope(state, { secondary_scope = part })
 		if scope == "off" then return false end
 		if p then return switched(state, p) end
 	end

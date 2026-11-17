@@ -1,5 +1,5 @@
 // Line icons drawn in currentColor, and the Obsidian logo.
-import type { ReactNode, SVGProps } from "react";
+import { useId, type ReactNode, type SVGProps } from "react";
 
 const Icon = ({ children, ...p }: SVGProps<SVGSVGElement> & { children: ReactNode }) => (
   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...p}>
@@ -15,6 +15,10 @@ export const SaveIcon = () => <Icon><path d="M4.5 3.5h12l3 3v14h-15z" /><path d=
 export const EyeIcon = () => <Icon><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="2.8" /></Icon>;
 export const EyeOffIcon = () => <Icon><path d="M9.8 5.8A8.9 8.9 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16.6 16.6 0 0 1-2.6 3.5M6.2 7.4A16 16 0 0 0 2.5 12S6 18.5 12 18.5a8.8 8.8 0 0 0 4.4-1.2" /><path d="M9.9 10a2.8 2.8 0 0 0 3.9 4" /><path d="M3.5 3.5l17 17" /></Icon>;
 export const HomeIcon = () => <Icon><path d="M3.5 11L12 3.5l8.5 7.5" /><path d="M5.5 9.5v11h5v-6h3v6h5v-11" /></Icon>;
+/** A shop front with an awning: the Store tab. */
+export const StoreIcon = () => <Icon><path d="M4.5 3.5h15l2 5.5a2.6 2.6 0 0 1-4.9 1.2 2.6 2.6 0 0 1-4.6 0 2.6 2.6 0 0 1-4.6 0A2.6 2.6 0 0 1 2.5 9z" /><path d="M4.5 12v8.5h15V12M10 20.5v-5h4v5" /></Icon>;
+/** A picture crossed out: a mod with no thumbnail. */
+export const NoImageIcon = () => <Icon strokeWidth="1.5"><rect x="3.5" y="4.5" width="17" height="15" rx="1" /><circle cx="9" cy="10" r="1.6" /><path d="M20.5 16l-5-5-8.5 8.5M3 3l18 18" /></Icon>;
 const FOLDER = "M3 6.5a1.5 1.5 0 0 1 1.5-1.5h4.8l2 2.2h8.2A1.5 1.5 0 0 1 21 8.7v9.8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z";
 export const FolderIcon = () => <Icon><path d={FOLDER} /></Icon>;
 /** A folder outline with a plus inside. */
@@ -28,17 +32,31 @@ export const CheckIcon =() => <Icon strokeWidth="2.6"><path d="M5 12.5l4.5 4.5L1
 export const SwitchOnIcon = () => <Icon><rect x="2" y="6.5" width="20" height="11" rx="1" fill="currentColor" /><rect x="14" y="9.5" width="5" height="5" fill="var(--btn)" stroke="none" /></Icon>;
 export const SwitchOffIcon = () => <Icon><rect x="2" y="6.5" width="20" height="11" rx="1" /><rect x="5" y="9.5" width="5" height="5" fill="currentColor" stroke="none" /></Icon>;
 /** A filled square with an arrow leaving it: the link opens outside the app. */
-export const OutboundIcon = () => (
-  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" className="outbound">
-    <defs><mask id="outbound-cut"><rect width="24" height="24" fill="#fff" /><path d="M8.5 15.5l7-7M10 8.5h5.5V14" stroke="#000" strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round" /></mask></defs>
-    <rect x="2.5" y="2.5" width="19" height="19" rx="2.5" fill="currentColor" mask="url(#outbound-cut)" />
-  </svg>
+/** A filled square with an arrow cut out. Each copy has a separate mask: a shared id breaks every copy
+    while the first one sits in a hidden element. */
+/** Filled: a star for official saves, a cube for Sandbox saves. */
+export const StarIcon = () => (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M12 2.2l2.9 6.2 6.8.8-5 4.7 1.3 6.7L12 17.3l-6 3.3 1.3-6.7-5-4.7 6.8-.8z" /></svg>
 );
+export const CubeIcon = () => (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M12 2l8.7 5L12 12 3.3 7z" opacity="0.75" /><path d="M2.8 8l8.4 4.9v9.6l-8.4-4.9z" /><path d="M21.2 8v9.6l-8.4 4.9v-9.6z" opacity="0.55" /></svg>
+);
+
+export const OutboundIcon = () => {
+  const id = `outbound-${useId().replace(/[^A-Za-z0-9_-]/g, "")}`;
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" className="outbound">
+      <defs><mask id={id}><rect width="24" height="24" fill="#fff" /><path d="M8.5 15.5l7-7M10 8.5h5.5V14" stroke="#000" strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round" /></mask></defs>
+      <rect x="2.5" y="2.5" width="19" height="19" rx="2.5" fill="currentColor" mask={`url(#${id})`} />
+    </svg>
+  );
+};
 export const GitHubIcon = () => (
   <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.58l-.02-2.04c-3.34.73-4.04-1.6-4.04-1.6-.55-1.4-1.34-1.77-1.34-1.77-1.08-.74.09-.73.09-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.31.76-1.6-2.67-.31-5.47-1.34-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.62-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .32.21.7.82.58A12 12 0 0 0 12 .3" /></svg>
 );
 export const ProfilesIcon = () => <Icon><circle cx="12" cy="8" r="4" /><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" /></Icon>;
-/** Two people: other modders can reach this profile's game. */
+/** A head and shoulders: the Account tab. */
+export const UserIcon = () => <Icon><circle cx="12" cy="8.5" r="4" /><path d="M4.5 20.5c.9-3.9 3.8-6 7.5-6s6.6 2.1 7.5 6" /></Icon>;/** Two people: other modders can reach this profile's game. */
 /** A shield, filled while it guards something. */
 export const ShieldIcon = ({ filled = false }: { filled?: boolean }) => (
   <Icon><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5-4.3-1.2-7.5-4.9-7.5-9.5V6z" fill={filled ? "currentColor" : "none"} /></Icon>
@@ -81,8 +99,12 @@ export const ChevronIcon = () => <Icon><path d="M6 9l6 6 6-6" /></Icon>;
 export const GripIcon = () => <Icon><path d="M5 8h14M5 12h14M5 16h14" /></Icon>;
 export const CloseIcon = () => <Icon><path d="M6 6l12 12M18 6L6 18" /></Icon>;
 export const UpdateIcon = () => <Icon><path d="M20 11a8 8 0 0 0-14.3-4.3L3.5 9M3.5 4v5h5M4 13a8 8 0 0 0 14.3 4.3L20.5 15M20.5 20v-5h-5" /></Icon>;
+/** A clock face with an arrow round it: the Versions tab of a mod. */
+export const HistoryIcon = () => <Icon><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6L3.5 8.5M3.5 4v4.5H8M12 7.5V12l3 2" /></Icon>;
 export const ResetIcon = () => <Icon><path d="M4 4v6h6M4.5 15a8 8 0 1 0 1.5-8.5L4 10" /></Icon>;
-export const InfoIcon = () => <Icon><circle cx="12" cy="12" r="8.5" /><path d="M12 11v5.5M12 7.6v.1" strokeWidth={2.4} /></Icon>;
+/** An issue, as GitHub draws it: a ring with a dot. */
+export const IssueIcon = () => <Icon strokeWidth="2.2"><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" /></Icon>;
+export const InfoIcon =() => <Icon><circle cx="12" cy="12" r="8.5" /><path d="M12 11v5.5M12 7.6v.1" strokeWidth={2.4} /></Icon>;
 /** Three sliders. */
 export const SlidersIcon = () => <Icon><path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h7M15 17h5" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="12" r="2" /><circle cx="13" cy="17" r="2" /></Icon>;
 /** A keyboard with a mouse beside it: the Keys tab's mouse and keyboard column. */

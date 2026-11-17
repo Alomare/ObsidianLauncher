@@ -6,9 +6,6 @@
 //! Steam ID from that field goes on as the `X-Commander-Player` header instead. The `sign` header is
 //! dropped too. Only a path with the launch token is served, so another program on the PC that
 //! finds the port gets nothing from it.
-//!
-//! In an Evolved war the Evolved War Engine mod uses the same relay: `<token>/evolved/state`,
-//! `galaxy` and `report` go to the war server under `/w/<id>/evolved/`, and nothing else does.
 
 use std::io::Read;
 use std::sync::{Arc, RwLock};
@@ -94,10 +91,6 @@ fn handle(mut request: tiny_http::Request, route: Option<Route>, agent: &ureq::A
         let _ = request.respond(text(404, "not found"));
         return;
     };
-    if let Some(what) = rest.strip_prefix("evolved/") {
-        evolved(request, &route, what, agent);
-        return;
-    }
     if !(rest == "1.0/" || rest == "1.0") || *request.method() != tiny_http::Method::Post {
         let _ = request.respond(text(404, "not found"));
         return;
@@ -125,71 +118,6 @@ fn handle(mut request: tiny_http::Request, route: Option<Route>, agent: &ureq::A
         Ok(mut res) => {
             let code = res.status().as_u16();
             let bytes = res.body_mut().with_config().limit(MAX_BODY as u64).read_to_vec().unwrap_or_default();
-            let ct = tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).expect("static header");
-            let _ = request.respond(tiny_http::Response::from_data(bytes).with_status_code(code).with_header(ct));
-        }
-        Err(e) => {
-            let _ = request.respond(text(502, &format!("war server unreachable: {e}")));
-        }
-    }
-}
-
-/// The war server address for an Evolved War Engine call: the war API `.../w/<id>/1.0/` becomes
-/// `.../w/<id>/evolved/<what>`. Only the three calls the mod makes go through. `state` and `galaxy`
-/// come as GET or POST: the game's Http has only been seen to work with POST (the game itself never
-/// sends anything else), and in the game a GET from the mod never reached the war. The war server is
-/// asked with GET either way.
-pub fn evolved_url(upstream: &str, method: &str, what: &str) -> Option<String> {
-    let allowed = matches!((method, what), ("GET" | "POST", "state") | ("GET" | "POST", "galaxy") | ("POST", "report"));
-    if !allowed {
-        return None;
-    }
-    let base = upstream.strip_suffix("1.0/").or_else(|| upstream.strip_suffix("1.0"))?;
-    Some(format!("{base}evolved/{what}"))
-}
-
-/// The Evolved War Engine mod: the war state in, mission reports out. The mod names the player with
-/// the Steam ID, as the game auth field would; only a hex ID goes on.
-fn evolved(mut request: tiny_http::Request, route: &Route, what: &str, agent: &ureq::Agent) {
-    let method = request.method().as_str().to_ascii_uppercase();
-    let Some(url) = evolved_url(&route.upstream, &method, what) else {
-        let _ = request.respond(text(404, "not found"));
-        return;
-    };
-    let player = request
-        .headers()
-        .iter()
-        .find(|h| h.field.equiv("X-Commander-Player"))
-        .map(|h| h.value.as_str().to_string())
-        .filter(|id| !id.is_empty() && id.len() <= 32 && id.chars().all(|c| c.is_ascii_hexdigit()));
-    let result = if what == "report" {
-        let mut body = Vec::new();
-        if request.as_reader().take(MAX_BODY as u64 + 1).read_to_end(&mut body).is_err() || body.len() > MAX_BODY {
-            let _ = request.respond(text(413, "too large"));
-            return;
-        }
-        let mut req = agent.post(&url).header("Content-Type", "application/json");
-        if let Some(p) = &player {
-            req = req.header("X-Commander-Player", p);
-        }
-        if let Some(k) = &route.key {
-            req = req.header("X-Commander-Key", k);
-        }
-        req.send(&body[..])
-    } else {
-        let mut req = agent.get(&url);
-        if let Some(p) = &player {
-            req = req.header("X-Commander-Player", p);
-        }
-        if let Some(k) = &route.key {
-            req = req.header("X-Commander-Key", k);
-        }
-        req.call()
-    };
-    match result {
-        Ok(mut res) => {
-            let code = res.status().as_u16();
-            let bytes = res.body_mut().with_config().limit(4 * MAX_BODY as u64).read_to_vec().unwrap_or_default();
             let ct = tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).expect("static header");
             let _ = request.respond(tiny_http::Response::from_data(bytes).with_status_code(code).with_header(ct));
         }
@@ -351,58 +279,14 @@ mod tests {
     }
 
     #[test]
-    fn evolved_calls_map_to_the_war() {
-        let up = "http://127.0.0.1:17492/w/war1/1.0/";
-        assert_eq!(evolved_url(up, "GET", "state").as_deref(), Some("http://127.0.0.1:17492/w/war1/evolved/state"));
-        assert_eq!(evolved_url(up, "POST", "report").as_deref(), Some("http://127.0.0.1:17492/w/war1/evolved/report"));
-        assert_eq!(evolved_url(up, "GET", "galaxy").as_deref(), Some("http://127.0.0.1:17492/w/war1/evolved/galaxy"));
-        assert_eq!(evolved_url(up, "POST", "state").as_deref(), Some("http://127.0.0.1:17492/w/war1/evolved/state"), "the mod asks with POST in the game");
-        assert_eq!(evolved_url(up, "GET", "report"), None, "a report only as POST");
-        assert_eq!(evolved_url(up, "PUT", "state"), None);
-        assert_eq!(evolved_url(up, "GET", "../../api/wars"), None, "nothing else");
-        assert_eq!(evolved_url("http://x/w/a/other", "GET", "state"), None);
-    }
-
-    #[test]
-    fn carries_the_evolved_state_and_reports() {
-        let (upstream, seen) = fake_upstream(r#"{"owners":[0]}"#);
+    fn only_the_war_api_goes_through() {
         let relay = Relay::start(0).unwrap();
-        relay.set_route(Some(Route { token: "tok9".into(), upstream, key: None }));
+        relay.set_route(Some(Route { token: "tok9".into(), upstream: "http://127.0.0.1:9/w/war1/1.0/".into(), key: None }));
         let agent = agent();
-        let url = format!("http://127.0.0.1:{}/tok9/evolved/state", relay.port);
-        let mut res = agent.get(&url).header("X-Commander-Player", "1100001abc").call().unwrap();
-        assert_eq!(res.status().as_u16(), 200);
-        assert_eq!(res.body_mut().read_to_string().unwrap(), r#"{"owners":[0]}"#);
-        let got = seen.join().unwrap();
-        assert!(got.starts_with("GET /w/war1/evolved/state "), "{got}");
-        assert!(got.to_ascii_lowercase().contains("x-commander-player: 1100001abc"), "{got}");
-
-        // As the mod asks in the game: POST with a JSON body. The war server still gets a GET.
-        let (upstream, seen) = fake_upstream(r#"{"owners":[1]}"#);
-        relay.set_route(Some(Route { token: "tok9".into(), upstream, key: None }));
-        let mut res = agent.post(&url).header("Content-Type", "application/json").send("{}").unwrap();
-        assert_eq!(res.status().as_u16(), 200);
-        assert_eq!(res.body_mut().read_to_string().unwrap(), r#"{"owners":[1]}"#);
-        let got = seen.join().unwrap();
-        assert!(got.starts_with("GET /w/war1/evolved/state "), "{got}");
-
-        let (upstream, seen) = fake_upstream(r#"{"credited":true}"#);
-        relay.set_route(Some(Route { token: "tok9".into(), upstream, key: None }));
-        let url = format!("http://127.0.0.1:{}/tok9/evolved/report", relay.port);
-        let mut res = agent
-            .post(&url)
-            .header("X-Commander-Player", "not hex!")
-            .header("Content-Type", "application/json")
-            .send(r#"{"campaign":1,"operation":2,"mission":0,"success":true}"#)
-            .unwrap();
-        assert_eq!(res.body_mut().read_to_string().unwrap(), r#"{"credited":true}"#);
-        let got = seen.join().unwrap();
-        assert!(got.starts_with("POST /w/war1/evolved/report "), "{got}");
-        assert!(!got.to_ascii_lowercase().contains("x-commander-player"), "only a hex ID goes on: {got}");
-        assert!(got.ends_with(r#"{"campaign":1,"operation":2,"mission":0,"success":true}"#), "{got}");
-
-        let other = format!("http://127.0.0.1:{}/tok9/evolved/anything", relay.port);
-        assert_eq!(agent.get(&other).call().unwrap().status().as_u16(), 404);
+        for path in ["evolved/state", "evolved/report", "1.0/x", "api/wars"] {
+            let url = format!("http://127.0.0.1:{}/tok9/{path}", relay.port);
+            assert_eq!(agent.post(&url).send("{}").unwrap().status().as_u16(), 404, "{path}");
+        }
     }
 
     #[test]

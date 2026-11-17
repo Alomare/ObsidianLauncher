@@ -16,6 +16,8 @@ You need Rust (stable, MSVC toolchain on Windows), the Visual Studio Build Tools
 4. Run the UI tests: `npm ci`, then `npm test`, in `app`
 5. Run the app: `tools\dev.cmd`
 
+The command line tool is `obsidian-cli` (`cargo run -p obsidian-core -- --help`). It works on the same data folder as the app.
+
 `python tools/affected_tests.py` prints the checks that cover what changed since the last push (or since a ref: `python tools/affected_tests.py main`), and `--run` runs them. Pushes to `dev` run the tests of the parts that changed.
 
 On Linux you also need the [system packages Tauri lists](https://v2.tauri.app/start/prerequisites/#linux). Use `sh tools/build-luajit.sh` for step 1 and `target/luajit/luajit loader/tests/run.lua` for step 3.
@@ -34,7 +36,7 @@ Obsidian API, Obsidian Trainer and Obsidian Patches each have their own reposito
 
 ## Bug reports
 
-Include the output of `obsidian status`, the file `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher\logs\loader.log` if one exists, and the mods you had enabled.
+Include the problem report (Settings, System, Problem report, which copies it), the file `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher\logs\loader.log` if one exists, and the mods you had enabled.
 
 ## License
 

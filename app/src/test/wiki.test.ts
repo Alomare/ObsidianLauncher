@@ -1,12 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { TABS } from "../Markdown";
 import { wikiPages } from "../wiki";
 
-const LANGS = ["en", "pt-BR", "zh-CN"];
-/** Pages written since the last translation pass: English for now, listed in internal/release/untranslated-keys.txt. */
-const UNTRANSLATED = new Set([
-  "saves", "commander", "commander-wars", "commander-playing", "commander-game-master", "commander-rules",
-  "commander-hosting", "commander-sharing", "commander-joining", "commander-faq", "commander-troubleshooting",
-]);
+const LANGS = ["en", "pt-BR", "ru", "zh-CN"];
 
 describe("wiki", () => {
   it("splits into a Launcher and a Commander subtab, each with the FAQ and Troubleshooting pinned", () => {
@@ -25,7 +21,7 @@ describe("wiki", () => {
     }
   });
 
-  it("keeps Evolved wars out of the Commander pages while they are on hold", () => {
+  it("keeps the archived Evolved wars out of the Commander pages", () => {
     for (const p of wikiPages("en").books.commander.pages) expect(p.text, p.id).not.toMatch(/evolved/i);
   });
 
@@ -35,11 +31,9 @@ describe("wiki", () => {
       const pages = wikiPages(lang).pages;
       expect(pages.map((p) => p.id)).toEqual(ids);
       if (lang !== "en") {
-        // A translated page differs from the English one; a missing file would show English.
+        // A missing file would show the English page, word for word. Titles can match ("Saves"), the text can't.
         const en = wikiPages("en").pages;
-        pages.forEach((p, i) => {
-          if (!UNTRANSLATED.has(p.id)) expect(p.title, `${lang} ${p.id}`).not.toBe(en[i].title);
-        });
+        pages.forEach((p, i) => expect(p.text, `${lang} ${p.id}`).not.toBe(en[i].text));
       }
     }
   });
@@ -60,6 +54,7 @@ describe("wiki", () => {
           }
         };
         walk(p.tokens);
+        for (const href of hrefs.filter((h) => h.startsWith("app:"))) expect(TABS, `${lang} ${p.id}: ${href}`).toContain(href.slice(4));
         for (const href of hrefs.filter((h) => h.startsWith("wiki:") || h.startsWith("#"))) {
           const [page, anchor] = href.startsWith("#") ? [p.id, href.slice(1)] : href.slice(5).split("#");
           expect(heads.has(page), `${lang} ${p.id}: ${href}`).toBe(true);

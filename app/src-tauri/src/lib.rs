@@ -3,6 +3,7 @@
 mod app_settings;
 mod commander;
 mod commands;
+mod github_cmds;
 pub mod perf_library;
 mod snapshot;
 
@@ -11,17 +12,24 @@ use std::sync::Mutex;
 use tauri::Manager;
 
 /// Checks every 2 seconds whether the game runs and tells the window when that changes, so the
-/// UI locks Deploy, Play and Purge while it runs.
-fn watch_game(app: tauri::AppHandle) {
+/// UI locks Deploy, Play and Purge while it runs. Tells it too when `obsidian-cli` changed the data
+/// folder (`paths::changed_elsewhere`), so the window shows the change without a click.
+fn watch_game(app: tauri::AppHandle, data: std::path::PathBuf) {
     use tauri::Emitter;
     std::thread::spawn(move || {
         let mut was = obsidian_core::game::is_running();
+        let mut seen = obsidian_core::paths::changed_elsewhere(&data);
         loop {
             std::thread::sleep(std::time::Duration::from_secs(2));
             let now = obsidian_core::game::is_running();
             if now != was {
                 was = now;
                 let _ = app.emit("game-state", now);
+            }
+            let changed = obsidian_core::paths::changed_elsewhere(&data);
+            if changed.is_some() && changed != seen {
+                seen = changed;
+                let _ = app.emit("data-changed", ());
             }
         }
     });
@@ -38,7 +46,7 @@ pub fn run() {
     }
     // OBSIDIAN_DATA_DIR points the app at another data folder, for the performance suite.
     let data = obsidian_core::paths::data_dir(std::env::var_os("OBSIDIAN_DATA_DIR").map(std::path::PathBuf::from).as_deref());
-    let ctx = commands::Ctx { data, gate: Mutex::new(Default::default()), work: Mutex::new(()), commander: Mutex::new(Default::default()) };
+    let ctx = commands::Ctx { data, gate: Mutex::new(Default::default()), work: Mutex::new(()), commander: Mutex::new(Default::default()), installing: Mutex::new(Default::default()) };
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             // A second launch brings the open window forward instead.
@@ -62,7 +70,9 @@ pub fn run() {
             // Mod and profile images load straight from the data folder, and only from there.
             let data = app.state::<commands::Ctx>().data.clone();
             app.asset_protocol_scope().allow_directory(&data, true)?;
-            watch_game(app.handle().clone());
+            // The GitHub token, for every API call from here on.
+            obsidian_core::github::load(&data);
+            watch_game(app.handle().clone(), data.clone());
             // A war selected last time gets its relay and server back, off the window's thread.
             let handle = app.handle().clone();
             std::thread::spawn(move || commander::resume(&handle.state::<commands::Ctx>()));
@@ -83,16 +93,44 @@ pub fn run() {
             commands::restart_app,
             commands::release_list,
             commands::mod_releases,
+            commands::install_mod_version,
             commands::remove_other_patches,
             commands::update_mod,
+            commands::store_index,
+            commands::store_install,
+            github_cmds::github_account,
+            github_cmds::github_verify,
+            github_cmds::github_sign_in_start,
+            github_cmds::github_sign_in_poll,
+            github_cmds::github_sign_out,
+            github_cmds::github_revoke_url,
+            github_cmds::github_repo,
+            github_cmds::github_starred,
+            github_cmds::github_star,
+            github_cmds::github_starred_repos,
+            github_cmds::github_templates,
+            github_cmds::github_diagnostics,
+            github_cmds::github_report,
+            github_cmds::github_reports,
+            github_cmds::github_reports_refresh,
+            github_cmds::github_report_forget,
+            github_cmds::github_thread,
+            github_cmds::github_reply,
+            github_cmds::github_open_issues,
+            github_cmds::sync_state,
+            github_cmds::sync_upload,
+            github_cmds::sync_download,
+            github_cmds::submit_check,
+            github_cmds::submit_send,
             commands::deploy,
             commands::deploy_loader,
             commands::purge,
             commands::play,
             commands::set_option,
             commands::set_key,
+            commands::set_mode,
+            commands::set_pad,
             commands::remove_mods,
-            commands::restore_starter_pack,
             commands::support_report,
             commands::create_folder,
             commands::edit_folder,
@@ -120,6 +158,7 @@ pub fn run() {
             commands::saves_duplicate,
             commands::saves_rename,
             commands::saves_delete,
+            commands::saves_delete_official,
             commands::saves_export,
             commands::saves_import,
             commands::saves_editor_state,
@@ -132,7 +171,8 @@ pub fn run() {
             commander::commander_server_start,
             commander::commander_server_stop,
             commander::commander_select,
-            commander::commander_evolved_engine,
+            commander::commander_enhanced_client,
+            commander::commander_read_war_file,
             commander::commander_official,
             commander::commander_vanilla,
             commander::commander_choices,

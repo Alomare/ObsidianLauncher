@@ -2,6 +2,7 @@
 -- Hooks of session mods call the original whenever the session isn't cleared (spec 6.4).
 local B = require("obsidian/loader/builtins")
 local log = require("obsidian/loader/log")
+local profiler = require("obsidian/loader/profiler")
 
 local M = { pending = {}, chains = {}, chain_of = {}, requires = {}, fired = {}, seen = {}, values = {}, frame_fns = {}, frame_installed = false }
 
@@ -15,20 +16,25 @@ end
 
 -- Puts the hook around target[method] and returns the new function.
 local function wrap(h, target, original)
-	local core, session, state, fn, site = M.core, M.session, h.state, h.fn, "hook " .. B.tostring(h.method)
+	local core, session, state, fn = M.core, M.session, h.state, h.fn
+	local site = "hook " .. (B.type(h.target) == "string" and (h.target .. ".") or "") .. B.tostring(h.method)
 	-- A missing or unknown scope counts as session, a hybrid mod's untagged hooks too. A client part's
 	-- hooks run in any lobby. The loader's own hooks are never gated.
 	local gated = not h.loader and not h.always and session.gated(state, h.part)
 	-- A hook that fails falls back to the game's function, unless it already ran it: that would
 	-- spawn, spend or save twice. One closure per hook, as a new one per call stops the JIT here.
 	local ran, results = false, nil
+	-- The game's function runs as the game's for obsidian.profiler, so a mod is charged only its own code.
 	local function once(...)
 		ran = true
+		local at = profiler.on and profiler.enter(false)
 		results = pack(original(...))
+		if at then profiler.leave(at) end
 		return B.unpack(results, 1, results.n)
 	end
+	local closed = h.closed
 	target[h.method] = function(...)
-		if (state and state.off) or (gated and not session.allows(state)) then return original(...) end
+		if (state and state.off) or (gated and not session.allows(state, h.part)) then return original(...) end
 		local outer_ran, outer_results = ran, results
 		ran, results = false, nil
 		local r = pack(core.call(state, site, fn, once, ...))
@@ -40,6 +46,9 @@ local function wrap(h, target, original)
 			if got then return B.unpack(got, 1, got.n) end
 			return
 		end
+		-- A guardrail that fails keeps the game's function from running: a write it should have held
+		-- back must not go through because of an error.
+		if closed then return end
 		return original(...)
 	end
 	return target[h.method]
@@ -47,7 +56,7 @@ end
 
 local function describe(h)
 	local where = B.type(h.target) == "string" and h.target or "table"
-	return where .. "." .. B.tostring(h.method) .. (h.state and (" by " .. h.state.id) or "") .. (h.part and (" part " .. h.part.id) or "")
+	return where .. "." .. B.tostring(h.method) .. (h.state and (" by " .. h.state.id) or "") .. (h.part and (" secondary scope " .. h.part.id) or "")
 end
 
 local function install(h)
@@ -117,13 +126,13 @@ local function recheck()
 	end
 end
 
--- opts.part: the hook belongs to that part of the mod, and runs with the part's scope. A part that is
--- off gets no hook at all.
+-- opts.secondary_scope: the hook belongs to that secondary scope of the mod, and runs with its scope.
+-- One that is off gets no hook at all.
 function M.hook(target, method, fn, opts)
 	local state = M.core.current
 	local scope, part = M.session.part_scope(state, opts)
 	if scope == "off" then
-		log.line("hook left out: " .. (B.type(target) == "string" and target or "table") .. "." .. B.tostring(method) .. " by " .. state.id .. ", part " .. part.id .. " is off")
+		log.line("hook left out: " .. (B.type(target) == "string" and target or "table") .. "." .. B.tostring(method) .. " by " .. state.id .. ", secondary scope " .. part.id .. " is off")
 		return
 	end
 	local h = { state = state, part = part, target = target, method = method, fn = fn }
@@ -136,9 +145,10 @@ function M.wrap(target, method, fn)
 	if not install(h) then B.insert(M.pending, h) end
 end
 
--- A hook owned by the loader itself (guardrails, game texts).
-function M.loader_hook(target, method, fn)
-	local h = { state = nil, loader = true, target = target, method = method, fn = fn }
+-- A hook owned by the loader itself (guardrails, game texts). opts.closed: when the hook fails, the
+-- game's function does not run either (for the guardrails).
+function M.loader_hook(target, method, fn, opts)
+	local h = { state = nil, loader = true, target = target, method = method, fn = fn, closed = B.type(opts) == "table" and opts.closed == true }
 	if not install(h) then B.insert(M.pending, h) end
 end
 
@@ -180,8 +190,12 @@ local function install_frame()
 	log.line("frame hook installed")
 	local fns = M.frame_fns
 	B.rawset(B.G, "update", function(...)
+		if profiler.on then profiler.frame() end
 		local r = pack(update(...))
-		for i = 1, #fns do B.pcall(fns[i]) end
+		for i = 1, #fns do
+			local ok, err = B.pcall(fns[i])
+			if not ok then log.limited("frame " .. i, "error obsidian.loader frame " .. i .. ": " .. B.tostring(err)) end
+		end
 		return B.unpack(r, 1, r.n)
 	end)
 	-- The boot script defines shutdown before update. A log that says it was watching and never says

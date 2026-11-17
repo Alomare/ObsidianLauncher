@@ -1,8 +1,11 @@
-//! Parts of a mod (`parts` in the manifest): pieces that run with a scope of their own, so a session
-//! mod can keep what only this player sees running in any lobby. A part with `option` is on only
-//! while that toggle option is true. A part that is off runs no code, deploys no file and counts for
-//! nothing players compare. Untagged code, options and files follow the strictest part that is on.
-//! A mod with no parts runs at the top-level scope, exactly as before parts existed.
+//! Hybrid Scopes: `secondary_scopes` in the manifest (`parts` before Hybrid Scopes had that name). Code,
+//! options and files tagged with a secondary scope run with that scope instead of the primary `scope`,
+//! so a session mod keeps what only this player sees running in any lobby, and an expansion can change
+//! the shared game in a cleared lobby outside its content. One with `option` is on only while that
+//! toggle option is true. One that is off runs no code, deploys no file and counts for nothing players
+//! compare. In a session mod, untagged code, options and files follow the strictest secondary scope that
+//! is on; in an expansion, they stay with the expansion. A mod without secondary scopes runs at the
+//! primary scope, which is also all an older Obsidian reads.
 
 use std::collections::BTreeMap;
 
@@ -32,10 +35,11 @@ impl Manifest {
         (on(Scope::Client), on(Scope::Session))
     }
 
-    /// The scope the mod deploys with, before a library takes one: session while a session part is on,
-    /// client while only client parts are. The top-level scope for a mod with no parts, or none on.
+    /// The scope the mod deploys with, before a library takes one: session while a session secondary
+    /// scope is on, client while only client ones are. The primary scope for a mod without secondary
+    /// scopes, or none on, and for an expansion, which stays one ([`Manifest::session_outside_content`]).
     pub fn scope_with(&self, values: &BTreeMap<String, Value>) -> Scope {
-        if self.parts.is_empty() {
+        if self.parts.is_empty() || self.scope == Scope::Expansion {
             return self.scope;
         }
         match self.kinds_on(values) {
@@ -45,13 +49,19 @@ impl Manifest {
         }
     }
 
-    /// A client part and a session part are both on: the session parts stop in a lobby that isn't
-    /// cleared, and the client parts keep running.
+    /// A client and a session secondary scope are both on: the session one stops in a lobby that isn't
+    /// cleared, and the client one keeps running. Not for an expansion, which stays one.
     pub fn hybrid_with(&self, values: &BTreeMap<String, Value>) -> bool {
-        self.kinds_on(values) == (true, true)
+        self.scope != Scope::Expansion && self.kinds_on(values) == (true, true)
     }
 
-    /// The scope of what is tagged with `part`, or of something untagged: None while the part is off.
+    /// An expansion with a session secondary scope on: that code runs in a cleared lobby outside the
+    /// content too, so the deploy counts it as a session mod's.
+    pub fn session_outside_content(&self, values: &BTreeMap<String, Value>) -> bool {
+        self.scope == Scope::Expansion && self.kinds_on(values).1
+    }
+
+    /// The scope of what is tagged with the secondary scope `part`, or of something untagged: None while it is off.
     pub fn tag_scope(&self, part: Option<&str>, values: &BTreeMap<String, Value>) -> Option<Scope> {
         match part.and_then(|p| self.part(p)) {
             Some(p) => self.part_on(p, values).then_some(p.scope),
@@ -59,14 +69,14 @@ impl Manifest {
         }
     }
 
-    /// The option switches a session part on and off, so the value changes what the lobby runs.
+    /// The option switches a session secondary scope on and off, so the value changes what the lobby runs.
     fn gates_session_part(&self, option: &str) -> bool {
         self.parts.iter().any(|p| p.scope == Scope::Session && p.option.as_deref() == Some(option))
     }
 
     /// An option only this player's game uses, so the value stays out of what players compare: marked
-    /// `"scope": "client"`, in a client part, or in a part that is off. An option that switches a
-    /// session part counts in every case but the last.
+    /// `"scope": "client"`, in a client secondary scope, or in one that is off. An option that switches a
+    /// session secondary scope counts in every case but the last.
     pub fn option_personal(&self, spec: &OptionSpec, values: &BTreeMap<String, Value>) -> bool {
         let Some(scope) = self.tag_scope(spec.part.as_deref(), values) else { return true };
         if self.gates_session_part(&spec.id) {
@@ -75,7 +85,7 @@ impl Manifest {
         spec.client || (!self.parts.is_empty() && scope.is_client())
     }
 
-    /// Whether a change of the option needs a deploy: it picks files, switches a part, or counts in what
+    /// Whether a change of the option needs a deploy: it picks files, switches a secondary scope, or counts in what
     /// players compare. Without an entry every option needs one, since only a deploy reads the values.
     pub fn option_needs_deploy(&self, spec: &OptionSpec, values: &BTreeMap<String, Value>) -> bool {
         self.resources.iter().any(|r| r.when.contains_key(&spec.id))
@@ -85,20 +95,18 @@ impl Manifest {
     }
 }
 
-/// Checks `parts` and every `part` tag: ids as option ids, scopes client or session, a part's option a
-/// toggle, and no tag naming a part that doesn't exist.
+/// Checks `secondary_scopes` and every `secondary_scope` tag: ids as option ids, scopes client or
+/// session, the option of one a toggle, and no tag naming one that doesn't exist.
 pub(crate) fn check(m: &Manifest, options: &[OptionSpec]) -> Result<()> {
     let tagged = options.iter().any(|o| o.part.is_some()) || m.resources.iter().any(|r| r.part.is_some());
     if m.parts.is_empty() && !tagged {
         return Ok(());
     }
-    match m.scope {
-        Scope::Expansion if !m.parts.is_empty() => return Err(bad("parts", "an expansion can't have parts yet")),
-        Scope::Library if !m.parts.is_empty() => return Err(bad("parts", "a library takes the scope of the mods that need it, so it has no parts")),
-        _ => {}
+    if m.scope == Scope::Library && !m.parts.is_empty() {
+        return Err(bad("secondary_scopes", "a library takes the scope of the mods that need it, so it has no secondary scopes"));
     }
     for (i, p) in m.parts.iter().enumerate() {
-        let field = format!("parts[{i}]");
+        let field = format!("secondary_scopes[{i}]");
         if !is_key_name(&p.id) {
             return Err(bad(field, "id must be lowercase letters, digits and _"));
         }
@@ -108,8 +116,8 @@ pub(crate) fn check(m: &Manifest, options: &[OptionSpec]) -> Result<()> {
         if !matches!(p.scope, Scope::Client | Scope::Session) {
             return Err(bad(field, "scope is client or session"));
         }
-        if p.scope == Scope::Session && m.scope != Scope::Session {
-            return Err(bad(field, "a session part needs \"scope\": \"session\" on the mod, the strictest scope of the parts"));
+        if p.scope == Scope::Session && !matches!(m.scope, Scope::Session | Scope::Expansion) {
+            return Err(bad(field, "a session secondary scope needs \"scope\": \"session\" or \"expansion\" as the primary scope"));
         }
         if let Some(o) = &p.option
             && !options.iter().any(|s| s.id == *o && s.kind == OptionKind::Toggle)
@@ -119,12 +127,12 @@ pub(crate) fn check(m: &Manifest, options: &[OptionSpec]) -> Result<()> {
     }
     for (i, o) in options.iter().enumerate() {
         if let Some(p) = o.part.as_deref().filter(|p| m.part(p).is_none()) {
-            return Err(bad(format!("options[{i}]"), format!("part: {p} is not in parts")));
+            return Err(bad(format!("options[{i}]"), format!("secondary_scope: {p} is not in secondary_scopes")));
         }
     }
     for (i, r) in m.resources.iter().enumerate() {
         if let Some(p) = r.part.as_deref().filter(|p| m.part(p).is_none()) {
-            return Err(bad(format!("resources[{i}]"), format!("part: {p} is not in parts")));
+            return Err(bad(format!("resources[{i}]"), format!("secondary_scope: {p} is not in secondary_scopes")));
         }
     }
     Ok(())
@@ -220,16 +228,15 @@ mod tests {
     #[test]
     fn parts_and_tags_are_checked() {
         for (from, to, why) in [
-            (r#""id": "view""#, r#""id": "View""#, "parts[0]: id must be"),
-            (r#""id": "range""#, r#""id": "view""#, "parts[1]: duplicate id view"),
-            (r#""scope": "client", "name""#, r#""scope": "library", "name""#, "parts[0]: scope is client or session"),
-            (r#""option": "far""#, r#""option": "fov""#, "parts[1]: option: fov is not a toggle"),
-            (r#""option": "far""#, r#""option": "gone""#, "parts[1]: option: gone is not a toggle"),
-            (r#""default": 1, "part": "range""#, r#""default": 1, "part": "nothing""#, "options[3]: part: nothing is not in parts"),
-            (r#""data": "f", "part": "view""#, r#""data": "f", "part": "nothing""#, "resources[0]: part: nothing is not in parts"),
-            (r#""scope": "session", "entry""#, r#""scope": "client", "entry""#, "parts[1]: a session part needs"),
-            (r#""scope": "session", "entry""#, r#""scope": "expansion", "entry""#, "parts: an expansion can't have parts"),
-            (r#""scope": "session", "entry""#, r#""scope": "library", "entry""#, "parts: a library takes"),
+            (r#""id": "view""#, r#""id": "View""#, "secondary_scopes[0]: id must be"),
+            (r#""id": "range""#, r#""id": "view""#, "secondary_scopes[1]: duplicate id view"),
+            (r#""scope": "client", "name""#, r#""scope": "library", "name""#, "secondary_scopes[0]: scope is client or session"),
+            (r#""option": "far""#, r#""option": "fov""#, "secondary_scopes[1]: option: fov is not a toggle"),
+            (r#""option": "far""#, r#""option": "gone""#, "secondary_scopes[1]: option: gone is not a toggle"),
+            (r#""default": 1, "part": "range""#, r#""default": 1, "part": "nothing""#, "options[3]: secondary_scope: nothing is not in secondary_scopes"),
+            (r#""data": "f", "part": "view""#, r#""data": "f", "part": "nothing""#, "resources[0]: secondary_scope: nothing is not in secondary_scopes"),
+            (r#""scope": "session", "entry""#, r#""scope": "client", "entry""#, "secondary_scopes[1]: a session secondary scope needs"),
+            (r#""scope": "session", "entry""#, r#""scope": "library", "entry""#, "secondary_scopes: a library takes"),
         ] {
             let json = HYBRID.replacen(from, to, 1);
             assert_ne!(json, HYBRID, "{from}");
@@ -238,7 +245,38 @@ mod tests {
         }
         let no_parts = r#"{ "obsidian": 1, "id": "a.b", "version": "1.0.0", "name": { "en": "B" }, "scope": "session",
             "options": [ { "id": "x", "type": "toggle", "default": true, "part": "view" } ] }"#;
-        assert!(reason(load(no_parts)).starts_with("options[0]: part: view is not in parts"));
+        assert!(reason(load(no_parts)).starts_with("options[0]: secondary_scope: view is not in secondary_scopes"));
+    }
+
+    /// HYBRID with the names Hybrid Scopes has now. The old names in HYBRID still read the same.
+    fn named(json: &str) -> String {
+        json.replace(r#""parts":"#, r#""secondary_scopes":"#).replace(r#""part":"#, r#""secondary_scope":"#)
+    }
+
+    #[test]
+    fn the_new_names_and_the_old_ones_read_the_same() {
+        let new = load(&named(HYBRID)).unwrap();
+        let old = load(HYBRID).unwrap();
+        assert_eq!(new.parts, old.parts);
+        assert_eq!(new.resources.iter().map(|r| r.part.clone()).collect::<Vec<_>>(), old.resources.iter().map(|r| r.part.clone()).collect::<Vec<_>>());
+        assert_eq!(new.option_specs().unwrap(), old.option_specs().unwrap());
+        assert_eq!(new.parts.len(), 2);
+    }
+
+    #[test]
+    fn an_expansion_stays_one_and_a_session_secondary_scope_counts_outside_the_content() {
+        let json = named(HYBRID).replacen(r#""scope": "session", "entry""#, r#""scope": "expansion", "entry""#, 1);
+        let m = load(&json).unwrap();
+        for far in [true, false] {
+            assert_eq!(m.scope_with(&values(far)), Scope::Expansion);
+            assert!(!m.hybrid_with(&values(far)));
+            assert_eq!(m.session_outside_content(&values(far)), far);
+        }
+        // Untagged things stay with the expansion; tagged ones take their secondary scope.
+        assert_eq!(m.tag_scope(None, &values(true)), Some(Scope::Expansion));
+        assert_eq!(m.tag_scope(Some("range"), &values(true)), Some(Scope::Session));
+        assert_eq!(m.tag_scope(Some("range"), &values(false)), None);
+        assert_eq!(m.tag_scope(Some("view"), &values(false)), Some(Scope::Client));
     }
 
     #[test]

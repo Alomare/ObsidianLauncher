@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use obsidian_core::commander::{self, Installed, State, WarHost, WarRef, engine, lan, package, relay::Relay, server::Server, wipe};
+use obsidian_core::commander::{self, Installed, State, WarHost, WarRef, client, lan, package, relay::Relay, server::Server, wipe};
 use serde::{Deserialize, Serialize};
 use tauri::State as TauriState;
 
@@ -14,22 +14,37 @@ use crate::commands::{CmdError, CmdResult, Ctx, fresh, saves_of};
 use crate::snapshot::{Snapshot, find};
 
 #[derive(Default)]
+/// The server and the relay this app runs. The server is in one of three states: none, running, or
+/// exited on its own (a crash, a kill); `live_server` is the one way to look at it, and it turns the
+/// third into the first, so no reader hands out the port of a server that is gone.
 pub struct Runtime {
     pub relay: Option<Relay>,
-    pub server: Option<Server>,
+    server: Option<Server>,
+}
+
+impl Runtime {
+    /// The running server, if there is one.
+    fn live_server(&mut self) -> Option<&Server> {
+        if self.server.as_mut().is_some_and(|s| !s.alive()) {
+            self.server = None;
+        }
+        self.server.as_ref()
+    }
+
+    /// Stops the server, if it runs (dropping it closes its stdin, and it exits).
+    fn stop_server(&mut self) {
+        self.server = None;
+    }
 }
 
 fn rt(ctx: &Ctx) -> std::sync::MutexGuard<'_, Runtime> {
-    ctx.commander.lock().unwrap_or_else(|p| p.into_inner())
+    crate::commands::blocking(|| ctx.commander.lock().unwrap_or_else(|p| p.into_inner()))
 }
 
 /// The server, started if it isn't running.
 fn ensure_server(ctx: &Ctx, runtime: &mut Runtime) -> CmdResult<(u16, String)> {
-    if let Some(s) = runtime.server.as_mut() {
-        if s.alive() {
-            return Ok((s.port, s.token.clone()));
-        }
-        runtime.server = None;
+    if let Some(s) = runtime.live_server() {
+        return Ok((s.port, s.token.clone()));
     }
     let server = commander::server::start(&ctx.data)?;
     let out = (server.port, server.token.clone());
@@ -85,11 +100,7 @@ pub struct CommanderView {
 }
 
 fn view(ctx: &Ctx, runtime: &mut Runtime) -> CommanderView {
-    if let Some(s) = runtime.server.as_mut()
-        && !s.alive()
-    {
-        runtime.server = None;
-    }
+    let server = runtime.live_server().map(|s| ServerInfo { port: s.port, token: s.token.clone() });
     let state = State::load(&ctx.data);
     let names = find(&AppSettings::load(&ctx.data))
         .map(|g| commander::region_names(&obsidian_core::settings::game_side_dir(&g.saves_dir)))
@@ -99,7 +110,7 @@ fn view(ctx: &Ctx, runtime: &mut Runtime) -> CommanderView {
         installed: package::installed(&ctx.data),
         wars: state.wars,
         playing: state.playing,
-        server: runtime.server.as_ref().map(|s| ServerInfo { port: s.port, token: s.token.clone() }),
+        server,
         names,
     }
 }
@@ -124,7 +135,7 @@ pub async fn commander_state(ctx: TauriState<'_, Ctx>) -> CmdResult<CommanderVie
 #[tauri::command]
 pub async fn commander_install(ctx: TauriState<'_, Ctx>, path: PathBuf) -> CmdResult<CommanderView> {
     let mut runtime = rt(&ctx);
-    runtime.server = None;
+    runtime.stop_server();
     package::install(&ctx.data, &path)?;
     Ok(view(&ctx, &mut runtime))
 }
@@ -133,9 +144,11 @@ pub async fn commander_install(ctx: TauriState<'_, Ctx>, path: PathBuf) -> CmdRe
 /// runs the old one.
 #[tauri::command]
 pub async fn commander_fetch(ctx: TauriState<'_, Ctx>) -> CmdResult<CommanderView> {
+    // The download runs before the runtime is held, so other Commander calls answer meanwhile.
+    let got = crate::commands::blocking(|| package::download(&obsidian_core::updates::GitHub::default()))?;
     let mut runtime = rt(&ctx);
-    runtime.server = None;
-    package::fetch(&ctx.data, &obsidian_core::updates::GitHub::default())?;
+    runtime.stop_server();
+    package::install(&ctx.data, &got.zip)?;
     Ok(view(&ctx, &mut runtime))
 }
 
@@ -164,7 +177,7 @@ pub async fn commander_firewall_open(ctx: TauriState<'_, Ctx>) -> CmdResult<comm
 #[tauri::command]
 pub async fn commander_uninstall(ctx: TauriState<'_, Ctx>) -> CmdResult<CommanderView> {
     let mut runtime = rt(&ctx);
-    runtime.server = None;
+    runtime.stop_server();
     package::uninstall(&ctx.data)?;
     Ok(view(&ctx, &mut runtime))
 }
@@ -181,7 +194,7 @@ pub async fn commander_server_start(ctx: TauriState<'_, Ctx>) -> CmdResult<Serve
 #[tauri::command]
 pub async fn commander_server_stop(ctx: TauriState<'_, Ctx>) -> CmdResult<CommanderView> {
     let mut runtime = rt(&ctx);
-    runtime.server = None;
+    runtime.stop_server();
     Ok(view(&ctx, &mut runtime))
 }
 
@@ -196,69 +209,117 @@ pub struct WarPick {
     pub base: Option<String>,
     #[serde(default)]
     pub computer: Option<String>,
-    /// "evolved" for an Evolved war, which plays through the Evolved War Engine mod.
+    /// "enhanced" for an Enhanced war, which plays through the Enhanced War Client mod.
     #[serde(default)]
     pub model: Option<String>,
     /// The invite code of a war joined by address.
     #[serde(default)]
     pub key: Option<String>,
+    /// The war settings as the LAN list found them. The server is asked again on selecting, and a
+    /// war hosted here is read from the war file, so these count only when the host can't be reached.
+    #[serde(default)]
+    pub own_save_only: bool,
+    #[serde(default)]
+    pub allow_achievements: bool,
 }
 
 impl WarPick {
     fn into_ref(self) -> WarRef {
-        let model = self.model.filter(|m| m == "evolved");
-        WarRef { id: self.id, name: self.name, host: self.host, base: self.base, save: None, computer: self.computer, model, key: self.key.filter(|k| !k.is_empty()) }
+        WarRef {
+            id: self.id,
+            name: self.name,
+            host: self.host,
+            base: self.base,
+            save: None,
+            computer: self.computer,
+            model: commander::known_model(self.model),
+            key: self.key.filter(|k| !k.is_empty()),
+            own_save_only: self.own_save_only,
+            allow_achievements: self.allow_achievements,
+        }
     }
 }
 
+/// Selects a war for the next launch, on `save` (a Sandbox the war accepts) or, with none, on the
+/// Sandbox made for the war.
 #[tauri::command]
-pub async fn commander_select(ctx: TauriState<'_, Ctx>, war: WarPick) -> CmdResult<CommanderDone> {
-    let evolved = war.model.as_deref() == Some("evolved");
+pub async fn commander_select(ctx: TauriState<'_, Ctx>, war: WarPick, save: Option<String>) -> CmdResult<CommanderDone> {
     let war = war.into_ref();
     if !commander::valid_pick(&war) {
         return Err(CmdError { code: "WarUnknown".into(), message: format!("not a war: {}", war.id) });
     }
-    // An Evolved war draws the map and counts the missions through the Evolved War Engine mod,
-    // downloaded first when the library lacks it.
-    let staged = if evolved { engine_download(&ctx)? } else { None };
+    let enhanced = war.model.as_deref() == Some(commander::ENHANCED_MODEL);
+    // A LAN war: its settings as the host states them now. Asked outside the turn, as downloads are.
+    let war = commander::with_host_flags(war);
+    // An Enhanced war plays through the Enhanced War Client mod, downloaded first when the library
+    // lacks it.
+    let staged = if enhanced { client_download(&ctx)? } else { None };
     let _turn = ctx.turn();
     let mut runtime = rt(&ctx);
-    if evolved {
-        engine::switch_on(&ctx.data, staged.as_ref())?;
+    if enhanced {
+        client::switch_on(&ctx.data, staged.as_ref())?;
     }
     if war.host == WarHost::Local {
         ensure_server(&ctx, &mut runtime)?;
     }
-    commander::play_war(&ctx.data, &saves_of(&ctx)?, war)?;
+    commander::play_war(&ctx.data, &saves_of(&ctx)?, war, save.as_deref())?;
     ensure_relay(&ctx, &mut runtime)?;
     done(&ctx, &mut runtime)
 }
 
-/// The newest Evolved War Engine release when the library lacks the mod. The download runs outside
+/// The newest Enhanced War Client release when the library lacks the mod. The download runs outside
 /// the turn, as mod updates do.
-fn engine_download(ctx: &Ctx) -> CmdResult<Option<obsidian_core::updates::Staged>> {
+fn client_download(ctx: &Ctx) -> CmdResult<Option<obsidian_core::updates::Staged>> {
     let missing = {
         let _turn = ctx.turn();
-        engine::missing(&ctx.data)?
+        client::missing(&ctx.data)?
     };
-    Ok(if missing { Some(engine::fetch(&obsidian_core::updates::GitHub::default())?) } else { None })
+    Ok(if missing { Some(client::fetch(&obsidian_core::updates::GitHub::default())?) } else { None })
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct EngineDone {
-    pub switched: engine::Switched,
+pub struct ClientDone {
+    pub switched: client::Switched,
     pub snapshot: Snapshot,
 }
 
-/// After the war screens create an Evolved war: the Evolved War Engine mod in the library and on in
-/// the active profile, so the host plays it like everyone who joins.
+/// After the war screens create an Enhanced war: the Enhanced War Client mod in the library and on
+/// in the active profile, so the host plays it like everyone who joins.
 #[tauri::command]
-pub async fn commander_evolved_engine(ctx: TauriState<'_, Ctx>) -> CmdResult<EngineDone> {
-    let staged = engine_download(&ctx)?;
+pub async fn commander_enhanced_client(ctx: TauriState<'_, Ctx>) -> CmdResult<ClientDone> {
+    let staged = client_download(&ctx)?;
     let _turn = ctx.turn();
-    let switched = engine::switch_on(&ctx.data, staged.as_ref())?;
-    Ok(EngineDone { switched, snapshot: fresh(&ctx)? })
+    let switched = client::switch_on(&ctx.data, staged.as_ref())?;
+    Ok(ClientDone { switched, snapshot: fresh(&ctx)? })
+}
+
+/// The most a war file brought in with Import may be.
+const MAX_WAR_FILE: u64 = 16 * 1024 * 1024;
+
+/// Reads a war file the player picked for Import in the Commander bar, for the war screens to take
+/// in: a `.json` file of at most 16 MB, as text. Anything else is refused.
+#[tauri::command]
+pub async fn commander_read_war_file(path: PathBuf) -> CmdResult<String> {
+    Ok(read_war_file(&path)?)
+}
+
+fn read_war_file(path: &std::path::Path) -> std::io::Result<String> {
+    use std::io::{Error, ErrorKind, Read};
+    let json = path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("json"));
+    if !json {
+        return Err(Error::new(ErrorKind::InvalidInput, "a war file is a .json file"));
+    }
+    let meta = std::fs::metadata(path)?;
+    if !meta.is_file() || meta.len() > MAX_WAR_FILE {
+        return Err(Error::new(ErrorKind::InvalidInput, "not a war file of 16 MB or less"));
+    }
+    let mut text = String::new();
+    std::fs::File::open(path)?.take(MAX_WAR_FILE + 1).read_to_string(&mut text)?;
+    if text.len() as u64 > MAX_WAR_FILE {
+        return Err(Error::new(ErrorKind::InvalidInput, "not a war file of 16 MB or less"));
+    }
+    Ok(text)
 }
 
 /// Back to the official war: no war selected, and the Official save that's in the game files.
@@ -286,13 +347,22 @@ pub async fn commander_vanilla(ctx: TauriState<'_, Ctx>, save: String) -> CmdRes
 pub struct Choices {
     pub playing: Option<String>,
     pub wars: Vec<commander::WarChoice>,
+    /// How many saves the account has: with more than one, Play opens its choice even without wars.
+    pub saves: usize,
 }
 
-/// The wars the Play button can start, and the one it starts now.
+/// The wars the Play button can start, and the one it starts now: the war selected, when the save
+/// the game boots is a Sandbox that war accepts. Otherwise the official war plays.
 #[tauri::command]
 pub async fn commander_choices(ctx: TauriState<'_, Ctx>) -> CmdResult<Choices> {
-    let playing = State::load(&ctx.data).playing;
-    Ok(Choices { playing, wars: commander::war_choices(&ctx.data) })
+    let playing = commander::playing_now(&ctx.data, obsidian_core::saves::active_sandbox(&ctx.data).as_deref());
+    // Without the game or the saves, the count is 0 and Play shows no choice for saves. The index may be
+    // made on first use, so this takes its turn like the Saves tab.
+    let saves = {
+        let _turn = ctx.turn();
+        saves_of(&ctx).ok().and_then(|s| s.count().ok()).unwrap_or(0)
+    };
+    Ok(Choices { playing, wars: commander::war_choices(&ctx.data), saves })
 }
 
 /// The version of a newer Commander package on GitHub, if there is one.
@@ -303,12 +373,14 @@ pub async fn commander_package_check(ctx: TauriState<'_, Ctx>) -> CmdResult<Opti
 
 #[tauri::command]
 pub async fn commander_forget(ctx: TauriState<'_, Ctx>, id: String) -> CmdResult<CommanderView> {
+    // The turn first, then the runtime, as every command that takes both: forgetting the war being
+    // played rewrites the settings file.
+    let _turn = ctx.turn();
     let mut runtime = rt(&ctx);
-    let state = commander::forget(&ctx.data, &id)?;
-    if state.playing.is_none()
-        && let Some(r) = &runtime.relay
-    {
-        r.set_route(None);
+    let saves = saves_of(&ctx).ok();
+    let state = commander::forget(&ctx.data, saves.as_ref(), &id)?;
+    if let Some(r) = &runtime.relay {
+        r.set_route(state.route());
     }
     Ok(view(&ctx, &mut runtime))
 }
@@ -357,7 +429,7 @@ pub async fn commander_wipe(ctx: TauriState<'_, Ctx>, saves: bool, firewall: boo
     obsidian_core::game::ensure_closed()?;
     let mut runtime = rt(&ctx);
     // The server process ends and the relay port closes before the files go.
-    runtime.server = None;
+    runtime.stop_server();
     runtime.relay = None;
     let (s, side) = saves_and_side(&ctx);
     let report = match wipe::wipe(&ctx.data, s.as_ref(), side.as_deref(), saves, firewall) {
@@ -369,4 +441,28 @@ pub async fn commander_wipe(ctx: TauriState<'_, Ctx>, saves: bool, firewall: boo
         }
     };
     Ok(CommanderWipeDone { commander: view(&ctx, &mut runtime), snapshot: fresh(&ctx)?, report })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_a_json_file_of_16_mb_or_less_is_read() {
+        let t = tempfile::tempdir().unwrap();
+        let ok = t.path().join("war.JSON");
+        std::fs::write(&ok, br#"{"id":"k3x9q2"}"#).unwrap();
+        assert_eq!(read_war_file(&ok).unwrap(), r#"{"id":"k3x9q2"}"#);
+        let txt = t.path().join("war.txt");
+        std::fs::write(&txt, b"{}").unwrap();
+        assert!(read_war_file(&txt).is_err());
+        assert!(read_war_file(t.path()).is_err(), "a folder");
+        assert!(read_war_file(&t.path().join("none.json")).is_err());
+        let big = t.path().join("big.json");
+        std::fs::File::create(&big).unwrap().set_len(MAX_WAR_FILE + 1).unwrap();
+        assert!(read_war_file(&big).is_err());
+        let bin = t.path().join("bin.json");
+        std::fs::write(&bin, [0xffu8, 0xfe, 0x00]).unwrap();
+        assert!(read_war_file(&bin).is_err(), "not text");
+    }
 }

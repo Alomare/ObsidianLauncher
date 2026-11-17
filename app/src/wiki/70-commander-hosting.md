@@ -15,7 +15,9 @@ Every war needs that PC on and Obsidian open on it. When Obsidian closes, the wa
 
 **Share** on the war screen opens the sharing options of that war: **LAN** for players on the same network, **Internet** for players elsewhere, and the invite code that Internet needs. [Sharing a war](wiki:commander-sharing) covers each one. A chip beside the season shows when a war is open to LAN or to the internet.
 
-The first time a war opens to the network, Windows asks whether the war server may get through the firewall. Allow it on private networks, or the PCs on the network can't reach the war. When Windows lists the home network as public, set the network profile to private in the Windows network settings first. Obsidian never creates firewall rules by itself, and **Remove All Commander Data** can remove the rule again.
+The first time a war opens to the network, Windows asks whether the war server may get through the firewall. Allow it on private networks, or the PCs on the network can't reach the war. When Windows lists the home network as public, set the network profile to private in the Windows network settings first. On Windows, Obsidian never creates firewall rules by itself, and **Remove All Commander Data** can remove the rule again.
+
+On Linux, when firewalld or ufw keeps the ports shut, Obsidian offers **Allow LAN Wars**: it opens TCP ports 17494 to 17499 and UDP port 17493 after the system asks for the password. **Remove All Commander Data** closes them again.
 
 ## Where wars are kept
 

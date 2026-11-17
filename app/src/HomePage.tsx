@@ -1,24 +1,24 @@
-// Home: the game's art under an even darkening, the logo and name in the middle and the links
-// centered at the bottom. Each link opens in the browser; the tooltip shows where.
+// Home: the game's art under an even darkening, and one group in the middle of the window: the logo and
+// name, then the links stacked in one box, all the same width: the Store tab first, in silver, then the
+// links that open in the browser, with the address in the tooltip.
 //
 // The art goes round by itself: each picture fills the page, drifts in very slowly (a 2% zoom over
-// the time on screen) and gives way to the next with a cross-fade. The small controls at the top
+// the time on screen) and gives way to the next with a cross-fade. The small controls at the bottom
 // center go to the one before or after. With animations off one picture stays still, and the next
 // launch shows the next one.
 import { openUrl } from "./opener";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import logo from "./assets/logo-shaded.png";
-import { ChevronIcon, DiscordIcon, GitHubIcon, KofiIcon, OutboundIcon, SearchIcon } from "./Icons";
+import { ART } from "./homeArt";
+import { ChevronIcon, DiscordIcon, GitHubIcon, KofiIcon, OutboundIcon, SearchIcon, StoreIcon } from "./Icons";
 import { t } from "./i18n";
 import { LINKS } from "./links";
+import { go } from "./nav";
 import { useAppSettings } from "./settings";
 import { motionOn, systemReducesMotion } from "./theme";
 
 const ART_KEY = "obsidian.homeArt";
 const ART_SECONDS = 30; // how long a picture stays before the next one comes
-const ART = Object.entries(import.meta.glob("./assets/home/*.webp", { eager: true, query: "?url", import: "default" }))
-  .sort(([a], [b]) => a.localeCompare(b))
-  .map(([, url]) => url as string);
 
 /** The picture a launch starts on: the one after the last launch's. */
 function firstPicture() {
@@ -95,8 +95,8 @@ function inkPerEm(el: HTMLElement): number {
   return (m.actualBoundingBoxLeft + m.actualBoundingBoxRight + spacing) / parseFloat(style.fontSize);
 }
 
-/** Keeps the title as wide as the subtitle. The ratio of the two sizes depends only on the words and the
-    font, so it is worked out here and the CSS scales both with the window. */
+/** Keeps the title as wide as the subtitle, and the buttons under them as wide as both. The ratios depend
+    only on the words and the font, so they are worked out here and the CSS scales everything with the window. */
 function useTitleFit() {
   const brand = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -106,7 +106,9 @@ function useTitleFit() {
     if (!box || !h || !p) return;
     const fit = () => {
       const title = inkPerEm(h);
-      if (title > 0) box.style.setProperty("--title-fit", String(inkPerEm(p) / title));
+      const sub = inkPerEm(p);
+      if (title > 0) box.style.setProperty("--title-fit", String(sub / title));
+      if (sub > 0) box.parentElement?.style.setProperty("--brand-w", String(sub));
     };
     fit();
     if (typeof ResizeObserver === "undefined") return;
@@ -138,15 +140,19 @@ export function HomePage() {
             <button onClick={() => art.step(1)} aria-label={t("app.home.nextPicture")} data-tip={t("app.home.nextPicture")}><ChevronIcon /></button>
           </div>
         )}
-        <div className="home-brand" ref={brand}>
-          <img src={logo} alt="" draggable={false} />
-          <div>
-            <h1>OBSIDIAN</h1>
-            <p>{t("app.home.subtitle")}</p>
+        <div className="home-center">
+          <div className="home-brand" ref={brand}>
+            <img src={logo} alt="" draggable={false} />
+            <div>
+              <h1>OBSIDIAN</h1>
+              <p>{t("app.home.subtitle")}</p>
+            </div>
           </div>
-        </div>
-        <div className="home-foot">
           <div className="home-links">
+            <button className="btn silver" onClick={() => go("store")} data-tip={t("app.home.storeHint")}>
+              <StoreIcon />
+              {t("app.home.store")}
+            </button>
             <Link url={LINKS.nexus} cls="play" icon={<SearchIcon />} label={t("app.home.nexus")} />
             <Link url={LINKS.discord} cls="discord" icon={<DiscordIcon />} label={t("app.home.discord")} />
             <Link url={LINKS.kofi} cls="" icon={<KofiIcon />} label={t("app.home.sponsor")} />

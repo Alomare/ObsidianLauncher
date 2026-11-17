@@ -2,12 +2,15 @@
 // Wiki and Settings tabs as icons at the far end. Deploy and Purge are on the Mods tab.
 // When a deploy, a purge or Play starts, one glow in the action's color crosses from Play toward the tabs, and fades out before them.
 import { type ComponentType, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { playingWar, playLabel, playLabelText, reloadChoices, useChoices } from "./commander/choices";
+import { playingWar, playLabel, reloadChoices, useChoices } from "./commander/choices";
 import { CommanderIcon, MenuIcon } from "./commander/icons";
 import { PlayChoice } from "./commander/PlayChoice";
+import { onPadAction } from "./pad/pad";
+import { PadGlyph } from "./pad/PadGlyph";
 import { BuildDialog } from "./BuildDialog";
 import { GuardrailsDialog, guardrailsSummary, guardsOn } from "./GuardrailsDialog";
-import { BookIcon, CogIcon, HomeIcon, ModsIcon, PlayIcon, SaveIcon, ShieldIcon, WarnIcon } from "./Icons";
+import { BookIcon, CheckIcon, CogIcon, HomeIcon, ModsIcon, PlayIcon, SaveIcon, ShieldIcon, StoreIcon, UserIcon, WarnIcon } from "./Icons";
+import { useGitHub } from "./github";
 import { t } from "./i18n";
 import type { Tab } from "./nav";
 import type { Snapshot } from "./types";
@@ -27,8 +30,8 @@ type Props = {
   onPlay: () => void;
 };
 
-// Home, Mods and Saves carry their names; the Wiki and Settings are icons at the far end (the user, 2026-11-04).
-const TABS: [Tab, ComponentType][] = [["home", HomeIcon], ["mods", ModsIcon], ["saves", SaveIcon], ["commander", CommanderIcon]];
+// Home, Store, Mods, Saves and Commander carry their names; the Wiki and Settings are icons at the far end (the user, 2026-11-04).
+const TABS: [Tab, ComponentType][] = [["home", HomeIcon], ["store", StoreIcon], ["mods", ModsIcon], ["saves", SaveIcon], ["commander", CommanderIcon]];
 
 export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, onPlay }: Props) {
   const running = snap?.game === "running";
@@ -40,21 +43,39 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
   // HD1 gets no more updates, so only a missing game or an unknown build needs a word here.
   const warn = snap && (missing || snap.game === "unknown") ? t(`app.game.${snap.game}`) : null;
   const [showBuild, setShowBuild] = useState(false);
-  // What Play starts: the war and whether the last deploy put mods in. With custom wars to choose from,
+  // What Play starts: the war and whether the last deploy put mods in. With wars or saves to choose from,
   // Play splits, and the narrow part opens the Play choice.
   const choices = useChoices();
+  const account = useGitHub().account;
+  const accountTip = account ? t("app.account.navIn", account.login) : t("app.account.navOut");
   const [choosing, setChoosing] = useState(false);
-  useEffect(() => { reloadChoices(); }, [snap]);
+  // The wars and saves to choose from change when the game stops (it wrote the saves) or through the
+  // Commander and Saves actions, which read them again themselves: not at every snapshot. The read waits
+  // its turn behind a deploy.
+  const known = !!snap;
+  useEffect(() => { if (known) reloadChoices(); }, [known, snap?.game]);
+  // The controller: the north button plays, Start opens the choice of war and save.
+  const padPlay = useRef(() => {});
+  padPlay.current = () => { if (!locked) onPlay(); };
+  const padChoose = useRef(() => {});
+  useEffect(() => {
+    const offs = [onPadAction("play", () => padPlay.current()), onPadAction("options", () => padChoose.current())];
+    return () => offs.forEach((f) => f());
+  }, []);
   const war = playingWar(choices);
   const label = playLabel(war?.name ?? null, !!snap?.modded);
-  const split = (choices?.wars.length ?? 0) > 0;
+  // The choice opens whenever there is something to choose: a custom war beside the official one, or a second save.
+  const split = (choices?.wars.length ?? 0) > 0 || (choices?.saves ?? 0) > 1;
+  padChoose.current = () => { if (split && snap && !missing) setChoosing(true); };
+  // Yellow with no mods deployed, green with mods: the color says it, the tooltip says it in words.
+  const tone = snap?.modded ? " modded" : "";
   const playButton = (
-    <button className="btn play" onClick={onPlay} disabled={locked} aria-label={playLabelText(label)} data-tip-title={playLabelText(label)} data-tip={why ?? t("app.action.playHint")}>
+    <button className={`btn play${tone}`} onClick={onPlay} disabled={locked} aria-label={label.text} data-tip-title={label.text} data-tip={why ?? t("app.action.playHint")}>
       <PlayIcon />
+      <PadGlyph role="north" swap />
       <span className="play-text">
-        <span>{label.before}</span>
+        <span className="play-word">{label.play}</span>
         {label.war && <span className="play-war">{label.war}</span>}
-        {label.after && <span>{label.after}</span>}
       </span>
     </button>
   );
@@ -73,6 +94,7 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
     <nav className="nav">
       {wave && <span key={wave.n} ref={waveRef} className={`nav-wave ${wave.tone}`} aria-hidden="true" onAnimationEnd={onWaveEnd} />}
       <div className="tabs" role="tablist" ref={tabsRef}>
+        <span className="gp-tabs" aria-hidden="true"><PadGlyph role="lt" /><PadGlyph role="rt" /></span>
         {TABS.map(([id, Icon]) => (
           <button key={id} role="tab" aria-selected={tab === id} aria-label={t(`app.nav.${id}`)} data-tip={t(`app.nav.${id}`)} className={tab === id ? "tab cur" : "tab"} onClick={() => onTab(id)}>
             <Icon />
@@ -100,15 +122,15 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
             <button className={guards ? "btn icon guard on" : "btn icon guard"} onClick={() => setGuarding(true)} aria-haspopup="dialog" aria-label={t("app.nav.guardrails")}
               data-tip-title={t("app.guardrails.button", snap.profile)} data-tip={guardrailsSummary(snap)}>
               <ShieldIcon filled={guards > 0} />
-              {guards > 0 && <i className="guard-count" aria-hidden="true">{guards}</i>}
             </button>
           )}
           {split ? (
             <div className="play-split">
               {playButton}
-              <button className="btn play play-more" onClick={() => setChoosing(true)} disabled={!snap || missing} aria-haspopup="dialog" aria-expanded={choosing}
+              <button className={`btn play play-more${tone}`} onClick={() => setChoosing(true)} disabled={!snap || missing} aria-haspopup="dialog" aria-expanded={choosing}
                 aria-label={t("app.play.choose")} data-tip={t("app.play.choose")}>
                 <MenuIcon />
+                <PadGlyph role="start" />
               </button>
             </div>
           ) : playButton}
@@ -118,6 +140,11 @@ export function NavBar({ tab, onTab, snap, busy, updateFound, wave, onWaveEnd, o
       <div className="tabs end-tabs" role="tablist">
         <button role="tab" aria-selected={tab === "wiki"} aria-label={t("app.nav.wiki")} data-tip={t("app.nav.wiki")} className={tab === "wiki" ? "tab cur" : "tab"} onClick={() => onTab("wiki")}>
           <BookIcon />
+        </button>
+        <button role="tab" aria-selected={tab === "account"} aria-label={accountTip} data-tip={accountTip}
+          className={`tab tab-account${tab === "account" ? " cur" : ""}`} onClick={() => onTab("account")}>
+          <UserIcon />
+          {account && <i className="tab-check" aria-hidden="true"><CheckIcon /></i>}
         </button>
         <button role="tab" aria-selected={tab === "settings"} aria-label={updateFound ? `${t("app.nav.settings")}: ${t("app.status.updateFound")}` : t("app.nav.settings")}
           className={`tab tab-settings${tab === "settings" ? " cur" : ""}${updateFound ? " lit" : ""}`} onClick={() => onTab("settings")}

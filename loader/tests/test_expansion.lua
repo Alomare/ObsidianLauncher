@@ -164,6 +164,45 @@ test("only_an_expansion_starts_content", function()
 	E.eq(why, "not_expansion", "nor a library that serves one")
 end)
 
+test("a_session_secondary_scope_of_an_expansion_also_runs_in_a_cleared_lobby_outside_the_content", function()
+	globals()
+	local t = rawget(_G, "Target")
+	t.shared = function() return "x" end
+	t.hud = function() return "x" end
+	local src = {}
+	for k, v in pairs(SOURCES) do src[k] = v end
+	src["obsidian/mods/arcade/main"] = [[
+		obsidian.hook("Target", "shared", function(o, self) return "shared:" .. o(self) end, { secondary_scope = "shared" })
+		obsidian.hook("Target", "hud", function(o, self) return "hud:" .. o(self) end, { secondary_scope = "hud" })
+		obsidian.hook("Target", "spawn", function(o, self) return "arcade:" .. o(self) end)
+		rawget(_G, "ARCADE").scope = obsidian.scope()
+	]]
+	local lobby = { my_id = "me", members = { "me" }, data = {} }
+	local e = E.new({ lobby = lobby, mods = src, deploy = deploy({ has_session = true, mods = {
+		E.mod("lib", { scope = "expansion", expansions = { "arcade" } }),
+		E.mod("arcade", { scope = "expansion", expansions = { "arcade" }, requires = { "lib" }, name = { en = "Arcade" }, parts = {
+			{ id = "shared", scope = "session", on = true, name = { en = "Shared" } },
+			{ id = "hud", scope = "client", on = true, name = { en = "Hud" } },
+		} }),
+	} }) })
+	e:boot()
+	e:start_frames()
+	e:frames(31)
+	E.eq(rawget(_G, "ARCADE").scope, "expansion", "the primary scope stays")
+	E.eq(t:shared(), "shared:x", "a cleared lobby, outside the content")
+	E.eq(t:hud(), "hud:x")
+	E.eq(spawn(), "unit", "untagged code still waits for the content")
+	lobby.members = { "me", "p2" }
+	e:frames(31)
+	E.eq(t:shared(), "x", "off in a lobby that isn't cleared")
+	E.eq(t:hud(), "hud:x", "a client secondary scope runs in any lobby")
+	lobby.members = { "me" }
+	e:frames(31)
+	E.eq(as(e, "arcade", function() return x().start() end), true)
+	E.eq(spawn(), "arcade:unit", "everything runs in the content")
+	E.eq(t:shared(), "shared:x")
+end)
+
 test("alone_the_content_starts_and_stops", function()
 	local e = engine(nil)
 	E.eq(as(e, "arcade", function() return x().start() end), true)

@@ -13,7 +13,7 @@ pub struct SessionMod {
 }
 
 fn sha256_hex(text: &str) -> String {
-    Sha256::digest(text.as_bytes()).iter().map(|b| format!("{b:02x}")).collect()
+    crate::hash::hex(&Sha256::digest(text.as_bytes()))
 }
 
 /// `id@version`, followed by the sorted `;option=value` pairs of every option not marked client scope.

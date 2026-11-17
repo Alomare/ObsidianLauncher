@@ -1,6 +1,6 @@
 [package]
 name = "obsidian-core"
-version = "2.0.0-beta.1"
+version = "2.0.0"
 edition = "2024"
 publish = false
 
@@ -9,7 +9,8 @@ name = "obsidian_core"
 path = "src/lib.rs"
 
 [[bin]]
-name = "obsidian"
+# Not `obsidian`: on Windows that is the same file name as the app (`Obsidian.exe`) in target/release.
+name = "obsidian-cli"
 path = "src/main.rs"
 
 [dependencies]

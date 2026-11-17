@@ -9,7 +9,7 @@ Commander runs custom Galactic Wars for HELLDIVERS. A custom war has fronts, reg
 
 ## What runs where
 
-A war lives on one PC, the host. The war server starts from the [Commander tab](app:commander) and runs inside Obsidian, so a war only moves while Obsidian is open on that PC. When Obsidian closes, the server stops and the war clock freezes until the next start.
+A war lives on one PC, the host. The war server starts from the [Wars](app:commander) tab and runs inside Obsidian, so a war only moves while Obsidian is open on that PC. When Obsidian closes, the server stops and the war clock freezes until the next start.
 
 On every player PC, including the host, the game talks only to the Obsidian relay on that same PC. The relay carries the war requests to the war server and removes the Steam login ticket before anything leaves the PC. Obsidian has to stay open while a war is played, since the relay runs inside it.
 
@@ -17,11 +17,11 @@ Players who join a war from another PC need Obsidian and nothing else. The Comma
 
 ## Kept apart from the official war
 
-Each custom war plays on a separate Sandbox save, made the first time the war is selected, and in a separate matchmaking pool, so lobbies only pair players of the same war. Mission results go to the war server and nowhere else. The official Galactic War and the Official save never see a custom war, and for the same reason missions played with session mods count in a custom war ([The Galactic War](wiki:galactic-war) explains why they don't count in the official one).
+Each custom war plays on a Sandbox save and in a separate matchmaking pool, so lobbies only pair players of the same war. The Play choice picks the save: any Sandbox, or a new one made for the war the first time it is selected with none picked. A host can keep a war to the Sandbox made for it. Steam achievements stay blocked on a Sandbox unless the host allows them for the war, and the achievements guardrail of the player still applies. Mission results go to the war server and nowhere else. The official Galactic War and the Official save never see a custom war, and for the same reason missions played with session mods count in a custom war ([The Galactic War](wiki:galactic-war) explains why they don't count in the official one).
 
 ## The package
 
-The war server and the war screens come as the Commander package, which updates apart from Obsidian. **Install Package** on the Commander tab downloads the newest release from GitHub. Obsidian installs a downloaded package only with a valid signature from the Obsidian signing key and refuses any other.
+The war server and the war screens come as the Commander package, which updates apart from Obsidian. **Install Package** on the Wars tab downloads the newest release from GitHub. The war screens are in English only, whatever the language of Obsidian. Obsidian installs a downloaded package only with a valid signature from the Obsidian signing key and refuses any other.
 
 The package button sits at the right end of the row under the war list, and a dot on it means a newer package is out:
 

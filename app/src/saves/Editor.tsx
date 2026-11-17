@@ -7,7 +7,7 @@ import { call, errorText, setSnapshot, taskText } from "../api";
 import { withTask } from "../busy";
 import { Confirm } from "../Confirm";
 import { ArrowIcon, CheckIcon, CloseIcon, PenIcon, ResetIcon, TrashIcon, WarnIcon } from "../Icons";
-import { language, pick, t } from "../i18n";
+import { language, pick, t, tn } from "../i18n";
 import { notify } from "../notices";
 import { Select } from "../Select";
 import { Help } from "../SettingRow";
@@ -16,10 +16,14 @@ import { ArsenalTab } from "./ArsenalTab";
 import { rankArt } from "./art";
 import { choiceId, draftOf, fieldEnabled, ladderState, parseWhole, playTime, rankProgress, slotChoices, stage, topXp } from "./logic";
 import { COSMETIC_SLOTS, type CosmeticSlot, type Edit, type EditorState, type ModChoice, type ModFieldState, type ModSection, type ModText, type SavesDone } from "./types";
+import { PadGlyph } from "../pad/PadGlyph";
 
 type Tab = "overview" | "character" | "arsenal" | "mods";
 const TABS: Tab[] = ["overview", "character", "arsenal", "mods"];
-type Bulk = "max" | "reset" | null;
+/** What the editor is doing besides showing the save: one thing at a time, so a write never runs beside
+ *  a rename, a question or the way out. `max` and `reset` ask before the bulk change; `leave` asks
+ *  before leaving with changes not saved. */
+type Op = "idle" | "saving" | "renaming" | "max" | "reset" | "leave";
 
 const num = (n: number) => n.toLocaleString(language());
 
@@ -29,15 +33,16 @@ const modText = (v: ModText, fallback: string) => (typeof v === "string" ? v : p
 /** What a row needs for the undo button: the waiting edits, and how to drop the ones of that row. */
 type Undo = { pending: Map<string, Edit>; revert: (keys: string[]) => void };
 
-export function SaveEditor({ id, snap, onClose, startRename = false }: { id: string; snap: Snapshot; onClose: () => void; startRename?: boolean }) {
+export function SaveEditor({ id, snap, onClose, startRename = false, home = 0 }: { id: string; snap: Snapshot; onClose: () => void; startRename?: boolean; home?: number }) {
   const [base, setBase] = useState<EditorState | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [pending, setPending] = useState<Map<string, Edit>>(new Map());
   const [tab, setTab] = useState<Tab>("overview");
-  const [bulk, setBulk] = useState<Bulk>(null);
-  const [leaving, setLeaving] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [renaming, setRenaming] = useState(startRename);
+  const [op, setOp] = useState<Op>(startRename ? "renaming" : "idle");
+  const saving = op === "saving", renaming = op === "renaming", leaving = op === "leave";
+  const bulk = op === "max" || op === "reset" ? op : null;
+  /** From `from` (one op, or any of a list) to `to`; from anything else, nothing happens. */
+  const move = (from: Op | Op[], to: Op) => setOp((o) => ((Array.isArray(from) ? from.includes(o) : o === from) ? to : o));
 
   useEffect(() => {
     let live = true;
@@ -55,17 +60,24 @@ export function SaveEditor({ id, snap, onClose, startRename = false }: { id: str
   const undo: Undo = { pending, revert };
   const running = snap.game === "running";
 
-  const write = async (edits: Edit[], done: string) => {
-    setSaving(true);
+  /** Writes `edits`. `sent` is the set of waiting edits they came from: only those leave the list, so a
+   *  change made while the write runs stays waiting. Without it (a bulk action) every waiting edit goes. */
+  const write = async (edits: Edit[], done: string, sent?: Map<string, Edit>) => {
+    setOp("saving");
     try {
       const fresh = await withTask(t("app.task.saves_apply_edits"), () => call<EditorState>("saves_apply_edits", { id, edits }), true);
       setBase(fresh);
-      setPending(new Map());
+      setPending((p) => {
+        if (!sent) return new Map();
+        const next = new Map(p);
+        for (const [k, v] of sent) if (next.get(k) === v) next.delete(k);
+        return next;
+      });
       notify("info", done);
     } catch (e) {
       notify("error", errorText(e));
     } finally {
-      setSaving(false);
+      setOp("idle");
     }
   };
 
@@ -75,7 +87,7 @@ export function SaveEditor({ id, snap, onClose, startRename = false }: { id: str
     try {
       const r = await withTask(taskText("saves_rename"), () => call<SavesDone>("saves_rename", { id, name }), true);
       setSnapshot(r.snapshot);
-      setBase({ ...base, name });
+      setBase((b) => (b ? { ...b, name } : b));
       return true;
     } catch (e) {
       notify("error", errorText(e));
@@ -84,9 +96,17 @@ export function SaveEditor({ id, snap, onClose, startRename = false }: { id: str
   };
 
   const count = pending.size;
-  const back = () => (count ? setLeaving(true) : onClose());
+  // Not while a write runs: it ends first.
+  const back = () => { if (saving) return; if (count) move(["idle", "renaming"], "leave"); else onClose(); };
+  // A click on the SAVES tab while a save is open goes back to the list, as the back button does.
+  const seenHome = useRef(home);
+  useEffect(() => {
+    if (home === seenHome.current) return;
+    seenHome.current = home;
+    back();
+  }, [home]); // eslint-disable-line react-hooks/exhaustive-deps
   const backBtn = (
-    <button className="btn icon head-tool ed-back" onClick={back} aria-label={t("app.saves.backToList")} data-tip={t("app.saves.backToList")}><ArrowIcon /></button>
+    <button data-pad-back className="btn icon head-tool ed-back" onClick={back} aria-label={t("app.saves.backToList")} data-tip={t("app.saves.backToList")}><ArrowIcon /><PadGlyph role="east" /></button>
   );
 
   if (!draft) {
@@ -98,16 +118,16 @@ export function SaveEditor({ id, snap, onClose, startRename = false }: { id: str
     );
   }
 
-  const canWrite = !running && !saving;
+  const canWrite = !running && op === "idle";
   return (
     <div className="ed">
       <div className="head ed-head">
         {backBtn}
         <div className="ed-title">
           {renaming && !running ? (
-            <TitleEdit name={draft.name} onCancel={() => setRenaming(false)} onConfirm={async (name) => { const ok = await rename(name); if (ok) setRenaming(false); }} />
+            <TitleEdit name={draft.name} onCancel={() => move("renaming", "idle")} onConfirm={async (name) => { const ok = await rename(name); if (ok) move("renaming", "idle"); }} />
           ) : (
-            <button className="ed-rename" disabled={running} onClick={() => setRenaming(true)} aria-label={t("app.saves.renameTitle", draft.name)}
+            <button className="ed-rename" disabled={running || op !== "idle"} onClick={() => move("idle", "renaming")} aria-label={t("app.saves.renameTitle", draft.name)}
               data-tip-title={t("app.saves.rename")} data-tip={running ? t("app.action.closeGameFirst") : t("app.saves.renameHint")}>
               <h1 className="cap">{draft.name}</h1><PenIcon />
             </button>
@@ -123,16 +143,16 @@ export function SaveEditor({ id, snap, onClose, startRename = false }: { id: str
           ))}
         </div>
         <div className="ed-savebar">
-          {count > 0 && <span className="ed-dirty">{t(count === 1 ? "app.saves.unsavedOne" : "app.saves.unsaved", count)}</span>}
+          {count > 0 && <span className="ed-dirty">{tn("app.saves.unsaved", count)}</span>}
           <button className="btn icon head-tool" disabled={!count || saving} onClick={() => setPending(new Map())} aria-label={t("app.saves.discard")}
             data-tip-title={t("app.saves.discard")} data-tip={t("app.saves.discardHint")}><ResetIcon /></button>
-          <button className="btn go head-tool" disabled={!count || !canWrite} onClick={() => write([...pending.values()], t("app.saves.written"))}
+          <button className="btn go head-tool" disabled={!count || !canWrite} onClick={() => write([...pending.values()], t("app.saves.written"), pending)}
             data-tip={running ? t("app.action.closeGameFirst") : undefined}><CheckIcon /><span className="label">{t("app.saves.save")}</span></button>
         </div>
       </div>
       {running && <div className="banner"><WarnIcon /><span>{t("app.saves.gameRunningEditor")}</span></div>}
       <div className={`ed-body ed-${tab}`} key={tab}>
-        {tab === "overview" && <OverviewTab draft={draft} dirty={count > 0} blocked={!canWrite} onBulk={setBulk} />}
+        {tab === "overview" && <OverviewTab draft={draft} dirty={count > 0} blocked={!canWrite} onBulk={(b) => move("idle", b)} />}
         {tab === "character" && <CharacterTab draft={draft} onEdit={edit} undo={undo} />}
         {tab === "arsenal" && <ArsenalTab draft={draft} onEdit={edit} />}
         {tab === "mods" && <ModsTab draft={draft} onEdit={edit} undo={undo} />}
@@ -140,11 +160,11 @@ export function SaveEditor({ id, snap, onClose, startRename = false }: { id: str
       {bulk && (
         <Confirm title={t(bulk === "max" ? "app.saves.maxTitle" : "app.saves.resetTitle", draft.name)} text={t(bulk === "max" ? "app.saves.maxText" : "app.saves.resetText")}
           confirm={t(bulk === "max" ? "app.saves.maxEverything" : "app.saves.resetProgression")} tone={bulk === "max" ? "go" : "warn"}
-          onCancel={() => setBulk(null)} onConfirm={() => { const op = bulk === "max" ? "max_everything" : "reset_progression"; setBulk(null); write([{ op } as Edit], t("app.saves.written")); }} />
+          onCancel={() => move(bulk, "idle")} onConfirm={() => { const edit = bulk === "max" ? "max_everything" : "reset_progression"; write([{ op: edit } as Edit], t("app.saves.written")); }} />
       )}
       {leaving && (
         <Confirm title={t("app.saves.leaveTitle")} text={t("app.saves.leaveText")} confirm={t("app.saves.leaveConfirm")} cancel={t("app.saves.leaveCancel")}
-          onCancel={() => setLeaving(false)} onConfirm={() => { setLeaving(false); onClose(); }} />
+          onCancel={() => move("leave", "idle")} onConfirm={() => { move("leave", "idle"); onClose(); }} />
       )}
     </div>
   );
@@ -184,7 +204,7 @@ function NumField({ value, min, max, label, disabled, onCommit }: { value: numbe
     if (v !== value) onCommit(v);
   };
   return <input className="ed-num" inputMode="numeric" value={text} disabled={disabled} aria-label={label} spellCheck={false}
-    onChange={(e) => setText(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === "Enter") commit(); }} />;
+    onChange={(e) => setText(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) commit(); }} />;
 }
 
 /** A panel of rows under a title, with an optional line about the whole group under the rows. */
@@ -230,7 +250,7 @@ function Insignia({ level }: { level: number }) {
 
 /** The Overview as a service record: the record card, the rank ladder with the XP bar, the two actions beside
  *  them, and the lifetime numbers in a row under them. */
-function OverviewTab({ draft, dirty, blocked, onBulk }: { draft: EditorState; dirty: boolean; blocked: boolean; onBulk: (b: Bulk) => void }) {
+function OverviewTab({ draft, dirty, blocked, onBulk }: { draft: EditorState; dirty: boolean; blocked: boolean; onBulk: (b: "max" | "reset") => void }) {
   const l = draft.lifetime;
   const title = draft.ranks.find((r) => r.level === draft.rank)?.title ?? "";
   const prog = rankProgress(draft.ranks, draft.xp);
@@ -241,7 +261,9 @@ function OverviewTab({ draft, dirty, blocked, onBulk }: { draft: EditorState; di
   const stat = (name: string, value: string) => <div className="rec-st"><div className="rec-lbl cap">{name}</div><div className="rec-v">{value}</div></div>;
   return (
     <div className="rec">
-      <section className="rec-card">
+      <section className="rec-sum">
+        <h3 className="rec-h cap">{t("app.saves.summary")}</h3>
+        <div className="rec-card">
         <div className="rec-id">
           <div className="rec-pic"><Insignia level={draft.rank} /></div>
           <div className="rec-idtext">
@@ -254,6 +276,7 @@ function OverviewTab({ draft, dirty, blocked, onBulk }: { draft: EditorState; di
         {line(t("app.saves.stat.samples"), num(draft.samples))}
         {line(t("app.saves.researchPoints"), num(draft.researchPoints))}
         {line(t("app.saves.stat.played"), playTime(played))}
+        </div>
       </section>
 
       <section className="rec-ladder">
@@ -266,14 +289,11 @@ function OverviewTab({ draft, dirty, blocked, onBulk }: { draft: EditorState; di
           ))}
         </div>
         <div className="rec-xp">
-          <div className="rec-xp-row">
-            <span>{prog.next ? t("app.saves.xpToward", prog.next.level) : t("app.saves.topRank")}</span>
-            {prog.need !== null && <b>{t("app.saves.xpToGo", num(prog.need))}</b>}
-          </div>
+          <div className="rec-xp-row"><b>{prog.next ? `${num(draft.xp)} / ${num(prog.next.requiredXp)}` : num(draft.xp)}</b></div>
           <div className="rec-bar" aria-hidden="true"><i style={{ width: `${prog.fraction * 100}%` }} /></div>
           <div className="rec-ends">
-            <span><Insignia level={draft.rank} />{draft.rank}. {title}</span>
-            {prog.next && <span>{prog.next.level}. {prog.next.title}<Insignia level={prog.next.level} /></span>}
+            <span><Insignia level={draft.rank} />{draft.rank}</span>
+            {prog.next && <span>{prog.next.level}<Insignia level={prog.next.level} /></span>}
           </div>
         </div>
       </section>
@@ -340,7 +360,7 @@ function CharacterTab({ draft, onEdit, undo }: { draft: EditorState; onEdit: (e:
       </Panel>
       <Panel title={t("app.saves.stat.samples")}>
         <ul className="opts opt-table">
-          <Row label={t("app.saves.stat.samples")} desc={t("app.saves.samplesHint", draft.samplesPerPoint, num(draft.maxSamples))} keys={["samples"]} undo={undo}>
+          <Row label={t("app.saves.stat.samples")} desc={tn("app.saves.samplesHint", draft.samplesPerPoint, draft.samplesPerPoint, num(draft.maxSamples))} keys={["samples"]} undo={undo}>
             <NumField value={draft.samples} min={0} max={draft.maxSamples} label={t("app.saves.stat.samples")} onCommit={(samples) => onEdit({ op: "set_samples", samples })} />
           </Row>
           <Row label={t("app.saves.researchPoints")}>

@@ -54,6 +54,9 @@ pub fn source_of(m: &Manifest) -> Option<Repo> {
 struct Asset {
     name: String,
     browser_download_url: String,
+    /// The API address of the file, which a private repository needs (with the token).
+    #[serde(default)]
+    url: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -86,6 +89,24 @@ pub struct ListedRelease {
     pub date: Option<String>,
     pub notes: String,
     pub url: String,
+    /// The tag on GitHub, `v1.2.0` say, which `stage_tag` installs.
+    pub tag: String,
+    /// `stable` for a plain version, else the first word of the pre-release part: `1.3.0-beta.2` is
+    /// `beta`. The Versions tab of a mod shows one tab per channel.
+    pub channel: String,
+}
+
+/// Pre-release words that are never offered: tags made to try the release workflow.
+pub const HIDDEN_CHANNELS: &[&str] = &["ci"];
+
+/// The channel of a version: `stable`, or the first word of the pre-release part, lower case.
+pub fn channel_of(v: &Version) -> String {
+    if v.pre.is_empty() {
+        return "stable".to_string();
+    }
+    let first = v.pre.as_str().split('.').next().unwrap_or("");
+    let word: String = first.chars().take_while(|c| c.is_ascii_alphabetic()).collect::<String>().to_ascii_lowercase();
+    if word.is_empty() { "pre".to_string() } else { word }
 }
 
 #[derive(Debug)]
@@ -101,6 +122,9 @@ pub struct GitHub {
     agent: ureq::Agent,
     /// The same, but it hands back a redirect instead of following it.
     pages: ureq::Agent,
+    /// The signed-in player's token (github.rs), sent only to the real api.github.com: 5,000 calls an
+    /// hour instead of 60, and the private repositories the player can read.
+    token: Option<String>,
 }
 
 impl Default for GitHub {
@@ -167,7 +191,17 @@ impl GitHub {
                 .build()
                 .into()
         };
-        GitHub { api: api.into(), web: web.into(), agent: agent(10), pages: agent(0) }
+        let api: String = api.into();
+        let token = if api == "https://api.github.com" { crate::github::token() } else { None };
+        GitHub { api, web: web.into(), agent: agent(10), pages: agent(0), token }
+    }
+
+    fn api_get(&self, url: &str, accept: &str) -> std::result::Result<ureq::http::Response<ureq::Body>, ureq::Error> {
+        let req = self.agent.get(url).header("Accept", accept);
+        match &self.token {
+            Some(t) => req.header("Authorization", format!("Bearer {t}")).call(),
+            None => req.call(),
+        }
     }
 
     /// The newest release of `repo`, with its files. GitHub leaves out drafts and prereleases.
@@ -182,6 +216,10 @@ impl GitHub {
     /// latest-release page, which costs no API call; the API is asked only when the page answers in
     /// a way this doesn't know, and only while `api` allows it.
     fn latest_version(&self, repo: &Repo, api: bool) -> Result<Version> {
+        // Signed in, the API has calls to spare and also sees private repositories, which the page doesn't.
+        if self.token.is_some() && api {
+            return Ok(self.latest(repo)?.version);
+        }
         match self.latest_tag_from_page(repo)? {
             Some(tag) => version_of(&tag).ok_or_else(|| ObsidianError::NoRelease(repo.to_string())),
             None if api => Ok(self.latest(repo)?.version),
@@ -242,26 +280,57 @@ impl GitHub {
         Ok(self.releases_page(repo, 1, 50)?.0)
     }
 
-    /// One page of `releases`, counted from 1, and whether GitHub may have more after it.
+    /// One page of `releases`, counted from 1, and whether GitHub may have more after it. Stable
+    /// releases only.
     pub fn releases_page(&self, repo: &Repo, page: u32, per_page: u32) -> Result<(Vec<ListedRelease>, bool)> {
+        self.releases_page_with(repo, page, per_page, false)
+    }
+
+    /// The same, with `prereleases` also every pre-release but those of `HIDDEN_CHANNELS`, for a
+    /// mod's Versions tab.
+    pub fn releases_page_with(&self, repo: &Repo, page: u32, per_page: u32, prereleases: bool) -> Result<(Vec<ListedRelease>, bool)> {
         let per_page = per_page.clamp(1, 100);
         let raw: Vec<RawListed> = serde_json::from_str(&self.release_json(repo, &format!("?per_page={per_page}&page={}", page.max(1)))?)?;
         let more = raw.len() as u32 == per_page;
         let list = raw
             .into_iter()
-            .filter(|r| !r.draft && !r.prerelease)
+            .filter(|r| !r.draft && (prereleases || !r.prerelease))
             .filter_map(|r| {
                 let version = r.tag_name.strip_prefix(['v', 'V']).unwrap_or(&r.tag_name);
-                Version::parse(version).ok()?;
-                Some(ListedRelease { version: version.to_string(), date: r.published_at, notes: r.body.unwrap_or_default(), url: r.html_url })
+                let parsed = Version::parse(version).ok()?;
+                let channel = channel_of(&parsed);
+                // A tag marked as a pre-release on GitHub but with a plain version still counts as one.
+                let channel = if r.prerelease && channel == "stable" { "pre".to_string() } else { channel };
+                if !prereleases && channel != "stable" {
+                    return None;
+                }
+                if HIDDEN_CHANNELS.contains(&channel.as_str()) {
+                    return None;
+                }
+                Some(ListedRelease {
+                    version: version.to_string(),
+                    date: r.published_at,
+                    notes: r.body.unwrap_or_default(),
+                    url: r.html_url,
+                    tag: r.tag_name.clone(),
+                    channel,
+                })
             })
             .collect();
         Ok((list, more))
     }
 
+    /// One release by tag, with the files.
+    fn release_at(&self, repo: &Repo, tag: &str) -> Result<Release> {
+        let raw: RawRelease = serde_json::from_str(&self.release_json(repo, &format!("/tags/{tag}"))?)?;
+        let version = raw.tag_name.strip_prefix(['v', 'V']).unwrap_or(&raw.tag_name);
+        let version = Version::parse(version).map_err(|_| ObsidianError::NoRelease(repo.to_string()))?;
+        Ok(Release { version, assets: raw.assets })
+    }
+
     fn release_json(&self, repo: &Repo, which: &str) -> Result<String> {
         let url = format!("{}/repos/{repo}/releases{which}", self.api);
-        let mut res = self.agent.get(&url).header("Accept", "application/vnd.github+json").call().map_err(network)?;
+        let mut res = self.api_get(&url, "application/vnd.github+json").map_err(network)?;
         match res.status().as_u16() {
             200 => {}
             404 => return Err(ObsidianError::NoRelease(repo.to_string())),
@@ -294,7 +363,7 @@ impl GitHub {
                 n.starts_with(&prefix) && n.ends_with(".zip")
             })
             .ok_or_else(|| ObsidianError::NoUpdateAsset(repo.to_string()))?;
-        self.download(&asset.browser_download_url, to)?;
+        self.download_asset(asset, to)?;
         let sig_name = format!("{}.sig", asset.name.to_lowercase());
         let sig = match release.assets.iter().find(|a| a.name.to_lowercase() == sig_name) {
             Some(a) => {
@@ -307,6 +376,21 @@ impl GitHub {
             None => None,
         };
         Ok((release.version, sig))
+    }
+
+    /// A file of a release. Signed in, it comes through the API, which private repositories need; the
+    /// token never follows the redirect to the file host (ureq drops it on a redirect).
+    fn download_asset(&self, asset: &Asset, to: &Path) -> Result<()> {
+        if self.token.is_some() && asset.url.starts_with("https://api.github.com/") {
+            let mut res = self.api_get(&asset.url, "application/octet-stream").map_err(network)?;
+            if !res.status().is_success() {
+                return Err(network(format!("GitHub answered {}", res.status().as_u16())));
+            }
+            let mut body = res.body_mut().with_config().limit(MAX_DOWNLOAD).reader();
+            std::io::copy(&mut body, &mut std::fs::File::create(to)?).map_err(network)?;
+            return Ok(());
+        }
+        self.download(&asset.browser_download_url, to)
     }
 
     fn download(&self, url: &str, to: &Path) -> Result<()> {
@@ -359,7 +443,7 @@ pub fn now_secs() -> u64 {
 /// younger than that many seconds stands in for asking. A failed check keeps nothing, so it asks
 /// again next time, and a file that can't be read or written only means asking.
 pub fn check_remembering(github: &GitHub, mods: &[Manifest], file: &Path, trust: Option<u64>, now: u64) -> Vec<Checked> {
-    let mut seen: BTreeMap<String, Seen> = std::fs::read(file).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
+    let mut seen: BTreeMap<String, Seen> = crate::paths::json_file::load(file).unwrap_or_default();
     let before = seen.clone();
     let checked = latest_of(github, mods, &mut seen, trust, now);
     seen.retain(|_, s| s.at > now.saturating_sub(FORGET_SECS));
@@ -442,6 +526,22 @@ pub fn stage(github: &GitHub, current: &Manifest) -> Result<Staged> {
     Ok(staged)
 }
 
+/// Downloads the release `tag` of an installed mod, older or newer, any channel, and checks that it
+/// is this mod in the version of the tag. For the Versions tab; touches nothing in the library.
+pub fn stage_tag(github: &GitHub, current: &Manifest, tag: &str) -> Result<Staged> {
+    let mismatch = |found: String| ObsidianError::UpdateMismatch { wanted: current.id.clone(), found };
+    let repo = source_of(current).ok_or_else(|| ObsidianError::NoUpdateSource(current.id.clone()))?;
+    if tag.is_empty() || !tag.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '+' | '_')) {
+        return Err(mismatch(tag.to_string()));
+    }
+    let release = github.release_at(&repo, tag)?;
+    let staged = unpack(github, &repo, &release, &current.id)?;
+    if staged.manifest.id != current.id || staged.manifest.version != release.version {
+        return Err(mismatch(format!("{} {}", staged.manifest.id, staged.manifest.version)));
+    }
+    Ok(staged)
+}
+
 /// Downloads the latest release of a mod that isn't installed yet, from `repo`, and checks that it
 /// is the mod `id`. Like `stage`, it touches nothing in the library.
 pub fn stage_new(github: &GitHub, repo: &Repo, id: &str) -> Result<Staged> {
@@ -453,12 +553,20 @@ pub fn stage_new(github: &GitHub, repo: &Repo, id: &str) -> Result<Staged> {
     Ok(staged)
 }
 
+/// The newest release of `repo`, whatever mod it holds, for a Store submission to check. Its version
+/// comes with it, to compare with the manifest.
+pub fn stage_latest(github: &GitHub, repo: &Repo) -> Result<(Staged, Version)> {
+    let release = github.latest(repo)?;
+    let staged = unpack(github, repo, &release, "\u{0}")?;
+    Ok((staged, release.version))
+}
+
 /// The mod ZIP of a release, downloaded and unpacked into a temporary folder.
 fn unpack(github: &GitHub, repo: &Repo, release: &Release, id: &str) -> Result<Staged> {
     let asset = pick_zip(&release.assets, id).ok_or_else(|| ObsidianError::NoUpdateAsset(repo.to_string()))?;
     let dir = tempfile::tempdir()?;
     let (zip, unpacked) = (dir.path().join("update.zip"), dir.path().join("mod"));
-    github.download(&asset.browser_download_url, &zip)?;
+    github.download_asset(asset, &zip)?;
     crate::import::unzip(&zip, &unpacked)?;
     let root = crate::import::mod_folder(&unpacked)?.ok_or_else(|| ObsidianError::NoUpdateAsset(repo.to_string()))?;
     let manifest = load_manifest(&root)?;
@@ -907,6 +1015,57 @@ mod tests {
         let outcome = staged.install(&lib).unwrap();
         assert_eq!(outcome, InstallOutcome::Replaced { old_version: Version::new(1, 0, 0) });
         assert_eq!(load_manifest(&lib.mod_dir("a.mod")).unwrap().version, Version::new(1, 1, 0));
+    }
+
+    #[test]
+    fn the_versions_tab_lists_each_channel_and_hides_workflow_tries() {
+        let fake = server();
+        let list = br#"[
+            {"tag_name":"v1.1.0-beta.2","html_url":"u4","prerelease":true},
+            {"tag_name":"v1.1.0-ci.1","html_url":"u5","prerelease":true},
+            {"tag_name":"v1.0.3","html_url":"u3","draft":true},
+            {"tag_name":"v1.0.2","html_url":"u2"},
+            {"tag_name":"v1.0.2-RC1","html_url":"u6","prerelease":true},
+            {"tag_name":"v1.0.1","html_url":"u1","prerelease":true}
+        ]"#;
+        fake.ok("/repos/me/mod/releases?per_page=30&page=1", list.to_vec());
+        let github = fake.github();
+        let repo = github_repo("https://github.com/me/mod").unwrap();
+        let (found, _) = github.releases_page_with(&repo, 1, 30, true).unwrap();
+        let got: Vec<(&str, &str, &str)> = found.iter().map(|r| (r.version.as_str(), r.channel.as_str(), r.tag.as_str())).collect();
+        assert_eq!(got, [("1.1.0-beta.2", "beta", "v1.1.0-beta.2"), ("1.0.2", "stable", "v1.0.2"), ("1.0.2-RC1", "rc", "v1.0.2-RC1"), ("1.0.1", "pre", "v1.0.1")]);
+    }
+
+    #[test]
+    fn a_chosen_version_installs_over_a_newer_one() {
+        let t = spaced_tempdir();
+        let lib = Library::open(t.path()).unwrap();
+        let new = t.path().join("new");
+        crate::testutil::put(&new, "obsidian.json", manifest("a.mod", "1.2.0").as_bytes());
+        lib.install(&new).unwrap();
+
+        let fake = server();
+        let base = fake.base.clone();
+        fake.ok("/repos/me/mod/releases/tags/v1.0.0", format!(r#"{{"tag_name":"v1.0.0","assets":[{{"name":"mod.zip","browser_download_url":"{base}/dl/mod.zip"}}]}}"#));
+        fake.ok("/dl/mod.zip", zipped("mod/", &manifest("a.mod", "1.0.0")));
+        let g = fake.github();
+        let staged = stage_tag(&g, &load_manifest(&lib.mod_dir("a.mod")).unwrap(), "v1.0.0").unwrap();
+        assert_eq!(staged.install(&lib).unwrap(), InstallOutcome::Replaced { old_version: Version::new(1, 2, 0) });
+        assert_eq!(load_manifest(&lib.mod_dir("a.mod")).unwrap().version, Version::new(1, 0, 0));
+    }
+
+    #[test]
+    fn a_chosen_tag_must_hold_that_version_and_be_a_plain_name() {
+        let fake = server();
+        let base = fake.base.clone();
+        fake.ok("/repos/me/mod/releases/tags/v1.0.0", format!(r#"{{"tag_name":"v1.0.0","assets":[{{"name":"mod.zip","browser_download_url":"{base}/dl/mod.zip"}}]}}"#));
+        fake.ok("/dl/mod.zip", zipped("", &manifest("a.mod", "0.9.0")));
+        let g = fake.github();
+        let e = stage_tag(&g, &installed("a.mod", "1.2.0"), "v1.0.0").err().unwrap();
+        assert!(matches!(e, ObsidianError::UpdateMismatch { .. }), "{e}");
+        for bad in ["", "../x", "v1.0.0?x=1", "v1 0"] {
+            assert!(matches!(stage_tag(&g, &installed("a.mod", "1.2.0"), bad), Err(ObsidianError::UpdateMismatch { .. })), "{bad}");
+        }
     }
 
     #[test]

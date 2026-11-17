@@ -100,7 +100,7 @@ fn ports_cover(list: &str) -> bool {
 }
 
 fn load(data: &Path) -> Option<Record> {
-    std::fs::read_to_string(data.join(RECORD)).ok().and_then(|t| serde_json::from_str(&t).ok())
+    crate::paths::json_file::load(&data.join(RECORD))
 }
 
 pub fn status(data: &Path) -> Status {

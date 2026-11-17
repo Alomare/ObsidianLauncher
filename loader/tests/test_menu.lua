@@ -64,7 +64,9 @@ end)
 test("a_page_added_before_obsidian_api_started_waits_for_it", function()
 	local e, ui = start({ { id = "early", name = "Early Mod", texts = { en = { title = "Early page" } }, source = OLD_STYLE } }, "last")
 	local M = api_menu(e)
-	E.eq(#M.roots, 1, "handed over once every mod had started")
+	local own = 0
+	for _, r in ipairs(M.roots) do if r.owner == "early" then own = own + 1 end end
+	E.eq(own, 1, "handed over once every mod had started")
 	E.eq(M.roots[1].owner, "early", "as the mod that added it")
 	rawget(_G, "obsidian").menu.open()
 	ui.frame()

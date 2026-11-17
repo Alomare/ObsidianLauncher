@@ -1,5 +1,6 @@
 // The Commander tab: custom Galactic Wars (ObsidianCommander, docs/spec-m1.md). Obsidian keeps the
-// frame: installing the package, the wars this PC plays and LAN join, in a row under the war list.
+// frame: installing the package, the wars this PC plays, LAN join, and Import and New War for a package
+// that takes them from Obsidian, in a row at the top of the war list.
 // Which war the next launch plays is the Play button's choice (choices.ts, PlayChoice.tsx).
 // The package server serves the war screens, shown here in a frame; LAN war screens
 // come read-only from the PC that hosts it. The frame talks to Obsidian only through the messages
@@ -8,17 +9,19 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { call, errorText, setSnapshot } from "../api";
-import { withTask } from "../busy";
+import { isLocked, withTask } from "../busy";
 import { Confirm } from "../Confirm";
 import { ContextMenu } from "../ContextMenu";
-import { t } from "../i18n";
-import { CheckIcon, CloseIcon, ImportIcon, TrashIcon, UpdateIcon } from "../Icons";
+import { t, tn } from "../i18n";
+import { CheckIcon, CloseIcon, ImportIcon, PlusIcon, TrashIcon, UpdateIcon } from "../Icons";
 import { notify } from "../notices";
+import { useLayer } from "../Modal";
 import type { Snapshot } from "../types";
 import { reloadChoices, useChoices } from "./choices";
 import { FirewallDialog, useFirewall } from "./firewall";
 import { PackageIcon, ThisPcIcon, WallIcon } from "./icons";
 import "./commander.css";
+import { PadGlyph } from "../pad/PadGlyph";
 
 /** What Commander keeps on this PC, for Remove All Commander Data (`commander_footprint`). */
 type Footprint = { package: string | null; hosted: number; joined: number; saves: { id: string; name: string }[]; namesFile: boolean; firewallRules: number; bytes: number };
@@ -31,8 +34,12 @@ type Installed = { version: string; protocol: number; server: string; ui: string
 type ServerInfo = { port: number; token: string };
 export type CommanderView = { protocol: number; installed: Installed | null; wars: WarRef[]; playing: string | null; server: ServerInfo | null; names: [string, string][] };
 type Done = { commander: CommanderView; snapshot: Snapshot };
-type Found = { war: string; name: string; model: string; season: number; base: string; computer: string; players: number; version: string; key?: string };
-type Pick = { id: string; name: string; host: WarHost; base?: string; computer?: string; model?: "evolved"; key?: string };
+type Found = { war: string; name: string; model: string; season: number; base: string; computer: string; players: number; version: string; key?: string; ownSaveOnly?: boolean; allowAchievements?: boolean };
+type Pick = { id: string; name: string; host: WarHost; base?: string; computer?: string; model?: "enhanced"; key?: string; ownSaveOnly?: boolean; allowAchievements?: boolean };
+
+/** An Enhanced war plays through the Enhanced War Client mod. Any other model, the archived Evolved
+ *  one included, plays as a Vanilla war. */
+const knownModel = (m: unknown) => (m === "enhanced" ? "enhanced" as const : undefined);
 
 /** What the frame shows: the server on this PC, or one LAN war. */
 type Source = { kind: "local" } | { kind: "lan"; war: WarRef };
@@ -55,14 +62,26 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
   // A new key loads the frame again, on the war list: for packages that don't take `obsidian:home`.
   const [frameKey, setFrameKey] = useState(0);
   const [page, setPage] = useState<FramePage | null>(null);
+  // The frame takes Import and New War from the bar (`tools: 1` in its ready and view messages).
+  const [tools, setTools] = useState(false);
   const [newer, setNewer] = useState<string | null>(null);
   const choices = useChoices();
   const [starting, setStarting] = useState(false);
-  const [joining, setJoining] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number; opener: HTMLElement } | null>(null);
-  const [ask, setAsk] = useState<null | "remove" | "wipe">(null);
+  // One dialog at a time: the question to uninstall or wipe, the LAN join, or the firewall. Only the
+  // join dialog opens the firewall one over itself (the Allow button), and closing that one goes back.
+  type Overlay = { kind: "remove" } | { kind: "wipe" } | { kind: "join"; firewall: boolean } | { kind: "firewall" } | null;
+  const [overlay, setOverlay] = useState<Overlay>(null);
+  const ask = overlay?.kind === "remove" || overlay?.kind === "wipe" ? overlay.kind : null;
+  const joining = overlay?.kind === "join";
+  const askFirewall = overlay?.kind === "firewall" || (overlay?.kind === "join" && overlay.firewall);
+  const setAsk = (v: "remove" | "wipe" | null) => setOverlay((o) => (v ? { kind: v } : o?.kind === "remove" || o?.kind === "wipe" ? null : o));
+  const setJoining = (on: boolean) => setOverlay((o) => (on ? { kind: "join", firewall: false } : o?.kind === "join" ? null : o));
+  const setAskFirewall = (on: boolean) => setOverlay((o) => {
+    if (o?.kind === "join") return { ...o, firewall: on };
+    return on ? { kind: "firewall" } : o?.kind === "firewall" ? null : o;
+  });
   const { fw, refresh: refreshFirewall, blocked } = useFirewall();
-  const [askFirewall, setAskFirewall] = useState(false);
   const [footprint, setFootprint] = useState<Footprint | null>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const running = snap.game === "running";
@@ -114,7 +133,8 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
       .then((s) => { if (live) setFrameUrl(`http://127.0.0.1:${s.port}/?token=${s.token}`); })
       .catch((e) => notify("error", errorText(e)))
       .finally(() => live && setStarting(false));
-    return () => { live = false; };
+    // A source changed while the server started: this start no longer shows, and neither does its wait.
+    return () => { live = false; setStarting(false); };
   }, [source, installed]);
 
   const frameOrigin = frameUrl ? new URL(frameUrl).origin : null;
@@ -123,7 +143,7 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
   }, [frameOrigin]);
 
   // A new frame says again which screen it shows.
-  useEffect(() => { setPage(null); }, [frameUrl, frameKey]);
+  useEffect(() => { setPage(null); setTools(false); }, [frameUrl, frameKey]);
 
   // The Commander tab clicked while open: back to the wars on this PC, on the war list. A package that
   // reports the screen it shows goes there itself; an older one loads again.
@@ -139,7 +159,7 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
 
   const hello = useCallback(() => {
     const theme = document.documentElement.dataset.theme === "light" ? "light" : "dark";
-    post({ type: "obsidian:hello", theme, lang: document.documentElement.lang || "en", names: Object.fromEntries(view?.names ?? []), playing: view?.playing ?? null, game_running: running });
+    post({ type: "obsidian:hello", theme, lang: document.documentElement.lang || "en", names: Object.fromEntries(view?.names ?? []), playing: view?.playing ?? null, game_running: running, bar_tools: true });
   }, [post, view, running]);
 
   // A theme or language switch while the frame is open reaches it as a new hello, which every
@@ -155,14 +175,16 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
 
   const applied = (r: Done) => { setView(r.commander); setSnapshot(r.snapshot); reloadChoices(); };
 
-  const select = useCallback(async (pick: Pick, thenPlay: boolean) => {
-    if (running) { notify("error", t("app.commander.gameRunning")); return; }
+  /** True once the war is the one the next launch plays. */
+  const select = useCallback(async (pick: Pick, thenPlay: boolean): Promise<boolean> => {
+    if (running) { notify("error", t("app.commander.gameRunning")); return false; }
     try {
       const r = await withTask(t("app.commander.selecting"), () => call<Done>("commander_select", { war: pick }), true);
       applied(r);
       if (thenPlay) onPlay();
       else notify("info", t("app.commander.selected", pick.name));
-    } catch (e) { notify("error", errorText(e)); }
+      return true;
+    } catch (e) { notify("error", errorText(e)); return false; }
   }, [running, onPlay]);
 
   const official = useCallback(async () => {
@@ -173,24 +195,25 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
     } catch (e) { notify("error", errorText(e)); }
   }, [running]);
 
-  // The Evolved War Engine mod in the library (from GitHub when missing) and on in the active profile.
-  const evolvedEngine = useCallback(async () => {
+  // The Enhanced War Client mod in the library (from GitHub when missing) and on in the active profile.
+  const enhancedClient = useCallback(async () => {
     try {
-      const r = await withTask(t("app.commander.engineInstalling"), () => call<{ switched: { installed: string | null; enabled: boolean }; snapshot: Snapshot }>("commander_evolved_engine"), true);
+      const r = await withTask(t("app.commander.clientInstalling"), () => call<{ switched: { installed: string | null; enabled: boolean }; snapshot: Snapshot }>("commander_enhanced_client"), true);
       setSnapshot(r.snapshot);
-      if (r.switched.installed) notify("info", t("app.commander.engineInstalled", r.switched.installed));
-      else if (r.switched.enabled) notify("info", t("app.commander.engineEnabled"));
-    } catch (e) { notify("error", t("app.commander.engineFailed", errorText(e))); }
+      if (r.switched.installed) notify("info", t("app.commander.clientInstalled", r.switched.installed));
+      else if (r.switched.enabled) notify("info", t("app.commander.clientEnabled"));
+    } catch (e) { notify("error", t("app.commander.clientFailed", errorText(e))); }
   }, []);
 
   // Messages from the frame, checked: the frame window, a known type, plain fields.
   useEffect(() => {
     const on = (e: MessageEvent) => {
       if (!frame.current || e.source !== frame.current.contentWindow || e.origin !== frameOrigin) return;
-      const m = e.data as { type?: unknown; war?: unknown; name?: unknown; model?: unknown; page?: unknown; open?: unknown };
+      const m = e.data as { type?: unknown; war?: unknown; name?: unknown; model?: unknown; page?: unknown; open?: unknown; tools?: unknown };
       if (!m || typeof m.type !== "string") return;
-      if (m.type === "commander:ready") { hello(); return; }
+      if (m.type === "commander:ready") { setTools(m.tools === 1); hello(); return; }
       if (m.type === "commander:view") {
+        if (m.tools === 1) setTools(true);
         if (m.page === "list" || m.page === "create" || m.page === "war") setPage(m.page);
         // A war made or changed in the frame shows in the Play choice.
         reloadChoices();
@@ -199,13 +222,13 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
       if (m.type === "commander:official") { official(); return; }
       // A war opened to LAN: a Linux firewall that shuts the ports gets the offer to open them.
       if (m.type === "commander:lan") { if (m.open === true && blocked) setAskFirewall(true); return; }
-      // A new Evolved war: the host gets the Evolved War Engine mod now, as players who join do on selecting.
-      if (m.type === "commander:created") { if (m.model === "evolved" && source?.kind === "local") evolvedEngine(); return; }
+      // A new Enhanced war: the host gets the Enhanced War Client mod now, as players who join do on selecting.
+      if (m.type === "commander:created") { if (knownModel(m.model) && source?.kind === "local") enhancedClient(); return; }
       if (m.type !== "commander:play" && m.type !== "commander:select") return;
       if (typeof m.war !== "string" || !/^[\w-]{1,32}$/.test(m.war)) return;
       const name = typeof m.name === "string" ? m.name.slice(0, 60) : m.war;
-      // An Evolved war plays through the Evolved War Engine mod, which the selection switches on.
-      const model = m.model === "evolved" ? "evolved" as const : undefined;
+      // An Enhanced war plays through the Enhanced War Client mod, which the selection switches on.
+      const model = knownModel(m.model);
       const pick: Pick | null = source?.kind === "lan"
         ? (source.war.id === m.war ? { id: m.war, name, host: "lan", base: source.war.base, computer: source.war.computer, model } : null)
         : { id: m.war, name, host: "local", model };
@@ -213,7 +236,7 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
     };
     window.addEventListener("message", on);
     return () => window.removeEventListener("message", on);
-  }, [frameOrigin, hello, official, select, source, evolvedEngine, blocked]);
+  }, [frameOrigin, hello, official, select, source, enhancedClient, blocked]);
 
 
   const installed_ = (v: CommanderView) => {
@@ -227,6 +250,7 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
 
   // The newest release from GitHub.
   const install = async () => {
+    if (isLocked()) return;
     try {
       installed_(await withTask(t("app.commander.fetching"), () => call<CommanderView>("commander_fetch"), true));
     } catch (e) {
@@ -238,9 +262,20 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
   // A package ZIP from disk, such as a local build.
   const installFile = async () => {
     const path = await open({ filters: [{ name: t("app.commander.zipFilter"), extensions: ["zip"] }] });
-    if (typeof path !== "string") return;
+    if (typeof path !== "string" || isLocked()) return;
     try {
       installed_(await withTask(t("app.commander.installing"), () => call<CommanderView>("commander_install", { path }), true));
+    } catch (e) { notify("error", errorText(e)); }
+  };
+
+  // Import in the bar: Obsidian picks and reads the war file (a picker can't open inside the frame without
+  // a click there), and the frame imports it as its own Import does.
+  const importWar = async () => {
+    const path = await open({ filters: [{ name: t("app.commander.importFilter"), extensions: ["json"] }] });
+    if (typeof path !== "string") return;
+    try {
+      const text = await call<string>("commander_read_war_file", { path });
+      post({ type: "obsidian:import", text });
     } catch (e) { notify("error", errorText(e)); }
   };
 
@@ -284,7 +319,7 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
   const openMenu = (e: { currentTarget: HTMLButtonElement }) => {
     if (menu) { setMenu(null); return; }
     const r = e.currentTarget.getBoundingClientRect();
-    setMenu({ x: r.right - 240, y: r.top - 4, opener: e.currentTarget });
+    setMenu({ x: r.right - 240, y: r.bottom + 4, opener: e.currentTarget });
   };
 
   if (!view) return <div className="commander" />;
@@ -292,7 +327,7 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
   const dialogs = (
     <>
       {menu && (
-        <ContextMenu x={Math.max(8, menu.x)} y={menu.y} up opener={menu.opener} label={t("app.commander.package")} onClose={() => setMenu(null)} items={[
+        <ContextMenu x={Math.max(8, menu.x)} y={menu.y} opener={menu.opener} label={t("app.commander.package")} onClose={() => setMenu(null)} items={[
           ...(installed ? [
             { label: t("app.commander.packageVersion", view.installed?.version ?? ""), disabled: true },
             { label: newer ? t("app.commander.updateTo", newer) : t("app.commander.update"), icon: <UpdateIcon />, run: install, extra: newer ? <i className="cmd-pkg-dot" aria-hidden="true" /> : undefined },
@@ -312,8 +347,7 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
       {joining && <JoinDialog blocked={blocked} onAllow={() => setAskFirewall(true)} onClose={() => setJoining(false)} onJoin={(f) => {
         setJoining(false);
         const war: WarRef = { id: f.war, name: f.name, host: "lan", base: f.base, computer: f.computer, key: f.key };
-        const model = f.model === "evolved" ? "evolved" as const : undefined;
-        select({ id: f.war, name: f.name, host: "lan", base: f.base, computer: f.computer, model, key: f.key }, false).then(() => { load(); setSource({ kind: "lan", war }); });
+        select({ id: f.war, name: f.name, host: "lan", base: f.base, computer: f.computer, model: knownModel(f.model), key: f.key, ownSaveOnly: !!f.ownSaveOnly, allowAchievements: !!f.allowAchievements }, false).then((ok) => { if (ok) { load(); setSource({ kind: "lan", war }); } });
       }} />}
     </>
   );
@@ -327,19 +361,14 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
     );
   }
 
-  // The row of sources, LAN join and the package sits under the war list only. A package that doesn't
-  // report the screen it shows keeps it always; without the package there is no war list, so it stays too.
+  // The row of sources, LAN join, the war tools and the package sits at the top of the war list only. A
+  // package that doesn't report the screen it shows keeps it always; without the package there is no war
+  // list, so it stays too. Import and New War show for a package that said it takes them (`tools: 1`).
   const showBar = !installed || (source?.kind === "local" && (page === null || page === "list"));
+  const showTools = installed && tools && source?.kind === "local" && !!frameUrl;
 
   return (
     <div className="commander shell">
-      <div className="cmd-stage">
-        {frameUrl ? (
-          <iframe ref={frame} key={`${frameKey}:${frameUrl}`} className="cmd-frame" src={frameUrl} title={t("app.nav.commander")} sandbox="allow-scripts allow-same-origin allow-forms allow-downloads" />
-        ) : (
-          <div className="cmd-wait">{starting ? t("app.commander.starting") : t("app.commander.nothing")}</div>
-        )}
-      </div>
       {showBar && <div className="cmd-bar">
         <div className="cmd-sources" role="tablist">
           {installed && (
@@ -361,6 +390,12 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
             );
           })}
           <button className="btn cmd-join" onClick={() => setJoining(true)}>{t("app.commander.joinLan")}</button>
+          {showTools && (
+            <>
+              <button className="btn cmd-tool" onClick={importWar} data-tip={t("app.commander.importWarHint")}><ImportIcon /><span>{t("app.commander.importWar")}</span></button>
+              <button className="btn go cmd-tool" onClick={() => post({ type: "obsidian:create" })} data-tip={t("app.commander.newWarHint")}><PlusIcon /><span>{t("app.commander.newWar")}</span></button>
+            </>
+          )}
         </div>
         <div className="cmd-next">
           {!installed && <button className="btn" onClick={install}>{t("app.commander.install")}</button>}
@@ -372,6 +407,13 @@ export function CommanderPage({ snap, visible, onPlay, home }: Props) {
           </button>
         </div>
       </div>}
+      <div className="cmd-stage">
+        {frameUrl ? (
+          <iframe ref={frame} key={`${frameKey}:${frameUrl}`} className="cmd-frame" src={frameUrl} title={t("app.nav.commander")} sandbox="allow-scripts allow-same-origin allow-forms allow-downloads" />
+        ) : (
+          <div className="cmd-wait">{starting ? t("app.commander.starting") : t("app.commander.nothing")}</div>
+        )}
+      </div>
       {dialogs}
     </div>
   );
@@ -442,7 +484,7 @@ function Intro({ onInstall, onInstallFile, onJoin, leftovers, onWipe }: { onInst
       <div className="cmd-hero">
         <GalaxyArt />
         <div className="cmd-hero-text">
-          <h1 className="cap">{t("app.commander.title")}</h1>
+          <h1 className="cmd-title">OBSIDIAN COMMANDER</h1>
           <p className="cmd-lead">{t("app.commander.lead")}</p>
           <div className="cmd-actions">
             <button className="btn play" onClick={onInstall} data-tip={t("app.commander.installNote")}>{t("app.commander.install")}</button>
@@ -458,9 +500,8 @@ function Intro({ onInstall, onInstallFile, onJoin, leftovers, onWipe }: { onInst
         </div>
       </div>
       <div className="cmd-cards">
-        <div className="cmd-card"><h3>{t("app.commander.cardVanilla")}</h3><p>{t("app.commander.cardVanillaText")}</p></div>
-        {/* Evolved wars are on hold (the user, 2026-11-11): the card comes back with them. */}
-        <div className="cmd-card"><h3>{t("app.commander.cardLan")}</h3><p>{t("app.commander.cardLanText")}</p></div>
+        <div className="cmd-card"><h3>{t("app.commander.cardHost")}</h3><p>{t("app.commander.cardHostText")}</p></div>
+        <div className="cmd-card"><h3>{t("app.commander.cardFriends")}</h3><p>{t("app.commander.cardFriendsText")}</p></div>
         <div className="cmd-card"><h3>{t("app.commander.cardSafe")}</h3><p>{t("app.commander.cardSafeText")}</p></div>
       </div>
     </div>
@@ -513,48 +554,58 @@ function JoinDialog({ blocked, onAllow, onClose, onJoin }: { blocked: boolean; o
     } catch (e) { notify("error", errorText(e)); }
     setAsking(false);
   }, [address, invite]);
-  useEffect(() => {
-    const key = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [onClose]);
+  useLayer(onClose);
   return createPortal(
     <div className="modal-back" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal cmd-join-dialog" role="dialog" aria-modal="true" aria-label={t("app.commander.joinLan")}>
         <div className="head">
           <h2 className="cap">{t("app.commander.joinLan")}</h2>
-          <button className="close" aria-label={t("app.close")} onClick={onClose}><CloseIcon /></button>
+          <button data-pad-back className="bare close" aria-label={t("app.close")} data-tip={t("app.close")} onClick={onClose}><CloseIcon /><PadGlyph role="east" /></button>
         </div>
-        <p className="lead">{t("app.commander.joinLead")}</p>
-        <div className="cmd-found">
-          {scanning && <div className="cmd-found-empty">{t("app.commander.scanning")}</div>}
+        <p className="muted lead">{t("app.commander.joinLead")}</p>
+        <div className="cmd-found" role="list" aria-label={t("app.commander.thisNetwork")} aria-busy={scanning}>
+          <div className="cmd-found-head">
+            <span>{t("app.commander.thisNetwork")}</span>
+            <button className="btn small" disabled={scanning} onClick={scan}>{t("app.commander.scanAgain")}</button>
+          </div>
+          {scanning && <p className="cmd-found-empty"><span className="upd-spin" aria-hidden="true" />{t("app.commander.scanning")}</p>}
           {!scanning && found?.length === 0 && (
-            <div className="cmd-found-empty">
-              {t("app.commander.noneFound")}
-              {blocked && <> {t("app.commander.firewallJoinHint")} <button className="link" onClick={onAllow}>{t("app.commander.firewallAllow")}</button></>}
-            </div>
+            <p className="cmd-found-empty">
+              <span>
+                {t("app.commander.noneFound")}
+                {blocked && <> {t("app.commander.firewallJoinHint")} <button className="link" onClick={onAllow}>{t("app.commander.firewallAllow")}</button></>}
+              </span>
+            </p>
           )}
           {!scanning && found?.map((f) => (
-            <div key={`${f.war}@${f.base}`} className="cmd-found-row">
+            <div key={`${f.war}@${f.base}`} className="cmd-found-row" role="listitem">
               <div className="cmd-found-text">
-                <strong>{f.name}</strong>
-                <span>{t("app.commander.foundLine", f.computer || f.base, f.season, f.players)}</span>
+                <b>{f.name}</b>
+                <small>{tn("app.commander.foundLine", f.players, f.computer || f.base, f.season, f.players)}</small>
               </div>
-              <button className="btn go" onClick={() => onJoin(f)}>{t("app.commander.join")}</button>
+              <button className="btn small play" onClick={() => onJoin(f)}>{t("app.commander.join")}</button>
             </div>
           ))}
         </div>
         <form className="cmd-join-address" onSubmit={(e) => { e.preventDefault(); ask(); }}>
-          <label htmlFor="cmd-join-address">{t("app.commander.joinAddress")}</label>
-          <input id="cmd-join-address" type="text" value={address} maxLength={120} spellCheck={false} autoComplete="off"
-            placeholder={t("app.commander.addressHint")} onChange={(e) => setAddress(e.target.value)} />
-          <input className="cmd-join-invite" type="text" value={invite} maxLength={32} spellCheck={false} autoComplete="off" aria-label={t("app.commander.inviteCode")}
-            placeholder={t("app.commander.inviteCode")} data-tip={t("app.commander.inviteHint")} onChange={(e) => setInvite(e.target.value)} />
-          <button className="btn" type="submit" disabled={asking || !address.trim()}>{t("app.commander.addressFind")}</button>
+          <h3>{t("app.commander.otherNetwork")}</h3>
+          <div className="cmd-join-fields">
+            <label className="cmd-join-field">
+              <span>{t("app.commander.joinAddress")}</span>
+              <input type="text" value={address} maxLength={120} spellCheck={false} autoComplete="off"
+                placeholder={t("app.commander.addressHint")} onChange={(e) => setAddress(e.target.value)} />
+            </label>
+            <label className="cmd-join-field">
+              <span>{t("app.commander.inviteCode")}</span>
+              <input className="cmd-join-invite" type="text" value={invite} maxLength={32} spellCheck={false} autoComplete="off"
+                data-tip={t("app.commander.inviteHint")} onChange={(e) => setInvite(e.target.value)} />
+            </label>
+          </div>
+          <div className="modal-foot">
+            <button type="button" className="btn" onClick={onClose}>{t("app.close")}</button>
+            <button type="submit" className="btn play" disabled={asking || !address.trim()}>{asking && <span className="upd-spin" aria-hidden="true" />}{t("app.commander.addressFind")}</button>
+          </div>
         </form>
-        <div className="modal-foot">
-          <button className="btn" disabled={scanning} onClick={scan}>{t("app.commander.scanAgain")}</button>
-        </div>
       </div>
     </div>,
     document.body,

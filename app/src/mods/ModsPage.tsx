@@ -9,9 +9,10 @@ import { notify } from "../notices";
 import { SortDialog, SortIcon, type SortPlan } from "./SortDialog";
 import { Confirm } from "../Confirm";
 import { ContextMenu, type MenuItem } from "../ContextMenu";
-import { ChevronIcon, CloseIcon, DeployIcon, ExternalIcon, FolderAddIcon, FolderIcon, ImportIcon, LockIcon, PlusIcon, ProfilesIcon, PurgeIcon, SearchIcon, SlidersIcon, SwitchOffIcon, SwitchOnIcon, TrashIcon, UnlockIcon, UpdateIcon } from "../Icons";
-import { language, pick, t } from "../i18n";
-import { useNav } from "../nav";
+import { ChevronIcon, CloseIcon, DeployIcon, ExternalIcon, FolderAddIcon, FolderIcon, ImportIcon, LockIcon, PlusIcon, ProfilesIcon, PurgeIcon, SearchIcon, SlidersIcon, StoreIcon, SwitchOffIcon, SwitchOnIcon, TrashIcon, UnlockIcon, UpArrowIcon, UpdateIcon } from "../Icons";
+import { dragResize, keepWidth } from "../dragResize";
+import { language, pick, t, tn } from "../i18n";
+import { go, useNav } from "../nav";
 import { ProfileGuards, ProfilesDialog } from "../ProfilesDialog";
 import { Thumb } from "../Thumb";
 import type { ModRow, Snapshot } from "../types";
@@ -19,9 +20,11 @@ import { winners } from "./conflicts";
 import { CrashBanner } from "./CrashBanner";
 import { Problems } from "./Problems";
 import { Drawer } from "./Drawer";
-import { pickAndImport } from "./dropImport";
+import { copyText, pastedMods, pastedPaths } from "./clipboard";
+import { importPaths, pickAndImport } from "./dropImport";
+import { useListKeys } from "../shortcuts";
 import { DeleteFolder, FOLDER_COLORS, FolderDialog } from "./FolderDialog";
-import { changes, flatten, moveMods, nudge, pinned, toEnd, toTree, type Node } from "./layout";
+import { changes, flatten, lines, moveMods, nudge, pinned, toEnd, toTree, type Node } from "./layout";
 import { ModTable, type MenuTarget } from "./ModTable";
 import { changelogUrl, checkModUpdates, offered, updateMod, updateMods, useModUpdates } from "./modUpdates";
 import { filterMods } from "./rows";
@@ -58,13 +61,20 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState<Node[] | null>(null);
   const [view, setView] = useState<DrawerView>(null);
-  /** The X on the conflicts closes them; a conflict icon on a row brings them back. */
-  const [conflictsClosed, setConflictsClosed] = useState(false);
   const [profiles, setProfiles] = useState(false);
   const [checked, setChecked] = useState<Set<string>>(new Set());
-  const [menu, setMenu] = useState<{ x: number; y: number; up?: boolean; target: MenuTarget } | null>(null);
-  const [addMenu, setAddMenu] = useState<{ x: number; y: number } | null>(null);
-  const [profileMenu, setProfileMenu] = useState<{ x: number; y: number; opener: HTMLElement } | null>(null);
+  // One menu open at most: the row menu, the Add menu or the profile menu. Opening one closes another,
+  // and each closes only itself.
+  type RowMenu = { x: number; y: number; up?: boolean; target: MenuTarget };
+  type AddMenu = { x: number; y: number };
+  type ProfileMenu = { x: number; y: number; opener: HTMLElement };
+  const [shownMenu, setShownMenu] = useState<({ kind: "row" } & RowMenu) | ({ kind: "add" } & AddMenu) | ({ kind: "profile" } & ProfileMenu) | null>(null);
+  const menu = shownMenu?.kind === "row" ? shownMenu : null;
+  const addMenu = shownMenu?.kind === "add" ? shownMenu : null;
+  const profileMenu = shownMenu?.kind === "profile" ? shownMenu : null;
+  const setMenu = (v: RowMenu | null) => setShownMenu((o) => (v ? { kind: "row", ...v } : o?.kind === "row" ? null : o));
+  const setAddMenu = (v: AddMenu | null) => setShownMenu((o) => (v ? { kind: "add", ...v } : o?.kind === "add" ? null : o));
+  const setProfileMenu = (v: ProfileMenu | null) => setShownMenu((o) => (v ? { kind: "profile", ...v } : o?.kind === "profile" ? null : o));
   const [ask, setAsk] = useState<Ask>(null);
   const [width, setWidth] = useState(savedWidth);
   const [sortPlan, setSortPlan] = useState<SortPlan | null>(null);
@@ -120,11 +130,15 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
     return () => window.removeEventListener("keydown", key);
   }, [tab]);
 
+  // Each change of order is numbered: the end of one that a newer one followed leaves the newer
+  // order on screen, instead of the saved order of the older one until the newer lands.
+  const arranging = useRef(0);
   const arrange = async (next: Node[]) => {
     const { ids, moves } = changes(saved, next);
+    const n = ++arranging.current;
     setPending(next);
     await run("set_order", { ids, moves });
-    setPending(null);
+    if (n === arranging.current) setPending(null);
   };
 
   // Sort Mods: the preview first, then the order it showed; Undo puts the tree from before back.
@@ -159,6 +173,31 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
   const folderOf = (id: string) => snap.folders.find((f) => f.id === id);
   const membersOf = (id: string) => snap.mods.filter((m) => m.folder === id).map((m) => m.id);
 
+  // Ctrl+A checks the mods the list shows (the search applies, closed folders keep theirs), or unchecks
+  // them when all are checked, as the box in the header does. Ctrl+C copies the checked mods (or the
+  // open one) as names and versions; Ctrl+V checks the mods a pasted list names, or imports pasted paths.
+  const clipMod = (id: string) => ({ id, name: names.get(id) ?? id, version: byId.get(id)?.version ?? null });
+  useListKeys(tab === "mods", {
+    selectAll: () => {
+      const shown = searching ? rows.map((r) => r.id) : lines(tree).flatMap((l) => (l.kind === "mod" ? [l.id] : []));
+      if (shown.length) check(shown, !shown.every((id) => checked.has(id)));
+    },
+    copy: () => {
+      const ids = checked.size ? inOrder([...checked]) : view?.kind === "mod" && byId.has(view.id) ? [view.id] : [];
+      if (!ids.length) return null;
+      notify("info", tn("app.mods.copied", ids.length));
+      return copyText(ids.map(clipMod));
+    },
+    paste: (text) => {
+      const paths = pastedPaths(text);
+      if (paths) return void importPaths(paths);
+      const ids = pastedMods(text, order.map(clipMod));
+      if (!ids.length) return notify("info", t("app.mods.pasteNone"));
+      check(ids, true);
+      notify("info", tn("app.mods.pasteChecked", ids.length));
+    },
+  });
+
   /** The actions for some mods: the menu of a row, or of every checked mod on a right click (or the Menu key) on one of them. */
   const modItems = (ids: string[]): MenuItem[] => {
     const one = ids.length === 1 ? byId.get(ids[0]) : undefined;
@@ -190,7 +229,7 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
         ],
       },
       "sep",
-      { label: ids.length > 1 ? t("app.menu.removeN", ids.length) : t("app.menu.remove"), icon: <TrashIcon />, danger: true, run: () => setAsk({ kind: "remove", ids }) },
+      { label: ids.length > 1 ? tn("app.menu.removeN", ids.length) : t("app.menu.remove"), icon: <TrashIcon />, danger: true, run: () => setAsk({ kind: "remove", ids }) },
     ];
   };
   /** Takes mods out of their folders, right after the folder they were in. */
@@ -225,21 +264,8 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
 
   // The resize handle: the drawer width is kept between visits.
   const resize = (e: PointerEvent<HTMLDivElement>) => {
-    const el = e.currentTarget;
-    el.setPointerCapture(e.pointerId);
     const box = body.current!.getBoundingClientRect();
-    const moveTo = (x: number) => setWidth(Math.round(Math.max(DRAWER_MIN_PX, Math.min(box.right - x, box.width - LIST_MIN_PX))));
-    const onMove = (ev: globalThis.PointerEvent) => moveTo(ev.clientX);
-    const onUp = () => {
-      el.removeEventListener("pointermove", onMove);
-      el.removeEventListener("pointerup", onUp);
-      setWidth((w) => {
-        try { localStorage.setItem(DRAWER_KEY, String(w)); } catch { /* the width is a convenience */ }
-        return w;
-      });
-    };
-    el.addEventListener("pointermove", onMove);
-    el.addEventListener("pointerup", onUp);
+    dragResize(e, (x) => Math.round(Math.max(DRAWER_MIN_PX, Math.min(box.right - x, box.width - LIST_MIN_PX))), setWidth, (w) => keepWidth(DRAWER_KEY, w));
   };
 
   const sel = inOrder([...checked]);
@@ -249,12 +275,10 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
   const waiting = snap.mods.filter((m) => offered(modUpdates.found, m)).map((m) => m.id);
   const allUpdatable = snap.mods.filter((m) => m.updatable).map((m) => m.id);
   const askFolder = ask?.kind === "editFolder" || ask?.kind === "deleteFolder" ? folderOf(ask.id) : undefined;
-  // The panel shows a selected mod, or the conflicts; with neither, the list takes the whole width.
-  const panel = (view?.kind === "mod" && snap.mods.some((m) => m.id === view.id)) || view?.kind === "conflicts" || (shownConflicts.length > 0 && !conflictsClosed);
-  const closeDrawer = () => {
-    if (view?.kind !== "mod") setConflictsClosed(true);
-    setView(null);
-  };
+  // The panel shows a selected mod, or the conflicts when a conflict icon opened them (never by itself);
+  // with neither, the list takes the whole width.
+  const panel = (view?.kind === "mod" && snap.mods.some((m) => m.id === view.id)) || view?.kind === "conflicts";
+  const closeDrawer = () => setView(null);
 
   return (
     <div className="mods">
@@ -290,7 +314,7 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
         {waiting.length > 0 && (
           <button className="btn play head-update" onClick={() => updateMods(waiting, names)}
             aria-label={t("app.mods.updateAll", waiting.length)} data-tip-title={t("app.mods.updateAll", waiting.length)} data-tip={t("app.mods.updateAllHint")}>
-            <UpdateIcon /><span>{waiting.length}</span>
+            <UpArrowIcon /><span>{waiting.length}</span>
           </button>
         )}
         <label className="search">
@@ -309,7 +333,6 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
           </button>
         </div>
       </div>
-      <CrashBanner snap={snap} />
       <Problems snap={snap} />
       <div className="mods-body" ref={body} style={width ? { ["--drawer-w" as string]: `${width}px` } : undefined}>
         <section className={sel.length ? "list batched" : "list"}>
@@ -327,11 +350,15 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
           {snap.mods.length === 0 && (
             <div className="list-empty">
               <h2 className="cap">{t("app.mods.emptyTitle")}</h2>
-              <p className="muted">{t("app.mods.emptyText")}</p>
+              <p className="muted">{(() => {
+                // The Kit phrase links to the Store tab, which installs the Kit mods again.
+                const [before, after = ""] = t("app.mods.emptyText", "%s").split("%s");
+                return <>{before}<button className="link" onClick={() => go("store")}>{t("app.mods.emptyKit")}</button>{after}</>;
+              })()}</p>
               <div className="row-btns">
                 <button className="btn small" onClick={() => pickAndImport(false)}><ImportIcon />{t("app.mods.importZip")}</button>
                 <button className="btn small" onClick={() => pickAndImport(true)}><FolderIcon />{t("app.mods.importFolder")}</button>
-                <button className="btn small" onClick={() => run("restore_starter_pack")}>{t("app.settings.starterRestore")}</button>
+                <button className="btn small" onClick={() => go("store")}><StoreIcon />{t("app.mods.browseStore")}</button>
               </div>
             </div>
           )}
@@ -356,7 +383,7 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
           {sorted && sel.length === 0 && (
             <div className="batch-dock">
               <div className="batch sort-done" role="status">
-                <span className="batch-n">{sorted.count === 1 ? t("app.sort.doneOne") : t("app.sort.done", sorted.count)}</span>
+                <span className="batch-n">{tn("app.sort.done", sorted.count)}</span>
                 <button className="btn small" onClick={() => undoSort(sorted)}>{t("app.sort.undo")}</button>
                 <button className="bare batch-x" onClick={() => setSorted(null)} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /></button>
               </div>
@@ -367,10 +394,12 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
           <>
             <div className="split" role="separator" aria-orientation="vertical" aria-label={t("app.mods.resize")} onPointerDown={resize}
               onDoubleClick={() => { setWidth(0); try { localStorage.removeItem(DRAWER_KEY); } catch { /* fine */ } }} data-tip={t("app.mods.resizeHint")} />
-            <Drawer view={view} mods={snap.mods} conflicts={shownConflicts} order={order} names={names} onOpen={(id) => setView({ kind: "mod", id })} onClose={closeDrawer} conflictsClosed={conflictsClosed} />
+            <Drawer view={view} mods={snap.mods} conflicts={shownConflicts} order={order} names={names} onOpen={(id) => setView({ kind: "mod", id })} onClose={closeDrawer} />
           </>
         )}
       </div>
+      {/* Under the list: a word about the last launch, out of the way of the tools and the mods. */}
+      <CrashBanner snap={snap} />
       {profiles && <ProfilesDialog snap={snap} onClose={() => setProfiles(false)} />}
       {sortPlan && (
         <SortDialog plan={sortPlan} name={(id) => names.get(id) ?? id} off={new Set(snap.mods.filter((m) => !m.on).map((m) => m.id))}
@@ -384,6 +413,7 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
         <ContextMenu x={addMenu.x} y={addMenu.y} onClose={() => setAddMenu(null)} items={[
           { label: t("app.mods.importZip"), icon: <ImportIcon />, run: () => pickAndImport(false) },
           { label: t("app.mods.importFolder"), icon: <FolderIcon />, run: () => pickAndImport(true) },
+          { label: t("app.mods.browseStore"), icon: <StoreIcon />, run: () => go("store") },
         ]} />
       )}
       {ask?.kind === "newFolder" && (
@@ -401,7 +431,7 @@ export function ModsPage({ snap, busy, onPurge, onDeploy }: { snap: Snapshot; bu
       )}
       {ask?.kind === "update" && byId.get(ask.id) && <UpdateConfirm mod={byId.get(ask.id)!} to={offered(modUpdates.found, byId.get(ask.id)!) ?? ""} onDone={() => setAsk(null)} />}
       {ask?.kind === "remove" && (
-        <Confirm title={ask.ids.length === 1 ? t("app.drawer.removeTitle", names.get(ask.ids[0]) ?? ask.ids[0]) : t("app.mods.removeNTitle", ask.ids.length)}
+        <Confirm title={ask.ids.length === 1 ? t("app.drawer.removeTitle", names.get(ask.ids[0]) ?? ask.ids[0]) : tn("app.mods.removeNTitle", ask.ids.length)}
           text={t("app.drawer.removeText")} confirm={t("app.drawer.remove")} onCancel={() => setAsk(null)}
           onConfirm={() => { run("remove_mods", { ids: ask.ids }); setAsk(null); if (view?.kind === "mod" && ask.ids.includes(view.id)) setView(null); }} />
       )}

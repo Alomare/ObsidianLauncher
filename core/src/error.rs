@@ -88,6 +88,8 @@ pub enum ObsidianError {
     NewerObsidian { needs: String },
     #[error("another deploy or purge is running on this library; try again when it ends")]
     Busy,
+    #[error("{0} is already being installed or updated")]
+    InstallUnderWay(String),
     #[error("deploy failed and was undone: {0}")]
     DeployFailed(String),
     #[error("purge couldn't remove a file, so run it again with the game closed: {0}")]
@@ -106,6 +108,14 @@ pub enum ObsidianError {
     UpdateNetwork(String),
     #[error("GitHub's limit on update checks was reached, so try again in about an hour")]
     UpdateLimited,
+    #[error("the Store list is in a newer format: update Obsidian to see the Store")]
+    StoreFormat,
+    #[error("{0} is not in the Store")]
+    StoreUnknown(String),
+    #[error("sign in to GitHub first, or again: GitHub didn't accept the sign-in")]
+    GitHubSignIn,
+    #[error("GitHub refused: {0}")]
+    GitHub(String),
     #[error("this save can't be read: {0}")]
     BadSave(String),
     #[error("there is no save with the id {0}")]
@@ -118,6 +128,10 @@ pub enum ObsidianError {
     SandboxSave { op: String },
     #[error("this save is in use: activate another save first")]
     SaveInUse,
+    #[error("the name typed does not match the save name, so nothing was deleted")]
+    SaveNameMismatch,
+    #[error("this Official save is active: switch to another Official save first")]
+    ActiveOfficialSave,
     #[error("{0:?} can't be a save name: use 1 to 40 characters and no line breaks")]
     SaveName(String),
     #[error("{0} is a save export from a newer version of Obsidian")]
@@ -136,6 +150,8 @@ pub enum ObsidianError {
     CommanderMissing,
     #[error("no war {0} on this PC")]
     WarUnknown(String),
+    #[error("this war can't be played on that save: {0}")]
+    WarSave(String),
     #[error("the Commander server didn't start: {0}")]
     CommanderServer(String),
     #[error("the Commander server is still running, so stop it first")]

@@ -1,78 +1,74 @@
 ---
-title: Treinador Obsidian (Trainer)
+title: Obsidian Trainer
 group: Primeiros passos
 summary: O menu dentro do jogo que muda quase tudo.
 ---
 
-O Obsidian Trainer é um menu dentro do jogo para personagem, armas, estratagemas, inimigos, missões e dados do jogo. Ele vem com o Obsidian e começa desligado.
+O Obsidian Trainer é um menu dentro do jogo para o personagem, armas, estratagemas, inimigos, missões e dados do jogo. Ele vem com o Obsidian e começa desligado.
 
-## Como ligar {#turning-it-on}
+## Ligar {#turning-it-on}
 
-Ligue o **Obsidian Trainer** na lista de mods e aplique. O Obsidian API, o mod em que ele é construído, liga junto. No jogo, **F6** abre o menu, e as páginas do Trainer ficam na pasta **Obsidian Trainer**, à esquerda. A janela e a tecla pertencem ao Obsidian API, então as páginas de outros mods também aparecem ali, cada mod numa pasta separada, e a aba Teclas do Obsidian API troca a tecla.
+Ligue o **Obsidian Trainer** na lista de Mods e aplique. O Obsidian API, o mod em que o Trainer se baseia, liga junto. No jogo, **F6** abre o menu, e as páginas do Trainer ficam na pasta **Obsidian Trainer** à esquerda. A janela e a tecla vêm do Obsidian API, então páginas de outros mods também aparecem ali, cada mod numa pasta, e a aba Teclas do Obsidian API muda a tecla.
 
 | Tecla | O que faz |
 |---|---|
-| Setas, ou W A S D | Mover e mudar um valor |
-| Enter, ou E | Escolher, ou digitar um número |
-| Shift com esquerda ou direita | Mudar um número dez passos por vez |
-| Tab | Filtrar a lista |
-| R | Redefinir o valor selecionado |
-| Esc, ou Q | Voltar e fechar |
+| Setas, ou W A S D | Move, e muda um valor |
+| Enter, ou E | Seleciona, ou digita um número |
+| Shift com esquerda ou direita | Muda um número de dez em dez |
+| Tab | Filtra a lista |
+| R | Restaura o valor selecionado |
+| Esc, ou Q | Volta, e fecha |
 
-O rodapé do menu mostra essas teclas como ícones de tecla. Ao digitar numa linha, o texto aparece na própria linha, e uma linha de código de estratagema aceita as setas ou W A S D, com Backspace para apagar a última direção.
-
-O menu também funciona com o mouse, com o cursor normal do sistema.
+O rodapé do menu mostra essas teclas como teclas desenhadas. Uma linha em edição mostra o texto no lugar, e uma linha de código de estratagema aceita as setas ou W A S D, com Backspace para apagar um passo. O menu também funciona com o mouse, com o cursor normal do sistema:
 
 | Mouse | O que faz |
 |---|---|
-| Apontar para uma linha | Selecionar |
-| Clicar em uma linha | Usar |
-| Clicar em `<` ou `>` | Mudar um valor; segurar para continuar mudando |
-| Clicar em um número | Digitar um valor |
-| Clicar na seta no fim de uma linha | Redefinir o valor, depois de alterado |
-| Roda, ou a barra ao lado | Rolar a lista |
-| Botão direito | Voltar |
-| Barra de título | Arrastar para mover a janela |
-| Canto inferior direito | Arrastar para mudar o tamanho da janela |
+| Apontar para uma linha | Seleciona a linha |
+| Clicar numa linha | Usa a linha |
+| Clicar em `<` ou `>` | Muda um valor, e segurar continua mudando |
+| Clicar num número | Digita um valor |
+| Clicar na seta no fim de uma linha | Restaura o valor, depois que ele mudou |
+| Roda, ou a barra lateral | Rola a lista |
+| Botão direito | Volta |
+| Barra de título | Arrastar move a janela |
+| Canto inferior direito | Arrastar redimensiona a janela |
 
-A janela abre onde foi deixada da última vez, no mesmo tamanho. Na lista, Enter ou um clique abre e fecha uma pasta, e cada pasta fica como foi deixada.
+A janela abre onde foi deixada, com o mesmo tamanho. Na lista, Enter ou um clique abre e fecha uma pasta, e cada pasta fica como foi deixada.
 
-O menu trava o personagem enquanto está aberto, e fecha sozinho quando o jogo muda de tela, como no início de uma missão. Um controle navega pelo menu, mas quem abre é o F6.
+O menu trava o personagem enquanto está aberto e fecha sozinho quando o jogo troca de tela, como no começo de uma missão. Um controle pode navegar pelo menu, mas só F6 o abre.
 
-## O que tem nele {#whats-in-it}
+## O que tem nele {#what-is-in-it}
 
-- **Jogador:** modo deus, corrida infinita, velocidade, teleporte, reaparecer, e os capacetes, armaduras e capas que a conta possui.
-- **Armas:** munição infinita, recarga instantânea, reabastecimento, a cadência, o dano, o carregador, a recarga, a dispersão e a perfuração de blindagem de cada arma que o jogador carrega, e qualquer arma, mochila ou vantagem do jogo base ou de uma DLC da conta, com as melhorias escolhidas.
-- **Estratagemas:** sem tempo de recarga, usos ilimitados, chamada instantânea, ignorar zonas sem estratagemas, qualquer estratagema do jogo base ou de uma DLC da conta lançado no cursor, e sinalizadores reais, inclusive Reforço. **Novo estratagema** cria um estratagema a partir de um do jogo: nome, código, ícone, recarga, usos e tempo de chegada, e o que acontece quando ele chega. Os outros jogadores veem o estratagema de origem, e ele volta no próximo início do jogo.
-- **Veículos:** velocidade, giro, armadura, sem dano e foguetes de exotraje infinitos no veículo em uso, mais reparo e reabastecimento.
-- **Bots:** Helldivers controlados por este computador, com um espaço no HUD ou, acima de quatro jogadores, como Helldivers avulsos. Ordens para todos os bots ou para cada um: seguir o jogador, manter a posição, ir até o cursor, vir até o jogador, lutar, olhar para o cursor, atirar, lançar granadas, recarregar, digitar um código de estratagema como um jogador faz e lançar o sinalizador no cursor, e chamar estratagemas, além de armas, mochilas, vantagens e estratagemas para dar a eles. Só para o host, durante uma missão.
-- **Criar:** munição, caixas de suprimentos e itens no chão na hora, e sinalizadores no cursor.
-- **Inimigos:** parar o surgimento, congelar, cegar ou atordoar, matar, criar mais e ajustar a pressão de encontros e patrulhas.
-- **Missão:** a lista de objetivos, concluir objetivos, proteger comboios e escoltas, extração rápida, pular esperas, modificadores do campo de provas em qualquer missão, os jogadores do lobby, amostras de pesquisa e missões personalizadas de qualquer tipo a partir da nave, que rendem XP e amostras e não mexem na campanha.
-- **Mundo:** velocidade do jogo, câmera, HUD, neblina, hora do dia e gravidade, e o som: volumes e uma página **Trilha sonora** que toca qualquer faixa de música da tela atual, cala ou pausa a música e a devolve ao jogo.
+- **Jogador:** modo deus, corrida infinita, velocidade, teletransporte, renascimento, e capacetes, armaduras e capas possuídos.
+- **Armas:** munição infinita, recarga instantânea, reabastecimento, cadência, dano, carregador, recarga, dispersão e perfuração de blindagem de cada arma que o jogador segura, e qualquer arma, mochila ou vantagem do jogo base ou de um DLC possuído, com as melhorias escolhidas.
+- **Estratagemas:** sem recarga, usos ilimitados, chamadas instantâneas, ignorar zonas sem estratagemas, qualquer estratagema do jogo base ou de um DLC possuído lançado no cursor, e sinalizadores de verdade, Reforço incluído. **Novo estratagema** cria um estratagema a partir de um do jogo: nome, código, ícone, recarga, usos e tempo de chamada, e o que acontece quando ele cai. Os outros jogadores veem o estratagema de origem, e ele volta no próximo início do jogo.
+- **Veículos:** velocidade, curva, blindagem, sem dano e foguetes infinitos do exotraje para o veículo que está sendo dirigido, além de reparos e reabastecimento.
+- **Bots:** Helldivers controlados por esta máquina, com um espaço no HUD ou como corpos simples além de quatro jogadores. Ordens para todos os bots ou para cada um: seguir o jogador, esperar, andar até o cursor, vir até o jogador, lutar, olhar para o cursor, atirar, arremessar, recarregar, digitar um código de estratagema como um jogador e lançar o sinalizador no cursor, e chamar estratagemas, além de armas, mochilas, vantagens e estratagemas para dar a eles. Só para o anfitrião, numa missão.
+- **Criar:** munição, caixas de suprimento e itens no local, e sinalizadores no cursor.
+- **Inimigos:** parar o surgimento, congelar, cegar ou atordoar inimigos, matá-los, criar mais e ajustar o quanto os encontros e patrulhas pressionam.
+- **Missão:** a lista de objetivos, concluir objetivos, proteger comboios e escoltas, extração rápida, pular esperas, modificadores do Proving Grounds em qualquer missão, os jogadores do lobby, amostras de pesquisa e missões personalizadas de qualquer tipo a partir da nave, que pagam XP e amostras e não mexem na campanha.
+- **Mundo:** velocidade do jogo, câmera, HUD, névoa, hora do dia e gravidade, e o som: volumes, e uma página **Trilha sonora** que toca qualquer faixa de música que a tela tem, silencia ou pausa a faixa e a devolve ao jogo.
 - **Editor:** os números de cada arma, granada, mochila, estratagema, sentinela, mina, ataque, veículo, inimigo e efeito de status.
 - **Console:** os comandos de desenvolvedor.
-- **Alterações:** tudo que está ligado ou editado, com um jeito de desfazer tudo de uma vez.
+- **Alterações:** tudo o que foi ligado ou editado, com um jeito de desfazer tudo de uma vez.
 
-Cada opção tem uma descrição no rodapé do menu enquanto está selecionada. A criação de inimigos para quando o mapa chega a 64 inimigos, contando cadáveres, porque muito mais que isso pode travar o jogo. Ações que só o host pode fazer avisam isso quando escolhidas.
+Cada opção tem uma descrição no rodapé do menu enquanto está selecionada. O surgimento para quando o mapa tem 64 inimigos, cadáveres incluídos, porque muito mais que isso pode travar o jogo. Ações que só o anfitrião pode fazer avisam quando escolhidas.
 
-## O que ele não faz {#what-it-wont-do}
+## O que ele não faz {#what-it-doesn-t-do}
 
-- **Sem edição de progressão.** Nenhuma página do Trainer escreve no save. O que uma missão com ele ligado rende conta, como em qualquer outra. As [Proteções](wiki:guardrails) podem fazer uma abertura do jogo não contar.
-- **Sem DLC que o jogador não tem.** As listas mostram todo o jogo base, o que foi desbloqueado jogando, mais as DLCs da conta. Os itens duram só aquela missão, então nada é adicionado ao save.
-- **Sem mudanças na guerra compartilhada.** Comandos que informam a Guerra Galáctica são recusados, e os resultados continuam bloqueados ([A Guerra Galáctica](wiki:galactic-war)).
+- **Nenhuma edição de progressão.** Nenhuma página do Trainer escreve no save. O que uma missão com ele ligado rende conta, como em qualquer outra. As [Proteções](wiki:guardrails) podem impedir que um início do jogo conte.
+- **Nenhum DLC que o jogador não possui.** As listas mostram todo o jogo base, o que foi desbloqueado jogando e o DLC possuído. Os itens duram só aquela missão, então nada é adicionado ao save.
+- **Nenhuma mudança na guerra compartilhada.** Comandos que reportam à Guerra Galáctica são recusados, e os resultados continuam bloqueados ([A Guerra Galáctica](wiki:galactic-war)).
 
 > [!WARNING]
-> O jogo tem uma verificação anti-adulteração que desconecta o jogador da rede até o jogo reiniciar. O Obsidian Trainer só muda valores protegidos do jeito que o próprio jogo muda, então ela não deve disparar. Outras ferramentas e scripts feitos à mão podem disparar.
+> O jogo tem uma verificação antiadulteração que corta o jogador da rede até o jogo reiniciar. O Obsidian Trainer muda valores protegidos só do jeito que o próprio jogo faz, então não deve dispará-la. Outras ferramentas e scripts feitos à mão podem.
 
-## Jogar com outras pessoas {#playing-with-others}
+## Jogar com outros {#playing-with-others}
 
-O Trainer é um mod de sessão, então num lobby público todos precisam usar os mesmos mods ou permitir mods de sessão ([Jogar online](wiki:multiplayer)). Quando entra alguém que não cumpre isso, cada mudança é desfeita e as páginas do Trainer fecham até esse jogador sair. Depois as mudanças voltam. Num lobby só para amigos ou privado, ele sempre roda.
+O Trainer é um mod de sessão, então num lobby público todos precisam rodar os mesmos mods ou permitir mods de sessão ([Jogar online](wiki:multiplayer)). Quando entra alguém que não faz isso, toda mudança é desfeita e as páginas do Trainer fecham até esse jogador sair, e então as mudanças voltam. Num lobby só para amigos ou privado, o Trainer sempre roda. Os números do Editor e as duas linhas de dano rodam no jogo de cada jogador, então funcionam melhor quando todos usam os mesmos.
 
-Os números do Editor e as duas linhas de dano rodam no jogo de cada jogador, então funcionam melhor quando todos usam os mesmos.
+Duas coisas exigem um lobby com um só jogador: dar a mira laser, porque os jogos dos outros jogadores a rodariam sem preparação, e `spawn_enemy` no console, porque carrega um pacote num jogo só.
 
-Duas coisas exigem um lobby com um só jogador: dar a mira laser, porque o jogo dos outros jogadores a rodaria sem preparo, e o `spawn_enemy` do console, porque ele carrega um pacote em um jogo só.
+## Manter as mudanças {#keeping-changes}
 
-## Manter mudanças {#keeping-changes}
-
-As mudanças duram até o jogo fechar. Em **Alterações**, **Manter edições para os próximos inícios** salva as edições do Editor, e elas voltam a cada início enquanto a opção **Manter edições salvas** do mod estiver ligada.
+As mudanças duram até o jogo fechar. Em **Alterações**, **Manter edições para os próximos inícios** salva as edições do Editor, e elas voltam a cada início do jogo enquanto a opção **Manter edições salvas** do mod estiver ligada.

@@ -1,31 +1,45 @@
-// The Play choice: the right part of the split Play button opens it when there is more than one war to
+// The Play choice: the right part of the split Play button opens it when there is more than one war or save to
 // play. The official war comes first, then the custom wars this PC hosts (running or paused) and the
-// LAN wars it joined; beside them, the saves the chosen war can boot. Select makes it what Play starts.
-import { useCallback, useEffect, useMemo, useState } from "react";
+// LAN wars it joined; beside them, the saves the chosen war can boot. The official war boots any save.
+// A custom war boots any Sandbox save, or only the one made for it when the war says so; with none
+// picked, the war gets that save on first use. Apply makes it what Play starts.
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { call, errorText, setSnapshot } from "../api";
 import { withTask } from "../busy";
 import { Confirm } from "../Confirm";
-import { CheckIcon } from "../Icons";
+import { CheckIcon, CubeIcon, StarIcon } from "../Icons";
 import { t } from "../i18n";
 import { notify } from "../notices";
+import { useLayer } from "../Modal";
 import type { SaveList, SaveRow } from "../saves/types";
 import type { Snapshot } from "../types";
 import { reloadChoices, type Choices, type WarChoice } from "./choices";
 import "./play.css";
+import { PadGlyph } from "../pad/PadGlyph";
 
 type Done = { snapshot: Snapshot };
 
-/** The saves the official war can boot: all but the ones made for custom wars. */
-export const vanillaSaves = (list: SaveList, wars: WarChoice[]) => {
-  const warSaves = new Set(wars.map((w) => w.save).filter(Boolean));
-  return list.saves.filter((s) => !warSaves.has(s.id));
-};
+/** The saves the official war can boot: every one, war saves included. */
+export const vanillaSaves = (list: SaveList) => list.saves;
 
-/** The save the official war would boot when nothing else is picked: the active one when it is not a war
- *  save, else the Official save in the game files. */
+/** The save the official war would boot when nothing else is picked: the active one, else the Official
+ *  save in the game files. */
 export const defaultVanillaSave = (list: SaveList, saves: SaveRow[]) =>
   saves.find((s) => s.id === list.active)?.id ?? saves.find((s) => s.kind === "official" && s.live)?.id ?? saves.find((s) => s.kind === "official")?.id ?? saves[0]?.id ?? null;
+
+/** The saves a custom war can boot: the save made for it first, then every other Sandbox unless the war
+ *  keeps to its own. An Official save never plays a custom war. */
+export const warSaves = (list: SaveList, war: WarChoice) => {
+  const own = list.saves.find((s) => s.id === war.save && s.kind === "sandbox");
+  const others = war.ownSaveOnly ? [] : list.saves.filter((s) => s.kind === "sandbox" && s.id !== war.save);
+  return own ? [own, ...others] : others;
+};
+
+/** The save a custom war starts from in the dialog: the active save when the war can boot it, else the
+ *  save made for it. null: none yet, so selecting makes one. */
+export const defaultWarSave = (list: SaveList, war: WarChoice, saves: SaveRow[]) =>
+  saves.find((s) => s.id === list.active)?.id ?? saves.find((s) => s.id === war.save)?.id ?? null;
 
 export function PlayChoice({ snap, choices, onClose }: { snap: Snapshot; choices: Choices; onClose: () => void }) {
   const running = snap.game === "running";
@@ -41,22 +55,17 @@ export function PlayChoice({ snap, choices, onClose }: { snap: Snapshot; choices
   useEffect(() => {
     call<SaveList>("saves_list").then(setList).catch((e) => setFailed(errorText(e)));
   }, []);
-  useEffect(() => {
-    const key = (e: KeyboardEvent) => e.key === "Escape" && !ask && onClose();
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [onClose, ask]);
+  useLayer(() => { if (!ask) onClose(); });
 
   const chosen = war ? choices.wars.find((w) => w.id === war) ?? null : null;
-  const vanilla = useMemo(() => (list ? vanillaSaves(list, choices.wars) : []), [list, choices.wars]);
-  // The save follows the war: the war save for a custom war, the last pick or the default for the official war.
+  const saves: SaveRow[] = useMemo(() => (!list ? [] : chosen ? warSaves(list, chosen) : vanillaSaves(list)), [list, chosen]);
+  // The save follows the war: the last pick when the war can boot it, else the default of the war.
   useEffect(() => {
     if (!list) return;
-    if (chosen) setSave(chosen.save ?? null);
-    else setSave((s) => (s && vanilla.some((v) => v.id === s) ? s : defaultVanillaSave(list, vanilla)));
-  }, [list, chosen, vanilla]);
+    setSave((s) => (s && saves.some((v) => v.id === s) ? s : chosen ? defaultWarSave(list, chosen, saves) : defaultVanillaSave(list, saves)));
+  }, [list, chosen, saves]);
 
-  const unchanged = list != null && war === current && (chosen ? !chosen.save || chosen.save === list.active : save === list.active);
+  const unchanged = list != null && war === current && save != null && save === list.active;
 
   const apply = useCallback(async (row?: SaveRow) => {
     setAsk(null);
@@ -64,8 +73,9 @@ export function PlayChoice({ snap, choices, onClose }: { snap: Snapshot; choices
     setBusy(true);
     try {
       if (chosen) {
-        const pick = { id: chosen.id, name: chosen.name, host: chosen.host, base: chosen.base, computer: chosen.computer, model: chosen.model === "evolved" ? "evolved" : undefined };
-        const r = await withTask(t("app.commander.selecting"), () => call<Done>("commander_select", { war: pick }), true);
+        const pick = { id: chosen.id, name: chosen.name, host: chosen.host, base: chosen.base, computer: chosen.computer, model: chosen.model === "enhanced" ? "enhanced" : undefined,
+          ownSaveOnly: !!chosen.ownSaveOnly, allowAchievements: !!chosen.allowAchievements };
+        const r = await withTask(t("app.commander.selecting"), () => call<Done>("commander_select", { war: pick, save }), true);
         setSnapshot(r.snapshot);
         notify("info", t("app.commander.selected", chosen.name));
       } else if (save) {
@@ -81,7 +91,7 @@ export function PlayChoice({ snap, choices, onClose }: { snap: Snapshot; choices
     }
   }, [unchanged, chosen, save, onClose]);
 
-  const saveRow = vanilla.find((s) => s.id === save);
+  const saveRow = saves.find((s) => s.id === save);
   const select = () => {
     // An Official save that isn't the one in the game files is written over them: the Saves tab asks first too.
     if (!chosen && saveRow && saveRow.kind === "official" && !saveRow.live && saveRow.id !== list?.active) setAsk(saveRow);
@@ -91,11 +101,14 @@ export function PlayChoice({ snap, choices, onClose }: { snap: Snapshot; choices
   const warMeta = (w: WarChoice) => [
     w.host === "lan" ? (w.computer ? t("app.commander.hostedBy", w.computer) : t("app.play.lanWar")) : t("app.commander.thisPc"),
     w.state === "paused" ? t("app.play.paused") : w.state === "running" ? t("app.play.ongoing") : null,
-    w.model === "evolved" ? t("app.play.evolved") : null,
+    w.model === "enhanced" ? t("app.play.enhanced") : null,
   ].filter(Boolean).join("  ·  ");
 
-  const warSave = chosen?.save ? list?.saves.find((s) => s.id === chosen.save) ?? null : null;
-  const saves: SaveRow[] = chosen ? (warSave ? [warSave] : []) : vanilla;
+  const hasOwn = !!chosen && saves.some((s) => s.id === chosen.save);
+  // One list for every war, each save marked by the icon of the kind as on the Saves tab: a star for
+  // Official, a cube for Sandbox. A custom war never lists an Official save.
+  const saveMeta = (s: SaveRow) => (chosen && s.id === chosen.save ? t("app.play.warSave") : "");
+  const kindIcon = (s: SaveRow) => (s.kind === "official" ? <StarIcon /> : <CubeIcon />);
 
   return createPortal(
     <div className="modal-back" onPointerDown={(e) => e.target === e.currentTarget && !ask && onClose()}>
@@ -104,9 +117,9 @@ export function PlayChoice({ snap, choices, onClose }: { snap: Snapshot; choices
           <section className="pc-col">
             <h3 className="pc-h">{t("app.play.wars")}</h3>
             <div className="pc-list" role="radiogroup" aria-label={t("app.play.wars")}>
-              <PickRow on={war === null} now={current === null} title={t("app.play.vanillaGame")} meta={t("app.play.vanillaGameHint")} onPick={() => setWar(null)} />
+              <PickRow on={war === null} title={t("app.play.vanillaGame")} meta="" onPick={() => setWar(null)} />
               {choices.wars.map((w) => (
-                <PickRow key={`${w.host}:${w.id}`} on={war === w.id} now={current === w.id} title={w.name} meta={warMeta(w)} onPick={() => setWar(w.id)} />
+                <PickRow key={`${w.host}:${w.id}`} on={war === w.id} title={w.name} meta={warMeta(w)} onPick={() => setWar(w.id)} />
               ))}
             </div>
           </section>
@@ -114,20 +127,21 @@ export function PlayChoice({ snap, choices, onClose }: { snap: Snapshot; choices
             <h3 className="pc-h">{t("app.play.saves")}</h3>
             <div className="pc-list" role="radiogroup" aria-label={t("app.play.saves")}>
               {!list && <div className="pc-empty">{failed ?? t("app.play.loadingSaves")}</div>}
+              {list && chosen && !hasOwn && (
+                <PickRow on={save === null} icon={<CubeIcon />} kind="sandbox" title={t("app.play.warSaveNewTitle")} meta={t("app.play.warSaveNew")} onPick={() => setSave(null)} />
+              )}
               {list && saves.map((s) => (
-                <PickRow key={s.id} on={save === s.id} now={list.active === s.id} title={s.name}
-                  meta={[s.kind === "official" ? t("app.saves.official") : t("app.saves.sandbox"), s.stats ? t("app.saves.rankN", s.stats.rank) : null].filter(Boolean).join("  ·  ")}
-                  onPick={() => !chosen && setSave(s.id)} fixed={!!chosen} />
+                <PickRow key={s.id} on={save === s.id} icon={kindIcon(s)} kind={s.kind} title={s.name} meta={saveMeta(s)}
+                  side={s.stats ? t("app.saves.rankN", s.stats.rank) : undefined} onPick={() => setSave(s.id)} />
               ))}
-              {list && chosen && !warSave && <div className="pc-empty">{t("app.play.warSaveNew")}</div>}
               {list && !chosen && saves.length === 0 && <div className="pc-empty">{t("app.play.noSaves")}</div>}
             </div>
-            {chosen && <p className="pc-note">{t("app.play.warSaveNote")}</p>}
+            {chosen && <p className="pc-note">{t(chosen.ownSaveOnly ? "app.play.warSaveOnly" : "app.play.warSaveAny")}</p>}
           </section>
         </div>
         <div className="modal-foot">
           {running && <span className="pc-warn">{t("app.commander.gameRunning")}</span>}
-          <button className="btn" onClick={onClose}>{t("app.cancel")}</button>
+          <button data-pad-back className="btn" onClick={onClose}><PadGlyph role="east" />{t("app.cancel")}</button>
           <button className="btn play" disabled={busy || running || !list || (!chosen && !save)} onClick={select}>{t("app.play.select")}</button>
         </div>
       </div>
@@ -137,17 +151,18 @@ export function PlayChoice({ snap, choices, onClose }: { snap: Snapshot; choices
   );
 }
 
-/** One line of the dialog: a war or a save. `now` marks what Play starts today; `fixed` a line that is the
- *  only choice (the save of a custom war). */
-function PickRow({ on, now, title, meta, onPick, fixed }: { on: boolean; now: boolean; title: string; meta: string; onPick: () => void; fixed?: boolean }) {
+/** One line of the dialog: a war or a save. A save has the icon of the kind before the name (gold star
+ *  for Official, green cube for Sandbox) and the rank on the right. */
+type PickProps = { on: boolean; title: string; meta: string; icon?: ReactNode; kind?: "official" | "sandbox"; side?: string; onPick: () => void };
+function PickRow({ on, title, meta, icon, kind, side, onPick }: PickProps) {
   return (
-    <button role="radio" aria-checked={on} className={`pc-row${on ? " on" : ""}${fixed ? " fixed" : ""}`} onClick={onPick}>
+    <button role="radio" aria-checked={on} className={`pc-row${on ? " on" : ""}`} onClick={onPick}>
       <span className="pc-mark" aria-hidden="true">{on && <CheckIcon />}</span>
       <span className="pc-text">
-        <span className="pc-title">{title}</span>
+        <span className="pc-title">{icon && <span className={`pc-icon ${kind ?? ""}`}>{icon}</span>}<span className="pc-name">{title}</span></span>
         {meta && <span className="pc-meta">{meta}</span>}
       </span>
-      {now && <span className="pc-now">{t("app.play.current")}</span>}
+      {side && <span className="pc-side">{side}</span>}
     </button>
   );
 }

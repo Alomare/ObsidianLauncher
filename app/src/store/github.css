@@ -1,0 +1,89 @@
+/* Store features that need GitHub: Report an issue, Submit a mod, stars, the authors' Issues panel. */
+
+.modal.report-dialog { width: min(40rem, 94vw); max-height: 90vh; }
+.report-dialog h2 { margin: 0; font-size: var(--fs-lg); }
+.report-dialog > p { margin: 0; font-size: var(--fs-md); line-height: 1.45; }
+.report-dialog .rf-as { margin-top: -0.4rem; color: var(--mu); font-size: var(--fs-sm); }
+.report-dialog .rf-as:empty { display: none; }
+.rf-code { font-size: var(--fs-md); }
+.rf-code b { font-size: var(--fs-lg); letter-spacing: 0.12em; color: var(--goldtx); }
+
+.rf-pick { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; background: var(--ln); }
+.rf-pick button {
+  width: 100%; display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; column-gap: 0.8rem; align-items: center;
+  padding: 0.6rem 0.8rem; border: 0; background: var(--s2); color: var(--tx); text-align: left; cursor: pointer; transition: background var(--fast);
+}
+.rf-pick button:hover, .rf-pick button:focus-visible { background: var(--s1); outline: 0; }
+.rf-pick b { font-size: var(--fs-base); }
+.rf-pick small { grid-column: 1; color: var(--mu); font-size: var(--fs-sm); }
+.rf-pick svg { grid-row: 1 / 3; grid-column: 2; width: 1rem; height: 1rem; transform: rotate(-90deg); color: var(--mu); }
+
+.rf-form { display: flex; flex-direction: column; gap: 0.65rem; min-height: 0; }
+.rf-scroll { display: flex; flex-direction: column; gap: 0.85rem; overflow: auto; max-height: 62vh; padding-right: 0.3rem; }
+.rf-field { display: flex; flex-direction: column; gap: 0.35rem; margin: 0; padding: 0; border: 0; min-width: 0; }
+.rf-field legend { padding: 0; margin-bottom: 0.35rem; }
+.rf-label { display: flex; flex-direction: column; gap: 0.15rem; font-size: var(--fs-md); font-weight: 600; }
+.rf-label small { font-weight: 400; color: var(--mu); font-size: var(--fs-sm); line-height: 1.4; }
+.rf-name { display: block; }
+.rf-req { font-style: normal; color: var(--warn); margin-left: 0.2rem; }
+.rf-note { margin: 0; color: var(--mu); font-size: var(--fs-sm); line-height: 1.45; white-space: pre-wrap; }
+.rf-field input, .rf-field textarea, .sub-row input {
+  width: 100%; box-sizing: border-box; padding: 0.45rem 0.6rem; background: var(--row); border: 1px solid var(--ln); color: var(--tx);
+  font: inherit; font-size: var(--fs-md); outline: 0; resize: vertical;
+}
+.rf-field input { height: 2.3rem; }
+.rf-field textarea.mono { font-family: ui-monospace, Consolas, monospace; font-size: var(--fs-sm); }
+.rf-field input:focus, .rf-field textarea:focus, .sub-row input:focus { border-color: var(--gold); }
+.bad > .rf-field input, .bad > .rf-field textarea, .rf-field.bad input { border-color: var(--warn); }
+.bad > .rf-field legend .rf-label, .bad > .rf-field .rf-label { color: var(--warn); }
+.rf-choices { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.rf-attach { align-items: flex-start; }
+.rf-attach > span:last-child { display: flex; flex-direction: column; gap: 0.1rem; text-align: left; }
+.rf-attach small { color: var(--mu); font-size: var(--fs-sm); }
+.rf-missing { margin: 0; color: var(--warn); font-size: var(--fs-sm); }
+
+.sub-row { display: flex; gap: 0.5rem; }
+.sub-row input { height: 2.3rem; flex: 1; min-width: 0; }
+.sub-problems { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.sub-problems li { display: flex; gap: 0.5rem; align-items: flex-start; font-size: var(--fs-md); line-height: 1.4; color: var(--warn); }
+.sub-problems svg { flex: none; width: 1rem; height: 1rem; margin-top: 0.1rem; }
+.sub-preview { padding: 0.6rem 0.8rem; background: var(--row); border-left: 3px solid var(--mu); }
+.sub-preview.ok { border-left-color: var(--go); }
+.sub-preview b { display: flex; align-items: baseline; gap: 0.5rem; font-size: var(--fs-base); }
+.sub-preview b svg { width: 0.95rem; height: 0.95rem; color: var(--go); align-self: center; }
+.sub-preview small { font-weight: 400; color: var(--mu); font-size: var(--fs-sm); }
+.sub-preview p { margin: 0.3rem 0 0; font-size: var(--fs-sm); color: var(--mu); line-height: 1.45; }
+
+/* Downloads and stars at the right of a card, and the star button on a mod page; yellow once starred. */
+.c-stats { margin-left: auto; display: inline-flex; align-items: center; gap: 0.75rem; }
+.c-stars { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--mu); font-size: var(--fs-md); font-weight: 600; font-variant-numeric: tabular-nums; }
+.c-stars svg { width: 1rem; height: 1rem; }
+.c-stars.on svg { color: var(--gold); }
+/* The star and report buttons sit in the row of Install, at the same height. */
+.mid-tools { flex: none; display: flex; gap: 0.6rem; align-items: center; }
+.mid-tools .btn { height: 2.9rem; }
+.btn.star-btn { gap: 0.45rem; padding: 0 1rem; font-size: var(--fs-md); font-variant-numeric: tabular-nums; }
+.btn.star-btn svg { width: 1.05rem; height: 1.05rem; }
+.btn.star-btn.on svg { color: var(--gold); }
+.btn.icon.report-btn { width: 2.9rem; }
+.btn.icon.report-btn svg { width: 1.25rem; height: 1.25rem; color: var(--warn); }
+
+/* Scope filters as icons alone, named in the tooltip. */
+.chip.icon-chip { width: 2.3rem; padding: 0; }
+
+/* Submit Mod, centred at the end of the list. */
+.store-foot { display: flex; justify-content: center; padding: 0.9rem 0 0.4rem; }
+.btn.submit-btn { height: 2.9rem; min-width: 14rem; padding: 0 2rem; font-size: var(--fs-md); }
+
+/* The authors' Issues panel. */
+.iss-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.iss-list li + li { border-top: 1px solid var(--ln); }
+.iss-list button {
+  width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 0.1rem 0.6rem; padding: 0.45rem 0.2rem; border: 0; background: none;
+  color: var(--tx); text-align: left; cursor: pointer;
+}
+.iss-list button:hover b { color: var(--goldtx); }
+.iss-list b { font-size: var(--fs-md); font-weight: 600; }
+.iss-list small { grid-column: 1; color: var(--mu); font-size: var(--fs-xs); }
+.iss-list i { grid-row: 1 / 3; grid-column: 2; align-self: center; font-style: normal; color: var(--mu); font-size: var(--fs-xs); }
+.iss-empty { margin: 0; color: var(--mu); font-size: var(--fs-sm); }

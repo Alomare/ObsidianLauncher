@@ -30,9 +30,42 @@ pub fn rename_retrying(from: &Path, to: &Path) -> std::io::Result<()> {
 }
 
 /// Writes through a temporary file beside `path`, so a full disk or a power cut leaves the old file
-/// whole instead of half of the new one.
+/// whole instead of half of the new one. Each write has a temporary file of its own (the process
+/// id and a counter in the name), so two writers of one file never share one. The name still ends
+/// in `.obsidian-tmp`, which the deploy sweep looks for.
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    write_through(path, &with_suffix(path, ".obsidian-tmp"), bytes)
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let n = NEXT.fetch_add(1, Ordering::Relaxed);
+    write_through(path, &with_suffix(path, &format!(".{}-{n}.obsidian-tmp", std::process::id())), bytes)
+}
+
+/// JSON files Obsidian keeps for itself: read with a fallback, written whole through
+/// [`write_atomic`].
+pub mod json_file {
+    use std::path::Path;
+
+    use serde::Serialize;
+    use serde::de::DeserializeOwned;
+
+    /// The value in `path`, or `None` when the file is missing or no longer reads.
+    pub fn load<T: DeserializeOwned>(path: &Path) -> Option<T> {
+        std::fs::read(path).ok().and_then(|b| serde_json::from_slice(&b).ok())
+    }
+
+    /// Writes `value` as pretty JSON with a closing newline, making the folder first.
+    pub fn save<T: Serialize + ?Sized>(path: &Path, value: &T) -> crate::Result<()> {
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        super::write_atomic(path, (serde_json::to_string_pretty(value)? + "\n").as_bytes())?;
+        Ok(())
+    }
+}
+
+/// `path` with `.<ext>` added to the file name, as in `x.patch_0.stream`.
+pub fn beside(path: &Path, ext: &str) -> PathBuf {
+    with_suffix(path, &format!(".{ext}"))
 }
 
 /// `path` with `suffix` added to the file name, as in `settings.txt.tmp`.
@@ -112,6 +145,54 @@ pub fn copy_tree(from: &Path, to: &Path, newer_only: bool) -> std::io::Result<()
     Ok(())
 }
 
+/// The one writer of a data folder. Every change to the library, the profiles, the saves index or the
+/// war state, from the app or from `obsidian-cli`, runs while holding it, so two processes never write
+/// the same files at once. In the app it sits under the turn (`Ctx::turn`), which orders the app's
+/// own commands; the CLI takes it for each command. When it drops after a change, `changed` records
+/// which process made it, and the app's watcher tells the window to read the folder again when that
+/// was another process.
+pub struct WorkLock {
+    file: std::fs::File,
+    dir: PathBuf,
+}
+
+/// The lock file, beside the library.
+pub const WORK_LOCK: &str = "work.lock";
+/// Who changed the folder last, and when: `<process id> <counter>`.
+pub const CHANGED: &str = "changed";
+
+impl WorkLock {
+    /// Waits for the lock of `data`, then holds it until dropped.
+    pub fn hold(data: &Path) -> std::io::Result<WorkLock> {
+        std::fs::create_dir_all(data)?;
+        let file = std::fs::OpenOptions::new().create(true).write(true).truncate(false).open(data.join(WORK_LOCK))?;
+        file.lock()?;
+        Ok(WorkLock { file, dir: data.to_path_buf() })
+    }
+
+    /// Says that this process changed the folder, for a watcher in another process.
+    pub fn mark_changed(&self) {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static N: AtomicU64 = AtomicU64::new(0);
+        let n = N.fetch_add(1, Ordering::Relaxed);
+        let _ = write_atomic(&self.dir.join(CHANGED), format!("{} {n}\n", std::process::id()).as_bytes());
+    }
+}
+
+impl Drop for WorkLock {
+    fn drop(&mut self) {
+        let _ = self.file.unlock();
+    }
+}
+
+/// The last change to `data` made by another process than this one: the text of `changed`, to compare
+/// with the one seen before. `None` when there is none or it was this process.
+pub fn changed_elsewhere(data: &Path) -> Option<String> {
+    let text = std::fs::read_to_string(data.join(CHANGED)).ok()?;
+    let pid = text.split_whitespace().next()?.parse::<u32>().ok()?;
+    (pid != std::process::id()).then_some(text)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -155,6 +236,62 @@ mod tests {
         put(&old, "profile.json", b"p");
         assert_eq!(adopt_legacy_data_dir(&old, &new), old);
         assert!(old.join("profile.json").is_file());
+    }
+
+    #[test]
+    fn atomic_writes_of_one_file_never_share_a_temporary_file() {
+        let t = spaced_tempdir();
+        let path = t.path().join("shared.json");
+        let threads: Vec<_> = (0..8)
+            .map(|i| {
+                let path = path.clone();
+                std::thread::spawn(move || {
+                    for _ in 0..25 {
+                        write_atomic(&path, format!("writer {i}").repeat(200).as_bytes()).unwrap();
+                    }
+                })
+            })
+            .collect();
+        for th in threads {
+            th.join().unwrap();
+        }
+        let text = std::fs::read_to_string(&path).unwrap();
+        let first = &text[..8];
+        assert_eq!(text, first.repeat(200), "one writer's whole text");
+        let left: Vec<_> = std::fs::read_dir(t.path()).unwrap().flatten().map(|e| e.file_name()).collect();
+        assert_eq!(left, [std::ffi::OsString::from("shared.json")], "no temporary file is left");
+    }
+
+    #[test]
+    fn json_files_round_trip_and_a_bad_one_reads_as_none() {
+        let t = spaced_tempdir();
+        let path = t.path().join("a/b.json");
+        json_file::save(&path, &vec![1, 2, 3]).unwrap();
+        assert_eq!(json_file::load::<Vec<i32>>(&path), Some(vec![1, 2, 3]));
+        std::fs::write(&path, b"{").unwrap();
+        assert_eq!(json_file::load::<Vec<i32>>(&path), None);
+        assert_eq!(json_file::load::<Vec<i32>>(&t.path().join("none.json")), None);
+    }
+
+    #[test]
+    fn the_work_lock_has_one_holder_and_says_who_changed_the_folder() {
+        let t = spaced_tempdir();
+        let held = WorkLock::hold(t.path()).unwrap();
+        // A second holder (another process, here another handle) waits until the first lets go.
+        let dir = t.path().to_path_buf();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let waiter = std::thread::spawn(move || {
+            let _second = WorkLock::hold(&dir).unwrap();
+            tx.send(()).unwrap();
+        });
+        assert!(rx.recv_timeout(std::time::Duration::from_millis(300)).is_err(), "the second holder waited");
+        held.mark_changed();
+        assert_eq!(changed_elsewhere(t.path()), None, "this process's own change");
+        drop(held);
+        rx.recv_timeout(std::time::Duration::from_secs(5)).expect("the second holder got it");
+        waiter.join().unwrap();
+        std::fs::write(t.path().join(CHANGED), "1 7\n").unwrap();
+        assert_eq!(changed_elsewhere(t.path()).as_deref(), Some("1 7\n"), "another process's change");
     }
 
     #[test]

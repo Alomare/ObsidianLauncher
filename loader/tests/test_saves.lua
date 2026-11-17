@@ -7,8 +7,8 @@ local ID = "abcd1234"
 local SANDBOX = "sandbox\t" .. ID .. "\n"
 local TEXTS = { en = { sandbox_failed = "SANDBOX FAILED", lobby_sandbox_public = "Sandbox Public",
 	lobby_uses_sandbox = "This lobby uses Sandbox saves.", lobby_uses_official = "This lobby uses Official saves.",
-	lobby_modded_mark = "MODDED", lobby_mods_heading = "Mods here", lobby_more_mods = "+%d more", lobby_filter_modded_only = "Modded only",
-	lobby_filter_hide_modded = "Hide modded", campaign_not_uploaded_sandbox = "Sandbox line" } }
+	lobby_modded_mark = "MODDED", lobby_mods_heading = "Mods here", lobby_more_mods = "+%d more", lobby_tab_public = "Public", lobby_tab_modded = "Modded", lobby_mods_range = "%d to %d of %d",
+	campaign_not_uploaded_sandbox = "Sandbox line" } }
 
 local function fake_save()
 	local sm = { calls = {}, saved = 0, backup = 0 }
@@ -345,6 +345,7 @@ local function terminal(settings)
 	function C.draw_looping_scroll(self, gui, z, pos, id, text) drawn[tostring(id)] = text end
 	function C.draw_selected_room_info(self, gui, dt, z) end
 	function C.on_enter(self) end
+	function C.init(self) self.filters = { public = { name = "public" }, friends = { name = "friends" } } end
 	function C.rpc_on_join_denied(self, sender, reason) self.info_message = "game:" .. tostring(reason) end
 	function C.update_join(self) end
 	rawset(_G, "MenuScreenCampaignMultiplayer", C)
@@ -405,23 +406,110 @@ test("the_room_row_shows_the_mark_only_for_modded_rooms", function()
 	E.eq(drawn["1"], "Host name")
 end)
 
-test("the_filters_are_added_and_decide_by_the_mark", function()
+test("the_terminal_adds_no_filter_and_the_game_filters_still_decide", function()
 	local screen = terminal(nil)
+	local game = { name = "filter_full", default_value = false, filter_func = function(room, on) return on and room.full end }
+	rawget(_G, "GameSettings").multiplayer_filters = { game }
 	screen:on_enter()
 	screen:on_enter()
 	local filters = rawget(_G, "GameSettings").multiplayer_filters
-	E.eq(#filters, 2, "added once")
-	local only, hide = filters[1], filters[2]
-	E.eq(only.name, "filter_modded_only")
-	E.eq(hide.name, "filter_hide_modded")
-	local modded, plain = { obsidian = { modded = true } }, { obsidian = { modded = false } }
-	E.eq(not only.filter_func(modded, true), true, "kept")
-	E.eq(only.filter_func(plain, true), true, "dropped")
-	E.eq(only.filter_func({}, true), true, "a room without info is not modded")
-	E.eq(hide.filter_func(modded, true), true, "dropped")
-	E.eq(not hide.filter_func(plain, true), true, "kept")
-	E.eq(only.filter_func(plain, false), false, "off")
-	E.eq(rawget(_G, "LocalizationManager"):string("filter_modded_only"), "Modded only")
+	E.eq(#filters, 1, "only the game's filter")
+	E.eq(filters[1], game)
+	E.eq(rawget(_G, "LocalizationManager"):string("filter_hide_modded"), "game:filter_hide_modded", "the old text is gone")
+	-- A save from before still holds the old filter: the game reads only the names it lists.
+	local saved = { filter_hide_modded = true, filter_full = true }
+	local options = {}
+	for _, f in ipairs(filters) do
+		local on = saved[f.name]
+		if on == nil then on = f.default_value end
+		options[#options + 1] = { name = f.name, enabled = on, filter_func = f.filter_func }
+	end
+	E.eq(#options, 1)
+	local function listed(room)
+		for _, o in ipairs(options) do if o.filter_func(room, o.enabled) then return false end end
+		return true
+	end
+	E.eq(listed({ obsidian = { modded = true } }), true, "modded rooms stay on Public")
+	E.eq(listed({ full = true }), false, "the game's filter still drops")
+end)
+
+test("every_tab_label_shows_in_capitals_and_the_modded_title_does_not", function()
+	local _, _, e = terminal(nil)
+	local lm = rawget(_G, "LocalizationManager")
+	E.eq(lm:string("obsidian_lobby_public"), "PUBLIC")
+	E.eq(lm:string("obsidian_lobby_modded"), "MODDED")
+	E.eq(lm:string("obsidian_lobby_friends"), "GAME:FRIENDS", "the game's Friends words, in capitals")
+	E.eq(lm:string("obsidian_lobby_modded_title"), "Modded", "the panel title as written")
+	E.eq(lm:string("friends"), "game:friends", "the game's own key is left alone")
+	E.eq(lm:string("lobby_tab_public"), "game:lobby_tab_public", "only the tab keys")
+	local game_text = e.loaded["obsidian/loader/game_text"]
+	E.eq(game_text.upper("Ab\195\169c"), "AB\195\169C", "without Utf8 only a to z change")
+	rawset(_G, "Utf8", { upper = function(s) return (s:gsub("\195\169", "\195\137"):upper()) end })
+	E.eq(lm:string("obsidian_lobby_modded"), "MODDED")
+	E.eq(game_text.upper("\195\169t\195\169"), "\195\137T\195\137", "the engine's Utf8.upper when there")
+	rawset(_G, "Utf8", { upper = function() error("bad") end })
+	E.eq(game_text.upper("abc"), "ABC", "a failing Utf8.upper falls back")
+	rawset(_G, "Utf8", nil)
+end)
+
+test("a_sandbox_public_tab_shows_in_capitals", function()
+	terminal(SANDBOX)
+	local lm = rawget(_G, "LocalizationManager")
+	E.eq(lm:string("obsidian_lobby_public"), "SANDBOX PUBLIC")
+	E.eq(lm:string("campaign_public"), "Sandbox Public", "the panel title as written")
+end)
+
+test("the_terminal_gets_a_modded_tab_between_public_and_friends", function()
+	local e = select(3, terminal(nil))
+	local lobby = e.loaded["obsidian/loader/lobby"]
+	local state = {}
+	local list = { { id = "matchmaking", name = "matchmaking", state = state, params = { filter = "public" } },
+		{ id = "friends", name = "friends", state = state, params = { filter = "friends" } } }
+	local out, index = lobby.tabs(list, 2)
+	E.eq(#out, 3)
+	E.eq(out[1].name, "obsidian_lobby_public") E.eq(out[1].params.filter, "public")
+	E.eq(out[2].name, "obsidian_lobby_modded") E.eq(out[2].params.filter, "modded") E.eq(out[2].state, state, "the same screen")
+	E.eq(out[3].name, "obsidian_lobby_friends") E.eq(out[3].id, "friends") E.eq(out[3].params.filter, "friends")
+	E.eq(list[3], nil) E.eq(list[2].name, "friends", "the game's list is not changed")
+	E.eq(index, 3, "Friends asked for is still Friends")
+	E.eq(select(2, lobby.tabs(list, 1)), 1)
+	E.eq(#lobby.tabs(out, 1), 3, "never twice")
+end)
+
+test("the_main_screen_registers_the_three_tabs", function()
+	local got = nil
+	rawset(_G, "MenuScreenBase", { register_substates = function(self, list, index) got = { list = list, index = index } end })
+	local main = {}
+	function main.on_enter(self)
+		rawget(_G, "MenuScreenBase").register_substates(self, { { id = "matchmaking", name = "matchmaking" }, { id = "friends", name = "friends" } }, 1)
+		return "entered"
+	end
+	rawset(_G, "MenuScreenCampaignMultiplayerMain", main)
+	terminal(nil)
+	local screen = setmetatable({}, { __index = rawget(_G, "MenuScreenCampaignMultiplayerMain") })
+	E.eq(screen:on_enter(), "entered")
+	E.eq(#got.list, 3)
+	E.eq(got.list[2].name, "obsidian_lobby_modded")
+	-- Other screens keep their tabs, and the base function is the game's again.
+	rawget(_G, "MenuScreenBase").register_substates({}, { { id = "matchmaking" } }, 1)
+	E.eq(#got.list, 1)
+end)
+
+test("the_modded_tab_lists_only_modded_rooms", function()
+	local screen = terminal(nil)
+	screen:init()
+	E.eq(screen.filters.modded.name, "public", "the game's public search")
+	E.eq(screen.filters.modded.obsidian_modded, true)
+	E.eq(screen.filters.modded.title, "obsidian_lobby_modded_title")
+	screen.filter = screen.filters.modded
+	screen:add_room({ name = "plain", obsidian = { modded = false } })
+	screen:add_room({ name = "bare" })
+	screen:add_room({ name = "modded", obsidian = { modded = true } })
+	E.eq(#screen.displayable_rooms, 1)
+	E.eq(screen.displayable_rooms[1].name, "modded")
+	screen.filter = screen.filters.public
+	screen:add_room({ name = "plain", obsidian = { modded = false } })
+	E.eq(#screen.displayable_rooms, 2, "Public lists every room")
 end)
 
 local function gui_recorder()
@@ -433,19 +521,62 @@ local function gui_recorder()
 	return g
 end
 
-test("the_selected_room_lists_mods_up_to_eight_then_a_count", function()
+test("the_selected_rooms_mods_scroll_eight_at_a_time_with_the_wheel", function()
 	local screen = terminal(nil)
 	local mods = {}
 	for i = 1, 12 do mods[i] = "mod" .. i end
 	screen.displayable_rooms = { { obsidian = { modded = true, mods = mods, more = 3 } } }
+	screen.user_pad_number = 99
+	rawset(_G, "KEYBOARD_MOUSE_PAD_NUMBER", 99)
+	local over = true
+	rawset(_G, "MenuScreenBase", { is_box_selected_by_cursor = function() return over end })
 	local g = gui_recorder()
 	screen:draw_selected_room_info(g, 0.1, 5)
 	E.eq(g.texts[1], "Mods here")
 	E.eq(g.texts[2], "mod1")
 	E.eq(g.texts[9], "mod8")
-	E.eq(g.texts[10], "+7 more")
+	E.eq(g.texts[10], "1 to 8 of 13", "the host's +3 is the last line of the list")
 	E.eq(g.opened, g.closed, "the template closes")
-	E.eq(#g.texts, 10)
+	screen.mouse_scroll_input = 1
+	g = gui_recorder()
+	screen:draw_selected_room_info(g, 0.1, 5)
+	E.eq(g.texts[2], "mod2", "one line down")
+	E.eq(screen.mouse_scroll_input, nil, "the turn is taken")
+	for _ = 1, 10 do
+		screen.mouse_scroll_input = 1
+		screen:draw_selected_room_info(gui_recorder(), 0.1, 5)
+	end
+	g = gui_recorder()
+	screen:draw_selected_room_info(g, 0.1, 5)
+	E.eq(g.texts[9], "+3 more", "stops at the end")
+	E.eq(g.texts[10], "6 to 13 of 13")
+	over = false
+	screen.mouse_scroll_input = -1
+	screen:draw_selected_room_info(gui_recorder(), 0.1, 5)
+	E.eq(screen.mouse_scroll_input, -1, "a turn away from the list is the game's")
+end)
+
+test("a_pad_moves_the_mod_list_on_by_itself_and_starts_over", function()
+	local screen = terminal(nil)
+	local mods = {}
+	for i = 1, 9 do mods[i] = "mod" .. i end
+	screen.displayable_rooms = { { obsidian = { modded = true, mods = mods, more = 0 } } }
+	screen.user_pad_number = 1
+	rawset(_G, "KEYBOARD_MOUSE_PAD_NUMBER", 99)
+	local g = gui_recorder()
+	screen:draw_selected_room_info(g, 1.6, 5)
+	E.eq(g.texts[2], "mod2")
+	g = gui_recorder()
+	screen:draw_selected_room_info(g, 1.6, 5)
+	E.eq(g.texts[2], "mod1", "back to the top after the end")
+end)
+
+test("a_short_list_has_no_range_line", function()
+	local screen = terminal(nil)
+	screen.displayable_rooms = { { obsidian = { modded = true, mods = { "a", "b" }, more = 0 } } }
+	local g = gui_recorder()
+	screen:draw_selected_room_info(g, 0.1, 5)
+	E.eq(#g.texts, 3)
 end)
 
 test("a_room_with_no_mods_draws_no_list", function()

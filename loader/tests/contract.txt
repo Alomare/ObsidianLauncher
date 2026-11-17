@@ -9,6 +9,7 @@ obsidian.capabilities.guardrails boolean
 obsidian.capabilities.hook boolean
 obsidian.capabilities.import boolean
 obsidian.capabilities.info boolean
+obsidian.capabilities.input_modes boolean
 obsidian.capabilities.keybind boolean
 obsidian.capabilities.language boolean
 obsidian.capabilities.log boolean
@@ -18,15 +19,19 @@ obsidian.capabilities.notify boolean
 obsidian.capabilities.on_frame boolean
 obsidian.capabilities.on_require boolean
 obsidian.capabilities.on_session boolean
+obsidian.capabilities.pad_binds boolean
 obsidian.capabilities.parts boolean
+obsidian.capabilities.profiler boolean
 obsidian.capabilities.save_data boolean
 obsidian.capabilities.scope boolean
+obsidian.capabilities.secondary_scopes boolean
 obsidian.capabilities.session boolean
 obsidian.capabilities.settings boolean
 obsidian.capabilities.storage boolean
 obsidian.capabilities.text boolean
 obsidian.capabilities.toast boolean
 obsidian.capabilities.ui boolean
+obsidian.capabilities.war boolean
 obsidian.capabilities.wrap boolean
 obsidian.expansion table
 obsidian.expansion.running function
@@ -46,6 +51,7 @@ obsidian.notify function
 obsidian.on_frame function
 obsidian.on_require function
 obsidian.on_session function
+obsidian.profiler table
 obsidian.save_data table
 obsidian.scope function
 obsidian.session table
@@ -62,6 +68,7 @@ obsidian.text function
 obsidian.toast function
 obsidian.ui table
 obsidian.version number
+obsidian.war function
 obsidian.wrap function
 log: Obsidian Loader, API 1, jit available
 log: settings: no file, defaults used

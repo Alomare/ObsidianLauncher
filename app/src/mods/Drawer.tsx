@@ -5,23 +5,24 @@ import { useEffect, useMemo, useState } from "react";
 import { run } from "../api";
 import { openColorPicker } from "../ColorPicker";
 import { Confirm } from "../Confirm";
-import { ArrowIcon, ChevronIcon, CloseIcon, ExternalIcon, FileIcon, GamepadIcon, InfoIcon, KeyboardIcon, KeyboardMouseIcon, LinkIcon, ResetIcon, SlidersIcon, TrashIcon } from "../Icons";
-import { language, pick, t } from "../i18n";
-import { Markdown, parse } from "../Markdown";
+import { ArrowIcon, ChevronIcon, CloseIcon, ExternalIcon, FileIcon, GamepadIcon, HistoryIcon, InfoIcon, KeyboardIcon, KeyboardMouseIcon, LinkIcon, ResetIcon, SlidersIcon, TrashIcon } from "../Icons";
+import { language, pick, t, tn } from "../i18n";
+import { ReleaseEntry } from "../ReleaseEntry";
 import { Select } from "../Select";
-import { changelog, type ChangelogEntry } from "../updates";
+import { compareVersions, type Release } from "../updates";
 import { loadMore, useModReleases } from "./modReleases";
+import { installModVersion } from "./modUpdates";
 import { Thumb } from "../Thumb";
 import type { ConflictRow, KeyRow, ModRow, OptionGroup, OptionPreview, OptionRow } from "../types";
 import { previewSrc } from "./preview";
 import { overrides, type Override } from "./conflicts";
 import { dependencies, type Dep } from "./deps";
-import { keyName } from "./keyCapture";
-import { PadGlyphs } from "./PadGlyphs";
-import { padButtons } from "./padButtons";
+import { BindsDialog } from "./BindsDialog";
+import { KeyButton, PadView, keyLabel, modeName, padOption, same } from "./BindControls";
 import type { DrawerView } from "./ModsPage";
 import { clampNumber } from "./optionValue";
 import { openUrl } from "../opener";
+import { PadGlyph } from "../pad/PadGlyph";
 
 type Props = {
   view: DrawerView;
@@ -32,27 +33,25 @@ type Props = {
   names: Map<string, string>;
   onOpen: (id: string) => void;
   onClose: () => void;
-  /** The X closed the conflicts: they stay away until a conflict icon asks for them. */
-  conflictsClosed?: boolean;
 };
 
-export function Drawer({ view, mods, conflicts, order, names, onOpen, onClose, conflictsClosed }: Props) {
+export function Drawer({ view, mods, conflicts, order, names, onOpen, onClose }: Props) {
   const mod = view?.kind === "mod" ? mods.find((m) => m.id === view.id) : undefined;
   if (mod) return <ModDrawer key={mod.id} mod={mod} mods={mods} conflicts={conflicts} names={names} onOpen={onOpen} onClose={onClose} />;
-  if (view?.kind === "conflicts" || (conflicts.length && !conflictsClosed)) return <ConflictsView conflicts={conflicts} order={order} names={names} focus={view?.kind === "conflicts" ? view.focus : undefined} onClose={onClose} />;
+  if (view?.kind === "conflicts") return <ConflictsView conflicts={conflicts} order={order} names={names} focus={view?.kind === "conflicts" ? view.focus : undefined} onClose={onClose} />;
   return null;
 }
 
-type Tab = "about" | "options" | "keys" | "files" | "deps";
+type Tab = "about" | "versions" | "options" | "keys" | "files" | "deps";
 
-const TAB_ICONS: Record<Tab, () => React.JSX.Element> = { about: InfoIcon, options: SlidersIcon, keys: KeyboardIcon, files: FileIcon, deps: LinkIcon };
+const TAB_ICONS: Record<Tab, () => React.JSX.Element> = { about: InfoIcon, versions: HistoryIcon, options: SlidersIcon, keys: KeyboardIcon, files: FileIcon, deps: LinkIcon };
 
 function ModDrawer({ mod, mods, conflicts, names, onOpen, onClose }: { mod: ModRow; mods: ModRow[]; conflicts: ConflictRow[]; names: Map<string, string>; onOpen: (id: string) => void; onClose: () => void }) {
   const [tab, setTab] = useState<Tab>("about");
   const [ask, setAsk] = useState(false);
   const name = pick(mod.name, mod.id);
   const { needs, neededBy } = dependencies(mod, mods);
-  const tabs: [Tab, number | null][] = [["about", null], ["options", ownOptions(mod).length], ["keys", mod.keybinds.length], ["files", mod.files.length], ["deps", needs.length + neededBy.length]];
+  const tabs: [Tab, number | null][] = [["about", null], ...(mod.updatable ? [["versions", null] as [Tab, null]] : []), ["options", ownOptions(mod).length], ["keys", mod.keybinds.length], ["files", mod.files.length], ["deps", needs.length + neededBy.length]];
   return (
     <aside className={`drawer ${mod.scope}`} aria-label={name}>
       <div className="dh">
@@ -64,7 +63,7 @@ function ModDrawer({ mod, mods, conflicts, names, onOpen, onClose }: { mod: ModR
           </div>
         </div>
         <div className="dh-end">
-          <button className="bare" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /></button>
+          <button data-pad-back className="bare" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /><PadGlyph role="east" /></button>
           <button className="bare dh-remove" onClick={() => setAsk(true)} aria-label={t("app.drawer.remove")} data-tip={t("app.drawer.remove")}><TrashIcon /></button>
         </div>
       </div>
@@ -81,6 +80,7 @@ function ModDrawer({ mod, mods, conflicts, names, onOpen, onClose }: { mod: ModR
       </div>
       <div className="dbody">
         {tab === "about" && <AboutTab mod={mod} />}
+        {tab === "versions" && mod.updatable && <VersionsTab mod={mod} />}
         {tab === "options" && <OptionsTab mod={mod} />}
         {tab === "keys" && <KeysTab mod={mod} names={names} />}
         {tab === "files" && <FilesTab mod={mod} conflicts={conflicts} names={names} />}
@@ -94,7 +94,6 @@ function ModDrawer({ mod, mods, conflicts, names, onOpen, onClose }: { mod: ModR
   );
 }
 
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 /** The options the Options tab lists: all but those a keybind names as its controller input (the Keys tab shows those). */
 function ownOptions(mod: ModRow): OptionRow[] {
@@ -236,92 +235,48 @@ function NumberControl({ o, label, onSet, onDraft }: { o: OptionRow; label: stri
           onChange={(e) => change(Number(e.target.value))} onPointerUp={() => commit(v)} onKeyUp={() => commit(v)} />
       )}
       <input type="number" value={v} min={o.min ?? undefined} max={o.max ?? undefined} step={o.step ?? "any"} aria-label={label}
-        onChange={(e) => change(Number(e.target.value))} onBlur={() => commit(v)} onKeyDown={(e) => e.key === "Enter" && commit(v)} />
+        onChange={(e) => change(Number(e.target.value))} onBlur={() => commit(v)} onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && commit(v)} />
     </div>
   );
 }
 
-/** Shows a key; a click waits for the next key press, Esc cancels. */
-function KeyButton({ value, label, onSet, clash }: { value: string; label: string; onSet: (k: string) => void; clash?: boolean }) {
-  const [waiting, setWaiting] = useState(false);
-  return (
-    <button className={["key-btn", waiting && "waiting", clash && "clash"].filter(Boolean).join(" ")} aria-label={`${label}: ${value}`}
-      data-tip={waiting ? undefined : t("app.drawer.keyHint")}
-      onClick={() => setWaiting(true)} onBlur={() => setWaiting(false)}
-      onKeyDown={(e) => {
-        if (!waiting) return;
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.key === "Escape") return setWaiting(false);
-        const k = keyName(e.nativeEvent);
-        if (k) {
-          setWaiting(false);
-          if (k !== value) onSet(k);
-        }
-      }}>
-      <span className="key-text">{waiting ? t("app.drawer.pressKey") : value}</span>
-    </button>
-  );
-}
-
-/** One row per action: its key on the mouse and keyboard, and its controller input when the manifest names
-    one (a keybind's `pad`, a choice option), under a head with an icon over each column. */
+/** One row per action: the name (and how it fires, when not on press), the key and the controller
+    input, to read. CHANGE BINDS, over the names, opens the binds dialog where they change. */
 function KeysTab({ mod, names }: { mod: ModRow; names: Map<string, string> }) {
+  const [editing, setEditing] = useState(false);
   if (!mod.keybinds.length) return <p className="muted pad">{t("app.drawer.noKeys")}</p>;
-  const options = new Map(mod.options.map((o) => [o.id, o]));
   return (
     <div className="keys">
       <div className="keys-head">
-        <span />
+        <span className="keys-change"><button className="btn small" onClick={() => setEditing(true)}>{t("app.binds.change")}</button></span>
         <span role="img" aria-label={t("app.drawer.keyboard")} data-tip={t("app.drawer.keyboard")}><KeyboardMouseIcon /></span>
         <span role="img" aria-label={t("app.drawer.controller")} data-tip={t("app.drawer.controller")}><GamepadIcon /></span>
       </div>
       <ul className="opts">
         {mod.keybinds.map((k: KeyRow) => {
-          const key = k.key ?? k.default;
           const label = pick(k.label, k.id);
-          const pad = k.pad ? options.get(k.pad) : undefined;
-          const shown = pad?.visible ? pad : undefined;
+          const pad = padOption(mod, k);
           return (
             <li key={k.id} className="opt">
               <div className="opt-text">
-                <div className="l" tabIndex={shown?.deploy ? 0 : undefined} data-tip-note={shown?.deploy ? t("app.drawer.afterDeploy") : undefined}>
-                  {label}{shown?.deploy && <span className="opt-star" aria-hidden="true">*</span>}
+                <div className="l" tabIndex={pad?.deploy ? 0 : undefined} data-tip-note={pad?.deploy ? t("app.drawer.afterDeploy") : undefined}>
+                  {label}{pad?.deploy && <span className="opt-star" aria-hidden="true">*</span>}
                 </div>
+                {k.mode !== "press" && <div className="d">{modeName(k.mode)}</div>}
                 {k.clash.length > 0 && <div className="d warn">{t("app.drawer.keyClash", [pick(mod.name, mod.id), ...k.clash.map((id) => names.get(id) ?? id)].join(", "))}</div>}
               </div>
               <div className="opt-ctl key-col">
-                <KeyButton value={key} label={label} clash={k.clash.length > 0} onSet={(v) => run("set_key", { id: mod.id, keybind: k.id, key: v })} />
-                <button className="bare" disabled={k.key === null} onClick={() => run("set_key", { id: mod.id, keybind: k.id, key: null })}
-                  aria-label={t("app.drawer.reset")} data-tip={t("app.drawer.resetKey", k.default)}><ResetIcon /></button>
+                <span className={k.clash.length > 0 ? "keycap clash" : "keycap"}>{keyLabel(k.key ?? k.default)}</span>
               </div>
               <div className="opt-ctl pad-col">
-                {shown ? <PadControl mod={mod} o={shown} /> : <span className="none" data-tip={t("app.drawer.noController")}>–</span>}
+                <PadView mod={mod} k={k} />
               </div>
             </li>
           );
         })}
       </ul>
+      {editing && <BindsDialog mod={mod} names={names} onClose={() => setEditing(false)} />}
     </div>
-  );
-}
-
-/** The controller input of a keybind: its choice option, narrowed to the column, the whole choice in a tooltip. */
-function PadControl({ mod, o }: { mod: ModRow; o: OptionRow }) {
-  const label = pick(o.label, o.id);
-  // A choice that names controller buttons is drawn as them; the full name is in the tooltip and the list.
-  const options = o.choices.map((c, i) => {
-    const name = pick(o.choiceLabels[i], c);
-    const buttons = padButtons(name, c);
-    return { value: c, label: name, view: buttons ? <PadGlyphs buttons={buttons} /> : undefined };
-  });
-  const current = options.find((c) => c.value === String(o.value))?.label;
-  return (
-    <>
-      <Select value={String(o.value)} options={options} label={label} tip={current} onChange={(value) => run("set_option", { id: mod.id, option: o.id, value })} />
-      <button className="bare" disabled={same(o.value, o.default)} onClick={() => run("set_option", { id: mod.id, option: o.id, value: null })}
-        aria-label={t("app.drawer.reset")} data-tip={t("app.drawer.reset")}><ResetIcon /></button>
-    </>
   );
 }
 
@@ -375,20 +330,19 @@ function AboutTab({ mod }: { mod: ModRow }) {
   return (
     <div className="about-mod pad">
       {pick(mod.description) && <p>{pick(mod.description)}</p>}
-      {mod.parts.length > 0 && <PartList mod={mod} />}
       <dl className="facts">
         {mod.authors.length > 0 && <><dt>{t("app.drawer.authors")}</dt><dd>{mod.authors.join(", ")}</dd></>}
         <dt>{t("app.drawer.id")}</dt><dd className="mono">{mod.id}</dd>
         {mod.source && <><dt>{t("app.drawer.source")}</dt><dd className="src"><button className="link src-link" aria-label={mod.source} data-tip-title={t("app.drawer.source")} data-tip={mod.source} onClick={() => openUrl(mod.source!).catch(() => {})}><ExternalIcon /></button></dd></>}
         {mod.import && <><dt>{t("app.drawer.imported")}</dt><dd>{date}</dd><dt>{t("app.drawer.file")}</dt><dd className="mono">{mod.import.file}</dd></>}
       </dl>
-      {mod.updatable && <ModChangelog mod={mod} />}
+      {mod.parts.length > 0 && <PartList mod={mod} />}
     </div>
   );
 }
 
-/** One line per part of the mod: the scope diamond, the name, the description, and Off while the
- *  option that switches the part is off. */
+/** One line per secondary scope of the mod (Hybrid Scopes): the scope diamond, the name, the
+ *  description, and Off while the option that switches it is off. */
 function PartList({ mod }: { mod: ModRow }) {
   return (
     <section className="parts" aria-label={t("app.drawer.parts")}>
@@ -413,73 +367,92 @@ function PartList({ mod }: { mod: ModRow }) {
 
 /** How many versions show at first, and how many more each Load more adds. */
 const LOG_STEP = 8;
-const LOG_OPEN_KEY = "obsidian.modChangelogOpen";
-const logOpenSaved = () => { try { return localStorage.getItem(LOG_OPEN_KEY) !== "0"; } catch { return true; } };
 
-/** The releases of the mod's GitHub repository, newest first, each folded. The list starts open;
- *  closed, it stays closed for the next mod too and asks GitHub nothing. */
-function ModChangelog({ mod }: { mod: ModRow }) {
-  const [open, setOpen] = useState(logOpenSaved);
+/** The channel of a version, as the core names it: `stable`, or the first word of the pre-release part. */
+export function channelOf(version: string | null): string {
+  const pre = version?.split("+")[0].split("-").slice(1).join("-");
+  if (!pre) return "stable";
+  const word = pre.split(".")[0].match(/^[A-Za-z]+/)?.[0].toLowerCase();
+  return word || "pre";
+}
+
+/** The channels of a release list: Stable first, then the others by name. */
+export function channelsOf(list: Release[]): string[] {
+  const set = new Set(list.map((r) => r.channel ?? "stable"));
+  return [...set].sort((x, y) => (x === "stable" ? -1 : y === "stable" ? 1 : x.localeCompare(y)));
+}
+
+function channelName(c: string): string {
+  if (c === "stable") return t("app.drawer.channelStable");
+  return c.length <= 3 ? c.toUpperCase() : c[0].toUpperCase() + c.slice(1);
+}
+
+/** The Versions tab: the releases of the mod's GitHub repository, one tab per channel (Stable, Beta and
+ *  so on, from the tags), newest first and each folded. An unfolded release can be installed in place
+ *  of the version the mod has. */
+function VersionsTab({ mod }: { mod: ModRow }) {
+  const r = useModReleases(mod.id, true);
+  const [picked, setPicked] = useState<string | null>(null);
   const [shown, setShown] = useState(LOG_STEP);
   const [unfolded, setUnfolded] = useState<Record<string, boolean>>({});
-  const r = useModReleases(mod.id, open);
-  const entries = useMemo(() => changelog(r.list, mod.version ?? "", []), [r.list, mod.version]);
-  const toggle = () => {
-    setOpen((v) => {
-      try { localStorage.setItem(LOG_OPEN_KEY, v ? "0" : "1"); } catch { /* kept for this session only */ }
-      return !v;
-    });
-  };
+  const [busy, setBusy] = useState(false);
+  const channels = useMemo(() => channelsOf(r.list), [r.list]);
+  const mine = channelOf(mod.version);
+  const channel = picked ?? (channels.includes(mine) ? mine : channels[0] ?? "stable");
+  const latest = useMemo(() => r.list.filter((x) => (x.channel ?? "stable") === "stable").map((x) => x.version).sort(compareVersions).pop() ?? null, [r.list]);
+  const entries = useMemo(() => r.list.filter((x) => (x.channel ?? "stable") === channel).sort((x, y) => compareVersions(y.version, x.version)), [r.list, channel]);
+  const when = (v: string) => (!mod.version ? "older" : compareVersions(v, mod.version) > 0 ? "new" : compareVersions(v, mod.version) === 0 ? "installed" : "older");
   const more = () => {
     const next = shown + LOG_STEP;
     setShown(next);
-    if (next > r.list.length && r.more) loadMore(mod.id);
+    if (next > entries.length && r.more) loadMore(mod.id);
   };
-  const badge = (e: ChangelogEntry) =>
-    !mod.version ? null : e.when === "new" ? <span className="upd-badge new">{t("app.update.badgeNew")}</span> : e.when === "installed" ? <span className="upd-badge">{t("app.update.badgeInstalled")}</span> : null;
+  const install = async (e: Release) => {
+    if (!e.tag || busy) return;
+    setBusy(true);
+    await installModVersion(mod.id, e.tag, pick(mod.name, mod.id), e.version, latest);
+    setBusy(false);
+  };
+  const badge = (w: string) =>
+    !mod.version ? null : w === "new" ? <span className="upd-badge new">{t("app.update.badgeNew")}</span> : w === "installed" ? <span className="upd-badge">{t("app.update.badgeInstalled")}</span> : null;
   const first = r.pages === 0 && (r.loading || !r.error);
   return (
-    <section className={open ? "mod-log open" : "mod-log"}>
-      <button className="mod-log-head" aria-expanded={open} onClick={toggle}>
-        <ChevronIcon />
-        <span className="cap">{t("app.drawer.changelogs")}</span>
-      </button>
-      {open && (
-        <div className="mod-log-body">
-          {first && <p className="muted mod-log-note"><span className="upd-spin" aria-hidden="true" />{t("app.drawer.changelogsLoading")}</p>}
-          {r.error && (
-            <p className="muted mod-log-note">
-              {t("app.drawer.changelogsFailed", r.error)} <button className="link small" onClick={() => loadMore(mod.id)} disabled={r.loading}>{t("app.drawer.tryAgain")}</button>
-            </p>
-          )}
-          {!first && !r.error && entries.length === 0 && <p className="muted mod-log-note">{t("app.update.noReleases")}</p>}
-          <ol className="mod-log-list">
-            {entries.slice(0, shown).map((e) => {
-              const unfold = !!unfolded[e.version];
-              return (
-                <li key={e.version} className={`mod-log-entry ${e.when}${unfold ? " open" : ""}`}>
-                  <button className="upd-head" aria-expanded={unfold} onClick={() => setUnfolded((u) => ({ ...u, [e.version]: !unfold }))}>
-                    <ChevronIcon />
-                    <b>{e.version}</b>
-                    {badge(e)}
-                    <span className="date">{e.date ? new Date(e.date).toLocaleDateString(language(), { dateStyle: "medium" }) : ""}</span>
-                  </button>
-                  {unfold && (
-                    <div className="upd-body">
-                      {e.notes ? <Markdown tokens={parse(e.notes).tokens} /> : <p className="muted">{t("app.update.noNotes")}</p>}
-                      {e.url && <button className="link small" onClick={() => openUrl(e.url!).catch(() => {})}>{t("app.update.onGithub")}</button>}
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ol>
-          {(entries.length > shown || (r.more && r.pages > 0 && !r.error)) && (
-            <button className="btn small mod-log-more" onClick={more} disabled={r.loading}>{r.loading ? t("app.drawer.changelogsLoading") : t("app.drawer.loadMore")}</button>
-          )}
+    <div className="versions pad">
+      {channels.length > 1 && (
+        <div className="versions-head">
+          <div className="versions-channels">
+            <Select value={channel} label={t("app.drawer.channels")} options={channels.map((c) => ({ value: c, label: channelName(c) }))}
+              onChange={(c) => { setPicked(c); setShown(LOG_STEP); }} />
+          </div>
         </div>
       )}
-    </section>
+      {first && <p className="muted mod-log-note"><span className="upd-spin" aria-hidden="true" />{t("app.drawer.changelogsLoading")}</p>}
+      {r.error && (
+        <p className="muted mod-log-note">
+          {t("app.drawer.changelogsFailed", r.error)} <button className="link small" onClick={() => loadMore(mod.id)} disabled={r.loading}>{t("app.drawer.tryAgain")}</button>
+        </p>
+      )}
+      {!first && !r.error && entries.length === 0 && <p className="muted mod-log-note">{t("app.update.noReleases")}</p>}
+      <ol className="mod-log-list">
+        {entries.slice(0, shown).map((e) => {
+          const unfold = !!unfolded[e.version];
+          const w = when(e.version);
+          return (
+            <ReleaseEntry key={e.version} version={e.version} date={e.date} className={`mod-log-entry ${w}`} open={unfold}
+              onToggle={() => setUnfolded((u) => ({ ...u, [e.version]: !unfold }))} badges={badge(w)} notes={e.notes} url={e.url}>
+              {w !== "installed" && e.tag && (
+                <button className="btn small versions-switch" onClick={() => install(e)} disabled={busy}>
+                  {t(w === "new" ? "app.drawer.switchUp" : "app.drawer.switchDown", e.version)}
+                </button>
+              )}
+            </ReleaseEntry>
+          );
+        })}
+      </ol>
+      {(entries.length > shown || (r.more && r.pages > 0 && !r.error)) && (
+        <button className="btn small mod-log-more" onClick={more} disabled={r.loading}>{r.loading ? t("app.drawer.changelogsLoading") : t("app.drawer.loadMore")}</button>
+      )}
+    </div>
   );
 }
 
@@ -494,7 +467,7 @@ function OverrideEntry({ o, at, names, focus }: { o: Override; at: (id: string) 
         <span className="ov-mod"><span className="num">{at(o.loser)}</span>{names.get(o.loser) ?? o.loser}</span>
       </div>
       <button className="link small" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-        {t(o.resources.length === 1 ? "app.drawer.oneFile" : "app.drawer.files_n", o.resources.length)}
+        {tn("app.drawer.files_n", o.resources.length)}
       </button>
       {open && <ul className="files">{o.resources.map((r) => <li key={r}><span className="f">{r}</span></li>)}</ul>}
     </div>
@@ -513,7 +486,7 @@ function ConflictsView({ conflicts, order, names, focus, onClose }: { conflicts:
           <h2 className="cap">{t("app.drawer.conflicts")}</h2>
           <div className="meta">{t("app.drawer.conflictsMeta")}</div>
         </div>
-        <button className="bare" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /></button>
+        <button data-pad-back className="bare" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /><PadGlyph role="east" /></button>
       </div>
       <div className="dbody">
         {list.length === 0 && <p className="muted pad">{t("app.drawer.noConflicts")}</p>}

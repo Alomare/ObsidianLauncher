@@ -172,9 +172,7 @@ struct SavedDigests {
     files: Vec<SavedDigest>,
 }
 
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
-}
+use crate::hash::hex;
 
 fn unhex(text: &str) -> Option<[u8; 32]> {
     let mut out = [0u8; 32];

@@ -25,18 +25,23 @@ The loader also applies the multiplayer rules. In a public lobby, mods that chan
 
 | Tab | What it is for |
 |---|---|
-| Home | Links to the community and the source code |
-| [Mods](app:mods) | The library: mods on and off, load order, options and keys |
-| [Saves](app:saves) | Official and Sandbox saves, and the save editor |
-| [Commander](app:commander) | Custom Galactic Wars, covered in the Commander subtab of this Wiki |
-| Wiki | These guides |
-| [Settings](app:settings) | Language, theme, game folder, updates |
+| Home | Buttons for the Store tab, Nexus Mods, the Discord server, Ko-fi and the source code on GitHub |
+| [Store](app:store) | Mods to install in one click ([more](wiki:tab-store)) |
+| [Mods](app:mods) | The library: mods on and off, load order, options, keys, **Deploy** and **Purge** ([more](wiki:tab-mods)) |
+| [Saves](app:saves) | Official and Sandbox saves, and the save editor ([more](wiki:tab-saves)) |
+| [Wars](app:commander) | Custom Galactic Wars, covered in the Commander subtab of this Wiki ([more](wiki:tab-wars)) |
+| Wiki | These guides ([more](wiki:tab-wiki)) |
+| [Account](app:account) | The GitHub sign-in, issue reports and sync between PCs ([more](wiki:tab-account)) |
+| [Settings](app:settings) | Game folder, language, updates, controller and appearance ([more](wiki:tab-settings)) |
 
-The tabs sit on the left of the bar, and the Wiki (the book) and Settings (the cog) are the two icons at the right end. Between them are [Guardrails](wiki:guardrails), the shield, and three buttons:
+The bar at the top of the window holds, from left to right:
 
-- **Purge** takes every Obsidian patch out of the game.
-- **Deploy** puts the enabled mods into the game, and turns green while changes wait to be deployed.
-- **Play** starts the game through Steam. With custom wars on the PC, the arrow beside it picks the war and the save that Play starts.
+- The tabs Home, Store, Mods, Saves and Wars.
+- The [Guardrails](wiki:guardrails) button, a shield.
+- **Play**, which starts the game through Steam with the mods of the last deploy. When there is more than one war or save to choose from, a menu button beside **Play** picks the war and the save that **Play** starts.
+- Three icons: the Wiki (a book), the Account (a person) and Settings (a cog). A dot on the cog means a new version of Obsidian is out.
+
+**Deploy** and **Purge** are at the right end of the [Mods](app:mods) tab ([Deploy and purge](wiki:deploy-and-purge)).
 
 The status bar at the bottom shows what Obsidian is doing, the version, the notifications and the About box.
 
@@ -48,8 +53,10 @@ While a new version downloads, a window in front of the app shows the progress. 
 
 ## Where the files are {#where-your-files-are}
 
-| What | Where |
-|---|---|
-| Mod library, profiles, app settings | `%LOCALAPPDATA%\ObsidianLauncher`, or `data\` beside the app in a portable copy |
-| Options and keys the game reads, logs | `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher` |
-| Save backups | the `backups` folder in the app data folder |
+| What | Windows | Linux |
+|---|---|---|
+| Mod library, profiles, app settings | `%LOCALAPPDATA%\ObsidianLauncher`, or the `data` folder beside the app in a portable copy | `~/.local/share/ObsidianLauncher` |
+| Options and keys the game reads, logs | `%APPDATA%\Arrowhead\Helldivers\ObsidianLauncher` | The same folder inside the Proton prefix of the game: `drive_c/users/steamuser/AppData/Roaming/Arrowhead/Helldivers/ObsidianLauncher` |
+| Save backups | The `backups` folder in the app data folder | The same |
+
+**Data folder** in the System tab of [Settings](app:settings) opens the app data folder, and **Open logs** opens the logs.

@@ -16,7 +16,7 @@ const { ModsPage } = await import("../mods/ModsPage");
 /** A mod; one whose id starts with "gh." names a GitHub repository and can be checked for updates. */
 const mod = (id: string): ModRow => ({
   id, name: { en: id }, description: {}, authors: [], version: "1.0.0", scope: "client", on: true, options: [], keybinds: [], files: [],
-  import: null, source: null, updatable: id.startsWith("gh."), image: null, folder: null, requires: [], parts: [], optionGroups: [], optionPreviews: [],
+  import: null, source: null, updatable: id.startsWith("gh."), image: null, folder: null, requires: [], parts: [], optionGroups: [], optionPreviews: [], size: 0, deployed: false, deployedSize: null,
 });
 const row = (name: string, extra: Partial<ProfileRow> = {}): ProfileRow => ({ name, on: 0, blockPublic: false, guarded: false, image: null, color: null, ...extra });
 const snap = (ids: string[], profileRows: ProfileRow[] = [row("Default")]): Snapshot => ({
@@ -154,7 +154,7 @@ describe("the head of the Mods page", () => {
     expect(add.getAttribute("aria-expanded")).toBe("false");
     act(() => add.click());
     expect(add.getAttribute("aria-expanded")).toBe("true");
-    expect([...document.querySelectorAll(".ctx [role=menuitem]")].map((b) => b.textContent)).toEqual([t("app.mods.importZip"), t("app.mods.importFolder")]);
+    expect([...document.querySelectorAll(".ctx [role=menuitem]")].map((b) => b.textContent)).toEqual([t("app.mods.importZip"), t("app.mods.importFolder"), t("app.mods.browseStore")]);
   });
 
   it("Create Folder opens the new folder dialog", () => {
@@ -176,14 +176,14 @@ describe("the conflicts panel", () => {
   const withConflict = (): Snapshot => ({ ...snap(["a.one", "b.two"]), conflicts: [{ resource: "x", mods: ["a.one", "b.two"], winner: "b.two" }] });
   const panel = () => document.querySelector(".drawer.conflicts");
 
-  it("closes on the X, stays closed, and comes back from a conflict icon", () => {
+  it("never opens by itself, opens from a conflict icon and closes on the X", () => {
     show(withConflict());
-    expect(panel()).not.toBeNull();
-    act(() => panel()!.querySelector<HTMLButtonElement>(".dh button.bare")!.click());
     expect(panel()).toBeNull();
     expect(document.querySelector(".split")).toBeNull();
     act(() => document.querySelector<HTMLButtonElement>(".cf-ico")!.click());
     expect(panel()).not.toBeNull();
+    act(() => panel()!.querySelector<HTMLButtonElement>(".dh button.bare")!.click());
+    expect(panel()).toBeNull();
   });
 });
 
@@ -195,7 +195,27 @@ describe("the list and the bar for checked mods", () => {
   it("has no column of update checks: not in the header, the rows or a folder", () => {
     show(snap(["gh.one", "b.two"]));
     expect(document.querySelectorAll(".up-ck")).toHaveLength(0);
-    expect(document.querySelector(".th")!.children).toHaveLength(7);
+    // Check, #, On, Mod, Size, Deployed, Version and Scope: the conflict icon sits in the Mod column.
+    expect(document.querySelector(".th")!.children).toHaveLength(8);
+  });
+
+  it("hides and shows #, Size, Deployed and Version from a right click on the header, and keeps the choice", () => {
+    localStorage.removeItem("obsidian.hiddenModColumns");
+    show(snap(["gh.one", "b.two"]));
+    const open = () => act(() => { document.querySelector(".th")!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 10, clientY: 10 })); });
+    const items = () => [...document.querySelectorAll<HTMLElement>(".ctx > button")];
+    open();
+    expect(items().map((b) => [b.textContent, b.getAttribute("aria-checked")])).toEqual([
+      [t("app.mods.orderTitle"), "true"], [t("app.mods.colSize"), "true"], [t("app.mods.colDeployed"), "true"], [t("app.mods.colVersion"), "true"]]);
+    act(() => items()[1].click());
+    expect(document.querySelector(".table")!.classList.contains("no-size")).toBe(true);
+    expect(JSON.parse(localStorage.getItem("obsidian.hiddenModColumns")!)).toEqual(["size"]);
+    open();
+    expect(items()[1].getAttribute("aria-checked")).toBe("false");
+    act(() => items()[1].click());
+    expect(document.querySelector(".table")!.classList.contains("no-size")).toBe(false);
+    // A row that is not deployed shows a dash.
+    expect(document.querySelector(".tr .dep-no")!.textContent).toBe("-");
   });
 
   it("holds the count, Turn on, Turn off, Check for Updates, Remove and Uncheck all, in that order, and no Actions", () => {

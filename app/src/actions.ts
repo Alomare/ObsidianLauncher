@@ -2,7 +2,7 @@
 // with a notice.
 import { call, errorText, setSnapshot } from "./api";
 import { withTask } from "./busy";
-import { t } from "./i18n";
+import { t, tn } from "./i18n";
 import { notify } from "./notices";
 import type { CmdError, Snapshot } from "./types";
 
@@ -24,7 +24,7 @@ export async function deploy(): Promise<boolean> {
   if (!r) return false;
   setSnapshot(r.snapshot);
   if (r.unchanged) notify("info", t(r.settings ? "app.action.deployedOptions" : "app.action.deployUpToDate"));
-  else notify("info", r.mods === 1 ? t("app.action.deployedOne") : r.mods ? t("app.action.deployed", r.mods) : t(r.loader ? "app.action.deployedLoader" : "app.action.deployedVanilla"));
+  else notify("info", r.mods ? tn("app.action.deployed", r.mods) : t(r.loader ? "app.action.deployedLoader" : "app.action.deployedVanilla"));
   return true;
 }
 
@@ -41,7 +41,7 @@ export async function purge() {
   const r = await step(t("app.action.purging"), () => call<PurgeDone>("purge"));
   if (!r) return;
   setSnapshot(r.snapshot);
-  notify("info", r.kept ? t("app.action.purgedKept", r.kept) : t("app.action.purged"));
+  notify("info", r.kept ? tn("app.action.purgedKept", r.kept) : t("app.action.purged"));
 }
 
 /** `needsDeploy`: a Sandbox save is selected and the loader is not in the game; the caller asks to deploy. */

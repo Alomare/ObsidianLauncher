@@ -5,6 +5,8 @@ const check = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/api/core", () => ({ invoke }));
 vi.mock("@tauri-apps/plugin-updater", () => ({ check }));
 
+const notesOf = (u: { phase: string }) => ("notes" in u ? u.notes : undefined);
+
 const load = async () => {
   vi.resetModules();
   return import("../updates");
@@ -21,7 +23,7 @@ describe("the notes of an update", () => {
     invoke.mockResolvedValue("Edited on GitHub\n");
     const { checkForUpdate, updateState } = await load();
     await checkForUpdate();
-    await vi.waitFor(() => expect(updateState().notes).toBe("Edited on GitHub"));
+    await vi.waitFor(() => expect(notesOf(updateState())).toBe("Edited on GitHub"));
     expect(invoke).toHaveBeenCalledWith("release_notes", { version: "1.0.1" });
   });
 
@@ -31,7 +33,7 @@ describe("the notes of an update", () => {
     await checkForUpdate();
     await vi.waitFor(() => expect(invoke).toHaveBeenCalled());
     await Promise.resolve();
-    expect(updateState().notes).toBe("From latest.json");
+    expect(notesOf(updateState())).toBe("From latest.json");
     expect(updateState().phase).toBe("found");
   });
 
@@ -41,7 +43,7 @@ describe("the notes of an update", () => {
     await checkForUpdate();
     await vi.waitFor(() => expect(invoke).toHaveBeenCalled());
     await Promise.resolve();
-    expect(updateState().notes).toBe("From latest.json");
+    expect(notesOf(updateState())).toBe("From latest.json");
   });
 });
 

@@ -10,12 +10,14 @@ function M.setup(dir)
 	M.dir = dir
 end
 
+-- Lines wait in M.lines until the log folder is known and the write works, then leave memory.
 function M.flush()
-	if not M.dir then return end
+	if not M.dir or #M.lines == 0 then return end
 	local f = B.open(M.dir .. "/loader.log", M.written > 0 and "a" or "w")
 	if f then
-		for i = M.written + 1, #M.lines do f:write(M.lines[i], "\n") end
-		M.written = #M.lines
+		for i = 1, #M.lines do f:write(M.lines[i], "\n") end
+		M.written = M.written + #M.lines
+		M.lines = {}
 		f:close()
 	end
 end

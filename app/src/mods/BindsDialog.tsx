@@ -1,0 +1,57 @@
+// The binds of one mod, to change: one row per action with its key, its controller input and how it
+// fires (tap, double tap, press, long press, release). Every change applies at once, as in the drawer.
+import { run } from "../api";
+import { CloseIcon, GamepadIcon, KeyboardMouseIcon, ResetIcon } from "../Icons";
+import { pick, t } from "../i18n";
+import { Modal } from "../Modal";
+import { PadGlyph } from "../pad/PadGlyph";
+import { Select } from "../Select";
+import { INPUT_MODES, type KeyRow, type ModRow } from "../types";
+import { KeyButton, PadButtonInput, modeName } from "./BindControls";
+
+export function BindsDialog({ mod, names, onClose }: { mod: ModRow; names: Map<string, string>; onClose: () => void }) {
+  const name = pick(mod.name, mod.id);
+  const modes = INPUT_MODES.map((m) => ({ value: m, label: modeName(m) }));
+  return (
+    <Modal className="modal binds" label={t("app.binds.title", name)} onClose={onClose}>
+        <div className="head">
+          <h2 className="cap">{t("app.binds.title", name)}</h2>
+          <button data-pad-back className="bare close" onClick={onClose} aria-label={t("app.close")} data-tip={t("app.close")}><CloseIcon /><PadGlyph role="east" /></button>
+        </div>
+        <div className="binds-table" role="table" aria-label={t("app.binds.title", name)}>
+          <div className="binds-row binds-head cap" role="row">
+            <span role="columnheader">{t("app.binds.action")}</span>
+            <span role="columnheader" aria-label={t("app.drawer.keyboard")} data-tip={t("app.drawer.keyboard")}><KeyboardMouseIcon /></span>
+            <span role="columnheader" aria-label={t("app.drawer.controller")} data-tip={t("app.drawer.controller")}><GamepadIcon /></span>
+            <span role="columnheader">{t("app.binds.mode")}</span>
+          </div>
+          {mod.keybinds.map((k: KeyRow) => {
+            const label = pick(k.label, k.id);
+            return (
+              <div key={k.id} className="binds-row" role="row">
+                <div className="binds-name" role="rowheader">
+                  <span>{label}</span>
+                  {k.clash.length > 0 && <span className="warn">{t("app.drawer.keyClash", [name, ...k.clash.map((id) => names.get(id) ?? id)].join(", "))}</span>}
+                </div>
+                <div className="binds-cell" role="cell">
+                  <KeyButton value={k.key ?? k.default} label={label} clash={k.clash.length > 0} onSet={(v) => run("set_key", { id: mod.id, keybind: k.id, key: v })} />
+                  <button className="bare" disabled={k.key === null} onClick={() => run("set_key", { id: mod.id, keybind: k.id, key: null })}
+                    aria-label={t("app.drawer.reset")} data-tip={t("app.drawer.resetKey", k.default)}><ResetIcon /></button>
+                </div>
+                <div className="binds-cell" role="cell">
+                  <PadButtonInput mod={mod} k={k} label={label} />
+                  <button className="bare" disabled={!k.pad_bind} onClick={() => run("set_pad", { id: mod.id, keybind: k.id, combo: null })}
+                    aria-label={t("app.drawer.reset")} data-tip={t("app.binds.padReset")}><ResetIcon /></button>
+                </div>
+                <div className="binds-cell" role="cell">
+                  <Select value={k.mode} options={modes} label={t("app.binds.mode")} tip={t(`app.binds.modeHint.${k.mode}`)}
+                    onChange={(m) => run("set_mode", { id: mod.id, keybind: k.id, mode: m === "press" ? null : m })} fill />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <p className="binds-note muted">{t("app.binds.note")}</p>
+    </Modal>
+  );
+}

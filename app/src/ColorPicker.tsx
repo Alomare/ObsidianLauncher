@@ -104,7 +104,7 @@ function ColorPicker({ req }: { req: Request }) {
         e.preventDefault();
         e.stopPropagation();
         finish();
-      } else if (e.key === "Enter" && !(e.target instanceof HTMLButtonElement) && box.current?.contains(e.target as Node)) {
+      } else if (e.key === "Enter" && !e.isComposing && !(e.target instanceof HTMLButtonElement) && box.current?.contains(e.target as Node)) {
         e.preventDefault();
         e.stopPropagation();
         finish(now.current.hex);

@@ -7,7 +7,6 @@ vi.mock("../api", () => ({ run: vi.fn() }));
 vi.mock("../opener", () => ({ openUrl: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
 const { Drawer } = await import("../mods/Drawer");
-const { partLines } = await import("../mods/ModTable");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -42,7 +41,7 @@ const cam = (): ModRow => ({
     option("zoom", { group: "aim" }),
     option("hidden", { group: "idle", visible: false }),
   ],
-  keybinds: [], files: [], import: null, source: null, updatable: false, image: null, folder: null, requires: [],
+  keybinds: [], files: [], import: null, source: null, updatable: false, image: null, folder: null, requires: [], size: 0, deployed: false, deployedSize: null,
 });
 
 function show(m: ModRow, tab: "About" | "Options") {
@@ -58,7 +57,7 @@ function show(m: ModRow, tab: "About" | "Options") {
 
 const names = (box: Element) => [...box.querySelectorAll(".opt-name")].map((n) => n.textContent);
 
-describe("a mod with parts", () => {
+describe("a mod with Hybrid Scopes", () => {
   it("lists each part in About with the scope, the description and Off", () => {
     const box = show(cam(), "About");
     const parts = [...box.querySelectorAll(".parts .part")];
@@ -68,11 +67,6 @@ describe("a mod with parts", () => {
     expect(parts[1].classList.contains("off")).toBe(true);
     expect(parts[1].querySelector(".part-off")!.textContent).toBe("Off");
     expect(box.querySelector("aside")!.classList.contains("hybrid")).toBe(true);
-  });
-
-  it("names the parts and their scopes in the diamond's tooltip", () => {
-    expect(partLines(cam())).toBe("Camera and view: Client\nMax weapon range: Session, off");
-    expect(partLines({ ...cam(), parts: [] })).toBeNull();
   });
 });
 

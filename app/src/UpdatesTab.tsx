@@ -3,10 +3,10 @@
 import { openUrl } from "./opener";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import logo from "./assets/logo.png";
-import { CheckIcon, ChevronIcon, ExternalIcon, UpdateIcon, WarnIcon } from "./Icons";
-import { language, t } from "./i18n";
+import { CheckIcon, ExternalIcon, UpdateIcon, WarnIcon } from "./Icons";
+import { t } from "./i18n";
 import { LINKS } from "./links";
-import { Markdown, parse } from "./Markdown";
+import { ReleaseEntry } from "./ReleaseEntry";
 import { useAppSettings } from "./settings";
 import type { Snapshot } from "./types";
 import { changelog, checkForUpdate, installUpdate, loadReleases, useReleases, useUpdates, type ChangelogEntry } from "./updates";
@@ -29,7 +29,7 @@ export function UpdatesTab({ snap, onSystem }: { snap: Snapshot; onSystem: () =>
 function UpdateCard({ snap }: { snap: Snapshot }) {
   const u = useUpdates();
   const busy = u.phase === "checking" || u.phase === "downloading" || u.phase === "installing";
-  const pct = u.total ? Math.round((u.got / u.total) * 100) : 0;
+  const pct = u.phase === "downloading" && u.total ? Math.round((u.got / u.total) * 100) : 0;
   let tone = "current", icon: ReactNode = <CheckIcon />, line = t("app.update.none"), detail: string | null = null, action: ReactNode = null;
   if (u.phase === "checking" || u.phase === "idle") {
     tone = "wait"; icon = <span className="upd-spin" aria-hidden="true" />; line = t("app.update.checking");
@@ -38,7 +38,7 @@ function UpdateCard({ snap }: { snap: Snapshot }) {
   } else if (u.phase === "downloading" || u.phase === "installing") {
     tone = "new"; icon = <UpdateIcon />; line = u.phase === "installing" ? t("app.update.installing") : t("app.update.downloading", pct);
   } else if (u.phase === "found") {
-    tone = "new"; icon = <UpdateIcon />; line = t("app.update.found", u.version ?? "");
+    tone = "new"; icon = <UpdateIcon />; line = t("app.update.found", u.version);
     detail = u.error ? t("app.update.failedInstall", u.error) : snap.portable ? t("app.settings.portableHint") : null;
     if (!snap.portable) action = <button className="btn small play" onClick={installUpdate}>{t("app.update.install")}</button>;
   }
@@ -62,8 +62,6 @@ function UpdateCard({ snap }: { snap: Snapshot }) {
   );
 }
 
-const dateOf = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(language(), { dateStyle: "medium" }) : "");
-
 /** New versions and the installed one start open, older ones folded. */
 function Changelog({ current }: { current: string }) {
   const releases = useReleases();
@@ -78,21 +76,12 @@ function Changelog({ current }: { current: string }) {
       {entries.length === 0 && !releases.failed && <p className="upd-empty">{t("app.update.noReleases")}</p>}
       <ol className="upd-timeline">
         {entries.map((e) => (
-          <li key={e.version} className={`upd-entry ${e.when}${isOpen(e) ? " open" : ""}`}>
-            <button className="upd-head" aria-expanded={isOpen(e)} onClick={() => setOpen((o) => ({ ...o, [e.version]: !isOpen(e) }))}>
-              <ChevronIcon />
-              <b>{e.version}</b>
+          <ReleaseEntry key={e.version} version={e.version} date={e.date} className={`upd-entry ${e.when}`} open={isOpen(e)}
+            onToggle={() => setOpen((o) => ({ ...o, [e.version]: !isOpen(e) }))} notes={e.notes} url={e.url}
+            badges={<>
               {e.when === "new" && <span className="upd-badge new">{t("app.update.badgeNew")}</span>}
               {e.when === "installed" && <span className="upd-badge">{t("app.update.badgeInstalled")}</span>}
-              <span className="date">{dateOf(e.date)}</span>
-            </button>
-            {isOpen(e) && (
-              <div className="upd-body">
-                {e.notes ? <Markdown tokens={parse(e.notes).tokens} /> : <p className="muted">{t("app.update.noNotes")}</p>}
-                {e.url && <button className="link small" onClick={() => openUrl(e.url!).catch(() => {})}>{t("app.update.onGithub")}</button>}
-              </div>
-            )}
-          </li>
+            </>} />
         ))}
       </ol>
     </section>

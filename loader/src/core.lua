@@ -17,6 +17,7 @@ local save_data = require("obsidian/loader/save_data")
 local sandbox = require("obsidian/loader/sandbox")
 local war = require("obsidian/loader/war")
 local lobby = require("obsidian/loader/lobby")
+local profiler = require("obsidian/loader/profiler")
 
 local API_VERSION = 1
 local MAX_ERRORS = 10
@@ -31,7 +32,7 @@ local capabilities = {
 	after_startup = true, log = true, hook = true, wrap = true, on_require = true, on_session = true, session = true,
 	settings = true, keybind = true, text = true, on_frame = true, module = true, import = true, menu = true, toast = true, notify = true, storage = true, caller = true,
 	ui = true, scope = true, guardrails = true, info = true, expansion = true, save_data = true,
-	language = true, game_text = true, parts = true,
+	language = true, game_text = true, parts = true, secondary_scopes = true, war = true, profiler = true, input_modes = true, pad_binds = true,
 }
 local api = {
 	version = API_VERSION,
@@ -50,6 +51,8 @@ local api = {
 	storage = storage.api(),
 	save_data = save_data.api(),
 	guardrails = guardrails.api(M),
+	war = war.api(M),
+	profiler = profiler.api(M),
 	capabilities = B.setmetatable({}, {
 		__index = capabilities,
 		__newindex = function() B.error("obsidian.capabilities is read-only", 2) end,
@@ -185,28 +188,37 @@ local function traceback(err)
 	return B.tostring(err)
 end
 
--- Runs fn for a mod, protected. Errors are logged at most 3 times per site, and a mod that keeps
--- erroring is switched off for the rest of the session.
+-- After the protected call: the clock, the caller back, the error counted. The results pass through
+-- as they came, a trailing nil included (`tonumber(SaveManager:get(key))` fails when a hook turns the
+-- game's nil into no value at all), with no table or closure made per call: hooked game functions run
+-- every frame, and making a closure stops LuaJIT compiling the path.
+local function settle(state, site, previous, at, ok, ...)
+	if at then profiler.leave(at) end
+	M.current = previous
+	if not ok then
+		if state then
+			state.errors = state.errors + 1
+			log.limited(state.id .. "\0" .. site, "error " .. state.id .. " " .. site .. ": " .. B.tostring((...)))
+			if state.errors >= MAX_ERRORS then
+				state.off = true
+				log.line("switched off " .. state.id .. " after " .. MAX_ERRORS .. " errors")
+				M.notice("mod_failed", state.id)
+			end
+		else
+			log.limited("obsidian.loader\0" .. site, "error obsidian.loader " .. site .. ": " .. B.tostring((...)))
+		end
+	end
+	return ok, ...
+end
+
+-- Runs fn for a mod (or the loader, with no state), protected. Errors are logged at most 3 times per
+-- site, and a mod that keeps erroring is switched off for the rest of the session.
 function M.call(state, site, fn, ...)
 	if state and state.off then return false end
 	local previous = M.current
 	M.current = state
-	local args, n = { ... }, B.select("#", ...)
-	-- Counted, because a trailing nil is a result too: `tonumber(SaveManager:get(key))` fails when a
-	-- hook turns the game's nil into no value at all.
-	local function counted(...) return { n = B.select("#", ...), ... } end
-	local result = counted(B.xpcall(function() return fn(B.unpack(args, 1, n)) end, traceback))
-	M.current = previous
-	if not result[1] and state then
-		state.errors = state.errors + 1
-		log.limited(state.id .. "\0" .. site, "error " .. state.id .. " " .. site .. ": " .. B.tostring(result[2]))
-		if state.errors >= MAX_ERRORS then
-			state.off = true
-			log.line("switched off " .. state.id .. " after " .. MAX_ERRORS .. " errors")
-			M.notice("mod_failed", state.id)
-		end
-	end
-	return B.unpack(result, 1, result.n)
+	local at = profiler.on and profiler.enter(state and state.id or "obsidian.loader", site)
+	return settle(state, site, previous, at, B.xpcall(fn, traceback, ...))
 end
 
 local function snapshot()
@@ -259,8 +271,8 @@ function api.log(...)
 end
 
 -- fn runs once per frame, protected; returning true stops the calls. A session mod's callbacks
--- run only in a cleared session, like the mod's hooks. opts.part: the callback runs with the scope of
--- that part of the mod, and never while the part is off. opts.always: in any lobby, as with keys.
+-- run only in a cleared session, like the mod's hooks. opts.secondary_scope: the callback runs with that
+-- secondary scope of the mod, and never while it is off. opts.always: in any lobby, as with keys.
 function api.on_frame(fn, opts)
 	if B.type(fn) ~= "function" then return end
 	local state = M.current
@@ -271,26 +283,32 @@ function api.on_frame(fn, opts)
 end
 
 local function run_frame_callbacks()
-	local list, keep = M.frame_callbacks, {}
-	for _, cb in B.ipairs(list) do
+	local list, stopped = M.frame_callbacks, false
+	for i = 1, #list do
+		local cb = list[i]
 		local state = cb.state
 		local gated = not cb.always and session.gated(state, cb.part)
-		local stop = false
 		if state and state.off then
-			stop = true
-		elseif not (gated and not session.allows(state)) then
+			cb.stop, stopped = true, true
+		elseif not (gated and not session.allows(state, cb.part)) then
 			local ok, result = M.call(state, "on_frame", cb.fn)
-			stop = ok and result == true
+			if ok and result == true then cb.stop, stopped = true, true end
 		end
-		if not stop then B.insert(keep, cb) end
 	end
-	M.frame_callbacks = keep
+	-- A new list only on the frame a callback stops; one added during the loop is kept.
+	if stopped then
+		local keep = {}
+		for _, cb in B.ipairs(M.frame_callbacks) do
+			if not cb.stop then B.insert(keep, cb) end
+		end
+		M.frame_callbacks = keep
+	end
 end
 
 -- How a mod runs in this deploy: "client", "session", "hybrid" or "expansion". A library has become
 -- client or session: session when a session mod or an expansion requires it, so the library sets up
--- what the expansion may use. Hybrid: the mod's session parts stop in a lobby that isn't cleared, and
--- the client parts keep running.
+-- what the expansion may use. Hybrid: the mod's session secondary scopes stop in a lobby that isn't
+-- cleared, and the client ones keep running.
 local function scope_of(state)
 	local scope = state.mod.scope
 	if scope == "client" or scope == "hybrid" then return scope end
@@ -353,7 +371,7 @@ end
 
 local function start(mod)
 	local state = { id = B.tostring(mod.id), mod = mod, errors = 0, off = false }
-	-- The mod's parts by id, from the deploy: the scope of each, and whether the option of the part has it on.
+	-- The mod's secondary scopes by id, from the deploy: the scope of each, and whether its option has it on.
 	if B.type(mod.parts) == "table" then
 		state.parts, state.part_list = {}, {}
 		for _, p in B.ipairs(mod.parts) do
