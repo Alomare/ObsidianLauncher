@@ -523,7 +523,7 @@
   "app.error.SaveNameMismatch": "输入的名称与存档不符，因此未删除任何内容。",
   "app.error.SaveMissing": "该存档已不存在。",
   "app.error.SaveName": "请使用 1 到 40 个字符，且只占一行。",
-  "app.error.UnsupportedArchive": "该文件不是存档导出文件。",
+  "app.error.UnsupportedArchive": "Obsidian 无法读取该文件。",
   "app.nav.saves": "存档",
   "app.sort.title": "排序模组",
   "app.sort.hint": "按照每个模组的请求调整加载顺序，例如最后加载或在另一个模组之后加载。任何模组移动之前都会先显示更改。",

@@ -537,7 +537,7 @@
   "app.error.SaveNameMismatch": "The name typed does not match the save, so nothing was deleted.",
   "app.error.SaveMissing": "That save no longer exists.",
   "app.error.SaveName": "Use 1 to 40 characters on one line.",
-  "app.error.UnsupportedArchive": "That file is not a save export.",
+  "app.error.UnsupportedArchive": "Obsidian can't read that file.",
   "app.nav.saves": "Saves",
   "app.sort.title": "Sort Mods",
   "app.sort.hint": "Orders mods by what they request, such as loading last or after another mod. A preview shows before anything moves.",

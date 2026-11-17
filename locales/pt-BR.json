@@ -540,7 +540,7 @@
   "app.error.SaveNameMismatch": "O nome digitado não corresponde ao save, então nada foi apagado.",
   "app.error.SaveMissing": "Esse save não existe mais.",
   "app.error.SaveName": "Use de 1 a 40 caracteres em uma linha.",
-  "app.error.UnsupportedArchive": "Esse arquivo não é uma exportação de save.",
+  "app.error.UnsupportedArchive": "O Obsidian não consegue ler esse arquivo.",
   "app.nav.saves": "Saves",
   "app.sort.title": "Ordenar mods",
   "app.sort.hint": "Ordena os mods pelo que eles pedem, como carregar por último ou depois de outro mod. Uma prévia aparece antes de qualquer coisa se mover.",
