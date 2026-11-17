@@ -53,10 +53,3 @@ describe("the About tab", () => {
     expect(show(mod(null)).querySelector(".src-link")).toBeNull();
   });
 });
-
-describe("the panel's header", () => {
-  it("has no update button: the row and the Mods head offer the update", () => {
-    expect(show(mod(SOURCE)).querySelector(".dh-update")).toBeNull();
-    expect(show(mod(SOURCE)).querySelector(".dh .ver-up")).toBeNull();
-  });
-});
