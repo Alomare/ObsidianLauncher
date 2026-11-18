@@ -255,7 +255,7 @@ end)
 
 -- Lobby info.
 
-local function host(settings, mods)
+local function host(settings, mods, backend)
 	local list, sources = {}, {}
 	for _, m in ipairs(mods or {}) do
 		list[#list + 1] = m
@@ -263,10 +263,13 @@ local function host(settings, mods)
 	end
 	local keyset = {}
 	local set_calls = 0
-	rawset(_G, "SteamLobby", { set_data = function(_, key, value) keyset[key] = value; set_calls = set_calls + 1 end })
+	local other = backend == "LAN" and "SteamLobby" or "LanLobby"
+	rawset(_G, backend == "LAN" and "LanLobby" or "SteamLobby", { set_data = function(_, key, value) keyset[key] = value; set_calls = set_calls + 1 end })
+	-- The other backend's table exists too, as in the game, and must never be written through.
+	rawset(_G, other, { set_data = function() error("written through " .. other) end })
 	local engine = { data = function(_, key) return keyset[key] end }
 	local is_host = true
-	rawset(_G, "NetworkGlobal", { lobby = { lobby = engine, is_host = function() return is_host end,
+	rawset(_G, "NetworkGlobal", { lobby = { lobby = engine, backend_type = backend or "STEAM", is_host = function() return is_host end,
 		my_id = "me", state = function() return "joined" end, members = function() return { "me" } end,
 		lobby_host = function() return "me" end, member_data = function() return nil end, set_member_data = function() end } })
 	local e = E.new({ deploy = E.deploy({ texts = TEXTS, mods = list }), settings = settings, mods = sources })
@@ -279,6 +282,13 @@ test("the_host_publishes_the_lobby_info", function()
 	local e, keys = host(nil, { E.mod("a", { name = { en = "Alpha" }, version = "1.2.0", scope = "session" }), E.mod("b", { version = "2.0.0" }) })
 	e:frames(60)
 	E.eq(keys.obsidian_lobby, "1;;Alpha@1.2.0|b@2.0.0")
+end)
+
+test("a_lan_lobby_is_written_through_lan_lobby", function()
+	local e, keys = host(nil, { E.mod("a") }, "LAN")
+	e:frames(60)
+	E.eq(keys.obsidian_lobby, "1;;a@1.0.0")
+	E.eq(e:log():find("could not publish", 1, true), nil, e:log())
 end)
 
 test("a_sandbox_host_sets_the_flag", function()
