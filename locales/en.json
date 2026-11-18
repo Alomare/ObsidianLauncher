@@ -966,6 +966,8 @@
   "app.store.installed": "Installed",
   "app.store.clear": "Clear",
   "app.store.search": "Search mods",
+  "app.store.refresh": "Refresh",
+  "app.store.refreshHint": "Reads the Store list from GitHub again, with the mods and versions added since it was opened",
   "app.store.noMatch": "No mods match",
   "app.store.noMatchHint": "Try fewer filters.",
   "app.store.early": "EA",

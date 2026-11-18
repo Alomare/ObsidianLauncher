@@ -208,7 +208,18 @@ fn http_get(url: &str, limit: u64) -> Result<Vec<u8>> {
 /// Reads the index from GitHub, keeps it in `<data>/store`, and gets the pictures it names.
 pub fn fetch(data: &Path) -> Result<StoreIndex> {
     let base = base();
-    fetch_with(&data.join(DIR), |path, limit| http_get(&format!("{base}{path}"), limit))
+    fetch_with(&data.join(DIR), |path, limit| http_get(&format!("{base}{}", fresh(path)), limit))
+}
+
+/// The address of `path` in the index repository. The index itself gets a query of the time, as
+/// raw.githubusercontent.com keeps a file for up to five minutes: without it, a refresh right after the
+/// index was rebuilt could answer the list from before. The pictures keep their plain address.
+fn fresh(path: &str) -> String {
+    if path != INDEX {
+        return path.to_string();
+    }
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
+    format!("{path}?t={now}")
 }
 
 /// `fetch` with the download given: `get(path in the index repository, size limit)`.
