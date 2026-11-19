@@ -8177,4 +8177,29 @@ test("the_cursor_in_third_person_is_the_crosshair_past_the_player", function()
 	E.eq(asked[1] == 960 and asked[2] == 540, false)
 end)
 
+test("a_chat_line_goes_out_under_this_players_index", function()
+	local api, game = start()
+	local sent = nil
+	game.state.text_chat = { network_router = { transmit_to_all = function(_, name, index, text) sent = { name, index, text } end },
+		get_typing_player = function() return { player_index = 2 } end }
+	E.eq(api.ui.chat("Look here"), true)
+	E.eq(sent[1], "rpc_text_chat")
+	E.eq(sent[2], 2)
+	E.eq(sent[3], "Look here")
+	E.eq(select(2, api.ui.chat("")), "bad_type")
+	E.eq(select(2, api.ui.chat(string.rep("a", 201))), "out_of_range")
+	game.state.text_chat = nil
+	E.eq(select(2, api.ui.chat("Look here")), "not_available")
+end)
+
+test("the_stratagem_of_a_dropped_weapon_or_pack_is_found_by_any_of_its_paths", function()
+	local api = start()
+	E.eq(api.catalog.stratagem_of("equipment/mg_pickup").name, "stratagem_machinegun")
+	E.eq(api.catalog.stratagem_of("equipment/mg").name, "stratagem_machinegun")
+	E.eq(api.catalog.stratagem_of("equipment/pack").name, "stratagem_jumppack")
+	E.eq(api.catalog.stratagem_of("equipment/pack_dlc").name, "stratagem_pack_dlc", "a teammate's paid pack is named too")
+	E.eq(api.catalog.stratagem_of("equipment/rifle"), nil)
+	E.eq(api.catalog.stratagem_of(nil), nil)
+end)
+
 return T
