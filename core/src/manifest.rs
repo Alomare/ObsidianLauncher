@@ -525,11 +525,43 @@ fn valid_id(id: &str) -> bool {
 }
 
 /// A relative path that stays inside the mod folder and names an existing file.
-fn check_path(mod_dir: &Path, p: &Path, field: &str) -> Result<()> {
+/// The files under a mod folder by relative path with `/`, listed once on first use: a texture mod
+/// names over a thousand files, and asking for each one took half a second.
+struct FilesIn<'a> {
+    dir: &'a Path,
+    listed: std::cell::OnceCell<std::collections::HashSet<String>>,
+}
+
+impl FilesIn<'_> {
+    fn has(&self, p: &Path) -> bool {
+        let listed = self.listed.get_or_init(|| {
+            let mut out = std::collections::HashSet::new();
+            let mut todo = vec![(self.dir.to_path_buf(), String::new())];
+            while let Some((d, rel)) = todo.pop() {
+                let Ok(entries) = std::fs::read_dir(&d) else { continue };
+                for e in entries.flatten() {
+                    let Ok(kind) = e.file_type() else { continue };
+                    let name = format!("{rel}{}", e.file_name().to_string_lossy());
+                    if kind.is_dir() {
+                        todo.push((e.path(), format!("{name}/")));
+                    } else if kind.is_file() {
+                        out.insert(name);
+                    }
+                }
+            }
+            out
+        });
+        let rel: Vec<String> = p.components().filter(|c| matches!(c, Component::Normal(_))).map(|c| c.as_os_str().to_string_lossy().into_owned()).collect();
+        // A name spelled in another case, or a link, is asked of the system.
+        listed.contains(&rel.join("/")) || self.dir.join(p).is_file()
+    }
+}
+
+fn check_path(files: &FilesIn, p: &Path, field: &str) -> Result<()> {
     if !p.components().all(|c| matches!(c, Component::Normal(_) | Component::CurDir)) {
         return Err(bad(field, format!("{} must be a path inside the mod folder", p.display())));
     }
-    if !mod_dir.join(p).is_file() {
+    if !files.has(p) {
         return Err(bad(field, format!("{} does not exist", p.display())));
     }
     Ok(())
@@ -544,6 +576,7 @@ impl Manifest {
     /// Ships with Obsidian: always in the library, can't be removed.
     pub fn validate(&self, mod_dir: &Path) -> Result<()> {
         self.save_editor()?;
+        let files = FilesIn { dir: mod_dir, listed: Default::default() };
         if self.obsidian != 1 {
             return Err(bad("obsidian", "only version 1 is supported"));
         }
@@ -563,11 +596,11 @@ impl Manifest {
             return Err(bad("every_player", "the content of an expansion already runs only when every player runs it, so leave it out"));
         }
         if let Some(entry) = &self.entry {
-            check_path(mod_dir, entry, "entry")?;
+            check_path(&files, entry, "entry")?;
         }
         for (i, p) in self.modules.iter().enumerate() {
             let field = format!("modules[{i}]");
-            check_path(mod_dir, p, &field)?;
+            check_path(&files, p, &field)?;
             if p.extension().is_none_or(|x| x != "lua") {
                 return Err(bad(field, "a module is a .lua file"));
             }
@@ -613,7 +646,7 @@ impl Manifest {
                 return Err(bad(field, "bundle must be 16 lowercase hex digits"));
             }
             for p in r.payload.paths() {
-                check_path(mod_dir, p, &field)?;
+                check_path(&files, p, &field)?;
             }
             for (id, value) in &r.when {
                 let spec = options.iter().find(|o| o.id == *id).ok_or_else(|| bad(&field, format!("when names {id}, which is not an option")))?;
@@ -621,7 +654,7 @@ impl Manifest {
             }
         }
         crate::parts::check(self, &options)?;
-        crate::option_layout::check(self, mod_dir, &options, |p, field| check_path(mod_dir, p, field))?;
+        crate::option_layout::check(self, mod_dir, &options, |p, field| check_path(&files, p, field))?;
         Ok(())
     }
 
