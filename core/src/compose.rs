@@ -783,6 +783,10 @@ fn compose_with(lib: &Library, profile: &Profile, with_data: bool, contents: Opt
 #[allow(clippy::too_many_arguments)]
 fn compose_inner(lib: &Library, profile: &Profile, with_data: bool, contents: Option<&Path>, known: Option<&BTreeMap<String, Manifest>>, on_mod: Option<OnMod<'_>>, lazy: bool) -> Result<Composition> {
     let banks = [hash_name("timpani_bank"), hash_name("timpani_master")];
+    // A game in English reads variant 0 of a texture and no other (seen in game, 2026-11-19), so the other
+    // variants a mod gives stay out: they made up 40% of a texture mod's patches.
+    let english = contents.and_then(|c| c.parent()).and_then(crate::game::steam_language).is_some_and(|l| l == "english");
+    let texture = hash_name("texture");
     let mut slots: BTreeMap<(String, u64, u64), Slot> = BTreeMap::new();
     // Every mod's version of a table that merges, in load order, with one entry for the same bytes.
     let mut table_versions: BTreeMap<(String, u64), (&str, Vec<Planned>)> = BTreeMap::new();
@@ -880,18 +884,28 @@ fn compose_inner(lib: &Library, profile: &Profile, with_data: bool, contents: Op
                 continue;
             }
             let bundle = r.bundle.clone().ok_or_else(|| ObsidianError::BundleRequired { mod_id: m.id.clone() })?;
-            let path = dir.join(r.data_path());
+            let payload = match &r.payload {
+                Payload::Variants(v) if english && r.type_hash == texture && v.len() > 1 && v.iter().any(|x| x.lang == 0) => {
+                    std::borrow::Cow::Owned(Payload::Variants(v.iter().filter(|x| x.lang == 0).cloned().collect()))
+                }
+                other => std::borrow::Cow::Borrowed(other),
+            };
+            let trimmed = matches!(payload, std::borrow::Cow::Owned(_));
+            let payload = payload.as_ref();
+            // The digest of the trimmed resource is kept apart from the whole one: a change of language
+            // would otherwise work one of them out again each time.
+            let path = if trimmed { PathBuf::from(format!("{}#0", dir.join(r.data_path()).display())) } else { dir.join(r.data_path()) };
             // A lazy compose leaves the data to `loaded`, except for a bank (see `compose_lazy`).
             let read = with_data && !(lazy && !banks.contains(&r.type_hash));
             let planned = if read {
-                match read_payload(&dir, &m.id, &r.payload)? {
+                match read_payload(&dir, &m.id, payload)? {
                     Read::Data(data) => Planned::new(r.type_hash, r.name_hash, r.flags, data, m.id.clone()),
                     Read::Pieces(pieces) => Planned::with_pieces(r.type_hash, r.name_hash, r.flags, pieces, m.id.clone()),
                 }
             } else {
                 // A resource in pieces is stamped by its newest file and their total size.
                 let mut stamp: Option<Stamp> = None;
-                for p in r.payload.paths() {
+                for p in payload.paths() {
                     let p = dir.join(p);
                     let s = match stamps.get(&p) {
                         Some(s) => *s,
@@ -907,7 +921,7 @@ fn compose_inner(lib: &Library, profile: &Profile, with_data: bool, contents: Op
                 let digest = match cached {
                     Some(d) => d,
                     None => {
-                        let d = match read_payload(&dir, &m.id, &r.payload)? {
+                        let d = match read_payload(&dir, &m.id, payload)? {
                             Read::Data(data) => sha256(&data),
                             Read::Pieces(pieces) => pieces_digest(&pieces),
                         };
@@ -916,7 +930,7 @@ fn compose_inner(lib: &Library, profile: &Profile, with_data: bool, contents: Op
                         d
                     }
                 };
-                let load = with_data.then(|| Load(std::sync::Arc::new((dir.clone(), m.id.clone(), r.payload.clone()))));
+                let load = with_data.then(|| Load(std::sync::Arc::new((dir.clone(), m.id.clone(), payload.clone()))));
                 Planned { type_hash: r.type_hash, name_hash: r.name_hash, flags: r.flags, data: Vec::new(), digest, owner: m.id.clone(), pieces: Vec::new(), recipe: None, load }
             };
             if let Some(table) = merged_table(r.type_hash, r.name_hash) {
@@ -1265,6 +1279,36 @@ mod tests {
             let digests: Vec<_> = planned.iter().map(|r| r.digest).collect();
             assert_eq!(digests, read.iter().map(|r| r.digest).collect::<Vec<_>>(), "the digests are known before reading");
         }
+    }
+
+    #[test]
+    fn a_game_in_english_gets_variant_0_of_a_texture_alone() {
+        let t = spaced_tempdir();
+        let lib = Library::open(&t.path().join("data")).unwrap();
+        let d = t.path().join("stage-tex");
+        let json = r##"{"obsidian":1,"id":"tex","version":"1.0.0","name":{"en":"tex"},"resources":[
+            {"type":"texture","name":"#0000000000000003","bundle":"00000000000000bb","variants":[{"lang":0,"data":"v0.bin"},{"lang":32,"data":"v32.bin"}]},
+            {"type":"material","name":"#0000000000000004","bundle":"00000000000000bb","variants":[{"lang":0,"data":"v0.bin"},{"lang":32,"data":"v32.bin"}]}]}"##;
+        put(&d, "obsidian.json", json.as_bytes());
+        put(&d, "v0.bin", b"base");
+        put(&d, "v32.bin", b"other");
+        lib.install(&d).unwrap();
+        let p = profile(&[("tex", true)]);
+        let contents = t.path().join("library/steamapps/common/Helldivers/contents");
+        std::fs::create_dir_all(&contents).unwrap();
+        let langs = |c: &Composition, kind: &str| -> Vec<u32> { c.bundles["00000000000000bb"].iter().find(|r| r.type_hash == hash_name(kind)).unwrap().pieces.iter().map(|x| x.lang).collect() };
+        let manifest = |lang: &str| put(&t.path().join("library/steamapps"), "appmanifest_394510.acf", format!("\"AppState\"\n{{\n\t\"UserConfig\"\n\t{{\n\t\t\"language\"\t\t\"{lang}\"\n\t}}\n}}\n").as_bytes());
+        manifest("english");
+        let c = compose_for(&lib, &p, Some(&contents)).unwrap();
+        assert_eq!(langs(&c, "texture"), [0]);
+        assert_eq!(langs(&c, "material"), [0, 32], "only textures are trimmed");
+        let planned = plan_for(&lib, &p, Some(&contents)).unwrap();
+        let digest = |c: &Composition| c.bundles["00000000000000bb"].iter().find(|r| r.type_hash == hash_name("texture")).unwrap().digest;
+        assert_eq!(digest(&planned), digest(&c), "the plan has the digest of what a deploy writes");
+        manifest("french");
+        let c = compose_for(&lib, &p, Some(&contents)).unwrap();
+        assert_eq!(langs(&c, "texture"), [0, 32]);
+        assert_ne!(digest(&plan_for(&lib, &p, Some(&contents)).unwrap()), digest(&planned), "another language is a change waiting");
     }
 
     #[test]
