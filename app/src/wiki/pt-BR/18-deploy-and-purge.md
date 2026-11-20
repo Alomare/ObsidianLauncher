@@ -13,10 +13,13 @@ Aplicar coloca no jogo os mods ligados do perfil ativo. O ícone **Aplicar** fic
 Cada aplicação substitui todos os patches da anterior, então não é preciso limpar antes: um mod desligado ou removido sai do jogo na próxima aplicação. Quando só mudaram valores de opção ou teclas, nada é reconstruído e a aplicação leva um instante. Cada aplicação segue estes passos:
 
 1. Verifica se o jogo é a versão que o Obsidian conhece (veja abaixo).
-2. Faz backup da pasta de saves quando ela mudou desde o último backup. O primeiro backup e os 9 mais novos são guardados, então o save de antes de qualquer mod fica.
-3. Decide qual mod vence em cada recurso, seguindo a ordem de carregamento.
-4. Compila o Lua de cada mod, e o carregador, em código que o jogo consegue rodar.
-5. Escreve um patch por bundle do jogo, e a lista de mods aplicados para o carregador.
+2. Decide qual mod vence em cada recurso, seguindo a ordem de carregamento.
+3. Compila o Lua de cada mod, e o carregador, em código que o jogo consegue rodar.
+4. Escreve um patch por bundle do jogo como arquivo temporário ao lado dos arquivos do jogo, e a lista de mods aplicados para o carregador.
+5. Faz backup da pasta de saves quando ela mudou desde o último backup. O primeiro backup e os 9 mais novos são guardados, então o save de antes de qualquer mod fica.
+6. Coloca os patches novos no lugar dos antigos.
+
+Uma aplicação que demora mostra uma janela com o progresso e um botão **Cancelar**. Cancelar funciona até o passo 5: os patches temporários são apagados, e o jogo fica com os mods, as configurações e os backups da última aplicação, como se esta nunca tivesse rodado. O passo 6 leva um instante e sempre vai até o fim, então um cancelamento que chega durante ele não muda nada.
 
 **Jogar**, na barra no topo da janela, abre o jogo com os mods da última aplicação. **Jogar** não aplica, então mudanças pendentes ficam fora do jogo até **Aplicar**. Sem nada aplicado, **Jogar** pergunta antes, já que o jogo abriria vanilla. **Não perguntar de novo** para a pergunta, e **Perguntar antes de jogar sem mods**, na aba Sistema das [Configurações](app:settings), a traz de volta.
 
