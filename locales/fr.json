@@ -8,6 +8,7 @@
   "status_isolated": "Certains mods ne peuvent pas être désactivés. Les parties publiques sans mods ne sont pas disponibles.",
   "session_not_cleared": "D'autres joueurs ici utilisent des mods différents, et certains mods locaux modifient des fichiers du jeu qui ne peuvent pas être mis en pause. Envisagez de quitter cette partie.",
   "progress_frozen": "La progression est gelée pour ce lancement : rien de ce qui est gagné ou dépensé n'est sauvegardé.",
+  "tamper_tripped": "La vérification anti-falsification du jeu s'est déclenchée et a quitté le lobby : les interactions ne marchent plus et la mission finit sur Connection lost. Un mod a modifié une valeur protégée ; loader.log la nomme.",
   "achievements_blocked": "Les succès sont désactivés jusqu'à la fermeture du jeu.",
   "uploads_blocked": "Les résultats de la Guerre galactique et des classements ne sont pas envoyés tant que des mods de session sont déployés.",
   "every_player_off": "%s est désactivé, car certains joueurs ici ne l'utilisent pas.",

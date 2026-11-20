@@ -6349,6 +6349,31 @@ test("a_saved_loadout_that_holds_a_hidden_stratagem_swaps_that_entry_only", func
 	E.eq(out.stratagems[1], "stratagem_jumppack")
 end)
 
+-- A low-rank player whose loadout holds every stratagem they have: nothing can take the hidden one's
+-- place. Taking it out moved the later picks up and left the last slot empty, which other players
+-- saw as a missing 4th stratagem.
+test("a_hidden_stratagem_with_no_replacement_keeps_its_slot", function()
+	local api, game, e = start()
+	wire_world(game)
+	local seen = hide_world(e)
+	local s = rawget(_G, "LoadoutSettings")
+	local list = { "stratagem_reinforce", "stratagem_resupply" }
+	for _, item in ipairs(s.stratagems) do
+		local n = item.name
+		if n ~= "stratagem_resupply" and n ~= "stratagem_reinforce" and api.catalog.unlocked(n) then list[#list + 1] = n end
+	end
+	local want = table.concat(list, ",")
+	game.save.user.loadouts = { { stratagems = list } }
+	E.eq(api.stratagems.hide("stratagem_resupply"), true)
+	rawget(_G, "MenuScreenLoadout").setup_loadout({ parent = { players = { { pad_number = 1 } } } }, 1)
+	E.eq(table.concat(seen()[1].stratagems, ","), want, "every pick keeps its slot")
+	local out = rawget(_G, "Boot").ensure_loadout(1, { stratagems = { "stratagem_resupply", list[3] } })
+	E.eq(#out.stratagems, 2, "nothing taken out")
+	local defaults = table.concat(s.default_loadouts[1].stratagems, ",")
+	E.eq(#s.default_loadouts[1].stratagems, 2, "the default loadouts keep their length: " .. defaults)
+	api.stratagems.unhide("stratagem_resupply")
+end)
+
 test("hiding_is_checked_and_a_client_mod_cant", function()
 	local api, game, e = start()
 	wire_world(game)
@@ -8150,6 +8175,31 @@ test("the_cursor_in_third_person_is_the_crosshair_past_the_player", function()
 	api.world.cursor()
 	E.eq(from.y, 0, "top-down: from the camera, through the mouse")
 	E.eq(asked[1] == 960 and asked[2] == 540, false)
+end)
+
+test("a_chat_line_goes_out_under_this_players_index", function()
+	local api, game = start()
+	local sent = nil
+	game.state.text_chat = { network_router = { transmit_to_all = function(_, name, index, text) sent = { name, index, text } end },
+		get_typing_player = function() return { player_index = 2 } end }
+	E.eq(api.ui.chat("Look here"), true)
+	E.eq(sent[1], "rpc_text_chat")
+	E.eq(sent[2], 2)
+	E.eq(sent[3], "Look here")
+	E.eq(select(2, api.ui.chat("")), "bad_type")
+	E.eq(select(2, api.ui.chat(string.rep("a", 201))), "out_of_range")
+	game.state.text_chat = nil
+	E.eq(select(2, api.ui.chat("Look here")), "not_available")
+end)
+
+test("the_stratagem_of_a_dropped_weapon_or_pack_is_found_by_any_of_its_paths", function()
+	local api = start()
+	E.eq(api.catalog.stratagem_of("equipment/mg_pickup").name, "stratagem_machinegun")
+	E.eq(api.catalog.stratagem_of("equipment/mg").name, "stratagem_machinegun")
+	E.eq(api.catalog.stratagem_of("equipment/pack").name, "stratagem_jumppack")
+	E.eq(api.catalog.stratagem_of("equipment/pack_dlc").name, "stratagem_pack_dlc", "a teammate's paid pack is named too")
+	E.eq(api.catalog.stratagem_of("equipment/rifle"), nil)
+	E.eq(api.catalog.stratagem_of(nil), nil)
 end)
 
 return T

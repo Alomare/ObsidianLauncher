@@ -42,6 +42,7 @@ pub mod settings;
 pub mod sort;
 pub mod starter;
 pub mod store;
+pub mod timing;
 #[cfg(test)]
 pub(crate) mod testutil;
 pub mod updates;

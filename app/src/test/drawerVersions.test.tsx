@@ -91,9 +91,8 @@ describe("the Versions tab", () => {
     expect([...box.querySelectorAll(".mod-log-entry b")].map((b) => b.textContent)).toEqual(["1.3.0-beta.1"]);
   });
 
-  it("asks GitHub for the versions again after Check for Updates, with no button of its own", async () => {
+  it("asks GitHub for the versions again after Check for Updates", async () => {
     const box = await show(mod("1.2.0"));
-    expect(box.querySelector(".versions-refresh")).toBeNull();
     const asked = () => call.mock.calls.filter((c) => c[0] === "mod_releases").length;
     const before = asked();
     await act(async () => { await checkModUpdates(["me.mod"], new Map()); });

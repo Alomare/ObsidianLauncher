@@ -7,6 +7,8 @@ const sent = vi.hoisted(() => ({ fn: null as null | ((e: { payload: Progress }) 
 vi.mock("@tauri-apps/api/event", () => ({
   listen: (_: string, f: (e: { payload: Progress }) => void) => { sent.fn = f; return Promise.resolve(() => {}); },
 }));
+const invoked = vi.hoisted(() => [] as string[]);
+vi.mock("@tauri-apps/api/core", () => ({ invoke: (cmd: string) => { invoked.push(cmd); return Promise.resolve(); } }));
 const { DeployProgress } = await import("../DeployProgress");
 const { startTask } = await import("../busy");
 
@@ -57,5 +59,27 @@ describe("the deploy window", () => {
     expect(box()).not.toBeNull();
     pass(400);
     expect(box()).toBeNull();
+  });
+
+  it("asks the deploy to stop and says so until it ends", () => {
+    send({ percent: 50, mod: null, stage: "writing patches" });
+    pass(400);
+    const button = () => document.querySelector<HTMLButtonElement>(".deploy-progress .cancel")!;
+    expect(button().textContent).toBe("Cancel");
+    expect(button().querySelector("svg")).not.toBeNull();
+    act(() => button().click());
+    expect(invoked).toContain("cancel_deploy");
+    expect(button().disabled).toBe(true);
+    expect(button().textContent).toBe("Cancelling");
+    act(() => end());
+    pass(1000);
+    expect(box()).toBeNull();
+  });
+
+  it("offers no cancel once the deploy is done", () => {
+    send({ percent: 100, mod: null, stage: "done" });
+    pass(400);
+    expect(document.querySelector<HTMLButtonElement>(".deploy-progress .cancel")!.disabled).toBe(true);
+    act(() => end());
   });
 });

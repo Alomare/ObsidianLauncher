@@ -796,10 +796,21 @@ pub struct DeployDone {
     pub loader: bool,
 }
 
+/// Set by the deploy window's Cancel; each deploy clears it as it starts.
+static DEPLOY_CANCEL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Asks the running deploy to stop. It stops only before it starts changing the game, and then leaves
+/// the game as the last deploy left it; past that point it finishes.
+#[tauri::command]
+pub fn cancel_deploy() {
+    DEPLOY_CANCEL.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
 #[tauri::command]
 pub async fn deploy(app: tauri::AppHandle, ctx: State<'_, Ctx>) -> CmdResult<DeployDone> {
     use tauri::Emitter;
     let _turn = ctx.turn();
+    DEPLOY_CANCEL.store(false, std::sync::atomic::Ordering::Relaxed);
     let game = game_of(&ctx)?;
     ensure_closed()?;
     // An option changed in the game can pick resources, so it goes into this deploy.
@@ -807,7 +818,7 @@ pub async fn deploy(app: tauri::AppHandle, ctx: State<'_, Ctx>) -> CmdResult<Dep
     let tell = move |p: &obsidian_core::deploy::DeployProgress| {
         let _ = app.emit("deploy-progress", p);
     };
-    let r = core_deploy(&game, &ctx.data, &DeployOptions { progress: Some(&tell), ..DeployOptions::default() })?;
+    let r = core_deploy(&game, &ctx.data, &DeployOptions { progress: Some(&tell), cancel: Some(&DEPLOY_CANCEL), ..DeployOptions::default() })?;
     let snapshot = fresh(&ctx)?;
     Ok(DeployDone { mods: if r.patches.is_empty() { 0 } else { snapshot.mods.iter().filter(|m| m.on).count() }, backup: r.backup.is_some(), unchanged: r.unchanged, settings: r.settings_changed, loader: snapshot.loader, snapshot })
 }
@@ -818,12 +829,13 @@ pub async fn deploy(app: tauri::AppHandle, ctx: State<'_, Ctx>) -> CmdResult<Dep
 pub async fn deploy_loader(app: tauri::AppHandle, ctx: State<'_, Ctx>) -> CmdResult<DeployDone> {
     use tauri::Emitter;
     let _turn = ctx.turn();
+    DEPLOY_CANCEL.store(false, std::sync::atomic::Ordering::Relaxed);
     let game = game_of(&ctx)?;
     ensure_closed()?;
     let tell = move |p: &obsidian_core::deploy::DeployProgress| {
         let _ = app.emit("deploy-progress", p);
     };
-    let r = core_deploy(&game, &ctx.data, &DeployOptions { progress: Some(&tell), loader_only: true, ..DeployOptions::default() })?;
+    let r = core_deploy(&game, &ctx.data, &DeployOptions { progress: Some(&tell), loader_only: true, cancel: Some(&DEPLOY_CANCEL), ..DeployOptions::default() })?;
     let snapshot = fresh(&ctx)?;
     Ok(DeployDone { mods: 0, backup: r.backup.is_some(), unchanged: r.unchanged, settings: r.settings_changed, loader: snapshot.loader, snapshot })
 }

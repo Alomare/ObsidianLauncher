@@ -72,6 +72,38 @@ pub fn compile(source: &[u8], chunk: &str) -> Result<Vec<u8>> {
 /// `compile` for several `(source, chunk)` in one run of the compiler, because starting it is what
 /// takes the time. The results are in the same order.
 pub fn compile_all(sources: &[(&[u8], &str)]) -> Result<Vec<Vec<u8>>> {
+    // Equal source and chunk name compile to equal bytecode, so a script compiled once isn't compiled
+    // again: a deploy compiles every mod script, and most are the same as at the last deploy.
+    type Compiled = std::sync::Mutex<std::collections::HashMap<[u8; 32], Vec<u8>>>;
+    static COMPILED: std::sync::OnceLock<Compiled> = std::sync::OnceLock::new();
+    let compiled = COMPILED.get_or_init(Default::default);
+    let key = |(source, chunk): &(&[u8], &str)| -> [u8; 32] {
+        use sha2::{Digest, Sha256};
+        let mut h = Sha256::new();
+        h.update(chunk.as_bytes());
+        h.update([0]);
+        h.update(source);
+        h.finalize().into()
+    };
+    let keys: Vec<[u8; 32]> = sources.iter().map(key).collect();
+    let mut out: Vec<Option<Vec<u8>>> = {
+        let known = compiled.lock().unwrap_or_else(|p| p.into_inner());
+        keys.iter().map(|k| known.get(k).cloned()).collect()
+    };
+    let missing: Vec<usize> = (0..sources.len()).filter(|i| out[*i].is_none()).collect();
+    let fresh = run_compiler(&missing.iter().map(|i| sources[*i]).collect::<Vec<_>>())?;
+    let mut known = compiled.lock().unwrap_or_else(|p| p.into_inner());
+    if known.len() > 4096 {
+        known.clear();
+    }
+    for (i, code) in missing.iter().zip(fresh) {
+        known.insert(keys[*i], code.clone());
+        out[*i] = Some(code);
+    }
+    Ok(out.into_iter().map(|c| c.expect("every script compiled")).collect())
+}
+
+fn run_compiler(sources: &[(&[u8], &str)]) -> Result<Vec<Vec<u8>>> {
     if sources.is_empty() {
         return Ok(Vec::new());
     }

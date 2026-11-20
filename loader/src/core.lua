@@ -18,6 +18,7 @@ local sandbox = require("obsidian/loader/sandbox")
 local war = require("obsidian/loader/war")
 local lobby = require("obsidian/loader/lobby")
 local profiler = require("obsidian/loader/profiler")
+local tamper = require("obsidian/loader/tamper")
 
 local API_VERSION = 1
 local MAX_ERRORS = 10
@@ -474,6 +475,8 @@ function M.boot()
 	-- can't switch off out of public lobbies with vanilla players.
 	pool.bridge(M, hooks, tag)
 	status.setup(M, hooks)
+	-- Says in the log which value set off the game's tamper check, which leaves the lobby.
+	tamper.setup(M, hooks)
 
 	B.rawset(B.G, "obsidian", api)
 	for _, mod in B.ipairs(deploy.mods or {}) do

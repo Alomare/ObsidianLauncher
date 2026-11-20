@@ -15,6 +15,8 @@ local MAX_READ = 4096
 local MAX_ITEMS = 64
 local MAX_TEXT = 48
 local SHOWN = 8
+-- The engine table that writes a lobby's data, by NetworkRoom.backend_type.
+local BACKENDS = { STEAM = "SteamLobby", LAN = "LanLobby" }
 
 -- The terminal's tabs: the game's Public and Friends, with Modded between them. The tab names are
 -- text keys, all the loader's, so every tab label shows in capitals; Friends keeps the game's words.
@@ -112,8 +114,9 @@ local function publish(l)
 	end
 	-- A key that can't be read back isn't written again until it changes.
 	if M.sent_to == engine and M.sent_value == value and (not ok or current == nil or current == "") then return end
-	-- Steam writes through the backend's table, as NetworkRoom does. Anywhere else there's no such key.
-	local backend = B.rawget(B.G, "SteamLobby") or B.rawget(B.G, "LanLobby")
+	-- Written through the table of the lobby's own backend, as NetworkRoom does: a LAN lobby (autohost)
+	-- through LanLobby, even where SteamLobby exists too. Any other backend has no such key.
+	local backend = B.rawget(B.G, BACKENDS[l.backend_type] or "")
 	if B.type(backend) ~= "table" or B.type(backend.set_data) ~= "function" then return end
 	backend.set_data(engine, KEY, value)
 	M.sent_to, M.sent_value = engine, value

@@ -6,9 +6,10 @@ use crate::{ObsidianError, Result};
 
 pub const VERSION: u32 = 0xF000_0004;
 const CHUNK: usize = 0x10000;
-/// The zlib level of a patch block. Measured on 57 MB of mod textures: level 6 takes a quarter of
-/// the time of level 9 and the patch grows by half a percent of the texture size.
-const PATCH_LEVEL: flate2::Compression = flate2::Compression::new(6);
+/// The zlib level of a patch block. Measured on 57 MB of mod textures, level 6 took a quarter of the
+/// time of level 9 for half a percent more; on a 330 MB patch of upscaled textures, level 2 takes 70%
+/// of the time of level 6 for 2.8% more. Level 1 halves it again but adds 15%.
+const PATCH_LEVEL: flate2::Compression = flate2::Compression::new(2);
 const PROPS: usize = 256;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -231,70 +232,137 @@ fn pack_block(block: &[u8]) -> std::io::Result<Option<Vec<u8>>> {
 /// it one block at a time takes over a minute.
 const BLOCKS_PER_CORE: usize = 64;
 
-/// Compresses the waiting blocks on every core and writes them in their order.
-fn flush_blocks(out: &mut impl std::io::Write, blocks: &mut Vec<Vec<u8>>) -> std::io::Result<()> {
-    let cores = std::thread::available_parallelism().map_or(1, |n| n.get());
-    let per = blocks.len().div_ceil(cores).max(1);
-    let groups: Vec<std::io::Result<Vec<Option<Vec<u8>>>>> = std::thread::scope(|s| {
-        let running: Vec<_> = blocks.chunks(per).map(|group| s.spawn(move || group.iter().map(|b| pack_block(b)).collect())).collect();
-        running.into_iter().map(|t| t.join().expect("compressing a block doesn't panic")).collect()
+/// Blocks with what each packs to: none when it's stored as it is.
+type Packed = Vec<(Vec<u8>, Option<Vec<u8>>)>;
+
+/// Compresses the waiting blocks on every core, in their order. Each core takes the next block when it
+/// is done with one: blocks that pack well take longer than ones stored as they are.
+fn pack_blocks(blocks: Vec<Vec<u8>>) -> std::io::Result<Packed> {
+    let cores = std::thread::available_parallelism().map_or(1, |n| n.get()).min(blocks.len().max(1));
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let mut done: Vec<(usize, std::io::Result<Option<Vec<u8>>>)> = std::thread::scope(|s| {
+        let running: Vec<_> = (0..cores)
+            .map(|_| {
+                s.spawn(|| {
+                    let mut mine = Vec::new();
+                    loop {
+                        let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        let Some(b) = blocks.get(i) else { break };
+                        mine.push((i, pack_block(b)));
+                    }
+                    mine
+                })
+            })
+            .collect();
+        running.into_iter().flat_map(|t| t.join().expect("compressing a block doesn't panic")).collect()
     });
-    let mut plain = blocks.iter();
-    for group in groups {
-        for packed in group? {
-            let block = plain.next().expect("one result per block");
-            let body = packed.as_deref().unwrap_or(block);
-            out.write_all(&(body.len() as u32).to_le_bytes())?;
-            out.write_all(body)?;
-        }
+    done.sort_unstable_by_key(|(i, _)| *i);
+    let packed = done.into_iter().map(|(_, p)| p).collect::<std::io::Result<Vec<_>>>()?;
+    Ok(blocks.into_iter().zip(packed).collect())
+}
+
+fn write_blocks(out: &mut impl std::io::Write, blocks: &Packed) -> std::io::Result<()> {
+    for (block, packed) in blocks {
+        let body = packed.as_deref().unwrap_or(block);
+        out.write_all(&(body.len() as u32).to_le_bytes())?;
+        out.write_all(body)?;
     }
-    blocks.clear();
     Ok(())
 }
 
 pub fn write_file(path: &Path, b: &Bundle) -> Result<()> {
-    write_file_with(path, b, &mut |_| {})
+    write_file_with(path, b, &mut |_| true).map(|_| ())
 }
 
-/// `write_file`, saying now and then how far it is, from 0 to 1.
-pub fn write_file_with(path: &Path, b: &Bundle, progress: &mut dyn FnMut(f32)) -> Result<()> {
+/// Passes the bytes on and hashes them on the way.
+struct Hashing<W> {
+    inner: W,
+    hash: sha2::Sha256,
+}
+
+impl<W: std::io::Write> std::io::Write for Hashing<W> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        use sha2::Digest;
+        let n = self.inner.write(buf)?;
+        self.hash.update(&buf[..n]);
+        Ok(n)
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
+    }
+}
+
+/// The message of the I/O error that carries a stop asked for by `progress` out of the writing threads.
+const CANCELLED: &str = "cancelled";
+
+/// `write_file`, saying now and then how far it is, from 0 to 1. Gives the SHA-256 of the file, in hex.
+/// `progress` answers whether to go on: `false` stops the write with `ObsidianError::Cancelled`, and
+/// the half-written file is left for the caller to remove.
+pub fn write_file_with(path: &Path, b: &Bundle, progress: &mut dyn FnMut(f32) -> bool) -> Result<String> {
     use std::io::Write;
     let parts = payload_parts(b);
     let total: u64 = parts.iter().map(|p| p.len() as u64).sum();
     let too_big = || ObsidianError::PatchTooLarge(path.file_name().unwrap_or_default().to_string_lossy().into_owned());
     let total = u32::try_from(total).map_err(|_| too_big())?;
-    let mut out = std::io::BufWriter::new(std::fs::File::create(path)?);
+    let mut out = std::io::BufWriter::with_capacity(1 << 20, Hashing { inner: std::fs::File::create(path)?, hash: Default::default() });
     out.write_all(&VERSION.to_le_bytes())?;
     out.write_all(&total.to_le_bytes())?;
     out.write_all(&0u32.to_le_bytes())?;
     let batch = BLOCKS_PER_CORE * std::thread::available_parallelism().map_or(1, |n| n.get());
-    let mut blocks: Vec<Vec<u8>> = Vec::with_capacity(batch);
-    let mut block = Vec::with_capacity(CHUNK);
-    let mut done = 0u64;
-    for part in &parts {
-        let mut rest: &[u8] = part;
-        while !rest.is_empty() {
-            let (now, later) = rest.split_at(rest.len().min(CHUNK - block.len()));
-            block.extend_from_slice(now);
-            rest = later;
-            if block.len() == CHUNK {
-                blocks.push(std::mem::replace(&mut block, Vec::with_capacity(CHUNK)));
-                if blocks.len() == batch {
-                    flush_blocks(&mut out, &mut blocks)?;
-                    done += (batch * CHUNK) as u64;
-                    progress(done as f32 / total.max(1) as f32);
+    // One batch is written to disk while the next is compressed.
+    let (send, receive) = std::sync::mpsc::sync_channel::<Packed>(1);
+    let file = std::thread::scope(|s| -> std::io::Result<_> {
+        let writer = s.spawn(move || -> std::io::Result<_> {
+            for blocks in receive {
+                write_blocks(&mut out, &blocks)?;
+            }
+            out.into_inner().map_err(|e| e.into_error())
+        });
+        let packing = (|| -> std::io::Result<()> {
+            let mut blocks: Vec<Vec<u8>> = Vec::with_capacity(batch);
+            let mut block = Vec::with_capacity(CHUNK);
+            let mut done = 0u64;
+            for part in &parts {
+                let mut rest: &[u8] = part;
+                while !rest.is_empty() {
+                    let (now, later) = rest.split_at(rest.len().min(CHUNK - block.len()));
+                    block.extend_from_slice(now);
+                    rest = later;
+                    if block.len() == CHUNK {
+                        blocks.push(std::mem::replace(&mut block, Vec::with_capacity(CHUNK)));
+                        if blocks.len() == batch {
+                            let full = std::mem::replace(&mut blocks, Vec::with_capacity(batch));
+                            // A writer that stopped has its error to give below.
+                            if send.send(pack_blocks(full)?).is_err() {
+                                return Ok(());
+                            }
+                            done += (batch * CHUNK) as u64;
+                            if !progress(done as f32 / total.max(1) as f32) {
+                                return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, CANCELLED));
+                            }
+                        }
+                    }
                 }
             }
-        }
-    }
-    if !block.is_empty() {
-        block.resize(CHUNK, 0);
-        blocks.push(block);
-    }
-    flush_blocks(&mut out, &mut blocks)?;
-    out.flush()?;
-    progress(1.0);
-    Ok(())
+            if !block.is_empty() {
+                block.resize(CHUNK, 0);
+                blocks.push(block);
+            }
+            if !blocks.is_empty() {
+                let _ = send.send(pack_blocks(blocks)?);
+            }
+            Ok(())
+        })();
+        drop(send);
+        let file = writer.join().expect("writing a patch doesn't panic");
+        packing?;
+        file
+    })
+    .map_err(|e| if e.kind() == std::io::ErrorKind::Interrupted && e.to_string() == CANCELLED { ObsidianError::Cancelled } else { e.into() })?;
+    // Written whole: a stop asked for now is up to the caller.
+    let _ = progress(1.0);
+    use sha2::Digest;
+    Ok(crate::hash::hex(&file.hash.finalize()))
 }
 
 /// The (type, name) index, inflating only the chunks that hold it.
@@ -541,11 +609,16 @@ mod tests {
         let t = tempfile::tempdir().unwrap();
         let path = t.path().join("big");
         let mut seen = Vec::new();
-        write_file_with(&path, &b, &mut |part| seen.push(part)).unwrap();
+        write_file_with(&path, &b, &mut |part| { seen.push(part); true }).unwrap();
         assert_eq!(read_file(&path).unwrap(), b);
         assert!(seen.len() >= 3, "{seen:?}");
         assert!(seen.windows(2).all(|w| w[0] <= w[1]), "{seen:?}");
         assert_eq!(*seen.last().unwrap(), 1.0);
+        // A `false` from the first report stops the write there, before the rest is compressed.
+        let mut calls = 0;
+        let r = write_file_with(&path, &b, &mut |_| { calls += 1; false });
+        assert!(matches!(r, Err(ObsidianError::Cancelled)), "{r:?}");
+        assert_eq!(calls, 1);
     }
 
     #[test]

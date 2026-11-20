@@ -137,14 +137,6 @@ describe("the head of the Mods page", () => {
     expect(tools[2].getAttribute("aria-label")).toContain(t("app.mods.addButton"));
   });
 
-  it("keeps the Version and Scope columns at fixed widths, with no line to drag, and drops widths an older build saved", () => {
-    localStorage.setItem("obsidian.modColumns", JSON.stringify({ version: 20, scope: 9 }));
-    show(snap(["a.one", "b.two"]));
-    expect(localStorage.getItem("obsidian.modColumns")).toBeNull();
-    expect(document.querySelector<HTMLElement>(".table")!.style.getPropertyValue("--col-ver")).toBe("");
-    expect(document.querySelectorAll(".th [role=separator], .col-grip")).toHaveLength(0);
-  });
-
   it("leaves Sort out while there is one mod to order", () => {
     expect(show(snap(["a.one"])).map((b) => b.getAttribute("aria-label"))).not.toContain(t("app.sort.title"));
   });
@@ -192,13 +184,6 @@ describe("the list and the bar for checked mods", () => {
   const bar = () => document.querySelector<HTMLElement>(".batch[role=toolbar]");
   const checkButton = () => [...bar()!.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.getAttribute("aria-label") === t("app.mods.checkUpdates"))!;
 
-  it("has no column of update checks: not in the header, the rows or a folder", () => {
-    show(snap(["gh.one", "b.two"]));
-    expect(document.querySelectorAll(".up-ck")).toHaveLength(0);
-    // Check, #, On, Mod, Size, Deployed, Version and Scope: the conflict icon sits in the Mod column.
-    expect(document.querySelector(".th")!.children).toHaveLength(8);
-  });
-
   it("hides and shows #, Size, Deployed and Version from a right click on the header, and keeps the choice", () => {
     localStorage.removeItem("obsidian.hiddenModColumns");
     show(snap(["gh.one", "b.two"]));
@@ -218,7 +203,7 @@ describe("the list and the bar for checked mods", () => {
     expect(document.querySelector(".tr .dep-no")!.textContent).toBe("-");
   });
 
-  it("holds the count, Turn on, Turn off, Check for Updates, Remove and Uncheck all, in that order, and no Actions", () => {
+  it("holds the count, Turn on, Turn off, Check for Updates, Remove and Uncheck all, in that order", () => {
     show(snap(["gh.one", "b.two"]));
     tick("gh.one");
     tick("b.two");

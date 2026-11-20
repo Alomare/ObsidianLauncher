@@ -54,6 +54,21 @@ pub fn find_game(explicit: Option<&Path>) -> Result<GameInstall> {
 /// The game's Steam app id.
 const APP_ID: &str = "394510";
 
+/// The language Steam runs the game in (`english`, `french`...), from the app manifest of the library that
+/// holds the game at `root` (`<library>/steamapps/common/<game>`). None when there is no manifest or no language.
+pub fn steam_language(root: &Path) -> Option<String> {
+    let manifest = root.parent()?.parent()?.join(format!("appmanifest_{APP_ID}.acf"));
+    let text = std::fs::read_to_string(manifest).ok()?;
+    // The player's choice is under UserConfig; MountedConfig says what is installed.
+    ["\"UserConfig\"", "\"MountedConfig\""].iter().find_map(|block| {
+        let rest = &text[text.find(block)?..];
+        let rest = &rest[..rest.find('}')?];
+        let at = rest.find("\"language\"")? + "\"language\"".len();
+        let value = rest[at..].split('"').nth(1)?.trim().to_ascii_lowercase();
+        (!value.is_empty()).then_some(value)
+    })
+}
+
 /// The cloud save folder of every Steam account under `roots`.
 pub fn cloud_save_dirs(roots: &[PathBuf]) -> Vec<PathBuf> {
     let mut out = Vec::new();
@@ -185,6 +200,18 @@ fn names_program(comm: &str, arg0: Option<&str>, name: &str) -> bool {
 mod tests {
     use super::*;
     use crate::testutil::{put, spaced_tempdir};
+
+    #[test]
+    fn the_steam_language_comes_from_the_app_manifest() {
+        let lib = spaced_tempdir();
+        let root = lib.path().join("steamapps/common/Helldivers");
+        assert_eq!(steam_language(&root), None);
+        let acf = "\"AppState\"\n{\n\t\"appid\"\t\t\"394510\"\n\t\"UserConfig\"\n\t{\n\t\t\"language\"\t\t\"French\"\n\t}\n\t\"MountedConfig\"\n\t{\n\t\t\"language\"\t\t\"english\"\n\t}\n}\n";
+        put(lib.path(), "steamapps/appmanifest_394510.acf", acf.as_bytes());
+        assert_eq!(steam_language(&root).as_deref(), Some("french"));
+        put(lib.path(), "steamapps/appmanifest_394510.acf", b"\"AppState\"\n{\n\t\"MountedConfig\"\n\t{\n\t\t\"language\"\t\t\"english\"\n\t}\n}\n");
+        assert_eq!(steam_language(&root).as_deref(), Some("english"));
+    }
 
     #[test]
     fn finds_game_in_the_library_that_has_it() {

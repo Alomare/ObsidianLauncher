@@ -252,6 +252,10 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
             <SearchIcon />
             <input type="search" value={text} onChange={(e) => setText(e.target.value)} placeholder={t("app.store.search")} aria-label={t("app.store.search")} />
           </label>
+          <button className={refreshing ? "btn icon store-refresh busy" : "btn icon store-refresh"} disabled={refreshing} aria-busy={refreshing}
+            onClick={() => loadStore(true)} aria-label={t("app.store.refresh")} data-tip-title={t("app.store.refresh")} data-tip={t("app.store.refreshHint")}>
+            <UpdateIcon />
+          </button>
         </div>
         {list.length ? (
           <div className="grid-cards">

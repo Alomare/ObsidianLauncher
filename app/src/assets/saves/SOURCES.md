@@ -2,7 +2,7 @@
 
 Decide the rights before a release: no license is recorded for any of these.
 
-HELLDIVERS and the game's art belong to Arrowhead Game Studios and Sony Interactive Entertainment. Every picture here is game art as published on the [Helldivers Wiki](https://helldivers.wiki.gg). They were downloaded for the Heroic UI research (`Helldivers 1/Mods/HeroicUI/internal/wiki/img`, where `_meta.json` holds the address of each file) and renamed for the save editor concepts (`Handoff/saves-concepts/src/img`, `map.json` maps each item to a file).
+HELLDIVERS and the game's art belong to Arrowhead Game Studios and Sony Interactive Entertainment. Every picture here is game art as published on the [Helldivers Wiki](https://helldivers.wiki.gg). They were downloaded for the Heroic UI research (`Helldivers 1/Mods/Client/HeroicUI/internal/wiki/img`, where `_meta.json` holds the address of each file) and renamed for the save editor concepts (`Handoff/saves-concepts/src/img`, `map.json` maps each item to a file).
 
 | Files | What | Wiki files |
 | --- | --- | --- |

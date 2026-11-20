@@ -376,7 +376,9 @@ button.link:hover { filter: brightness(1.2); }
 /* The task line: a glow in gold and turquoise travels left to right and fades out well before the
    buttons on the right. */
 .sb-task { flex: 1; align-self: stretch; min-width: 0; position: relative; display: flex; align-items: center; margin-left: -0.6rem; padding-left: 0.9rem; overflow: hidden; }
-.sb-busy { position: relative; color: var(--tx); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Barlow's ascent is taller than its capitals, so a centred line box sits the letters low; the padding
+   lifts them by 1px, which centres the ink (capitals and descenders) in the bar. */
+.sb-busy { position: relative; padding-bottom: 2px; color: var(--tx); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sb-wave { position: absolute; inset: 0; pointer-events: none; -webkit-mask-image: linear-gradient(90deg, #000 40%, transparent 80%); mask-image: linear-gradient(90deg, #000 40%, transparent 80%); }
 .sb-wave::before, .sb-wave::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 45%; transform: translateX(-100%); }
 .sb-wave::before { background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--gold) 40%, transparent) 50%, transparent); animation: sb-travel 2.2s linear infinite, sb-pulse 1.1s ease-in-out infinite alternate; }
@@ -1259,6 +1261,10 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .save-note.warn { color: var(--warn); overflow-wrap: anywhere; }
 
 /* The deploy window: the mod and stage over the bar. */
+.deploy-progress .head { display: flex; align-items: center; gap: 0.8rem; }
+.deploy-progress .head h2 { margin: 0; }
+.deploy-progress .cancel { margin-left: auto; padding: 0 0.9rem 0 0.7rem; gap: 0.4rem; }
+.deploy-progress .cancel svg { width: 0.95rem; height: 0.95rem; stroke-width: 2.4; }
 .deploy-now { display: flex; align-items: baseline; gap: 0.6rem; margin: 0; color: var(--tx); }
 .deploy-now b { font-weight: 660; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .deploy-now span { color: var(--mu); }
@@ -1623,6 +1629,8 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .fbar .select-btn { height: 1.9rem; font-size: var(--fs-sm); }
 .fbar .check-line { align-self: center; padding: 0 0.3rem; font-size: var(--fs-sm); }
 .fbar .search { width: 17rem; height: 1.9rem; flex: none; }
+.fbar .store-refresh { flex: none; width: 1.9rem; height: 1.9rem; padding: 0; }
+.fbar .store-refresh svg { width: 1rem; height: 1rem; stroke-width: 2; }
 .chip { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; height: 1.9rem; padding: 0 0.75rem; border: 1px solid var(--ln); background: var(--row); color: var(--mu);
   font-family: "Saira Variable", "Exo 2 Variable", sans-serif; font-size: var(--fs-xs); font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1; cursor: pointer; white-space: nowrap; transition: color var(--fast), border-color var(--fast), background var(--fast); }
 .chip > span:not(.scope) { display: block; }
