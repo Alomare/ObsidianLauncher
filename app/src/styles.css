@@ -1259,6 +1259,10 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .save-note.warn { color: var(--warn); overflow-wrap: anywhere; }
 
 /* The deploy window: the mod and stage over the bar. */
+.deploy-progress .head { display: flex; align-items: center; gap: 0.8rem; }
+.deploy-progress .head h2 { margin: 0; }
+.deploy-progress .cancel { margin-left: auto; padding: 0 0.9rem 0 0.7rem; gap: 0.4rem; }
+.deploy-progress .cancel svg { width: 0.95rem; height: 0.95rem; stroke-width: 2.4; }
 .deploy-now { display: flex; align-items: baseline; gap: 0.6rem; margin: 0; color: var(--tx); }
 .deploy-now b { font-weight: 660; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .deploy-now span { color: var(--mu); }

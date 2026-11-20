@@ -13,7 +13,8 @@ async function step<T>(busy: string, work: () => Promise<T>): Promise<T | null> 
   try {
     return await withTask(busy, work, true);
   } catch (e) {
-    notify("error", errorText(e));
+    if ((e as CmdError)?.code === "Cancelled") notify("info", t("app.action.deployCancelled"));
+    else notify("error", errorText(e));
     return null;
   }
 }

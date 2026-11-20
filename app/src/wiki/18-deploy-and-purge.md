@@ -13,10 +13,13 @@ Deploy puts the enabled mods of the active profile into the game. The **Deploy**
 Every deploy replaces all the patches of the one before, so there's no need to purge first: a mod turned off or removed leaves the game at the next deploy. When only option values or keys changed, nothing is rebuilt and the deploy takes a moment. Each deploy runs these steps:
 
 1. Check whether the game is the build Obsidian knows (see below).
-2. Back up the save folder when it changed since the last backup. The first backup and the 9 newest are kept, so the save from before any mod stays.
-3. Work out which mod wins each resource, following the load order.
-4. Compile the Lua of every mod, and the loader, into code the game can run.
-5. Write one patch per game bundle, and the list of deployed mods for the loader.
+2. Work out which mod wins each resource, following the load order.
+3. Compile the Lua of every mod, and the loader, into code the game can run.
+4. Write one patch per game bundle as a temporary file beside the game's, and the list of deployed mods for the loader.
+5. Back up the save folder when it changed since the last backup. The first backup and the 9 newest are kept, so the save from before any mod stays.
+6. Put the new patches in place of the old ones.
+
+A deploy that takes a while shows a window with its progress and a **Cancel** button. Cancel works up to step 5: the temporary patches are removed, and the game keeps the mods, the settings and the backups of the last deploy, as if the deploy never ran. Step 6 takes a moment and always runs to the end, so a cancel that arrives during it changes nothing.
 
 **Play**, in the bar at the top of the window, starts the game with the mods of the last deploy. **Play** doesn't deploy, so waiting changes stay out of the game until **Deploy**. With nothing deployed, **Play** asks first, since the game would start vanilla. **Don't ask again** stops the question, and **Ask before playing vanilla** in the System tab of [Settings](app:settings) brings it back.
 

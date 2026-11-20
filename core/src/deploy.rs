@@ -148,6 +148,22 @@ pub struct DeployOptions<'a> {
     /// it was, whatever the profile says now, and a game with no mods gets the loader alone. The
     /// loader goes in when something needs it (a selected Sandbox save, or a guardrail). The Saves tab's deploy.
     pub loader_only: bool,
+    /// Set from another thread to stop the deploy. It is heard only while the new patches are being
+    /// built beside the game's files: the deploy then removes them and ends with `Cancelled`, and the
+    /// game, the record and the settings file stay as the last deploy left them. Once the swap into
+    /// the game starts, the deploy runs to its end (or to its rollback) whatever the flag says.
+    pub cancel: Option<&'a std::sync::atomic::AtomicBool>,
+}
+
+impl DeployOptions<'_> {
+    fn cancelled(&self) -> bool {
+        self.cancel.is_some_and(|c| c.load(std::sync::atomic::Ordering::Relaxed))
+    }
+
+    /// `Err(Cancelled)` when a stop was asked for.
+    fn go_on(&self) -> Result<()> {
+        if self.cancelled() { Err(ObsidianError::Cancelled) } else { Ok(()) }
+    }
 }
 
 /// What a deploy is doing right now.
@@ -190,7 +206,7 @@ fn display_of(name: &crate::manifest::Localized) -> Option<String> {
 
 impl Default for DeployOptions<'static> {
     fn default() -> Self {
-        DeployOptions { known_builds: KNOWN_BUILDS, keep_backups: 10, loader_dir: None, progress: None, loader_only: false }
+        DeployOptions { known_builds: KNOWN_BUILDS, keep_backups: 10, loader_dir: None, progress: None, loader_only: false, cancel: None }
     }
 }
 
@@ -552,6 +568,7 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
         report.send(0.0, "scripts", None);
         let _t = crate::timing::span("deploy: loader");
         let built = loader::build(&loader_dir, &plan)?;
+        opts.go_on()?;
         add_loader(&mut plan, built.clone());
         Some(built)
     } else {
@@ -620,6 +637,7 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
         let _t = crate::timing::span("deploy: compose");
         crate::compose::compose_lazy(&lib, &profile, Some(&contents), &on_mod)?
     };
+    opts.go_on()?;
     if let Some(built) = loader_planned {
         add_loader(&mut comp, built);
     }
@@ -635,7 +653,9 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
     let settings = loader::settings_for(&lib, &profile)?;
     let digest = settings_digest(&settings);
     let settings_changed = previous.as_ref().is_none_or(|p| p.settings.as_deref() != Some(digest.as_str()));
-    let backup = backup_game_saves(game, &data_dir.join("backups"), opts.keep_backups)?;
+    // Up to here nothing was written anywhere. From here until the swap, the only files written are the
+    // new patches as temporary files beside the game's, and a cancel or a failure removes them.
+    opts.go_on()?;
 
     let mut temps = Vec::new();
     // The SHA-256 of each file in `temps`, taken as it was written.
@@ -656,6 +676,10 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
         kept_files.extend(files.iter().cloned());
     }
     for (i, (bundle, props, target)) in to_write.iter().enumerate() {
+        if opts.cancelled() {
+            remove_all(temps.iter().map(|(t, _)| t));
+            return Err(ObsidianError::Cancelled);
+        }
         let planned = &comp.bundles[bundle];
         let banks = planned.iter().filter(|p| p.recipe.is_some()).count();
         // Rebuilding the banks of a bundle takes about as long as writing the patch.
@@ -675,6 +699,7 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
             planned
                 .into_iter()
                 .map(|p| {
+                    opts.go_on()?;
                     if p.recipe.is_some() {
                         report.send(share(writing_from * rebuilt_banks as f32 / banks as f32), "sound banks", name_of(&p.owner));
                         rebuilt_banks += 1;
@@ -702,7 +727,11 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
         let tmp = target.with_extension(format!("{}.{TMP}", target.extension().unwrap().to_string_lossy()));
         temps.push((tmp.clone(), target.clone()));
         let _t = crate::timing::span(format!("deploy: write {bundle}"));
-        let mut written = bundle::write_file_with(&tmp, &b, &mut |part| report.send(share(writing_from + (1.0 - writing_from) * part), "writing patches", owner.clone())).map(|sha| hashes.push(sha));
+        let mut written = bundle::write_file_with(&tmp, &b, &mut |part| {
+            report.send(share(writing_from + (1.0 - writing_from) * part), "writing patches", owner.clone());
+            !opts.cancelled()
+        })
+        .map(|sha| hashes.push(sha));
         if written.is_ok() && !stream.is_empty() {
             // The engine reads a patch's streamed bytes from `<patch>.stream`, as it does for a bundle.
             let target = beside(target, "stream");
@@ -733,6 +762,14 @@ pub fn deploy(game: &GameInstall, data_dir: &Path, opts: &DeployOptions) -> Resu
     // Only now, with the new set ready, does the game change. The old patches step aside instead of
     // going, so a failure can put them back, and the state says what's under way first, so a crash
     // or a killed app is put right by the next deploy or purge.
+    // The last point a cancel is heard, and the saves are backed up only once the deploy is sure to go on.
+    let backup = match opts.go_on().and_then(|()| backup_game_saves(game, &data_dir.join("backups"), opts.keep_backups)) {
+        Ok(b) => b,
+        Err(e) => {
+            remove_all(temps.iter().map(|(t, _)| t));
+            return Err(e);
+        }
+    };
     let _t = crate::timing::span("deploy: swap");
     write_state(data_dir, &DeployState { incomplete: true, previous: previous.clone().map(Box::new), ..state.clone() })?;
     let mut aside: Vec<(PathBuf, PathBuf)> = Vec::new();
@@ -1047,7 +1084,14 @@ mod tests {
         p.set_enabled("mod-aa", true).unwrap();
         p.set_enabled("mod-bb", true).unwrap();
         p.save(&data).unwrap();
-        World { _t: t, game, data, opts: DeployOptions { known_builds: known, keep_backups: 10, loader_dir: None, progress: None, loader_only: false } }
+        World { _t: t, game, data, opts: DeployOptions { known_builds: known, keep_backups: 10, loader_dir: None, progress: None, loader_only: false, cancel: None } }
+    }
+
+    impl DeployOptions<'static> {
+        /// The same options with no progress and no cancel.
+        fn clone_plain(&self) -> Self {
+            DeployOptions { known_builds: self.known_builds, keep_backups: self.keep_backups, loader_dir: self.loader_dir.clone(), progress: None, loader_only: self.loader_only, cancel: None }
+        }
     }
 
     fn snapshot(dir: &Path) -> BTreeMap<String, String> {
@@ -1068,7 +1112,7 @@ mod tests {
         let w = world();
         let seen = std::sync::Mutex::new(Vec::new());
         let tell = |p: &DeployProgress| seen.lock().unwrap().push(p.clone());
-        let opts = DeployOptions { known_builds: w.opts.known_builds, keep_backups: 10, loader_dir: w.opts.loader_dir.clone(), progress: Some(&tell), loader_only: false };
+        let opts = DeployOptions { known_builds: w.opts.known_builds, keep_backups: 10, loader_dir: w.opts.loader_dir.clone(), progress: Some(&tell), loader_only: false, cancel: None };
         deploy(&w.game, &w.data, &opts).unwrap();
         let first_run = std::mem::take(&mut *seen.lock().unwrap());
         assert_eq!((first_run[0].percent, first_run[0].stage), (0, "preparing"));
@@ -1084,6 +1128,64 @@ mod tests {
         deploy(&w.game, &w.data, &opts).unwrap();
         let again = seen.lock().unwrap();
         assert_eq!((again[0].stage, again.last().unwrap().stage), ("preparing", "done"));
+    }
+
+    /// Everything a deploy can change: the game's bundles and patches, the record, the settings file and the save backups.
+    fn everything(w: &World) -> (BTreeMap<String, String>, Option<String>, Option<String>, Vec<String>) {
+        let backups = std::fs::read_dir(w.data.join("backups")).map_or_else(|_| Vec::new(), |d| d.map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect());
+        let settings = std::fs::read_to_string(crate::settings::game_side_dir(&w.game.saves_dir).join(crate::settings::FILE)).ok();
+        (snapshot(&w.game.contents()), std::fs::read_to_string(w.data.join(STATE)).ok(), settings, backups)
+    }
+
+    #[test]
+    fn a_cancelled_deploy_leaves_everything_as_the_last_deploy_left_it() {
+        // Counts the reports of a deploy run to its end, then cancels at each of them in turn.
+        let reports = {
+            let w = world();
+            deploy(&w.game, &w.data, &w.opts).unwrap();
+            mods_off_but(&w, "mod-aa");
+            let n = std::sync::atomic::AtomicUsize::new(0);
+            let tell = |_: &DeployProgress| { n.fetch_add(1, std::sync::atomic::Ordering::Relaxed); };
+            deploy(&w.game, &w.data, &DeployOptions { progress: Some(&tell), ..w.opts.clone_plain() }).unwrap();
+            n.into_inner()
+        };
+        let mut cancelled = Vec::new();
+        for at in 0..reports {
+            let w = world();
+            deploy(&w.game, &w.data, &w.opts).unwrap();
+            mods_off_but(&w, "mod-aa");
+            let before = everything(&w);
+            let stop = std::sync::atomic::AtomicBool::new(false);
+            let n = std::sync::atomic::AtomicUsize::new(0);
+            let tell = |_: &DeployProgress| {
+                if n.fetch_add(1, std::sync::atomic::Ordering::Relaxed) == at {
+                    stop.store(true, std::sync::atomic::Ordering::Relaxed);
+                }
+            };
+            let r = deploy(&w.game, &w.data, &DeployOptions { progress: Some(&tell), cancel: Some(&stop), ..w.opts.clone_plain() });
+            match r {
+                Err(ObsidianError::Cancelled) => {
+                    assert_eq!(everything(&w), before, "cancelled at report {at}");
+                    assert!(std::fs::read_dir(w.game.contents()).unwrap().all(|e| { let p = e.unwrap().path(); !p.extension().is_some_and(|x| x == TMP || x == OLD) }));
+                    cancelled.push(at);
+                    // The next deploy goes through as if the cancelled one never ran.
+                    deploy(&w.game, &w.data, &w.opts).unwrap();
+                    assert!(!patch(&w, "00000000000000bb.patch_0").exists());
+                    assert_eq!(changes_waiting(&Library::open(&w.data).unwrap(), &Profile::load(&w.data).unwrap(), &w.data, Some(&w.game.contents())).unwrap(), ChangesWaiting::UpToDate);
+                }
+                Ok(_) => assert!(!patch(&w, "00000000000000bb.patch_0").exists(), "a deploy past the swap finishes"),
+                Err(e) => panic!("cancelled at report {at}: {e}"),
+            }
+        }
+        assert!(cancelled.len() >= 3, "only {cancelled:?} of {reports} reports could cancel");
+    }
+
+    fn mods_off_but(w: &World, keep: &str) {
+        let mut p = Profile::load(&w.data).unwrap();
+        for id in ["mod-aa", "mod-bb"] {
+            p.set_enabled(id, id == keep).unwrap();
+        }
+        p.save(&w.data).unwrap();
     }
 
     #[test]
@@ -1160,7 +1262,7 @@ mod tests {
     }
 
     fn loader_only(w: &World) -> DeployOptions<'static> {
-        DeployOptions { known_builds: w.opts.known_builds, keep_backups: 10, loader_dir: None, progress: None, loader_only: true }
+        DeployOptions { known_builds: w.opts.known_builds, keep_backups: 10, loader_dir: None, progress: None, loader_only: true, cancel: None }
     }
 
     #[test]

@@ -124,6 +124,7 @@ pub fn run() {
             github_cmds::submit_send,
             commands::deploy,
             commands::deploy_loader,
+            commands::cancel_deploy,
             commands::purge,
             commands::play,
             commands::set_option,

@@ -90,6 +90,8 @@ pub enum ObsidianError {
     Busy,
     #[error("{0} is already being installed or updated")]
     InstallUnderWay(String),
+    #[error("the deploy was cancelled; the game was left as it was")]
+    Cancelled,
     #[error("deploy failed and was undone: {0}")]
     DeployFailed(String),
     #[error("purge couldn't remove a file, so run it again with the game closed: {0}")]

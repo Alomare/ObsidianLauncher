@@ -271,7 +271,7 @@ fn write_blocks(out: &mut impl std::io::Write, blocks: &Packed) -> std::io::Resu
 }
 
 pub fn write_file(path: &Path, b: &Bundle) -> Result<()> {
-    write_file_with(path, b, &mut |_| {}).map(|_| ())
+    write_file_with(path, b, &mut |_| true).map(|_| ())
 }
 
 /// Passes the bytes on and hashes them on the way.
@@ -292,8 +292,13 @@ impl<W: std::io::Write> std::io::Write for Hashing<W> {
     }
 }
 
+/// The message of the I/O error that carries a stop asked for by `progress` out of the writing threads.
+const CANCELLED: &str = "cancelled";
+
 /// `write_file`, saying now and then how far it is, from 0 to 1. Gives the SHA-256 of the file, in hex.
-pub fn write_file_with(path: &Path, b: &Bundle, progress: &mut dyn FnMut(f32)) -> Result<String> {
+/// `progress` answers whether to go on: `false` stops the write with `ObsidianError::Cancelled`, and
+/// the half-written file is left for the caller to remove.
+pub fn write_file_with(path: &Path, b: &Bundle, progress: &mut dyn FnMut(f32) -> bool) -> Result<String> {
     use std::io::Write;
     let parts = payload_parts(b);
     let total: u64 = parts.iter().map(|p| p.len() as u64).sum();
@@ -332,7 +337,9 @@ pub fn write_file_with(path: &Path, b: &Bundle, progress: &mut dyn FnMut(f32)) -
                                 return Ok(());
                             }
                             done += (batch * CHUNK) as u64;
-                            progress(done as f32 / total.max(1) as f32);
+                            if !progress(done as f32 / total.max(1) as f32) {
+                                return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, CANCELLED));
+                            }
                         }
                     }
                 }
@@ -350,8 +357,10 @@ pub fn write_file_with(path: &Path, b: &Bundle, progress: &mut dyn FnMut(f32)) -
         let file = writer.join().expect("writing a patch doesn't panic");
         packing?;
         file
-    })?;
-    progress(1.0);
+    })
+    .map_err(|e| if e.kind() == std::io::ErrorKind::Interrupted && e.to_string() == CANCELLED { ObsidianError::Cancelled } else { e.into() })?;
+    // Written whole: a stop asked for now is up to the caller.
+    let _ = progress(1.0);
     use sha2::Digest;
     Ok(crate::hash::hex(&file.hash.finalize()))
 }
@@ -600,11 +609,16 @@ mod tests {
         let t = tempfile::tempdir().unwrap();
         let path = t.path().join("big");
         let mut seen = Vec::new();
-        write_file_with(&path, &b, &mut |part| seen.push(part)).unwrap();
+        write_file_with(&path, &b, &mut |part| { seen.push(part); true }).unwrap();
         assert_eq!(read_file(&path).unwrap(), b);
         assert!(seen.len() >= 3, "{seen:?}");
         assert!(seen.windows(2).all(|w| w[0] <= w[1]), "{seen:?}");
         assert_eq!(*seen.last().unwrap(), 1.0);
+        // A `false` from the first report stops the write there, before the rest is compressed.
+        let mut calls = 0;
+        let r = write_file_with(&path, &b, &mut |_| { calls += 1; false });
+        assert!(matches!(r, Err(ObsidianError::Cancelled)), "{r:?}");
+        assert_eq!(calls, 1);
     }
 
     #[test]

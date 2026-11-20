@@ -9,7 +9,7 @@ fn main() {
     let b = obsidian_core::bundle::read_file(std::path::Path::new(&from)).unwrap();
     for _ in 0..3 {
         let start = Instant::now();
-        obsidian_core::bundle::write_file_with(std::path::Path::new(&to), &b, &mut |_| {}).unwrap();
+        obsidian_core::bundle::write_file_with(std::path::Path::new(&to), &b, &mut |_| true).unwrap();
         println!("write: {:.0} ms", start.elapsed().as_secs_f64() * 1000.0);
     }
     std::fs::remove_file(&to).unwrap();

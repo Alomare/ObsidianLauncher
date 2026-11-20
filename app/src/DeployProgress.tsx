@@ -1,11 +1,14 @@
 // The window while a deploy runs: the mod being worked on and the stage over the bar, since mods that
 // rebuild sound banks can take a minute. Every deploy sends progress, so a quick one must not flash: the
-// window waits a moment before showing, and once up stays long enough to read.
+// window waits a moment before showing, and once up stays long enough to read. Cancel asks the deploy to
+// stop; it does only while the new patches are still being built, and the game is then left as it was.
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { call } from "./api";
 import { useLocked } from "./busy";
 import { t } from "./i18n";
+import { CloseIcon } from "./Icons";
 
 type Progress = { percent: number; mod: string | null; stage: string };
 
@@ -25,6 +28,7 @@ export function DeployProgress() {
   const locked = useLocked();
   const [p, setP] = useState<Progress | null>(null);
   const [show, setShow] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const shownAt = useRef(0);
   const has = p !== null;
   useEffect(() => {
@@ -42,12 +46,23 @@ export function DeployProgress() {
     const timer = setTimeout(() => { setP(null); setShow(false); }, Math.max(0, MIN_SHOWN_MS - (performance.now() - shownAt.current)));
     return () => clearTimeout(timer);
   }, [locked, show]);
+  useEffect(() => { if (!has) setCancelling(false); }, [has]);
   if (!show || !p) return null;
   const title = t("app.action.deploying");
+  // Cancel is heard only before the game changes; from "done" on there is nothing left to stop.
+  const cancel = () => {
+    setCancelling(true);
+    call("cancel_deploy").catch(() => setCancelling(false));
+  };
   return createPortal(
     <div className="modal-back">
-      <div className="modal confirm" role="status" aria-label={title}>
-        <h2 className="cap">{title}</h2>
+      <div className="modal confirm deploy-progress" role="status" aria-label={title}>
+        <div className="head">
+          <h2 className="cap">{title}</h2>
+          <button type="button" className="btn danger small cancel" onClick={cancel} disabled={cancelling || p.stage === "done"}>
+            <CloseIcon />{t(cancelling ? "app.action.deployCancelling" : "app.action.deployCancel")}
+          </button>
+        </div>
         <p className="deploy-now">
           {p.mod && <b>{p.mod}</b>}
           <span>{stageText(p.stage)}</span>
