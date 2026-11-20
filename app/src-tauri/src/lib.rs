@@ -61,6 +61,17 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(ctx)
         .setup(|app| {
+            // The window is made here rather than from the config alone: WebView2 157 lets the arguments
+            // Tauri passes win over WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS, which the exe walk and the
+            // devtools helper set for the debugging port. Tauri's own defaults stay in front.
+            let config = app.config().app.windows.first().ok_or("no window in tauri.conf.json")?.clone();
+            #[allow(unused_mut)]
+            let mut window = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?;
+            #[cfg(windows)]
+            if let Some(extra) = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").ok().filter(|s| !s.trim().is_empty()) {
+                window = window.additional_browser_args(&format!("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection {extra}"));
+            }
+            window.build()?;
             // Linux packages keep the loader, the bundled mods and LuaJIT away from the exe. Windows
             // keeps them beside it, and Tauri's path there has a `\\?\` prefix that LuaJIT can't use.
             #[cfg(not(windows))]
