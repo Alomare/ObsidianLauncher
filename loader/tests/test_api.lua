@@ -4925,6 +4925,76 @@ test("mod_settings_opens_from_the_pause_menu_and_keeps_its_values", function()
 	E.eq(#main.options, 3)
 end)
 
+-- Groups open pages of their own, and a list longer than the screen holds goes on numbered screens
+-- with a PAGE row on top.
+test("mod_settings_groups_and_long_pages", function()
+	local api, _, e = start()
+	local Main = fake_menus()
+	rawget(_G, "require")("lua/network/network_global")
+	local core = e:core()
+	local own = core.current
+	core.current = { id = "dev.cam", mod = { options = {} } }
+	local page = api.mod_settings.page("Camera")
+	page:toggle("top", { label = "Top" })
+	local view = page:group("View")
+	E.eq(page:group("View"), view, "the same group again")
+	local seen = {}
+	view:toggle("shake", { label = "Shake", on_change = function(v) seen[#seen + 1] = v end })
+	local long = page:group("Long")
+	for i = 1, 25 do long:number("n" .. i, { label = "N" .. i, min = 0, max = 2, default = 0 }) end
+	E.eq(page:set("shake", true), true, "the page reaches the rows of its groups")
+	E.eq(page:get("shake"), true)
+	core.current = own
+	e:frames(1)
+	E.eq(rawget(_G, "obsidian").storage.get("mod_settings/dev.cam/shake"), true, "kept under the mod, as other rows")
+
+	local main = setmetatable({}, { __index = Main })
+	main:on_enter()
+	main.selected_option = 3
+	main:handle_input({ select = true })
+	main:handle_input({ select = true })
+	main:update()
+	local screen = main.state_stack[2]
+	E.eq(screen.drawn[1], "TOP = LOC:options_no")
+	E.eq(screen.drawn[2], "VIEW", "a group is a row with no value")
+	main:handle_input({ down = true })
+	main:handle_input({ select = true })
+	main:update()
+	local group = main.state_stack[3]
+	E.eq(group.title, "VIEW")
+	E.eq(group.drawn[1], "SHAKE = LOC:options_yes")
+	main:handle_input({ right = true })
+	E.eq(page:get("shake"), false)
+	E.eq(seen[#seen], false)
+	main:handle_input({ back = true })
+	main:update()
+	E.eq(screen.title, "CAMERA", "back on the page")
+	E.eq(screen.selected_option, 2, "on the group's row")
+	main:handle_input({ down = true })
+	main:handle_input({ select = true })
+	main:update()
+	E.eq(#group.drawn, 12, "11 rows and the PAGE row")
+	E.eq(group.drawn[1], "PAGE = 1 / 3")
+	E.eq(group.drawn[2], "N1 = 0")
+	main:handle_input({ right = true })
+	main:update()
+	E.eq(group.drawn[1], "PAGE = 2 / 3")
+	E.eq(group.drawn[2], "N12 = 0")
+	E.eq(group.selected_option, 1, "still on the PAGE row")
+	main:handle_input({ down = true })
+	main:handle_input({ right = true })
+	E.eq(page:get("n12"), 1, "a row of the second screen")
+	E.eq(page:get("n1"), 0)
+	main:handle_input({ up = true })
+	group.selected_option = 1
+	main:handle_input({ right = true })
+	main:update()
+	E.eq(group.drawn[1], "PAGE = 3 / 3")
+	E.eq(#group.drawn, 4, "the last three rows")
+	local ok = pcall(view.group, view, "Deeper")
+	E.eq(ok, false, "a group holds no groups")
+end)
+
 -- A row bound to one of the mod's obsidian.json options starts from the value set in Obsidian, and a
 -- change is kept as the pending option Obsidian takes; that pending value wins until it's taken.
 -- Words by language follow the game's language ("bp" is pt-BR), in capitals with the accents.
