@@ -3165,6 +3165,41 @@ test("a_screen_of_the_game_shows_a_mods_words_only_while_it_runs", function()
 	E.eq(lm.string, real, "and the function is back after it too")
 end)
 
+test("speech_shows_a_mods_words_over_a_helldiver_as_the_games_quick_messages_do", function()
+	local api, game = start()
+	local st = api.game.state()
+	local em = st.entity_manager
+	local has, slaves = em.has_entities, em.get_slave_entities
+	local mine, theirs = { state = {} }, { state = {} }
+	local other = {}
+	em.has_entities = function(self, name) return name == "customization" or has(self, name) end
+	em.get_slave_entities = function(self, name)
+		if name == "customization" then return { [game.me] = mine, [other] = theirs } end
+		return slaves(self, name)
+	end
+	local lm = rawget(_G, "LocalizationManager")
+	local drawn = {}
+	rawset(_G, "CustomizationComponent", { draw_ui = function(self, ctx)
+		local ev = ctx.state.current_communication_event
+		drawn[#drawn + 1] = ev and lm:string(ev.event_info.text) or "-"
+	end })
+	E.eq(api.ui.speech(game.me, "Out of stims!", 2), true)
+	E.eq(mine.state.current_communication_event.duration, 2)
+	E.eq(mine.state.current_communication_event.time, 0, "starts as the game starts one")
+	E.eq(api.ui.speech(other, "Other words"), true)
+	E.eq(theirs.state.current_communication_event.duration, 3, "the game's 3 seconds when left out")
+	CustomizationComponent.draw_ui(nil, mine)
+	CustomizationComponent.draw_ui(nil, theirs)
+	E.eq(drawn[1], "Out of stims!", "the words while the game draws them")
+	E.eq(drawn[2], "Other words", "each player's own words")
+	E.eq(lm:string(mine.state.current_communication_event.event_info.text):sub(1, 4), "LOC:", "the key shows nothing outside the drawing")
+	E.eq(select(2, api.ui.speech({}, "x")), "no_avatar")
+	E.eq(select(2, api.ui.speech(game.me, "")), "bad_type")
+	E.eq(select(2, api.ui.speech(game.me, "x", 0)), "out_of_range")
+	em.has_entities, em.get_slave_entities = has, slaves
+	rawset(_G, "CustomizationComponent", nil)
+end)
+
 test("a_prop_is_a_unit_on_this_machine_that_moves_grows_and_goes", function()
 	local api = start()
 	local units, destroyed = {}, 0
