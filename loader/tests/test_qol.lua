@@ -97,6 +97,35 @@ test("skip_login_clicks_then_goes_online_once", function()
 	E.has(e:log("obsidianqol"), "skip login: going online to the ship")
 end)
 
+test("skip_login_leaves_the_press_to_the_player_with_a_gamepad", function()
+	local e = engine()
+	load_states(e)
+	local menu = clicking_menu(true)
+	rawset(_G, "InputUtility", { get_active_inputs = function() return { { pad_number = 7 }, { pad_number = 1 } } end })
+	update(menu)
+	update(menu)
+	rawset(_G, "InputUtility", nil)
+	E.eq(menu.inputs_seen, nil, "no click for the player")
+	E.eq(menu.showing_menu, false, "the title screen waits for a press")
+	E.eq(E.count(e:log("obsidianqol"), "skip login: a gamepad is connected"), 1, "logged once")
+	-- The player presses on the gamepad: the game makes it player 1, and the login still goes online.
+	menu.showing_menu, menu.main_pad = true, 1
+	menu.network_setup_state = 3
+	update(menu)
+	E.eq(menu.backend_type, "STEAM", "online to the ship")
+	E.eq(menu.main_pad, 1, "the gamepad stays player 1")
+end)
+
+test("skip_login_clicks_with_keyboard_and_mouse_alone", function()
+	local e = engine()
+	load_states(e)
+	local menu = clicking_menu(true)
+	rawset(_G, "InputUtility", { get_active_inputs = function() return { { pad_number = 7 } } end })
+	update(menu)
+	rawset(_G, "InputUtility", nil)
+	E.eq(menu.main_pad, 7, "keyboard and mouse")
+end)
+
 test("skip_login_waits_for_the_login_step", function()
 	local e = engine()
 	load_states(e)
@@ -210,6 +239,54 @@ test("skip_war_briefs_waits_for_the_snapshots_from_the_backend", function()
 	E.eq(screen.wants_exit, false, "nothing to decide yet")
 	screen:recieve_snapshots({}, { 1 })
 	E.eq(screen.wants_exit, true)
+end)
+
+-- The ship's own briefs: the title of an event that ended, the level flow each war event queues, and
+-- the sector notice of the mission screen. Defined as the game has them, then a module loads.
+local function load_ship(e)
+	rawset(_G, "GalacticEventManager", { add_ended_event = function(self, event) self.ended_events[#self.ended_events + 1] = event end })
+	rawset(_G, "StateMenu", { on_campaign_event = function(self, event, news, enemy)
+		if enemy then self.queued_level_events[#self.queued_level_events + 1] = { event = event, enemy_event = event .. "_" .. enemy } end
+	end })
+	local dialog = { active = false }
+	function dialog:on_enter(params) self.active, self.callback_params = true, params.callback_params end
+	function dialog:on_exit() self.active = false end
+	rawset(_G, "MenuScreenCampaignMission", { on_enter = function(self, params)
+		if params.front_moved then self.confirmation_dialog:on_enter({ callback_params = "region_change", simple_confirmation = true }) end
+	end })
+	e.opts.modules["lua/menu/menu_screen_campaign_mission"] = true
+	rawget(_G, "require")("lua/menu/menu_screen_campaign_mission")
+	return {
+		events = setmetatable({ ended_events = {} }, { __index = rawget(_G, "GalacticEventManager") }),
+		ship = setmetatable({ queued_level_events = {} }, { __index = rawget(_G, "StateMenu") }),
+		mission = setmetatable({ confirmation_dialog = dialog }, { __index = rawget(_G, "MenuScreenCampaignMission") }),
+	}
+end
+
+test("skip_war_briefs_skips_the_ships_briefs", function()
+	local e = engine()
+	local s = load_ship(e)
+	s.events:add_ended_event({ event_type = "attack", status = "success" })
+	E.eq(#s.events.ended_events, 0, "the title of an event that ended")
+	s.ship:on_campaign_event("on_region_liberated", true, "bugs", "region_01")
+	s.ship:on_campaign_event("on_defend_event_started", true, "cyborgs", "region_02")
+	E.eq(#s.ship.queued_level_events, 0, "the announcement of each war event")
+	s.ship:on_campaign_event("on_campaign_won", true, "bugs")
+	E.eq(#s.ship.queued_level_events, 1, "the war's end")
+	s.mission:on_enter({ front_moved = true }, "recap")
+	E.eq(s.mission.confirmation_dialog.active, false, "the sector notice")
+	E.has(e:log("obsidianqol"), "skip war briefs: sector notice skipped")
+end)
+
+test("skip_war_briefs_off_leaves_the_ships_briefs", function()
+	local e = engine({ "skip_war_briefs" })
+	local s = load_ship(e)
+	s.events:add_ended_event({ event_type = "attack", status = "success" })
+	s.ship:on_campaign_event("on_region_liberated", true, "bugs", "region_01")
+	s.mission:on_enter({ front_moved = true }, "recap")
+	E.eq(#s.events.ended_events, 1, "title")
+	E.eq(#s.ship.queued_level_events, 1, "announcement")
+	E.eq(s.mission.confirmation_dialog.active, true, "sector notice")
 end)
 
 -- A mission alone or with others: the game state's component manager, the lobby and the pause menu.
