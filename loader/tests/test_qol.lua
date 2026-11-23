@@ -3,7 +3,7 @@ local E = require "fake_engine"
 local T = {}
 local function test(name, fn) T[#T + 1] = { name, fn } end
 
-local IDS = { "skip_intro", "skip_login", "skip_war_briefs", "skip_planet_scanning", "solo_pause", "widescreen", "aim_cursor", "toggle_map", "recoil_fix", "dive_sprint_fix" }
+local IDS = { "skip_intro", "skip_login", "skip_war_briefs", "skip_planet_scanning", "solo_pause", "widescreen", "aim_cursor", "toggle_map", "recoil_fix", "dive_sprint_fix", "rumbler_echo_fix" }
 
 -- off: option ids switched off in settings.txt; every other option keeps the default (on).
 -- expedite: the mission end choice, off when not given.
@@ -685,6 +685,38 @@ test("dive_sprint_fix_off_sends_nothing", function()
 	E.eq(#g.events, 0)
 end)
 
+-- The Rumbler: LauncherComponent.command_slave as the game has it, counting the firing_single it keeps.
+local function rumbler_game()
+	local g = { kept = 0 }
+	rawset(_G, "LauncherComponent", { command_slave = function(_, unit, ctx, message)
+		if message == "firing_single" then g.kept = g.kept + 1 end
+	end })
+	return g
+end
+
+test("rumbler_echo_fix_keeps_one_firing_single_per_burst", function()
+	local g = rumbler_game()
+	local e = engine()
+	local send = function(unit, message) rawget(_G, "LauncherComponent").command_slave({}, unit, {}, message or "firing_single") end
+	-- A burst: three shells 0.1 s apart.
+	send("rumbler") e:frames(6) send("rumbler") e:frames(6) send("rumbler")
+	E.eq(g.kept, 1, "the first shell plays, the other two would only echo a second later")
+	send("rumbler", "reload")
+	E.eq(g.kept, 1, "other commands pass")
+	e:frames(40)
+	send("rumbler")
+	E.eq(g.kept, 2, "the next burst plays")
+	send("other rumbler")
+	E.eq(g.kept, 3, "another weapon's burst plays")
+end)
+
+test("rumbler_echo_fix_off_keeps_every_firing_single", function()
+	local g = rumbler_game()
+	engine({ "rumbler_echo_fix" })
+	for _ = 1, 3 do rawget(_G, "LauncherComponent").command_slave({}, "rumbler", {}, "firing_single") end
+	E.eq(g.kept, 3)
+end)
+
 test("options_off_change_nothing", function()
 	rawset(_G, "GameSettings", { max_aspect_ratio = 16 / 9 })
 	local e = engine(IDS)
@@ -733,11 +765,11 @@ local function wide_screen(width, widescreen_on)
 	return seen
 end
 
-test("widescreen_pins_the_objectives_right_and_dialogue_left_and_puts_the_offset_back", function()
+test("widescreen_moves_the_objectives_halfway_right_and_dialogue_left_and_puts_the_offset_back", function()
 	local seen = wide_screen(2560)
 	local gui = { resolution_offset_x = 320 }
 	E.eq(rawget(_G, "MissionManager").draw_objective_list({}, gui, 0.016), "drawn", "answers pass through")
-	E.eq(seen.objectives, 640, "to the right edge")
+	E.eq(seen.objectives, 480, "halfway to the right edge")
 	E.eq(gui.resolution_offset_x, 320, "put back")
 	local hud = { hd_gui = { resolution_offset_x = 320 }, hd_gui_dialogue = { resolution_offset_x = 320 } }
 	rawget(_G, "Hud").draw_dialogue(hud, nil, {})
