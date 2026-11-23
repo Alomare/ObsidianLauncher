@@ -20,7 +20,7 @@ const FOLDER: &str = "obsidian";
 const SEEDED: &str = "starter-pack.txt";
 
 fn folder() -> Folder {
-    Folder { id: FOLDER.into(), name: "Obsidian Kit".into(), color: "#4a90d9".into(), collapsed: true, locked: true }
+    Folder { id: FOLDER.into(), name: "Obsidian Kit".into(), color: "#4a90d9".into(), collapsed: false, locked: true }
 }
 
 /// Copies the shipped mods into the library. A newer copy, from an update, stays.
@@ -139,7 +139,7 @@ mod tests {
     }
     fn folders_ok(p: &Profile) {
         assert_eq!(p.folders, [folder()]);
-        assert_eq!((p.folders[0].name.as_str(), p.folders[0].color.as_str(), p.folders[0].collapsed, p.folders[0].locked), ("Obsidian Kit", "#4a90d9", true, true));
+        assert_eq!((p.folders[0].name.as_str(), p.folders[0].color.as_str(), p.folders[0].collapsed, p.folders[0].locked), ("Obsidian Kit", "#4a90d9", false, true));
         assert!(p.mods.iter().take(3).all(|m| m.folder.as_deref() == Some(FOLDER)));
     }
     /// The values the game gets for Obsidian Patches.
