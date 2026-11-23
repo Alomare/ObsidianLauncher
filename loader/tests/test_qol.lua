@@ -3,7 +3,7 @@ local E = require "fake_engine"
 local T = {}
 local function test(name, fn) T[#T + 1] = { name, fn } end
 
-local IDS = { "skip_intro", "skip_login", "skip_war_briefs", "skip_planet_scanning", "solo_pause", "widescreen", "aim_cursor", "toggle_map", "recoil_fix", "dive_sprint_fix", "rumbler_echo_fix" }
+local IDS = { "skip_intro", "skip_login", "skip_war_briefs", "skip_planet_scanning", "solo_pause", "widescreen", "aim_cursor", "toggle_map", "recoil_fix", "dive_sprint_fix", "rumbler_echo_fix", "borderless_fix" }
 
 -- off: option ids switched off in settings.txt; every other option keeps the default (on).
 -- expedite: the mission end choice, off when not given.
@@ -715,6 +715,72 @@ test("rumbler_echo_fix_off_keeps_every_firing_single", function()
 	engine({ "rumbler_echo_fix" })
 	for _ = 1, 3 do rawget(_G, "LauncherComponent").command_slave({}, "rumbler", {}, "firing_single") end
 	E.eq(g.kept, 3)
+end)
+
+-- Borderless fullscreen: a stand-in for LuaJIT's FFI and user32, with the game's window in front
+-- (style 94880000, WS_BORDER set) on a 2752 x 1152 monitor. Answers the record of what was set.
+local function borderless_game(front_pid)
+	local g = { style = bit.tobit(0x94880000), pos = nil, set_style = nil }
+	local user32 = {
+		GetForegroundWindow = function() return "hwnd" end,
+		GetWindowThreadProcessId = function(_, pid) pid[0] = front_pid or 7 return 1 end,
+		GetWindowLongW = function() return g.style end,
+		SetWindowLongW = function(_, _, v) g.set_style = v g.style = v return 0 end,
+		MonitorFromWindow = function() return "monitor" end,
+		GetMonitorInfoW = function(_, mi) mi.rcMonitor = { left = 0, top = 0, right = 2752, bottom = 1152 } return 1 end,
+		SetWindowPos = function(_, _, x, y, cx, cy) g.pos = { x, y, cx, cy } return 1 end,
+	}
+	g.ffi = {
+		os = "Windows", cdef = function() end, load = function() return user32 end,
+		new = function(t) if t:find("%[") then return {} end return {} end, sizeof = function() return 40 end,
+		cast = function(_, v) return v end, C = { GetCurrentProcessId = function() return 7 end },
+	}
+	g.real = package.loaded.ffi
+	package.loaded.ffi = g.ffi
+	rawset(_G, "Application", { user_setting = function(k) return k == "borderless_fullscreen" end })
+	rawset(_G, "Window", { is_fullscreen = function() return false end })
+	return g
+end
+
+test("borderless_fix_takes_the_frame_off_the_game_window_and_fits_it_to_the_monitor", function()
+	local g = borderless_game()
+	local ok, err = pcall(function()
+		local e = engine()
+		rawset(_G, "Application", { user_setting = function(k) return k == "borderless_fullscreen" end })
+		e:frames(2)
+		E.eq(g.set_style, bit.tobit(0x94080000), "WS_BORDER cleared, the rest kept")
+		E.eq(table.concat(g.pos, ","), "0,0,2752,1152", "the whole monitor")
+		E.has(e:log("obsidianqol"), "borderless fix: frame taken off the window, now 2752x1152")
+		g.pos = nil
+		e:frames(120)
+		E.eq(g.pos, nil, "no frame left: nothing more to do")
+	end)
+	package.loaded.ffi = g.real
+	if not ok then error(err, 0) end
+end)
+
+test("borderless_fix_leaves_other_windows_and_modes_alone", function()
+	local real = package.loaded.ffi
+	local g = borderless_game(99)
+	g.real = real
+	local ok, err = pcall(function()
+		local e = engine()
+		rawset(_G, "Application", { user_setting = function(k) return k == "borderless_fullscreen" end })
+		e:frames(2)
+		E.eq(g.set_style, nil, "another program's window in front")
+		g = borderless_game()
+		g.real = real
+		e = engine({ "borderless_fix" })
+		rawset(_G, "Application", { user_setting = function(k) return k == "borderless_fullscreen" end })
+		e:frames(2)
+		E.eq(g.set_style, nil, "the option off")
+		e = engine()
+		rawset(_G, "Application", { user_setting = function() return false end })
+		e:frames(2)
+		E.eq(g.set_style, nil, "not borderless")
+	end)
+	package.loaded.ffi = g.real
+	if not ok then error(err, 0) end
 end)
 
 test("options_off_change_nothing", function()
