@@ -62,6 +62,10 @@ pub struct StoreMod {
     pub early: bool,
     #[serde(default)]
     pub scope: String,
+    /// Hybrid Scopes: the scope of each secondary scope, in the order the manifest declares them.
+    /// Indexes built before 2026-11-23 lack them.
+    #[serde(default)]
+    pub secondary_scopes: Vec<String>,
     #[serde(default)]
     pub requires: Vec<String>,
     #[serde(default)]
@@ -120,7 +124,7 @@ impl From<PrivateEntry> for StoreMod {
     fn from(p: PrivateEntry) -> Self {
         StoreMod {
             id: p.id, name: p.name, summary: p.summary, description: String::new(), version: String::new(), early: true, scope: p.scope,
-            requires: Vec::new(), options: 0, option_list: Vec::new(), option_groups: Vec::new(), repo: p.repo, kit: false, icon: None,
+            secondary_scopes: Vec::new(), requires: Vec::new(), options: 0, option_list: Vec::new(), option_groups: Vec::new(), repo: p.repo, kit: false, icon: None,
             banner: None, released: None, added: None, versions: Vec::new(), authors: Vec::new(), verified: p.verified, stars: 0, downloads: 0, private: true,
         }
     }

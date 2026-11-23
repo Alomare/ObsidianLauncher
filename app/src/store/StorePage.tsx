@@ -11,7 +11,7 @@ import { ReportDialog } from "./ReportDialog";
 import { SubmitDialog } from "./SubmitDialog";
 import { useLocked } from "../busy";
 import { Confirm } from "../Confirm";
-import { CheckIcon, ChevronIcon, CloseIcon, GitHubIcon, ImportIcon, IssueIcon, SearchIcon, StarIcon, TrashIcon, UpdateIcon } from "../Icons";
+import { CheckIcon, ChevronIcon, CloseIcon, GitHubIcon, ImportIcon, IssueIcon, SearchIcon, StarIcon, TrashIcon, UpArrowIcon, UpdateIcon } from "../Icons";
 import { artFor } from "../homeArt";
 import { t, tn } from "../i18n";
 import { Markdown, parse } from "../Markdown";
@@ -21,7 +21,7 @@ import { openUrl } from "../opener";
 import { Select } from "../Select";
 import { ImageViewer } from "../Thumb";
 import type { Scope, Snapshot } from "../types";
-import { install, isStarred, loadStarred, loadStore, markOf, modsOf, toggleStar, useStore, type StoreMark, type StoreMod, type StoreOption } from "./storeIndex";
+import { install, isStarred, loadStarred, loadStore, markOf, modsOf, secondScope, toggleStar, useStore, type StoreMark, type StoreMod, type StoreOption } from "./storeIndex";
 import { PadGlyph } from "../pad/PadGlyph";
 
 const FILTER_SCOPES: Scope[] = ["library", "client", "session", "expansion"];
@@ -62,9 +62,20 @@ function Backdrop({ m }: { m: StoreMod }) {
   return <span className="backdrop">{under && <span className="bd-blur" aria-hidden="true" style={{ backgroundImage: `url("${under}")` }} />}</span>;
 }
 
-function ScopeTag({ scope }: { scope: Scope }) {
+/** The scope as a square; with Hybrid Scopes, split corner to corner: the primary scope at the top left,
+    the secondary scope (secondScope) at the bottom right. */
+const scopeName = (m: StoreMod) => {
+  const second = secondScope(m);
+  return second ? t("app.store.scopeWith", t(`app.scope.${m.scope}`), t(`app.scope.${second}`)) : t(`app.scope.${m.scope}`);
+};
+
+function ScopeTag({ m }: { m: StoreMod }) {
+  const { scope } = m;
+  const second = secondScope(m);
+  const name = scopeName(m);
+  const hint = second ? `${t(`app.scope.${scope}Hint`)} ${t("app.store.scopeSecondHint", t(`app.scope.${second}`))}` : t(`app.scope.${scope}Hint`);
   return (
-    <span className={`store-scope ${scope}`} role="img" aria-label={t(`app.scope.${scope}`)} data-tip-title={t(`app.scope.${scope}`)} data-tip={t(`app.scope.${scope}Hint`)} />
+    <span className={`store-scope ${scope}${second ? ` split to-${second}` : ""}`} role="img" aria-label={name} data-tip-title={name} data-tip={hint} />
   );
 }
 
@@ -80,11 +91,16 @@ const Verified = ({ m }: { m: StoreMod }) =>
     </svg>
   ) : null;
 
-/** A corner over the top right of a card: green when installed, yellow when the Store has a newer version. */
+/** A corner over the top right of a card: green when installed, yellow with an up arrow when the Store
+    has a newer version. */
 function Flag({ mark, small }: { mark: StoreMark; small?: boolean }) {
   if (mark !== "installed" && mark !== "update") return null;
   const label = mark === "installed" ? t("app.store.installed") : t("app.store.updateFlag");
-  return <span className={`c-flag ${mark === "installed" ? "inst" : "upd"}${small ? " sm" : ""}`} role="img" aria-label={label} data-tip={label} />;
+  return (
+    <span className={`c-flag ${mark === "installed" ? "inst" : "upd"}${small ? " sm" : ""}`} role="img" aria-label={label} data-tip={label}>
+      {mark === "update" && <UpArrowIcon />}
+    </span>
+  );
 }
 
 /** On a Kit card that is not installed: Install as an icon, at the right. */
@@ -118,7 +134,7 @@ function InstallButton({ m, mark, size, onInstall }: { m: StoreMod; mark: StoreM
   return (
     <button className={`btn inst ${size} ${update ? "play" : "go"}`} disabled={locked} onClick={(e) => { stop(e); onInstall(); }}
       data-tip={update ? t("app.store.updateHint", m.version) : t("app.store.installHint", m.version)}>
-      {update ? <UpdateIcon /> : <ImportIcon />}
+      {update ? <UpArrowIcon /> : <ImportIcon />}
       {update ? t("app.store.update") : t("app.store.install")}
     </button>
   );
@@ -175,7 +191,7 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
     const q = text.trim().toLowerCase();
     return sortMods(all.filter((m) => !m.kit), sort, order)
       .filter((m) => !q || `${m.name} ${m.summary}`.toLowerCase().includes(q))
-      .filter((m) => !scopes.length || scopes.includes(m.scope))
+      .filter((m) => !scopes.length || scopes.includes(m.scope) || (m.secondary_scopes ?? []).some((s) => scopes.includes(s as Scope)))
       .filter((m) => !installedOnly || library.has(m.id))
       .filter((m) => !starredOnly || isStarred(m, store.starred));
   }, [all, text, scopes, installedOnly, starredOnly, store.starred, sort, order, library]);
@@ -216,7 +232,7 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
             <div key={m.id} className="kit-card" role="link" tabIndex={0} onClick={() => show(m.id)} onKeyDown={keyOpen(() => show(m.id))}>
               <Flag mark={mark(m)} small />
               <ModIcon m={m} />
-              <div className="kc-text"><ScopeTag scope={m.scope} /><b>{m.name}</b><Early m={m} /></div>
+              <div className="kc-text"><ScopeTag m={m} /><b>{m.name}</b><Early m={m} /></div>
               <KitInstall m={m} mark={mark(m)} onInstall={() => doInstall(m)} />
             </div>
           ))}
@@ -272,7 +288,7 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
                     <b className="c-name"><span>{m.name}</span><Verified m={m} /></b>
                     <p className="c-desc">{m.summary}</p>
                     <div className="c-tags">
-                      <ScopeTag scope={m.scope} /><Early m={m} />
+                      <ScopeTag m={m} /><Early m={m} />
                       <span className="c-stats">
                         <Stars m={m} on={isStarred(m, store.starred)} />
                       </span>
@@ -478,7 +494,7 @@ function ModPage({ m, all, snap, mark, onOpen, onInstall }: PageProps) {
         )}
         {m.summary && <p className="msum">{m.summary}</p>}
         <dl className="mfacts">
-          <div><dt>{t("app.store.factScope")}</dt><dd><ScopeTag scope={m.scope} />{t(`app.scope.${m.scope}`)}</dd></div>
+          <div><dt>{t("app.store.factScope")}</dt><dd><ScopeTag m={m} />{scopeName(m)}</dd></div>
           {m.added && <div><dt>{t("app.store.factReleased")}</dt><dd>{date(m.added)}</dd></div>}
           {m.released && <div><dt>{t("app.store.factUpdated")}</dt><dd>{date(m.released)}</dd></div>}
           <div><dt>{t("app.store.factVersion")}</dt><dd>{m.version}<Early m={m} /></dd></div>

@@ -20,7 +20,21 @@ export type StoreMod = {
   authors?: string[]; verified?: boolean;
   /** Missing from indexes built before 2026-11-15. `private`: early access, from a private repository. */
   stars?: number; downloads?: number; private?: boolean;
+  /** Hybrid Scopes: the scope of each secondary scope, as declared. Missing from indexes built before 2026-11-23. */
+  secondary_scopes?: string[];
 };
+
+/** The secondary scope a scope tag shows beside the primary one: of the secondary scopes unlike the
+ *  primary, the scope most of them have, the first declared on a tie. None when all match the primary. */
+export function secondScope(m: Pick<StoreMod, "scope" | "secondary_scopes">): Scope | null {
+  const others = (m.secondary_scopes ?? []).filter((s): s is Scope => (s === "client" || s === "session") && s !== m.scope);
+  let best: Scope | null = null, most = 0;
+  for (const s of others) {
+    const n = others.filter((x) => x === s).length;
+    if (n > most) { best = s; most = n; }
+  }
+  return best;
+}
 /** The list as it stands. A reload of a list already shown keeps it on screen: `refresh` says how that
  *  reload went, and `stale` that another was asked for while it ran, so it runs again after. */
 export type StoreIndex =
