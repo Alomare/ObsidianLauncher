@@ -852,9 +852,60 @@ pub fn add_to_mods_json(text: &str, repo: &str) -> Result<String> {
         return Err(ObsidianError::GitHub(format!("{repo} is already in the Store")));
     }
     v["mods"].as_array_mut().ok_or_else(|| ObsidianError::GitHub("mods.json has no mods list".into()))?.push(json!(repo));
+    // Insert into the text so the rest of the file (key order, layout) stays as the index has it;
+    // a re-serialised Value would sort the keys and make every submission diff noisy.
+    if let Some(out) = insert_into_mods(text, repo) {
+        if serde_json::from_str::<Value>(&out).ok().as_ref() == Some(&v) {
+            return Ok(out);
+        }
+    }
     let mut out = serde_json::to_string_pretty(&v)?;
     out.push('\n');
     Ok(out)
+}
+
+/// Appends `repo` as the last entry of the top-level "mods" array, copying the indent of the entry
+/// before it. None when the array cannot be found in the text.
+fn insert_into_mods(text: &str, repo: &str) -> Option<String> {
+    let key = text.find("\"mods\"")?;
+    let after_key = &text[key + 6..];
+    let colon = after_key.find(|c: char| !c.is_whitespace())?;
+    if !after_key[colon..].starts_with(':') {
+        return None;
+    }
+    let open = key + 6 + colon + 1 + after_key[colon + 1..].find(|c: char| !c.is_whitespace())?;
+    if text.as_bytes()[open] != b'[' {
+        return None;
+    }
+    // The closing bracket, skipping over strings.
+    let mut in_str = false;
+    let mut escaped = false;
+    let mut close = None;
+    for (i, c) in text[open + 1..].char_indices() {
+        if in_str {
+            match c {
+                _ if escaped => escaped = false,
+                '\\' => escaped = true,
+                '"' => in_str = false,
+                _ => {}
+            }
+        } else if c == '"' {
+            in_str = true;
+        } else if c == ']' {
+            close = Some(open + 1 + i);
+            break;
+        }
+    }
+    let close = close?;
+    let inner = &text[open + 1..close];
+    let entry = serde_json::to_string(repo).ok()?;
+    let Some(last) = inner.trim_end().len().checked_sub(1).map(|n| open + 1 + n + 1) else {
+        return Some(format!("{}{}{}", &text[..open + 1], entry, &text[close..]));
+    };
+    let line_start = text[..last].rfind('\n').map_or(0, |n| n + 1);
+    let indent: String = text[line_start..].chars().take_while(|c| *c == ' ' || *c == '\t').collect();
+    let sep = if inner.contains('\n') { format!(",\n{indent}") } else { ", ".to_string() };
+    Some(format!("{}{sep}{entry}{}", &text[..last], &text[last..]))
 }
 
 const B64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -921,6 +972,10 @@ mod tests {
         let v: Value = serde_json::from_str(&out).unwrap();
         assert_eq!(v["mods"], json!(["Alomare/HD1-BetterHUD", "someone/Cool-Mod"]));
         assert_eq!(v["verified"], json!(["Alomare"]), "nothing else changes");
+        assert_eq!(out, text.replace("\"Alomare/HD1-BetterHUD\"]", "\"Alomare/HD1-BetterHUD\", \"someone/Cool-Mod\"]"), "key order and layout kept");
+        let tall = "{\n  \"verified\": [\n    \"Alomare\"\n  ],\n  \"mods\": [\n    \"a/b\"\n  ]\n}\n";
+        assert_eq!(add_to_mods_json(tall, "c/d").unwrap(), "{\n  \"verified\": [\n    \"Alomare\"\n  ],\n  \"mods\": [\n    \"a/b\",\n    \"c/d\"\n  ]\n}\n");
+        assert_eq!(add_to_mods_json("{\"mods\": []}", "c/d").unwrap(), "{\"mods\": [\"c/d\"]}");
         assert!(matches!(add_to_mods_json(text, "alomare/hd1-betterhud"), Err(ObsidianError::GitHub(_))));
         assert!(matches!(add_to_mods_json(text, "Alomare/ObsidianAPI"), Err(ObsidianError::GitHub(_))));
     }
