@@ -591,7 +591,7 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 .files li { padding: 0.24rem 0.8rem; display: flex; flex-direction: column; font-size: var(--fs-sm); }
 .files .f, .cf .f, .mono { font-family: Consolas, "Cascadia Mono", monospace; font-size: var(--fs-sm); color: var(--mu); overflow-wrap: anywhere; }
 .about-mod { display: flex; flex-direction: column; gap: 0.6rem; align-items: flex-start; }
-.about-mod p { margin: 0; line-height: 1.45; }
+.about-mod p { margin: 0; line-height: 1.45; user-select: text; }
 /* The parts of a mod in About: a diamond, then the name and the description. */
 .parts { align-self: stretch; }
 .parts h3 { margin: 0 0 0.3rem; font-size: var(--fs-xs); color: var(--mu); }
@@ -1666,7 +1666,7 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .c-body b > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .c-body b > .store-verified { flex: none; vertical-align: 0; }
 .c-desc { grid-column: 1 / -1; margin: 0.5rem 0 0; min-height: calc(1.38em * 3); font-size: var(--fs-sm); color: var(--mu); line-height: 1.38;
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; user-select: text; }
 .c-tags { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; min-height: 2.65rem; margin-top: 0.7rem; padding-top: 0.65rem; border-top: 1px solid var(--ln); }
 
 /* Install button */
@@ -1713,7 +1713,7 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .mby { color: var(--mu); font-size: var(--fs-sm); }
 .mid h1 { margin: 0; font-family: "Saira Variable", "Exo 2 Variable", sans-serif; font-weight: 770; font-size: 2rem; line-height: 1.02; letter-spacing: 0.03em; text-transform: uppercase; overflow-wrap: anywhere; }
 .mid-tools > .btn.inst.big { flex: none; }
-.msum { margin: 0; max-width: 40rem; color: var(--mu); line-height: 1.5; }
+.msum { margin: 0; max-width: 40rem; color: var(--mu); line-height: 1.5; user-select: text; }
 .mfacts { margin: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; }
 .mfacts > div { min-width: 0; padding: 0.5rem 0.75rem; background: var(--row); display: flex; flex-direction: column; gap: 0.15rem; }
 .mfacts dt { color: var(--mu); font-family: "Saira Variable", "Exo 2 Variable", sans-serif; font-size: 0.64rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; }

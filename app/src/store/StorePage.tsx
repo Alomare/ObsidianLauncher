@@ -147,6 +147,15 @@ const keyOpen = (open: () => void) => (e: KeyboardEvent) => {
   open();
 };
 
+// A drag over a card's description selects the text instead of opening the mod. A selection that
+// was already there when the press began doesn't count, so the next click still opens the card.
+let before = "";
+const press = () => { before = window.getSelection()?.toString() ?? ""; };
+const selectedIn = (card: Element) => {
+  const s = window.getSelection();
+  return !!s && !s.isCollapsed && !!s.anchorNode && card.contains(s.anchorNode) && s.toString() !== before;
+};
+
 export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
   const store = useStore();
   const [open, setOpen] = useState<string | null>(null);
@@ -278,7 +287,8 @@ export function StorePage({ snap, home }: { snap: Snapshot; home: number }) {
             {list.map((m) => {
               const k = mark(m);
               return (
-                <div key={m.id} className="card" role="link" tabIndex={0} onClick={() => show(m.id)} onKeyDown={keyOpen(() => show(m.id))}>
+                <div key={m.id} className="card" role="link" tabIndex={0} onPointerDown={press}
+                  onClick={(e) => { if (!selectedIn(e.currentTarget)) show(m.id); }} onKeyDown={keyOpen(() => show(m.id))}>
                   <div className="c-img">
                     {m.banner ? <img src={src(m.banner)} alt="" draggable={false} loading="lazy" /> : <Backdrop m={m} />}
                   </div>

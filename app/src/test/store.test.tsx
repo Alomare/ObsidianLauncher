@@ -165,6 +165,21 @@ describe("StorePage", () => {
     expect(names(host).length).toBe(3);
   });
 
+  it("selects a card's description on a drag instead of opening the mod", async () => {
+    const host = await show([row("api", "1.2.0")]);
+    const card = [...host.querySelectorAll(".card")].find((c) => c.textContent?.includes("ARCADE")) as HTMLElement;
+    const press = () => card.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
+    await act(async () => press());
+    window.getSelection()!.selectAllChildren(card.querySelector(".c-desc")!);
+    await act(async () => card.click());
+    expect(host.querySelector(".store-mod")).toBeNull();
+    // The next press starts with that text still selected: a plain click opens the mod.
+    await act(async () => press());
+    await act(async () => card.click());
+    expect(host.querySelector(".mid h1")?.textContent).toBe("ARCADE");
+    window.getSelection()!.removeAllRanges();
+  });
+
   it("shows the authors and Verified on the page, and uninstalls after asking", async () => {
     const host = await show([row("hud", "1.2.0")]);
     const card = [...host.querySelectorAll(".card")].find((c) => c.textContent?.includes("HUD")) as HTMLElement;
