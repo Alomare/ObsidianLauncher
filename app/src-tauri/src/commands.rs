@@ -543,9 +543,22 @@ pub struct ModUpdate {
 
 /// Starts the app again on the version just installed. The Windows installer closes and reopens the
 /// app itself; on Linux the new AppImage or package is in place and the old version still runs. An
-/// AppImage starts again from the AppImage file, not from the copy it ran from.
+/// AppImage starts again from the AppImage file, not from the copy it ran from, and the new copy
+/// starts once this one has closed, with the system environment (obsidian_core::host).
 #[tauri::command]
 pub fn restart_app(app: tauri::AppHandle) {
+    #[cfg(target_os = "linux")]
+    {
+        use tauri::Manager;
+        let env = app.env();
+        if let Ok(exe) = tauri::process::current_binary(&env) {
+            let args: Vec<_> = env.args_os.iter().skip(1).cloned().collect();
+            if obsidian_core::host::relaunch_after_exit(&exe, &args).is_ok() {
+                app.exit(0);
+                return;
+            }
+        }
+    }
     app.restart()
 }
 
