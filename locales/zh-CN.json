@@ -940,6 +940,8 @@
   "app.store.earlyHint": "版本 %s：仍在开发中，之后的版本可能变化很大。",
   "app.store.earlyTitle": "抢先体验",
   "app.store.updateFlag": "更新",
+  "app.store.scopeWith": "%s与%s",
+  "app.store.scopeSecondHint": "混合作用域：模组的一部分作为%s运行。",
   "app.store.install": "安装",
   "app.store.update": "更新",
   "app.store.installHint": "从 GitHub 安装版本 %s（关闭状态），并附带它需要的模组",

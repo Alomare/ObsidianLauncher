@@ -84,6 +84,81 @@ struct Overlay {
     /// The banks the clips are in, which give the clips in the languages no mod changes. A whole bank
     /// of a mod below the clips comes first.
     sources: Vec<Source>,
+    /// What `overlay_made` gave, kept for the other parts of the same deploy.
+    made: Made,
+}
+
+/// What an overlay makes, kept between its parts: making one part makes them all, which takes about a
+/// second with a soundtrack mod, and a deploy asks once for the master and once for each bundle that
+/// holds a source bank. A bank goes out of the cache with the last bundle that asks for it.
+#[derive(Default)]
+struct Made(std::sync::Mutex<Option<MadeParts>>);
+
+struct MadeParts {
+    contents: PathBuf,
+    master: Option<(Vec<u8>, u32)>,
+    /// Each source's bank, and how many more bundles ask for it.
+    banks: Vec<(Vec<Piece>, usize)>,
+}
+
+impl Made {
+    fn parts<T>(&self, contents: &Path, o: &Overlay, mut take: impl FnMut(&mut MadeParts) -> Option<T>) -> Result<T> {
+        let mut held = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(parts) = held.as_mut().filter(|p| p.contents == contents) {
+            if let Some(found) = take(parts) {
+                return Ok(found);
+            }
+            // asked again after the last use: made again below, as without the cache
+            let (master, flags, banks) = overlay_made(contents, o)?;
+            let mut parts = MadeParts { contents: contents.to_path_buf(), master: Some((master, flags)), banks: banks.into_iter().map(|b| (b, usize::MAX)).collect() };
+            return take(&mut parts).ok_or_else(|| ObsidianError::BadBank("an overlay part is missing".into()));
+        }
+        let (master, flags, banks) = overlay_made(contents, o)?;
+        let banks = banks.into_iter().zip(&o.sources).map(|(b, s)| (b, s.bundles.len())).collect();
+        let mut parts = MadeParts { contents: contents.to_path_buf(), master: Some((master, flags)), banks };
+        let found = take(&mut parts).ok_or_else(|| ObsidianError::BadBank("an overlay part is missing".into()))?;
+        *held = Some(parts);
+        Ok(found)
+    }
+
+    fn master(&self, contents: &Path, o: &Overlay) -> Result<(Vec<u8>, u32)> {
+        self.parts(contents, o, |p| p.master.take())
+    }
+
+    fn bank(&self, contents: &Path, o: &Overlay, i: usize) -> Result<Vec<Piece>> {
+        self.parts(contents, o, |p| {
+            let (pieces, left) = p.banks.get_mut(i)?;
+            match *left {
+                0 => None,
+                1 => {
+                    *left = 0;
+                    Some(std::mem::take(pieces))
+                }
+                _ => {
+                    *left -= 1;
+                    Some(pieces.clone())
+                }
+            }
+        })
+    }
+}
+
+impl Clone for Made {
+    fn clone(&self) -> Made {
+        Made::default()
+    }
+}
+
+impl PartialEq for Made {
+    fn eq(&self, _: &Made) -> bool {
+        true
+    }
+}
+
+impl std::fmt::Debug for Made {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Made")
+    }
 }
 
 /// A bank the clips replace, and where Obsidian's bank of its new clips goes: the bundles that hold it.
@@ -495,11 +570,12 @@ fn recipe_digest(base: &[u8; 32], recipe: &Recipe) -> [u8; 32] {
 pub fn rebuilt(contents: &Path, bundle: &str, planned: Planned) -> Result<Planned> {
     let Some(recipe) = &planned.recipe else { return Ok(planned) };
     if let Some(part) = &recipe.overlay {
-        let (Part::Master(o) | Part::Bank(o, _)) = part;
-        let (master, flags, mut banks) = overlay_made(contents, o)?;
         let mut out = match part {
-            Part::Master(_) => Planned::new(planned.type_hash, planned.name_hash, flags, master, planned.owner),
-            Part::Bank(_, i) => Planned::with_pieces(planned.type_hash, planned.name_hash, 0, std::mem::take(&mut banks[*i]), planned.owner),
+            Part::Master(o) => {
+                let (master, flags) = o.made.master(contents, o)?;
+                Planned::new(planned.type_hash, planned.name_hash, flags, master, planned.owner)
+            }
+            Part::Bank(o, i) => Planned::with_pieces(planned.type_hash, planned.name_hash, 0, o.made.bank(contents, o, *i)?, planned.owner),
         };
         out.digest = planned.digest;
         return Ok(out);
@@ -622,6 +698,7 @@ fn pieces_clips(pieces: &[Piece], wanted: &BTreeSet<u64>) -> Result<HeldClips> {
 /// what a rebuild of that bank gave it: the mod's clip in that language, else the bank's own clip there.
 fn overlay_made(contents: &Path, o: &Overlay) -> Result<(Vec<u8>, u32, Vec<Vec<Piece>>)> {
     use crate::overlay;
+    let _t = crate::timing::span("deploy: sound overlay");
     let (master, flags) = match &o.master_base {
         Some(m) => (m.clone(), 0),
         None => {
@@ -637,12 +714,25 @@ fn overlay_made(contents: &Path, o: &Overlay) -> Result<(Vec<u8>, u32, Vec<Vec<P
     };
     let mut taken: BTreeSet<u64> = overlay::clip_places(&master)?.into_iter().map(|p| p.1).collect();
     let wanted: BTreeSet<u64> = o.clips.keys().copied().collect();
+    // Each source is read from a different place of the game's files, all at once: a soundtrack mod
+    // has ten banks across several bundles.
+    let read: Vec<Result<HeldClips>> = std::thread::scope(|scope| {
+        let jobs: Vec<_> = o
+            .sources
+            .iter()
+            .map(|s| {
+                let wanted = &wanted;
+                scope.spawn(move || match &s.base {
+                    Some((_, pieces)) => pieces_clips(pieces, wanted),
+                    None => game_clips(contents, &s.bundles[0], s.bank, wanted),
+                })
+            })
+            .collect();
+        jobs.into_iter().map(|j| j.join().unwrap_or_else(|_| Err(ObsidianError::BadBank("reading a bank stopped".into())))).collect()
+    });
     let mut held_by = Vec::with_capacity(o.sources.len());
-    for s in &o.sources {
-        let held = match &s.base {
-            Some((_, pieces)) => pieces_clips(pieces, &wanted)?,
-            None => game_clips(contents, &s.bundles[0], s.bank, &wanted)?,
-        };
+    for (s, held) in o.sources.iter().zip(read) {
+        let held = held?;
         let bank = format!("#{:016x}", s.bank);
         for (lang, clip, owner) in &s.wanted {
             let Some((ids, _)) = held.get(lang) else {
@@ -1101,7 +1191,7 @@ fn add_overlay(out: &mut Composition, contents: &Path, bundle: String, name: u64
             (s.bundles.clone(), hash_name(&name), h.finalize().into())
         })
         .collect();
-    let overlay = std::sync::Arc::new(Overlay { bundle: bundle.clone(), master: name, master_base, clips, sources });
+    let overlay = std::sync::Arc::new(Overlay { bundle: bundle.clone(), master: name, master_base, clips, sources, made: Made::default() });
     let recipe = |part| Some(Recipe { overlay: Some(part), ..Default::default() });
     let mut m = Planned { recipe: recipe(Part::Master(overlay.clone())), ..Planned::new(master_type, name, flags, Vec::new(), owner.clone()) };
     m.digest = master_digest;

@@ -977,6 +977,8 @@
   "app.store.earlyHint": "Version %s: still in development, and later versions can change a lot.",
   "app.store.earlyTitle": "Early Access",
   "app.store.updateFlag": "Update",
+  "app.store.scopeWith": "%s with %s",
+  "app.store.scopeSecondHint": "Hybrid Scopes: part of the mod runs as %s.",
   "app.store.install": "Install",
   "app.store.update": "Update",
   "app.store.installHint": "Installs version %s from GitHub, switched off, with the mods it requires",

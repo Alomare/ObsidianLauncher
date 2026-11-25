@@ -15,10 +15,10 @@ Cada card mostra a imagem, o nome, uma descrição curta e as etiquetas:
 | Etiqueta | Significado |
 |---|---|
 | Quadrado prateado | **Verificado pelo Obsidian**: o mod é feito e mantido pela equipe do Obsidian, ou por alguém que ganhou a confiança dela |
-| Quadrado colorido | O [escopo](wiki:scopes) do mod |
+| Quadrado colorido | O [escopo](wiki:scopes) do mod. Com [Escopos Híbridos](wiki:manifest#hybrid-scopes), o quadrado é dividido de canto a canto: o escopo principal no alto à esquerda, o escopo secundário embaixo à direita |
 | **EA** (acesso antecipado) | Uma versão abaixo de 1.0, ainda em desenvolvimento, em que versões futuras podem mudar muito. Mods em repositórios privados também são de acesso antecipado e só aparecem para uma conta do GitHub que pode lê-los ([Conta](wiki:tab-account)) |
 
-Um canto verde marca um mod instalado, e um canto amarelo um mod com versão mais nova na Loja.
+Um canto verde marca um mod instalado, e um canto amarelo com uma seta para cima um mod com versão mais nova na Loja.
 
 ## A página de um mod {#the-page-of-a-mod}
 

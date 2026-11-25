@@ -50,7 +50,7 @@ Não. O Obsidian Patches remove as barras pretas em telas largas, e essa opção
 
 ### O que é o Obsidian Patches? {#what-is-obsidian-patches}
 
-Um mod de cliente que vem com o Obsidian, feito de pequenas correções, cada uma uma opção. Começam ligadas: sem introdução, tela de login nem escaneamento de planetas, sem barras pretas em telas largas, telas de resultado mais rápidas depois de uma missão, uma pausa que congela um jogo solo, e duas correções de animação, o recuo da arma depois de lançar um estratagema e a pose de corrida depois de um mergulho. Prontas para ligar: pular os resumos da guerra, uma mira que fica visível e um minimapa que fica aberto. O Obsidian Patches fica na pasta Obsidian Kit, no topo da lista.
+Um mod de cliente que vem com o Obsidian, feito de pequenas correções, cada uma uma opção. Começam ligadas: sem introdução nem escaneamento de planetas, sem barras pretas em telas largas, sem moldura branca em tela cheia sem bordas, telas de resultado mais rápidas depois de uma missão, uma pausa que congela um jogo solo, duas correções de animação (o recuo da arma depois de lançar um estratagema e a pose de corrida depois de um mergulho) e sem eco depois de uma rajada do Rumbler. Prontas para ligar: pular a tela de login e os resumos da guerra, uma mira que fica visível e um minimapa que fica aberto. O Obsidian Patches fica na pasta Obsidian Kit, no topo da lista.
 
 ## Criar mods {#making-mods}
 

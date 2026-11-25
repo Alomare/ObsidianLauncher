@@ -51,11 +51,13 @@ if not ok then obsidian.toast("No resupply: " .. why) end
 | `api.game` | O estado atual, o jogador local, o anfitrião e escritas seguras em valores protegidos |
 | `api.lobby` | Os jogadores do lobby, e textos curtos compartilhados com todas as máquinas nele |
 | `api.catalog` | Armas, estratagemas, vantagens, inimigos, veículos e itens por nome: o jogo base e o DLC que o jogador possui |
+| `api.data` | O que pode ser editado e criado no mundo, gerado a partir dos dados do jogo |
 | `api.edits` | Mudanças em tabelas de configuração, conferidas e registradas, com desfazer |
 | `api.effects` | Mudanças que continuam entre renascimentos e missões, como modo deus ou velocidade, e efeitos personalizados |
 | `api.events` | Chamadas quando o jogo informa uma morte de inimigo, uma morte de jogador, um objetivo, um estratagema e mais |
 | `api.player` | Vida, vidas, renascimento, teletransporte, aparência e efeitos de status |
 | `api.gear` | Armas, mochilas, vantagens, drones e reabastecimento, e os atributos de uma única arma |
+| `api.perks`, `api.cosmetics` | Vantagens, capacetes, armaduras e capas personalizados, cada um feito a partir de um do jogo; outros jogadores sem o mesmo mod veem o original |
 | `api.vehicles` | O veículo sendo dirigido, reparos e reabastecimento |
 | `api.stratagems` | Recargas, usos, chamadas, e novos estratagemas feitos a partir dos do jogo |
 | `api.enemies` | Encontrar, criar, ferir e remover inimigos, e o quanto os encontros pressionam |
@@ -65,13 +67,18 @@ if not ok then obsidian.toast("No resupply: " .. why) end
 | `api.map` | O mapa da missão deste jogador: zoom, pings e marcadores |
 | `api.audio`, `api.music` | Volumes, sons e a trilha sonora |
 | `api.menu` | A janela dentro do jogo que **F6** abre, onde cada mod tem uma pasta de páginas |
-| `api.mod_settings` | Uma página de configurações do mod em **Mods** no menu de pausa do jogo ([Opções no menu de pausa](wiki:options-and-keys#options-in-the-pause-menu)) |
-| `api.ui` | Dicas, pings no mapa, os menus da nave e textos do jogo mostrados com outras palavras |
+| `api.mod_settings` | Uma página de configurações do mod em **Mods** no menu de pausa do jogo, com grupos que abrem uma página separada ([Opções no menu de pausa](wiki:options-and-keys#options-in-the-pause-menu)) |
+| `api.ui` | Dicas, pings no mapa, falas sobre um Helldiver, uma linha no chat de texto, os menus da nave e textos do jogo mostrados com outras palavras |
 | `api.progress` | O save: amostras, desbloqueios, melhorias e o equipamento |
 | `api.console` | Os comandos de desenvolvedor do jogo, menos os que chegam ao servidor compartilhado |
 | `api.bots` | Helldivers que esta máquina controla, com ordens, equipamento e ajuda |
+| `api.brain` | As decisões dos bots, como funções simples que um mod ou um teste pode chamar |
 | `api.nav` | Rotas a pé para bots e mods |
 | `api.capture` | Capturas de tela do jogo, salvas como arquivos de imagem |
+
+## Memory Bridge {#memory-bridge}
+
+A opção **Memory Bridge** do Obsidian API, desligada por padrão, roda no jogo aberto o código Lua enviado por uma ferramenta de desenvolvimento, para testar uma ideia de mod sem reiniciar. A ferramenta é o `tools/bridge.py` do [HD1 Lua Modding Skill](https://github.com/Alomare/HD1-LuaModdingSkill). A ponte funciona só jogando sozinho ou num lobby que não é público, e uma partida com ela ligada não envia resultados da Guerra Galáctica nem dos placares.
 
 ## Regras que vale conhecer {#rules-worth-knowing}
 

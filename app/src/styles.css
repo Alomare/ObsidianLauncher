@@ -1598,13 +1598,21 @@ button.bare.image-view-x:hover { color: #fff; background: rgba(255, 255, 255, 0.
 .store-scope.expansion { --scb: var(--expansion); }
 .store-scope.unspecified { --scb: var(--unspecified); box-shadow: inset 0 0 0 1px var(--scope-edge); }
 .store-scope.hybrid::before { background: linear-gradient(to right, var(--client) 50%, var(--session) 50%); }
+/* Hybrid Scopes: split corner to corner, the primary scope at the top left and the secondary at the bottom right. */
+.store-scope.to-client { --sc2: var(--client); }
+.store-scope.to-session { --sc2: var(--session); }
+.store-scope.split::before { background: linear-gradient(to bottom right, var(--scb) calc(50% - 0.5px), var(--sc2) calc(50% + 0.5px)); }
 .store-tag.early { background: var(--s1); color: var(--goldtx); box-shadow: inset 0 0 0 1px var(--gold); }
 /* Installed or Update: a corner over the top right of a card. */
 /* The triangle is a gradient rather than a clip, so the soft shadow under it shows. */
 .c-flag { --cf: var(--go); position: absolute; top: 0; right: 0; z-index: 2; width: 1.33rem; height: 1.33rem; opacity: 0.9;
   background: linear-gradient(to bottom left, var(--cf) 50%, transparent 50%); filter: drop-shadow(-1px 1px 2px rgba(0, 0, 0, 0.28)); }
-.c-flag.upd { --cf: var(--gold); }
+.c-flag.upd { --cf: var(--gold); width: 1.75rem; height: 1.75rem; }
 .c-flag.sm { width: 0.93rem; height: 0.93rem; }
+.c-flag.upd.sm { width: 1.3rem; height: 1.3rem; }
+/* The up arrow of the Mods tab, in the filled half of the corner. */
+.c-flag svg { position: absolute; top: 0.14rem; right: 0.14rem; width: 0.72rem; height: 0.72rem; color: var(--on); }
+.c-flag.sm svg { top: 0.1rem; right: 0.1rem; width: 0.55rem; height: 0.55rem; }
 /* Obsidian Verified: a white circle with a dark check, inline in front of the name, about the height of the capitals. */
 .store-verified { display: inline-block; flex: none; width: 0.9em; height: 0.9em; margin: 0 1px 0 0.35em; vertical-align: -0.1em; overflow: visible; }
 :root[data-theme="light"] .store-verified circle { stroke: rgba(0, 0, 0, 0.35); stroke-width: 1px; r: 7.5px; }

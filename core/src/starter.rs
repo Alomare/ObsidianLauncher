@@ -20,7 +20,7 @@ const FOLDER: &str = "obsidian";
 const SEEDED: &str = "starter-pack.txt";
 
 fn folder() -> Folder {
-    Folder { id: FOLDER.into(), name: "Obsidian Kit".into(), color: "#4a90d9".into(), collapsed: true, locked: true }
+    Folder { id: FOLDER.into(), name: "Obsidian Kit".into(), color: "#4a90d9".into(), collapsed: false, locked: true }
 }
 
 /// Copies the shipped mods into the library. A newer copy, from an update, stays.
@@ -139,7 +139,7 @@ mod tests {
     }
     fn folders_ok(p: &Profile) {
         assert_eq!(p.folders, [folder()]);
-        assert_eq!((p.folders[0].name.as_str(), p.folders[0].color.as_str(), p.folders[0].collapsed, p.folders[0].locked), ("Obsidian Kit", "#4a90d9", true, true));
+        assert_eq!((p.folders[0].name.as_str(), p.folders[0].color.as_str(), p.folders[0].collapsed, p.folders[0].locked), ("Obsidian Kit", "#4a90d9", false, true));
         assert!(p.mods.iter().take(3).all(|m| m.folder.as_deref() == Some(FOLDER)));
     }
     /// The values the game gets for Obsidian Patches.
@@ -159,7 +159,7 @@ mod tests {
         folders_ok(&p);
         let values = qol_values(&lib, &p);
         let toggled: Vec<&str> = values.iter().filter(|(_, v)| *v == json!(true)).map(|(k, _)| k.as_str()).collect();
-        assert_eq!(toggled, ["dive_sprint_fix", "recoil_fix", "skip_intro", "skip_login", "skip_planet_scanning", "solo_pause", "widescreen"], "the manifest's defaults");
+        assert_eq!(toggled, ["borderless_fix", "dive_sprint_fix", "recoil_fix", "rumbler_echo_fix", "skip_intro", "skip_planet_scanning", "solo_pause", "widescreen"], "the manifest's defaults");
         assert!(values.contains(&("expedite_mission_end".to_string(), json!("faster"))));
         for id in MODS {
             assert!(crate::updates::source_of(&load_manifest(&lib.mod_dir(id)).unwrap()).is_some(), "{id} updates from its repository");

@@ -986,6 +986,8 @@
   "app.store.earlyHint": "Versão %s: ainda em desenvolvimento, e versões futuras podem mudar muito.",
   "app.store.earlyTitle": "Acesso Antecipado",
   "app.store.updateFlag": "Atualização",
+  "app.store.scopeWith": "%s com %s",
+  "app.store.scopeSecondHint": "Escopos Híbridos: parte do mod roda como %s.",
   "app.store.install": "Instalar",
   "app.store.update": "Atualizar",
   "app.store.installHint": "Instala a versão %s do GitHub, desligada, com os mods que ela exige",

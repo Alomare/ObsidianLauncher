@@ -3,7 +3,7 @@ local E = require "fake_engine"
 local T = {}
 local function test(name, fn) T[#T + 1] = { name, fn } end
 
-local IDS = { "skip_intro", "skip_login", "skip_war_briefs", "skip_planet_scanning", "solo_pause", "widescreen", "aim_cursor", "toggle_map", "recoil_fix", "dive_sprint_fix" }
+local IDS = { "skip_intro", "skip_login", "skip_war_briefs", "skip_planet_scanning", "solo_pause", "widescreen", "aim_cursor", "toggle_map", "recoil_fix", "dive_sprint_fix", "rumbler_echo_fix", "borderless_fix" }
 
 -- off: option ids switched off in settings.txt; every other option keeps the default (on).
 -- expedite: the mission end choice, off when not given.
@@ -95,6 +95,35 @@ test("skip_login_clicks_then_goes_online_once", function()
 	update(again)
 	E.eq(again.wants_exit, nil, "second visit to the main menu")
 	E.has(e:log("obsidianqol"), "skip login: going online to the ship")
+end)
+
+test("skip_login_leaves_the_press_to_the_player_with_a_gamepad", function()
+	local e = engine()
+	load_states(e)
+	local menu = clicking_menu(true)
+	rawset(_G, "InputUtility", { get_active_inputs = function() return { { pad_number = 7 }, { pad_number = 1 } } end })
+	update(menu)
+	update(menu)
+	rawset(_G, "InputUtility", nil)
+	E.eq(menu.inputs_seen, nil, "no click for the player")
+	E.eq(menu.showing_menu, false, "the title screen waits for a press")
+	E.eq(E.count(e:log("obsidianqol"), "skip login: a gamepad is connected"), 1, "logged once")
+	-- The player presses on the gamepad: the game makes it player 1, and the login still goes online.
+	menu.showing_menu, menu.main_pad = true, 1
+	menu.network_setup_state = 3
+	update(menu)
+	E.eq(menu.backend_type, "STEAM", "online to the ship")
+	E.eq(menu.main_pad, 1, "the gamepad stays player 1")
+end)
+
+test("skip_login_clicks_with_keyboard_and_mouse_alone", function()
+	local e = engine()
+	load_states(e)
+	local menu = clicking_menu(true)
+	rawset(_G, "InputUtility", { get_active_inputs = function() return { { pad_number = 7 } } end })
+	update(menu)
+	rawset(_G, "InputUtility", nil)
+	E.eq(menu.main_pad, 7, "keyboard and mouse")
 end)
 
 test("skip_login_waits_for_the_login_step", function()
@@ -210,6 +239,54 @@ test("skip_war_briefs_waits_for_the_snapshots_from_the_backend", function()
 	E.eq(screen.wants_exit, false, "nothing to decide yet")
 	screen:recieve_snapshots({}, { 1 })
 	E.eq(screen.wants_exit, true)
+end)
+
+-- The ship's own briefs: the title of an event that ended, the level flow each war event queues, and
+-- the sector notice of the mission screen. Defined as the game has them, then a module loads.
+local function load_ship(e)
+	rawset(_G, "GalacticEventManager", { add_ended_event = function(self, event) self.ended_events[#self.ended_events + 1] = event end })
+	rawset(_G, "StateMenu", { on_campaign_event = function(self, event, news, enemy)
+		if enemy then self.queued_level_events[#self.queued_level_events + 1] = { event = event, enemy_event = event .. "_" .. enemy } end
+	end })
+	local dialog = { active = false }
+	function dialog:on_enter(params) self.active, self.callback_params = true, params.callback_params end
+	function dialog:on_exit() self.active = false end
+	rawset(_G, "MenuScreenCampaignMission", { on_enter = function(self, params)
+		if params.front_moved then self.confirmation_dialog:on_enter({ callback_params = "region_change", simple_confirmation = true }) end
+	end })
+	e.opts.modules["lua/menu/menu_screen_campaign_mission"] = true
+	rawget(_G, "require")("lua/menu/menu_screen_campaign_mission")
+	return {
+		events = setmetatable({ ended_events = {} }, { __index = rawget(_G, "GalacticEventManager") }),
+		ship = setmetatable({ queued_level_events = {} }, { __index = rawget(_G, "StateMenu") }),
+		mission = setmetatable({ confirmation_dialog = dialog }, { __index = rawget(_G, "MenuScreenCampaignMission") }),
+	}
+end
+
+test("skip_war_briefs_skips_the_ships_briefs", function()
+	local e = engine()
+	local s = load_ship(e)
+	s.events:add_ended_event({ event_type = "attack", status = "success" })
+	E.eq(#s.events.ended_events, 0, "the title of an event that ended")
+	s.ship:on_campaign_event("on_region_liberated", true, "bugs", "region_01")
+	s.ship:on_campaign_event("on_defend_event_started", true, "cyborgs", "region_02")
+	E.eq(#s.ship.queued_level_events, 0, "the announcement of each war event")
+	s.ship:on_campaign_event("on_campaign_won", true, "bugs")
+	E.eq(#s.ship.queued_level_events, 1, "the war's end")
+	s.mission:on_enter({ front_moved = true }, "recap")
+	E.eq(s.mission.confirmation_dialog.active, false, "the sector notice")
+	E.has(e:log("obsidianqol"), "skip war briefs: sector notice skipped")
+end)
+
+test("skip_war_briefs_off_leaves_the_ships_briefs", function()
+	local e = engine({ "skip_war_briefs" })
+	local s = load_ship(e)
+	s.events:add_ended_event({ event_type = "attack", status = "success" })
+	s.ship:on_campaign_event("on_region_liberated", true, "bugs", "region_01")
+	s.mission:on_enter({ front_moved = true }, "recap")
+	E.eq(#s.events.ended_events, 1, "title")
+	E.eq(#s.ship.queued_level_events, 1, "announcement")
+	E.eq(s.mission.confirmation_dialog.active, true, "sector notice")
 end)
 
 -- A mission alone or with others: the game state's component manager, the lobby and the pause menu.
@@ -608,6 +685,104 @@ test("dive_sprint_fix_off_sends_nothing", function()
 	E.eq(#g.events, 0)
 end)
 
+-- The Rumbler: LauncherComponent.command_slave as the game has it, counting the firing_single it keeps.
+local function rumbler_game()
+	local g = { kept = 0 }
+	rawset(_G, "LauncherComponent", { command_slave = function(_, unit, ctx, message)
+		if message == "firing_single" then g.kept = g.kept + 1 end
+	end })
+	return g
+end
+
+test("rumbler_echo_fix_keeps_one_firing_single_per_burst", function()
+	local g = rumbler_game()
+	local e = engine()
+	local send = function(unit, message) rawget(_G, "LauncherComponent").command_slave({}, unit, {}, message or "firing_single") end
+	-- A burst: three shells 0.1 s apart.
+	send("rumbler") e:frames(6) send("rumbler") e:frames(6) send("rumbler")
+	E.eq(g.kept, 1, "the first shell plays, the other two would only echo a second later")
+	send("rumbler", "reload")
+	E.eq(g.kept, 1, "other commands pass")
+	e:frames(40)
+	send("rumbler")
+	E.eq(g.kept, 2, "the next burst plays")
+	send("other rumbler")
+	E.eq(g.kept, 3, "another weapon's burst plays")
+end)
+
+test("rumbler_echo_fix_off_keeps_every_firing_single", function()
+	local g = rumbler_game()
+	engine({ "rumbler_echo_fix" })
+	for _ = 1, 3 do rawget(_G, "LauncherComponent").command_slave({}, "rumbler", {}, "firing_single") end
+	E.eq(g.kept, 3)
+end)
+
+-- Borderless fullscreen: a stand-in for LuaJIT's FFI and user32, with the game's window in front
+-- (style 94880000, WS_BORDER set) on a 2752 x 1152 monitor. Answers the record of what was set.
+local function borderless_game(front_pid)
+	local g = { style = bit.tobit(0x94880000), pos = nil, set_style = nil }
+	local user32 = {
+		GetForegroundWindow = function() return "hwnd" end,
+		GetWindowThreadProcessId = function(_, pid) pid[0] = front_pid or 7 return 1 end,
+		GetWindowLongW = function() return g.style end,
+		SetWindowLongW = function(_, _, v) g.set_style = v g.style = v return 0 end,
+		MonitorFromWindow = function() return "monitor" end,
+		GetMonitorInfoW = function(_, mi) mi.rcMonitor = { left = 0, top = 0, right = 2752, bottom = 1152 } return 1 end,
+		SetWindowPos = function(_, _, x, y, cx, cy) g.pos = { x, y, cx, cy } return 1 end,
+	}
+	g.ffi = {
+		os = "Windows", cdef = function() end, load = function() return user32 end,
+		new = function(t) if t:find("%[") then return {} end return {} end, sizeof = function() return 40 end,
+		cast = function(_, v) return v end, C = { GetCurrentProcessId = function() return 7 end },
+	}
+	g.real = package.loaded.ffi
+	package.loaded.ffi = g.ffi
+	rawset(_G, "Application", { user_setting = function(k) return k == "borderless_fullscreen" end })
+	rawset(_G, "Window", { is_fullscreen = function() return false end })
+	return g
+end
+
+test("borderless_fix_takes_the_frame_off_the_game_window_and_fits_it_to_the_monitor", function()
+	local g = borderless_game()
+	local ok, err = pcall(function()
+		local e = engine()
+		rawset(_G, "Application", { user_setting = function(k) return k == "borderless_fullscreen" end })
+		e:frames(2)
+		E.eq(g.set_style, bit.tobit(0x94080000), "WS_BORDER cleared, the rest kept")
+		E.eq(table.concat(g.pos, ","), "0,0,2752,1152", "the whole monitor")
+		E.has(e:log("obsidianqol"), "borderless fix: frame taken off the window, now 2752x1152")
+		g.pos = nil
+		e:frames(120)
+		E.eq(g.pos, nil, "no frame left: nothing more to do")
+	end)
+	package.loaded.ffi = g.real
+	if not ok then error(err, 0) end
+end)
+
+test("borderless_fix_leaves_other_windows_and_modes_alone", function()
+	local real = package.loaded.ffi
+	local g = borderless_game(99)
+	g.real = real
+	local ok, err = pcall(function()
+		local e = engine()
+		rawset(_G, "Application", { user_setting = function(k) return k == "borderless_fullscreen" end })
+		e:frames(2)
+		E.eq(g.set_style, nil, "another program's window in front")
+		g = borderless_game()
+		g.real = real
+		e = engine({ "borderless_fix" })
+		rawset(_G, "Application", { user_setting = function(k) return k == "borderless_fullscreen" end })
+		e:frames(2)
+		E.eq(g.set_style, nil, "the option off")
+		e = engine()
+		rawset(_G, "Application", { user_setting = function() return false end })
+		e:frames(2)
+		E.eq(g.set_style, nil, "not borderless")
+	end)
+	package.loaded.ffi = g.real
+	if not ok then error(err, 0) end
+end)
+
 test("options_off_change_nothing", function()
 	rawset(_G, "GameSettings", { max_aspect_ratio = 16 / 9 })
 	local e = engine(IDS)
@@ -656,11 +831,11 @@ local function wide_screen(width, widescreen_on)
 	return seen
 end
 
-test("widescreen_pins_the_objectives_right_and_dialogue_left_and_puts_the_offset_back", function()
+test("widescreen_moves_the_objectives_halfway_right_and_dialogue_left_and_puts_the_offset_back", function()
 	local seen = wide_screen(2560)
 	local gui = { resolution_offset_x = 320 }
 	E.eq(rawget(_G, "MissionManager").draw_objective_list({}, gui, 0.016), "drawn", "answers pass through")
-	E.eq(seen.objectives, 640, "to the right edge")
+	E.eq(seen.objectives, 480, "halfway to the right edge")
 	E.eq(gui.resolution_offset_x, 320, "put back")
 	local hud = { hd_gui = { resolution_offset_x = 320 }, hd_gui_dialogue = { resolution_offset_x = 320 } }
 	rawget(_G, "Hud").draw_dialogue(hud, nil, {})

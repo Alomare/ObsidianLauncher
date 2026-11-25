@@ -51,7 +51,7 @@ No. Obsidian Patches removes the black bars on wide screens, and that option sta
 
 ### What is Obsidian Patches? {#what-is-obsidian-patches}
 
-A client mod that comes with Obsidian, made of small fixes that are each an option. Starting on: no intro, login screen or planet scanning, no black bars on wide screens, faster results screens after a mission, a pause that freezes a solo game, and two animation fixes, the weapon recoil after a stratagem throw and the sprint pose after a dive. Ready to switch on: skipping war briefs, an aim cursor that stays visible, and a minimap that stays open. Obsidian Patches sits in the Obsidian Kit folder at the top of the list.
+A client mod that comes with Obsidian, made of small fixes that are each an option. Starting on: no intro or planet scanning, no black bars on wide screens, no white frame in borderless fullscreen, faster results screens after a mission, a pause that freezes a solo game, two animation fixes (the weapon recoil after a stratagem throw and the sprint pose after a dive), and no echo after a Rumbler burst. Ready to switch on: skipping the login screen and war briefs, an aim cursor that stays visible, and a minimap that stays open. Obsidian Patches sits in the Obsidian Kit folder at the top of the list.
 
 ## Making mods
 

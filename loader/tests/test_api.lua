@@ -3165,6 +3165,41 @@ test("a_screen_of_the_game_shows_a_mods_words_only_while_it_runs", function()
 	E.eq(lm.string, real, "and the function is back after it too")
 end)
 
+test("speech_shows_a_mods_words_over_a_helldiver_as_the_games_quick_messages_do", function()
+	local api, game = start()
+	local st = api.game.state()
+	local em = st.entity_manager
+	local has, slaves = em.has_entities, em.get_slave_entities
+	local mine, theirs = { state = {} }, { state = {} }
+	local other = {}
+	em.has_entities = function(self, name) return name == "customization" or has(self, name) end
+	em.get_slave_entities = function(self, name)
+		if name == "customization" then return { [game.me] = mine, [other] = theirs } end
+		return slaves(self, name)
+	end
+	local lm = rawget(_G, "LocalizationManager")
+	local drawn = {}
+	rawset(_G, "CustomizationComponent", { draw_ui = function(self, ctx)
+		local ev = ctx.state.current_communication_event
+		drawn[#drawn + 1] = ev and lm:string(ev.event_info.text) or "-"
+	end })
+	E.eq(api.ui.speech(game.me, "Out of stims!", 2), true)
+	E.eq(mine.state.current_communication_event.duration, 2)
+	E.eq(mine.state.current_communication_event.time, 0, "starts as the game starts one")
+	E.eq(api.ui.speech(other, "Other words"), true)
+	E.eq(theirs.state.current_communication_event.duration, 3, "the game's 3 seconds when left out")
+	CustomizationComponent.draw_ui(nil, mine)
+	CustomizationComponent.draw_ui(nil, theirs)
+	E.eq(drawn[1], "Out of stims!", "the words while the game draws them")
+	E.eq(drawn[2], "Other words", "each player's own words")
+	E.eq(lm:string(mine.state.current_communication_event.event_info.text):sub(1, 4), "LOC:", "the key shows nothing outside the drawing")
+	E.eq(select(2, api.ui.speech({}, "x")), "no_avatar")
+	E.eq(select(2, api.ui.speech(game.me, "")), "bad_type")
+	E.eq(select(2, api.ui.speech(game.me, "x", 0)), "out_of_range")
+	em.has_entities, em.get_slave_entities = has, slaves
+	rawset(_G, "CustomizationComponent", nil)
+end)
+
 test("a_prop_is_a_unit_on_this_machine_that_moves_grows_and_goes", function()
 	local api = start()
 	local units, destroyed = {}, 0
@@ -4888,6 +4923,76 @@ test("mod_settings_opens_from_the_pause_menu_and_keeps_its_values", function()
 	page.rows = {}
 	main:on_enter()
 	E.eq(#main.options, 3)
+end)
+
+-- Groups open pages of their own, and a list longer than the screen holds goes on numbered screens
+-- with a PAGE row on top.
+test("mod_settings_groups_and_long_pages", function()
+	local api, _, e = start()
+	local Main = fake_menus()
+	rawget(_G, "require")("lua/network/network_global")
+	local core = e:core()
+	local own = core.current
+	core.current = { id = "dev.cam", mod = { options = {} } }
+	local page = api.mod_settings.page("Camera")
+	page:toggle("top", { label = "Top" })
+	local view = page:group("View")
+	E.eq(page:group("View"), view, "the same group again")
+	local seen = {}
+	view:toggle("shake", { label = "Shake", on_change = function(v) seen[#seen + 1] = v end })
+	local long = page:group("Long")
+	for i = 1, 25 do long:number("n" .. i, { label = "N" .. i, min = 0, max = 2, default = 0 }) end
+	E.eq(page:set("shake", true), true, "the page reaches the rows of its groups")
+	E.eq(page:get("shake"), true)
+	core.current = own
+	e:frames(1)
+	E.eq(rawget(_G, "obsidian").storage.get("mod_settings/dev.cam/shake"), true, "kept under the mod, as other rows")
+
+	local main = setmetatable({}, { __index = Main })
+	main:on_enter()
+	main.selected_option = 3
+	main:handle_input({ select = true })
+	main:handle_input({ select = true })
+	main:update()
+	local screen = main.state_stack[2]
+	E.eq(screen.drawn[1], "TOP = LOC:options_no")
+	E.eq(screen.drawn[2], "VIEW", "a group is a row with no value")
+	main:handle_input({ down = true })
+	main:handle_input({ select = true })
+	main:update()
+	local group = main.state_stack[3]
+	E.eq(group.title, "VIEW")
+	E.eq(group.drawn[1], "SHAKE = LOC:options_yes")
+	main:handle_input({ right = true })
+	E.eq(page:get("shake"), false)
+	E.eq(seen[#seen], false)
+	main:handle_input({ back = true })
+	main:update()
+	E.eq(screen.title, "CAMERA", "back on the page")
+	E.eq(screen.selected_option, 2, "on the group's row")
+	main:handle_input({ down = true })
+	main:handle_input({ select = true })
+	main:update()
+	E.eq(#group.drawn, 12, "11 rows and the PAGE row")
+	E.eq(group.drawn[1], "PAGE = 1 / 3")
+	E.eq(group.drawn[2], "N1 = 0")
+	main:handle_input({ right = true })
+	main:update()
+	E.eq(group.drawn[1], "PAGE = 2 / 3")
+	E.eq(group.drawn[2], "N12 = 0")
+	E.eq(group.selected_option, 1, "still on the PAGE row")
+	main:handle_input({ down = true })
+	main:handle_input({ right = true })
+	E.eq(page:get("n12"), 1, "a row of the second screen")
+	E.eq(page:get("n1"), 0)
+	main:handle_input({ up = true })
+	group.selected_option = 1
+	main:handle_input({ right = true })
+	main:update()
+	E.eq(group.drawn[1], "PAGE = 3 / 3")
+	E.eq(#group.drawn, 4, "the last three rows")
+	local ok = pcall(view.group, view, "Deeper")
+	E.eq(ok, false, "a group holds no groups")
 end)
 
 -- A row bound to one of the mod's obsidian.json options starts from the value set in Obsidian, and a

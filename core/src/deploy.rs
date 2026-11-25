@@ -2277,6 +2277,26 @@ mod tests {
     }
 
     #[test]
+    fn the_overlay_is_made_once_and_a_part_asked_again_is_the_same() {
+        use crate::bank::tests::clip;
+        let w = world();
+        master_game(&w);
+        add(&w, "s", &clips_of(7, SHARED, 0, false), &[("c.bin", &clip(b"new"))]);
+        let lib = Library::open(&w.data).unwrap();
+        let mut profile = Profile::load(&w.data).unwrap();
+        profile.sync(&lib).unwrap();
+        let contents = w.game.contents();
+        let comp = crate::compose::compose_lazy(&lib, &profile, Some(&contents), &|_, _, _| {}).unwrap();
+        let beside = |b: &str| comp.bundles[b].iter().find(|p| p.name_hash == clips_beside(SHARED)).expect("the bank of new clips").clone();
+        let made = |b: &str| crate::compose::rebuilt(&contents, b, beside(b)).unwrap().pieces;
+        let dd = made("00000000000000dd");
+        let ee = made("00000000000000ee");
+        assert!(!dd.is_empty());
+        assert_eq!(dd, ee, "both bundles get the same bank");
+        assert_eq!(made("00000000000000dd"), dd, "made again after the last bundle took it");
+    }
+
+    #[test]
     fn mods_on_one_clip_the_later_wins_in_the_overlay_too() {
         use crate::bank::tests::clip;
         let w = world();

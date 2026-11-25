@@ -13,7 +13,7 @@ vi.mock("../opener", () => ({ openUrl: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 vi.mock("@tauri-apps/api/webview", () => ({ getCurrentWebview: vi.fn() }));
 const { StorePage, sortMods } = await import("../store/StorePage");
-const { forgetStore, install, markOf } = await import("../store/storeIndex");
+const { forgetStore, install, markOf, secondScope } = await import("../store/storeIndex");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -191,6 +191,34 @@ describe("StorePage", () => {
     await act(async () => (host.querySelector(".store-empty .btn") as HTMLElement).click());
     expect(host.querySelector(".store-note")).not.toBeNull();
     expect(names(host).length).toBe(3);
+  });
+});
+
+describe("Hybrid Scopes in the Store", () => {
+  it("picks the secondary scope unlike the primary that most secondary scopes have, the first on a tie", () => {
+    expect(secondScope({ scope: "session", secondary_scopes: ["client", "session", "session"] })).toBe("client");
+    expect(secondScope({ scope: "expansion", secondary_scopes: ["session", "client", "client"] })).toBe("client");
+    expect(secondScope({ scope: "expansion", secondary_scopes: ["session", "client"] })).toBe("session");
+    expect(secondScope({ scope: "session", secondary_scopes: ["session"] })).toBeNull();
+    expect(secondScope({ scope: "client" })).toBeNull();
+  });
+
+  it("splits the scope square, filters by either scope and marks an update with an up arrow", async () => {
+    const cam = entry("cam", { scope: "session", secondary_scopes: ["client", "session"], added: "2026-08-01" });
+    act(() => forgetStore());
+    invoke.mockImplementation(async (cmd: string) => (cmd === "store_index" ? { mods: [...INDEX, cam], offline: false } : undefined));
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    await act(async () => root!.render(<StorePage snap={snap([row("cam", "1.0.0")])} home={0} />));
+    const card = [...host.querySelectorAll(".card")].find((c) => c.textContent?.includes("CAM"))!;
+    const tag = card.querySelector(".store-scope")!;
+    expect(tag.className).toBe("store-scope session split to-client");
+    expect(tag.getAttribute("aria-label")).toBe(t("app.store.scopeWith", t("app.scope.session"), t("app.scope.client")));
+    expect(card.querySelector(".c-flag.upd svg")).not.toBeNull();
+    const chip = [...host.querySelectorAll(".chip")].find((b) => b.getAttribute("aria-label") === t("app.scope.client"))!;
+    await act(async () => (chip as HTMLElement).click());
+    expect(names(host)).toContain("CAM");
   });
 });
 
