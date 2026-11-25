@@ -25,6 +25,10 @@ local function start(opts)
 	e:start_frames()
 	e.bridge_dir = e.obsidian_dir .. "/bridge/"
 	mkdir(e.bridge_dir)
+	-- The game always runs on Windows paths (natively or under Proton); on a Linux test machine the
+	-- backslashes of bridge.dir would name a file instead of a folder.
+	local b = e.loaded[BRIDGE]
+	if b then b.dir = function() return e.bridge_dir end end
 	e:frames(2)
 	return e, e.loaded[BRIDGE]
 end
