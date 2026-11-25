@@ -15,10 +15,10 @@ Each card shows the picture, the name, a short description and the tags:
 | Tag | Meaning |
 |---|---|
 | Silver square | **Obsidian Verified**: the mod is made and kept up by the Obsidian team, or by someone who earned their trust |
-| Colored square | The [scope](wiki:scopes) of the mod |
+| Colored square | The [scope](wiki:scopes) of the mod. With [Hybrid Scopes](wiki:manifest#hybrid-scopes), the square is split corner to corner: the primary scope at the top left, the secondary scope at the bottom right |
 | **EA** (early access) | A version under 1.0, still in development, where later versions can change a lot. Mods in private repositories are early access too, and show only to a GitHub account that can read them ([Account](wiki:tab-account)) |
 
-A green corner marks an installed mod, and a yellow corner a mod with a newer version in the Store.
+A green corner marks an installed mod, and a yellow corner with an up arrow a mod with a newer version in the Store.
 
 ## The page of a mod
 

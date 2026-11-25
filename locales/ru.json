@@ -965,6 +965,8 @@
   "app.store.earlyHint": "Версия %s: ещё в разработке, следующие версии могут сильно измениться.",
   "app.store.earlyTitle": "Ранний доступ",
   "app.store.updateFlag": "Обновление",
+  "app.store.scopeWith": "%s и %s",
+  "app.store.scopeSecondHint": "Гибридные области: часть мода работает как «%s».",
   "app.store.install": "Установить",
   "app.store.update": "Обновить",
   "app.store.installHint": "Устанавливает версию %s с GitHub, выключенной, вместе с нужными ей модами",

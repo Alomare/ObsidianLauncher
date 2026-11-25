@@ -51,11 +51,13 @@ if not ok then obsidian.toast("No resupply: " .. why) end
 | `api.game` | The current state, the local player, the host, and safe writes to guarded values |
 | `api.lobby` | The players in the lobby, and short texts shared with every machine in it |
 | `api.catalog` | Weapons, stratagems, perks, enemies, vehicles and pickups by name: the base game and the DLC the player owns |
+| `api.data` | What can be edited and spawned, generated from the data of the game |
 | `api.edits` | Changes to settings tables, checked and recorded, with undo |
 | `api.effects` | Changes that stay on across respawns and missions, such as god mode or speed, and custom effects |
 | `api.events` | Calls when the game reports a kill, a death, an objective, a stratagem and more |
 | `api.player` | Health, lives, respawn, teleport, looks and status effects |
 | `api.gear` | Weapons, backpacks, perks, drones and refills, and the stats of one weapon |
+| `api.perks`, `api.cosmetics` | Custom perks, helmets, armour and capes, each made from one in the game; other players without the same mod see the original |
 | `api.vehicles` | The vehicle being driven, repairs and refills |
 | `api.stratagems` | Cooldowns, uses, call-ins, and new stratagems made from ones in the game |
 | `api.enemies` | Finding, spawning, damaging and removing enemies, and how hard encounters push |
@@ -65,13 +67,18 @@ if not ok then obsidian.toast("No resupply: " .. why) end
 | `api.map` | The mission map of this player: zoom, pings and markers |
 | `api.audio`, `api.music` | Volumes, sounds and the soundtrack |
 | `api.menu` | The in-game window that **F6** opens, where each mod has a folder of pages |
-| `api.mod_settings` | A page of settings for the mod under **Mods** in the pause menu of the game ([Options in the pause menu](wiki:options-and-keys#options-in-the-pause-menu)) |
-| `api.ui` | Hints, map pings, the menus of the ship, and game text shown with other words |
+| `api.mod_settings` | A page of settings for the mod under **Mods** in the pause menu of the game, with groups that open a separate page ([Options in the pause menu](wiki:options-and-keys#options-in-the-pause-menu)) |
+| `api.ui` | Hints, map pings, words over a Helldiver, a line in the text chat, the menus of the ship, and game text shown with other words |
 | `api.progress` | The save: samples, unlocks, upgrades and the loadout |
 | `api.console` | The developer commands of the game, minus the ones that reach the shared backend |
 | `api.bots` | Helldivers this machine plays, with orders, gear and help |
+| `api.brain` | The decisions bots make, as plain functions a mod or a test can call |
 | `api.nav` | Walking routes for bots and mods |
 | `api.capture` | Screenshots of the game, saved as image files |
+
+## Memory Bridge
+
+The **Memory Bridge** option of Obsidian API, off by default, runs Lua sent from a developer tool in the running game, so a mod idea can be tried without a restart. The tool is `tools/bridge.py` of the [HD1 Lua Modding Skill](https://github.com/Alomare/HD1-LuaModdingSkill). The bridge works only alone or in a lobby that isn't public, and a launch with it on sends no Galactic War or leaderboard results.
 
 ## Rules worth knowing
 
